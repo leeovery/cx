@@ -1,8 +1,5 @@
 package cmd
 
-// Tests in this file seed prefs.json / PORTAL_THEMES_DIR through t.Setenv and
-// drive package-level cmd seams, so they MUST NOT use t.Parallel.
-
 import (
 	"fmt"
 	"image/color"
@@ -21,29 +18,18 @@ import (
 	"github.com/leeovery/portal/internal/tui"
 )
 
-// darkBackgroundReply / lightBackgroundReply are deterministic OSC 11 answers —
-// the message the terminal's reply arrives as. The dark value is near-black
-// (luminance < 0.5), the light value near-white, so the gate's classification is
-// unambiguous either way.
+// Deterministic OSC 11 answers: near-black and near-white, so the gate's
+// classification is unambiguous either way.
 var (
 	darkBackgroundReply  = tea.BackgroundColorMsg{Color: color.RGBA{R: 0x0b, G: 0x0c, B: 0x14, A: 0xff}}
 	lightBackgroundReply = tea.BackgroundColorMsg{Color: color.RGBA{R: 0xe1, G: 0xe2, B: 0xe7, A: 0xff}}
-	// otherBackgroundReply is a dark background that is NO built-in's canvas — the
-	// ordinary terminal whose own colour must be set back on exit.
 	otherBackgroundReply = tea.BackgroundColorMsg{Color: color.RGBA{R: 0x12, G: 0x34, B: 0x56, A: 0xff}}
 )
 
-// nordSlug is the third shipped built-in — the one theme in the embedded set
-// that is NEITHER shipped default, which is what makes it the honest fixture for
-// "the user nominated something". Asserting against tokyo-night would pass
-// identically if the nomination were ignored and the fallback rendered.
+// A built-in that is neither shipped default: asserting against a default would
+// pass identically if the nomination were ignored and the fallback rendered.
 const nordSlug = "nord"
 
-// themeNominationForTest runs the PRODUCTION construction-time resolution —
-// prefs.json's three keys → the constant-or-pair rule's setting → the construction-time load
-// rule's per-slot load — against whatever prefs file the test seeded, and fails on the
-// build-time guarantee's fatal (which TestOpenTUI_FatalBeforeModelConstruction drives
-// deliberately instead).
 func themeNominationForTest(t *testing.T) theme.Nomination {
 	t.Helper()
 
@@ -58,18 +44,12 @@ func themeNominationForTest(t *testing.T) theme.Nomination {
 	return resolution.Nomination
 }
 
-// modelForNomination builds the real model through the production chokepoint
-// (buildTUIModel → tui.Build) carrying the given nomination, so what is asserted
-// is what the picker paints rather than what the resolution returned.
 func modelForNomination(n theme.Nomination) tui.Model {
 	cfg := defaultTestTUIConfig()
 	cfg.theme = n
 	return buildTUIModel(cfg, "", nil)
 }
 
-// assertPaintedCanvas asserts the model's first frame paints want as the owned
-// canvas — the OSC 11 background View carries. A nil want is the un-resolved
-// adaptive gate, which paints nothing at all.
 func assertPaintedCanvas(t *testing.T, m tui.Model, want color.Color) {
 	t.Helper()
 	if got := m.View().BackgroundColor; got != want {
@@ -77,14 +57,6 @@ func assertPaintedCanvas(t *testing.T, m tui.Model, want color.Color) {
 	}
 }
 
-// TestConstruction_PersistedConstantSkipsTheGate pins the appearance-gate rule's real startup
-// win, now reachable from prefs.json rather than only from a legacy appearance pin: a
-// persisted CONSTANT is loaded at construction and painted from frame one, with
-// the light/dark gate never consulted.
-//
-// The reply half is what makes "never consulted" observable from here: a light
-// OSC 11 answer landing on a constant must change nothing, because a constant
-// nomination has no member for an answer to select.
 func TestConstruction_PersistedConstantSkipsTheGate(t *testing.T) {
 	setPrefsFile(t, `{"theme":"`+nordSlug+`"}`)
 	nord := themetest.Builtin(t, nordSlug)
@@ -99,14 +71,8 @@ func TestConstruction_PersistedConstantSkipsTheGate(t *testing.T) {
 	assertPaintedCanvas(t, after.(tui.Model), nord.Canvas.Color())
 }
 
-// TestConstruction_PersistedPairSelectsByGate pins the other half of the appearance-gate rule
-// from prefs: a persisted PAIR loads both palettes and paints nothing until the gate
-// answers, and the answer only SELECTS between values already in hand.
-//
-// `theme_dark` alone is the fixture on purpose — the shipped adaptive default makes "nothing
-// set" and "pair nominated" the same state, so an unset `theme_light` is not a partial
-// pair but a slot holding the shipped default, and the light reply proves it
-// resolved to a real palette rather than to nothing.
+// `theme_dark` alone is deliberate: an unset `theme_light` is not a partial pair
+// but a slot holding the shipped default, which resolves to a real palette.
 func TestConstruction_PersistedPairSelectsByGate(t *testing.T) {
 	setPrefsFile(t, `{"theme_dark":"`+nordSlug+`"}`)
 	nord := themetest.Builtin(t, nordSlug)
@@ -115,8 +81,7 @@ func TestConstruction_PersistedPairSelectsByGate(t *testing.T) {
 	nomination := themeNominationForTest(t)
 	assertPair(t, nomination, day, nord)
 
-	// No member is active until the gate resolves, so the first frame paints
-	// nothing at all — the no-paint-then-flip property.
+	// No member is active until the gate resolves — never paint-then-flip.
 	assertPaintedCanvas(t, modelForNomination(nomination), nil)
 
 	for _, tc := range []struct {
@@ -148,12 +113,8 @@ func TestConstruction_PersistedPairSelectsByGate(t *testing.T) {
 	}
 }
 
-// TestConstruction_LateReplyNeverReThemes pins the appearance-gate rule's resolve-once rule at
-// its sharpest point, now that the members are two DIFFERENT NAMED THEMES sourced
-// from prefs: the timeout has already selected the dark member when the reply
-// lands. The reply is still consumed — restore.go needs the original background
-// for the exit-time set-back — but a late flip would swap the canvas and every
-// accent a second after the user began reading the picker.
+// The reply is still consumed — restore.go needs the original background for
+// the exit-time set-back — but the selection must not flip with it.
 func TestConstruction_LateReplyNeverReThemes(t *testing.T) {
 	setPrefsFile(t, `{"theme_dark":"`+nordSlug+`"}`)
 	nord := themetest.Builtin(t, nordSlug)
@@ -169,15 +130,9 @@ func TestConstruction_LateReplyNeverReThemes(t *testing.T) {
 	}
 }
 
-// TestConstruction_ConstantWinsOverStaleSlots pins the constant-or-pair rule's tiebreak
-// against a hand-edited file carrying all three keys: a non-empty `theme` wins and THE
-// SLOTS ARE NOT READ AT ALL.
-//
-// Both slot values are unusable — one is illegal by charset, one names nothing —
-// so a read of either would be loud: an illegal slug or a missing theme would
-// each raise a `theme: fallback applied` WARN. Exactly one `loaded` line and no
-// warning at all is what "never read" looks like from the log, and it is also why
-// a broken slot value cannot fail the launch.
+// Both slot values are unusable, so a read of either would raise a
+// `theme: fallback applied` WARN — one `loaded` line and no warning is what
+// "the slots are never read" looks like from the log.
 func TestConstruction_ConstantWinsOverStaleSlots(t *testing.T) {
 	setPrefsFile(t, `{"theme":"`+nordSlug+`","theme_light":"../evil","theme_dark":"no-such-theme"}`)
 	nord := themetest.Builtin(t, nordSlug)
@@ -190,15 +145,9 @@ func TestConstruction_ConstantWinsOverStaleSlots(t *testing.T) {
 	assertThemeEvents(t, sink, "INFO loaded slug="+nordSlug)
 }
 
-// TestConstruction_UnloadableNominationFallsBackWithoutWriting pins the per-slot fallback
-// and the rejection-surface split's keep-the-persisted-name rule together: a
-// typo'd slug renders the mode-matched shipped default, says so once in the log, and leaves
-// prefs.json untouched.
-//
-// The byte comparison is the point of the second half. Persisting the fallback
-// would turn a transient failure into a destructive one — fixing the theme file
-// would no longer restore the theme, because the name would already be gone — at
-// the moment the user is least able to tell what happened.
+// Persisting the fallback would turn a transient failure into a destructive one:
+// fixing the theme file would no longer restore the theme, the name having
+// already been overwritten.
 func TestConstruction_UnloadableNominationFallsBackWithoutWriting(t *testing.T) {
 	const content = `{"session_list_mode":"by-tag","theme":"no-such-theme"}`
 	setPrefsFile(t, content)
@@ -221,14 +170,6 @@ func TestConstruction_UnloadableNominationFallsBackWithoutWriting(t *testing.T) 
 	}
 }
 
-// TestConstruction_EmitsLoadedPerNomination pins the `theme` log component's cadence: ONE
-// `theme: loaded` per NOMINATION — one under a constant, two under a pair, in
-// light-then-dark order — never one combined line.
-//
-// The slot attr is part of the assertion because it is what makes a pair's two
-// lines tell each other apart, and its ABSENCE under a constant is equally
-// deliberate: the attr names which half of an adaptive pair a line is about, and
-// a constant setting has no halves.
 func TestConstruction_EmitsLoadedPerNomination(t *testing.T) {
 	t.Run("a constant emits one line carrying no slot", func(t *testing.T) {
 		setPrefsFile(t, `{"theme":"`+nordSlug+`"}`)
@@ -252,22 +193,9 @@ func TestConstruction_EmitsLoadedPerNomination(t *testing.T) {
 	})
 }
 
-// TestConstruction_ReadBudget pins the construction-time load rule's cold-path cost from
-// prefs: ONE file read for a constant, TWO for a pair, and NO directory listing on any path.
-//
-// The budget is measured three ways, because "how many files were read" has no
-// counter to inspect:
-//
-//   - WHICH palette loaded says which file was read. The directory carries a
-//     `nord.theme` whose canvas differs from the embedded Nord's, so a built-in
-//     nomination that reached the directory would paint a visibly different
-//     canvas (the reserved-slug rule's no-shadowing guarantee on the path that matters).
-//   - HOW MANY `theme: loaded` lines were emitted says how many slots loaded, and
-//     the absence of any other event says nothing else was read or judged.
-//   - The themes directory is mode 0111 — searchable but NOT listable — so any
-//     ReadDir on this path fails loudly instead of silently paying the lazy-discovery rule's
-//     startup scan. Reading a file BY NAME still works, which is exactly the asymmetry
-//     lazy discovery relies on.
+// The directory's `nord.theme` carries a different canvas from the embedded
+// Nord's, so which palette loaded says which file was read; the mode-0111
+// directory makes any ReadDir fail loudly.
 func TestConstruction_ReadBudget(t *testing.T) {
 	const (
 		shadowCanvas = "#111213"
@@ -317,18 +245,13 @@ func TestConstruction_ReadBudget(t *testing.T) {
 	})
 }
 
-// TestConstruction_PathFailuresDegradeNotBlock pins the tolerance both config
-// paths owe the launch: neither an unresolvable prefs path nor an unresolvable
-// themes directory may stop the picker opening. Each degrades to the shipped
-// pair, which is what an unconfigured install renders anyway.
 func TestConstruction_PathFailuresDegradeNotBlock(t *testing.T) {
 	shippedLight := themetest.Builtin(t, theme.DefaultLightSlug)
 	shippedDark := themetest.Builtin(t, theme.DefaultDarkSlug)
 
 	t.Run("a prefs store that could not be built opens on the shipped pair", func(t *testing.T) {
-		// Zero keys are openTUI's own degradation: a prefs path-resolution failure
-		// leaves a zero prefsLoad — no store, no keys — exactly as it leaves the
-		// grouping mode at Flat.
+		// Zero keys are openTUI's own degradation: a prefs path-resolution
+		// failure leaves a zero prefsLoad — no store, no keys.
 		resolution, _, err := themeResolution(prefs.ThemeKeys{}, newThemeLoader())
 		if err != nil {
 			t.Fatalf("a prefs load that failed must not fail construction: %v", err)
@@ -361,17 +284,9 @@ func TestConstruction_PathFailuresDegradeNotBlock(t *testing.T) {
 	})
 }
 
-// TestConstruction_NoColorLoadsBothSelectsDark pins the NO_COLOR panel block: under NO_COLOR
-// the theme machinery runs unchanged below the render layer. Both nominated themes
-// are still loaded — a commit made in that session must have something in hand to
-// persist against — and `theme: loaded` fires twice as normal.
-//
-// The gate is SKIPPED rather than left pending, which is what the frame shows:
-// the same pair holds a neutral blank frame while its gate is open, so real
-// content on the first frame is the observable difference between "skipped" and
-// "not yet resolved". Which member is selected is internal/tui's own assertion
-// (TestNoColor_LoadsBothAndSelectsDark) — there is nothing coloured left on
-// screen for this layer to read it off.
+// Both themes are still loaded — a commit made in that session must have
+// something to persist against. Real content on the first frame is the
+// observable difference between a skipped gate and a pending one.
 func TestConstruction_NoColorLoadsBothSelectsDark(t *testing.T) {
 	setPrefsFile(t, `{"theme_dark":"`+nordSlug+`"}`)
 	sink := installMigrateCapture(t)
@@ -395,15 +310,8 @@ func TestConstruction_NoColorLoadsBothSelectsDark(t *testing.T) {
 	}
 }
 
-// TestConstruction_StartupCanvasHexFromSelectedMember pins the exit-time restore rule's anchor
-// against a nomination that now comes from disk: the retained startup canvas hex is the
-// canvas of the theme the GATE SELECTED, never of the other member and never of
-// whatever the constructor was handed.
-//
-// It is read through the one surface that consumes it — restore.go's canvas-echo
-// guard, which suppresses the exit-time set-back when the terminal's reported
-// original IS the canvas Portal painted. Each member's own canvas is replayed as
-// the reply, so the two cases discriminate in opposite directions: a hex captured
+// Read through restore.go's canvas-echo guard, the one surface consuming the
+// retained hex. Each member's canvas is replayed as the reply, so a hex captured
 // from the wrong member would emit a set-back in one case and swallow a real one
 // in the other.
 func TestConstruction_StartupCanvasHexFromSelectedMember(t *testing.T) {
@@ -437,32 +345,6 @@ func TestConstruction_StartupCanvasHexFromSelectedMember(t *testing.T) {
 	})
 }
 
-// TestOpenTUI_FatalBeforeModelConstruction pins the build-time guarantee's one genuinely fatal
-// state at the call site that created it: the theme a slot FALLS BACK to cannot be
-// loaded from the embedded set, so there is nothing honest left to paint —
-// openTUI returns the pinned sentence and constructs NO TUI.
-//
-// The state is unreachable in a correctly built binary, which is exactly why it
-// is staged rather than skipped: an unreachable fatal with no test is a path
-// nobody has ever run. Loader.BuiltinSource exists for this, and the nomination is
-// an ordinary unloadable slug so the FALLBACK is what fails, not the nomination.
-//
-// "Constructs no TUI" is BRACKETED on both sides of the construction statement,
-// because either half alone is satisfiable by a fatal that returns too late:
-//
-//   - Before it: the last thing openTUI does ahead of buildTUIModel is ask the
-//     live server for the current session name (inside tmux). A recording
-//     commander that saw NO call therefore proves execution never reached the
-//     statement immediately preceding construction.
-//   - After it: staging the pending bootstrap warnings DRAINS the package-level
-//     sink, so a still-full sink proves execution never reached the statement
-//     immediately following construction — and, transitively, that no Bubble Tea
-//     program was ever launched.
-//
-// The pair is what makes the assertion discriminating: the sink half alone stays
-// green if the fatal is moved to sit BETWEEN construction and the staging call,
-// which builds a full tui.Model on the fatal path — exactly the implementation
-// this criterion forbids.
 func TestOpenTUI_FatalBeforeModelConstruction(t *testing.T) {
 	setPrefsFile(t, `{"theme":"no-such-theme"}`)
 
@@ -474,10 +356,9 @@ func TestOpenTUI_FatalBeforeModelConstruction(t *testing.T) {
 	bootstrapWarnings.Add(staged)
 	t.Cleanup(func() { bootstrapWarnings.Drain() })
 
-	// Own the inside-tmux condition rather than inheriting TestMain's package-wide
-	// TMUX poison: the pre-construction tripwire below is only armed while
-	// tmux.InsideTmux() is true, so the fixture must set it explicitly instead of
-	// depending on a value another file happens to supply.
+	// The pre-construction tripwire below is only armed while tmux.InsideTmux()
+	// is true, so the fixture sets TMUX itself rather than inheriting whatever
+	// TestMain's package-wide poison happens to supply.
 	t.Setenv("TMUX", "/nonexistent/portal-test-must-set-tmux-socket,0,0")
 
 	commander := &recordingCommander{}
@@ -497,9 +378,7 @@ func TestOpenTUI_FatalBeforeModelConstruction(t *testing.T) {
 	}
 }
 
-// brokenBuiltinLoader stages the build-time guarantee's broken binary: a loader whose embedded
-// set answers for every built-in EXCEPT missing, which is the slug a slot falls back
-// to. Production carries a nil source and reads the real embedded set.
+// Production carries a nil BuiltinSource and reads the real embedded set.
 func brokenBuiltinLoader(missing string) *theme.Loader {
 	loader := theme.NewLoader(theme.NewEventLogger(nil))
 	loader.BuiltinSource = func(slug string) ([]byte, bool) {
@@ -511,8 +390,6 @@ func brokenBuiltinLoader(missing string) *theme.Loader {
 	return &loader
 }
 
-// assertPair asserts the nomination is the adaptive state holding wantLight and
-// wantDark, with no active member of its own.
 func assertPair(t *testing.T, n theme.Nomination, wantLight, wantDark theme.Theme) {
 	t.Helper()
 	if n.IsConstant() {
@@ -526,7 +403,6 @@ func assertPair(t *testing.T, n theme.Nomination, wantLight, wantDark theme.Them
 	}
 }
 
-// update applies one message to the model and returns the updated model.
 func update(t *testing.T, m tui.Model, msg tea.Msg) tui.Model {
 	t.Helper()
 	updated, _ := m.Update(msg)
@@ -537,12 +413,9 @@ func update(t *testing.T, m tui.Model, msg tea.Msg) tui.Model {
 	return model
 }
 
-// resolveByTimeout drives the gate to its NO-ANSWER outcome exactly as the live
-// program does: Init batches the appearance-gate deadline tick alongside the OSC 11 query,
-// so draining Init's commands and applying every message they produce is the
-// timeout path — without this package naming internal/tui's unexported deadline
-// message, which is precisely the kind of internal a cmd-level test should not
-// know.
+// Init batches the gate's deadline tick alongside the OSC 11 query, so draining
+// Init's commands is the no-answer path without this package naming
+// internal/tui's unexported deadline message.
 func resolveByTimeout(t *testing.T, m tui.Model) tui.Model {
 	t.Helper()
 	for _, msg := range drainCmd(t, m.Init()) {
@@ -551,8 +424,6 @@ func resolveByTimeout(t *testing.T, m tui.Model) tui.Model {
 	return m
 }
 
-// drainCmd runs a tea.Cmd to completion and returns every message it produced,
-// flattening the tea.BatchMsg Init returns.
 func drainCmd(t *testing.T, cmd tea.Cmd) []tea.Msg {
 	t.Helper()
 	if cmd == nil {
@@ -570,14 +441,6 @@ func drainCmd(t *testing.T, cmd tea.Cmd) []tea.Msg {
 	return msgs
 }
 
-// assertThemeEvents asserts the `theme` component emitted exactly want, in
-// order, rendered as "<LEVEL> <event> <key>=<value>…".
-//
-// Exact and ordered rather than "contains": the `theme` log component's cadence is the
-// contract — the failure BEFORE the palette that replaced it, one `loaded` per slot and no
-// second line for a slot that simply worked — and a contains-assertion would pass
-// against a broken install logged in the one state the `theme` log component exists to make
-// impossible.
 func assertThemeEvents(t *testing.T, sink *logtest.Sink, want ...string) {
 	t.Helper()
 	got := themeEvents(t, sink)
@@ -586,9 +449,8 @@ func assertThemeEvents(t *testing.T, sink *logtest.Sink, want ...string) {
 	}
 }
 
-// assertCanvasValue asserts the theme's canvas token holds exactly want — the
-// one token that identifies WHICH file was parsed, since every fixture below
-// differs from every other in it and in nothing else.
+// The canvas is the one token identifying which file was parsed: the fixtures
+// differ from each other in it and in nothing else.
 func assertCanvasValue(t *testing.T, th theme.Theme, want string) {
 	t.Helper()
 	if got := th.Canvas.Value; got != want {
@@ -596,33 +458,21 @@ func assertCanvasValue(t *testing.T, th theme.Theme, want string) {
 	}
 }
 
-// backgroundReplyFor is the OSC 11 answer a terminal whose background IS th's
-// canvas would send — the reply that makes the exit-time canvas-echo guard's
-// comparison decidable without restating a hex the theme file already holds.
 func backgroundReplyFor(th theme.Theme) tea.BackgroundColorMsg {
 	return tea.BackgroundColorMsg{Color: th.Canvas.Color()}
 }
 
-// restoreWrite returns exactly what the production exit-time restore would write
-// for the model — the empty string when the canvas-echo guard (or the NO_COLOR
-// carve-out) suppresses the set-back.
 func restoreWrite(m tui.Model) string {
 	var out strings.Builder
 	tui.RestoreTerminalBackground(&out, m)
 	return out.String()
 }
 
-// seedUnlistableThemesDir points PORTAL_THEMES_DIR at a directory holding 50
-// valid drop-ins — the named ones carrying the given canvas values, the rest
-// filler — and makes the directory SEARCHABLE BUT NOT LISTABLE (mode 0111).
-//
-// The mode is the test's whole point: a by-name read of `<dir>/<slug>.theme`
-// still succeeds, while any ReadDir fails. Lazy discovery is exactly that
-// asymmetry, so an implementation that enumerated at construction would fail here
-// rather than quietly paying for 50 parses on the cold path.
-//
-// The mode is restored before the temp directory is removed: this cleanup is
-// registered after t.TempDir's, and cleanups run last-registered-first.
+// Mode 0111 is searchable but not listable: a by-name read still succeeds while
+// any ReadDir fails, so an implementation enumerating at construction fails here
+// rather than quietly paying for 50 parses on the cold path. The mode is
+// restored before t.TempDir's own removal, cleanups running
+// last-registered-first.
 func seedUnlistableThemesDir(t *testing.T, canvases map[string]string) {
 	t.Helper()
 
@@ -644,19 +494,12 @@ func seedUnlistableThemesDir(t *testing.T, canvases map[string]string) {
 	}
 }
 
-// writeThemeFile writes one valid drop-in named by slug whose canvas is the
-// given hex — the only token that tells two of these fixtures apart, and so the
-// one an assertion names to say WHICH file was parsed.
 func writeThemeFile(t *testing.T, dir, slug, canvas string) {
 	t.Helper()
 
 	themetest.Write(t, dir, slug+".theme", themetest.WithValue(themetest.Lines(), "canvas", canvas))
 }
 
-// unresolvableThemesDir removes every input themesDirPath resolves from, so it
-// fails outright — the state that degrades to an EMPTY directory string. The
-// vacuity guard is load-bearing: with any one of the three still set the path
-// resolves fine and the subtest would assert nothing.
 func unresolvableThemesDir(t *testing.T) {
 	t.Helper()
 
@@ -668,9 +511,6 @@ func unresolvableThemesDir(t *testing.T) {
 	}
 }
 
-// themeEvents renders every `theme` component record the sink captured. The
-// component attr is dropped from the rendering (it is the filter, not part of the
-// line's content); every other attr is rendered in emission order.
 func themeEvents(t *testing.T, sink *logtest.Sink) []string {
 	t.Helper()
 	var events []string

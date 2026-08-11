@@ -11,19 +11,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// Task 6-3 consolidation gate. rowBgStyle / rowTokenStyle / renderLeftBarColumn
-// are the shared free functions the Session and Project delegates now route
-// through. These tests pin the free functions' output AND prove the two
-// delegates render byte-identically to the PRE-refactor render — the row
-// goldens below were CAPTURED from the original inline-logic source (a
-// throwaway generator run against the pre-refactor delegate, see the task
-// notes), so a drift in either delegate's style composition, selector glyph,
-// column width, or pad arithmetic is caught byte-for-byte.
-//
-// No t.Parallel() — the shared canvas helpers make parallelism unsafe.
-
-// preRowBg reproduces the ORIGINAL SessionDelegate.rowBg / ProjectDelegate.rowBg
-// inline logic verbatim — the golden the refactor must preserve.
 func preRowBg(th theme.Theme, selected, colourless bool) lipgloss.Style {
 	if colourless {
 		return lipgloss.NewStyle()
@@ -34,8 +21,6 @@ func preRowBg(th theme.Theme, selected, colourless bool) lipgloss.Style {
 	return lipgloss.NewStyle().Background(th.Canvas.Color())
 }
 
-// preRowToken reproduces the ORIGINAL rowToken inline logic verbatim — the
-// golden the refactor must preserve.
 func preRowToken(base lipgloss.Style, fg theme.Token, th theme.Theme, selected, colourless bool) lipgloss.Style {
 	if colourless {
 		return base
@@ -47,9 +32,6 @@ func preRowToken(base lipgloss.Style, fg theme.Token, th theme.Theme, selected, 
 	return styled.Background(th.Canvas.Color())
 }
 
-// preLeftBar reproduces the ORIGINAL §3.3 left-bar column block verbatim (the
-// duplicated renderSessionRow / renderRowLine logic) — the golden the
-// renderLeftBarColumn helper must preserve.
 func preLeftBar(th theme.Theme, selected, colourless bool) string {
 	bg := preRowBg(th, selected, colourless)
 	if selected {
@@ -59,9 +41,6 @@ func preLeftBar(th theme.Theme, selected, colourless bool) string {
 	return bg.Render(padTo("", leftBarColumnWidth))
 }
 
-// TestRowBgStyle_MatchesPreRefactorGolden asserts rowBgStyle renders a probe
-// string byte-identically to the original inline rowBg logic across
-// selected/unselected × both modes × colourless true/false.
 func TestRowBgStyle_MatchesPreRefactorGolden(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		for _, selected := range []bool{false, true} {
@@ -76,10 +55,6 @@ func TestRowBgStyle_MatchesPreRefactorGolden(t *testing.T) {
 	}
 }
 
-// TestRowTokenStyle_MatchesPreRefactorGolden asserts rowTokenStyle renders a
-// probe string byte-identically to the original inline rowToken logic across a
-// representative base/token × selected/unselected × both modes × colourless
-// true/false.
 func TestRowTokenStyle_MatchesPreRefactorGolden(t *testing.T) {
 	bases := map[string]lipgloss.Style{
 		"zero": lipgloss.Style{},
@@ -105,11 +80,6 @@ func TestRowTokenStyle_MatchesPreRefactorGolden(t *testing.T) {
 	}
 }
 
-// TestRenderLeftBarColumn_MatchesPreRefactorGolden asserts renderLeftBarColumn
-// reproduces the original §3.3 left-bar block byte-for-byte for the selected
-// (selector bar + padding) and unselected (full-width padding) cases, across
-// both modes and colourless true/false. The bg + selectorStyle are passed the
-// same way both call sites obtain them.
 func TestRenderLeftBarColumn_MatchesPreRefactorGolden(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		for _, selected := range []bool{false, true} {
@@ -126,22 +96,11 @@ func TestRenderLeftBarColumn_MatchesPreRefactorGolden(t *testing.T) {
 	}
 }
 
-// preGlyphColumn reproduces the ORIGINAL glyph-column block verbatim — the
-// byte-identical shape shared by renderLeftBarColumn's selected branch (▌),
-// renderMarkedLeftBarColumn (●), and renderGoneLeftBarColumn (⚠). It is the
-// golden the extracted renderLeftBarGlyphColumn helper must preserve.
 func preGlyphColumn(glyph string, glyphStyle, bg lipgloss.Style) string {
 	return glyphStyle.Render(glyph) +
 		bg.Render(padTo("", leftBarColumnWidth-lipgloss.Width(glyph)))
 }
 
-// TestRenderLeftBarGlyphColumn_MatchesPreRefactorGolden asserts the extracted
-// renderLeftBarGlyphColumn helper reproduces the original glyph-column block
-// byte-for-byte for each of the three glyphs that fold into it — the ● marker,
-// the ⚠ gone flag, and the ▌ selector — across both modes, selected/unselected,
-// and colourless true/false, for representative role tokens. The fixed 2-cell
-// leftBarColumnWidth geometry (glyph at col 0 + correct pad) is what keeps the
-// name's left edge fixed regardless of which glyph occupies col 0.
 func TestRenderLeftBarGlyphColumn_MatchesPreRefactorGolden(t *testing.T) {
 	glyphs := []struct {
 		name  string
@@ -170,14 +129,6 @@ func TestRenderLeftBarGlyphColumn_MatchesPreRefactorGolden(t *testing.T) {
 	}
 }
 
-// sessionRowGoldens / projectRowGoldens are the EXACT bytes the PRE-refactor
-// delegates emitted for a selected (cursor on row 0) and an unselected (cursor
-// on row 0, render row 1) row at width 80, captured from a throwaway generator
-// run against the original inline-logic source. Keyed by [canvas][colourless].
-// The post-refactor render MUST reproduce these byte-for-byte.
-//
-// Dark and Light coincide under colourless (no colour SGR is emitted), which is
-// itself a property worth pinning.
 var sessionRowGoldens = map[theme.Member]map[bool]struct{ sel, uns string }{
 	theme.MemberDark: {
 		false: {
@@ -240,9 +191,6 @@ func renderProjectRowSnapshot(d ProjectDelegate, width int, items []list.Item, i
 	return buf.String()
 }
 
-// TestRenderSessionRow_ByteIdenticalAcrossRefactor asserts the post-refactor
-// renderSessionRow output is byte-for-byte identical to the PRE-refactor goldens
-// for a selected and an unselected flat row, both modes, colourless on/off.
 func TestRenderSessionRow_ByteIdenticalAcrossRefactor(t *testing.T) {
 	const w = 80
 	items := flatItems(
@@ -266,10 +214,6 @@ func TestRenderSessionRow_ByteIdenticalAcrossRefactor(t *testing.T) {
 	}
 }
 
-// TestRenderRowLine_ByteIdenticalAcrossRefactor asserts the post-refactor
-// project Render (which composes two renderRowLine calls) output is
-// byte-for-byte identical to the PRE-refactor goldens for a selected and an
-// unselected row, both modes, colourless on/off.
 func TestRenderRowLine_ByteIdenticalAcrossRefactor(t *testing.T) {
 	const w = 80
 	items := projectItems(

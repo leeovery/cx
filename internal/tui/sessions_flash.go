@@ -7,113 +7,44 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// Sessions-page inline-flash tick-based auto-clear infrastructure — the clear
-// conditions and the replacement rule on rapid successive bails.
-//
-// The state primitives (setFlash, clearFlash, flashText, flashGen) live
-// on Model in model.go. This file groups the tick-clear plumbing:
-//   - flashAutoClearDuration: how long a flash lingers before auto-clear.
-//   - flashTickMsg: the Bubble Tea message carrying a captured generation.
-//   - flashTickCmd: builds a tea.Cmd that fires a flashTickMsg after the
-//     auto-clear duration, capturing the generation at schedule time.
-//
-// Generation-guard rationale: rapid successive bails must not let a
-// stale in-flight tick from a prior flash early-clear the current one.
-// Each tick captures m.flashGen at schedule time; on fire the Update
-// handler compares the captured gen against the live m.flashGen and
-// clears only on match. setFlash bumps flashGen monotonically, so any
-// superseded tick mismatches and is silently dropped.
-
-// flashKind is the styling variant of an active inline flash. The zero
-// value is flashWarning so the externally-killed bail (which calls the
-// unparameterised setFlash) stays the orange ⚠ warning band; flashSuccess is the
-// explicit green ✓ success variant. The arbiter (activeNoticeBand) maps it to the
-// shared notice-band role (bandWarning / bandSuccess), which selects the bar
-// colour + glyph; the kind itself never changes the flash lifecycle.
+// The zero value is flashWarning, so an unparameterised setFlash stays a warning.
 type flashKind int
 
 const (
-	// flashWarning is the default warning flash variant — accent.attention bar + ⚠.
 	flashWarning flashKind = iota
-	// flashSuccess is the success flash variant — state.positive bar + ✓.
 	flashSuccess
 )
 
-// flashOrigin is WHERE an inline flash came from, and it exists for exactly one
-// reason: the theme signals take precedence over the filter line in the
-// notice band's order, and every other flash keeps today's position. That is a
-// change scoped to those flashes, so the FLASH has to carry the discrimination —
-// the band inferring it from the message text would re-order a signal the moment
-// its copy changed, and would grant the tier to any unrelated flash that happened
-// to mention a theme.
-//
-// flashOriginDefault is the zero value, so the construction-time seed keeps
-// today's order without naming an origin, and setFlash / setSuccessFlash reset to
-// it explicitly. Like flashKind it is irrelevant once flashText is empty.
+// Exists so the theme signals can outrank the filter line without inferring the
+// tier from message text, which a copy edit would silently re-order.
 type flashOrigin int
 
 const (
-	// flashOriginDefault is an ordinary flash — today's band order, unchanged.
 	flashOriginDefault flashOrigin = iota
-	// flashOriginTheme is one of the theme signals — the tier that claims the
-	// notice slot even while the filter line is live.
 	flashOriginTheme
 )
 
-// flashAutoClearDuration is how long an inline flash lingers before the
-// tick-based auto-clear fires. ~3s is long enough to read and short enough not
-// to linger.
 const flashAutoClearDuration = 3 * time.Second
 
-// flashTickMsg is the Bubble Tea message emitted by a scheduled
-// flashTickCmd after flashAutoClearDuration has elapsed. Gen carries
-// the model's flashGen value at the moment the tick was scheduled; the
-// Update handler compares this against the live flashGen so a tick
-// belonging to a superseded flash cannot early-clear the current one.
+// Gen is the flashGen captured when the tick was scheduled, compared against the
+// live value so a superseded flash's tick cannot early-clear the current one.
 type flashTickMsg struct {
-	// Gen is the flashGen value captured at flashTickCmd construction.
 	Gen uint64
 }
 
-// flashTickCmd returns a tea.Cmd that, after flashAutoClearDuration,
-// emits a flashTickMsg carrying the provided gen. The gen is captured
-// by value at call time so each scheduled tick is bound to the exact
-// generation that scheduled it; later setFlash calls bump the live gen
-// without affecting any pending tick's captured value.
 func flashTickCmd(gen uint64) tea.Cmd {
 	return tea.Tick(flashAutoClearDuration, func(time.Time) tea.Msg {
 		return flashTickMsg{Gen: gen}
 	})
 }
 
-// isActionableKey reports whether a tea.KeyPressMsg is an actionable
-// keystroke — i.e. one that should clear an active inline flash as a
-// side effect, including while filter input is focused.
-//
-// Defensive shape: a key press carrying a non-zero Code (any named key like
-// KeyEnter, KeyEscape, KeyDown, or a printable rune) OR non-empty Text counts
-// as actionable. The zero-zero shape (Code=0, Text="") is treated as
-// non-actionable — a defensive guard against unusual library-emitted no-op
-// key events. In practice every real keystroke satisfies one of these
-// conditions. This is the v2 equivalent of the v1
-// `msg.Type != 0 || len(msg.Runes) > 0` test: Code replaces Type, Text
-// replaces Runes.
-//
-// Non-key events (WindowSizeMsg, FocusMsg, BlurMsg, MouseMsg) never reach a
-// `case tea.KeyPressMsg` branch, so the flash is unaffected by them without
-// any code here.
+// The zero-zero shape (no Code, no Text) is non-actionable — a guard against
+// library-emitted no-op key events; every real keystroke satisfies one condition.
 func isActionableKey(msg tea.KeyPressMsg) bool {
 	return msg.Code != 0 || msg.Text != ""
 }
 
-// formatSessionGoneFlash returns the pinned wording for the
-// session-killed-externally bail flash: `session "<name>" no longer exists`.
-// Literal
-// double-quote bytes wrap the name — never %q — so output is byte-exact
-// regardless of name content (spaces, dashes, unicode, etc.).
-//
-// No trailing punctuation. No paraphrase. Callers must not modify the
-// returned string before passing it to setFlash.
+// Literal quote bytes, never %q, so output is byte-exact.
 func formatSessionGoneFlash(name string) string {
 	return fmt.Sprintf(`session "%s" no longer exists`, name)
 }

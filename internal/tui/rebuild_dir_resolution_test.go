@@ -9,11 +9,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// fakeStamper is a stand-in for the session.PaneCurrentPathReader seam the lazy
-// directory-resolution fallback consumes: it reads the active pane's
-// current_path and records each read so tests can count resolutions. It also
-// implements SetSessionOption so tests can assert the fallback NEVER stamps
-// (the derived dir is cached in-memory only, never frozen onto @portal-dir).
 type fakeStamper struct {
 	path string
 	err  error
@@ -39,11 +34,8 @@ func (f *fakeStamper) SetSessionOption(sess, name, value string) error {
 	return f.setErr
 }
 
-// Compile-time proof the fake satisfies the production reader seam.
 var _ session.PaneCurrentPathReader = (*fakeStamper)(nil)
 
-// fakeDirRunner is a stand-in for resolver.CommandRunner returning a fixed
-// git-root so the render-path resolution can be unit-tested without git.
 type fakeDirRunner struct {
 	gitRoot string
 }
@@ -119,13 +111,9 @@ func TestRebuildSessionListDirResolution(t *testing.T) {
 
 		m.rebuildSessionList()
 
-		// The lazy fallback must NOT stamp @portal-dir: freezing a (possibly
-		// drifted) pane cwd would permanently mis-group the session.
 		if len(reader.setCalls) != 0 {
 			t.Fatalf("expected 0 stamp writes (no freezing), got %d: %v", len(reader.setCalls), reader.setCalls)
 		}
-		// It MUST cache the derived dir back onto m.sessions so subsequent
-		// rebuilds take the fast path.
 		if m.sessions[0].Dir != key {
 			t.Errorf("m.sessions[0].Dir = %q, want %q (cached)", m.sessions[0].Dir, key)
 		}
@@ -158,7 +146,6 @@ func TestRebuildSessionListDirResolution(t *testing.T) {
 		projects := []project.Project{{Path: dir, Name: "Portal"}}
 		sessions := []tmux.Session{{Name: "portal-abc", Dir: ""}}
 
-		// Empty current_path => unresolvable: no cache, routes to Unknown.
 		m := newRebuildTestModel(t, prefs.ModeByProject, sessions, projects)
 		m.dirReader = &fakeStamper{path: ""}
 		m.dirRunner = &fakeDirRunner{gitRoot: dir}
@@ -183,7 +170,6 @@ func TestRebuildSessionListDirResolution(t *testing.T) {
 		sessions := []tmux.Session{{Name: "portal-abc", Dir: ""}}
 
 		m := newRebuildTestModel(t, prefs.ModeByProject, sessions, projects)
-		// dirReader / dirRunner left nil — no Option wired.
 
 		m.rebuildSessionList()
 

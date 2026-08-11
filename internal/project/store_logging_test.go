@@ -13,10 +13,6 @@ import (
 	"github.com/leeovery/portal/internal/project"
 )
 
-// installCapture swaps the shared logtest.Sink into the process-wide log
-// indirection for the duration of the test and returns it. The project store
-// tests assert on component=projects and the per-call attr values via the
-// sink's shared accessors.
 func installCapture(t *testing.T) *logtest.Sink {
 	t.Helper()
 	sink := &logtest.Sink{}
@@ -24,9 +20,8 @@ func installCapture(t *testing.T) *logtest.Sink {
 	return sink
 }
 
-// readOnlyDirPath returns a path inside a 0500 (read-only) directory so that
-// AtomicWrite fails at the temp-create phase. The directory is created under a
-// t.TempDir so cleanup can remove it.
+// readOnlyDirPath returns a path under a 0500 directory, so a write to it fails
+// at the temp-create phase.
 func readOnlyDirPath(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -61,15 +56,12 @@ func TestUpsertLogging(t *testing.T) {
 		if got := rec.AttrString(t, "component"); got != "projects" {
 			t.Errorf("component = %q, want %q", got, "projects")
 		}
-		// project attr = the project NAME (per the closed-vocabulary definition).
 		if got := rec.AttrString(t, "project"); got != "portal" {
 			t.Errorf("project = %q, want %q", got, "portal")
 		}
-		// path attr = the filesystem path.
 		if got := rec.AttrString(t, "path"); got != "/code/portal" {
 			t.Errorf("path = %q, want %q", got, "/code/portal")
 		}
-		// value attr carries the verbatim new value (the name being set).
 		if got := rec.AttrString(t, "value"); got != "portal" {
 			t.Errorf("value = %q, want %q", got, "portal")
 		}
@@ -104,7 +96,6 @@ func TestUpsertLogging(t *testing.T) {
 		if got := rec.AttrString(t, "component"); got != "projects" {
 			t.Errorf("component = %q, want %q", got, "projects")
 		}
-		// project attr = the (new) project NAME; path attr = filesystem path.
 		if got := rec.AttrString(t, "project"); got != "portal-renamed" {
 			t.Errorf("project = %q, want %q", got, "portal-renamed")
 		}
@@ -195,7 +186,6 @@ func TestRenameLogging(t *testing.T) {
 		if got := rec.AttrString(t, "component"); got != "projects" {
 			t.Errorf("component = %q, want %q", got, "projects")
 		}
-		// project attr = the (new) project NAME; path attr = filesystem path.
 		if got := rec.AttrString(t, "project"); got != "portal-new" {
 			t.Errorf("project = %q, want %q", got, "portal-new")
 		}
@@ -243,8 +233,7 @@ func TestRenameLogging(t *testing.T) {
 	})
 
 	t.Run("emits WARN with write-failed-* error_class when AtomicWrite fails on Rename", func(t *testing.T) {
-		// Seed a project on a writable path, then lock the parent dir 0500 so the
-		// subsequent Rename Save fails at AtomicWrite's temp-create phase.
+		// The seed write must succeed before the directory is locked.
 		dir := t.TempDir()
 		seeded := filepath.Join(dir, "projects.json")
 		if err := os.WriteFile(seeded, []byte(`{"projects":[{"path":"/code/portal","name":"portal","last_used":"2026-01-01T00:00:00Z"}]}`), 0o644); err != nil {
@@ -326,7 +315,6 @@ func TestRemoveLogging(t *testing.T) {
 		if got := rec.AttrString(t, "component"); got != "projects" {
 			t.Errorf("component = %q, want %q", got, "projects")
 		}
-		// project attr = the project NAME of the removed entry; path = filesystem path.
 		if got := rec.AttrString(t, "project"); got != "portal" {
 			t.Errorf("project = %q, want %q", got, "portal")
 		}
@@ -364,8 +352,6 @@ func TestRemoveLogging(t *testing.T) {
 		if got := rec.AttrString(t, "op"); got != "rm" {
 			t.Errorf("op = %q, want %q", got, "rm")
 		}
-		// Absent path: the filesystem path is still logged under path; there is no
-		// matching entry, so the project NAME is empty.
 		if got := rec.AttrString(t, "path"); got != "/code/absent" {
 			t.Errorf("path = %q, want %q", got, "/code/absent")
 		}
@@ -423,7 +409,6 @@ func TestRemoveLogging(t *testing.T) {
 func TestCleanStaleLogging(t *testing.T) {
 	t.Run("emits per-entry DEBUG and one INFO summary for CleanStale removing N projects", func(t *testing.T) {
 		dir := t.TempDir()
-		// Two stale paths (under removed temp dirs) + one live path.
 		stale1 := filepath.Join(t.TempDir(), "gone1")
 		stale2 := filepath.Join(t.TempDir(), "gone2")
 		live := t.TempDir()
@@ -474,7 +459,6 @@ func TestCleanStaleLogging(t *testing.T) {
 		if len(debugs) != 2 {
 			t.Fatalf("got %d DEBUG clean-stale records, want 2: %+v", len(debugs), debugs)
 		}
-		// project attr = the project NAME; path attr = the filesystem path.
 		debugNames := make(map[string]bool, len(debugs))
 		debugPaths := make(map[string]bool, len(debugs))
 		for _, r := range debugs {
@@ -554,8 +538,7 @@ func TestCleanStaleLogging(t *testing.T) {
 	})
 
 	t.Run("emits WARN with write-failed-* error_class when the batched Save fails", func(t *testing.T) {
-		// Seed one stale project on a writable path, then lock the parent dir 0500
-		// so the CleanStale Save fails at AtomicWrite's temp-create phase.
+		// The seed write must succeed before the directory is locked.
 		dir := t.TempDir()
 		stale := filepath.Join(t.TempDir(), "gone")
 		seeded := filepath.Join(dir, "projects.json")
@@ -617,8 +600,6 @@ func TestCleanStaleLogging(t *testing.T) {
 	})
 }
 
-// TestSaveDoesNotLog proves Save is not an emitter — only Upsert/Rename/Remove/
-// CleanStale are.
 func TestSaveDoesNotLog(t *testing.T) {
 	dir := t.TempDir()
 	store := project.NewStore(filepath.Join(dir, "projects.json"))

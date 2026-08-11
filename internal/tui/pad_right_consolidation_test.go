@@ -8,19 +8,6 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// Task spectrum-tui-design-10-1 consolidation gate. headerPadRight (header.go) and
-// noticeBandPadRight (notice_band.go) were byte-for-byte the same right-pad
-// geometry — the `segWidth >= w` return-unchanged guard plus a JoinHorizontal of a
-// styled strings.Repeat(" ", w-segWidth) pad — differing ONLY in the fill style
-// (the owned canvas vs the band's tint). They now both route through the single
-// padRightWithStyle core. These tests pin the shared geometry at the new owner and
-// prove each wrapper delegates with its distinct fill, producing byte-identical
-// output to a verbatim reproduction of the pre-refactor body.
-//
-// No t.Parallel() — the shared style helpers make parallelism unsafe.
-
-// preHeaderPadRight reproduces the ORIGINAL headerPadRight inline body verbatim —
-// the golden the consolidation must preserve.
 func preHeaderPadRight(seg string, segWidth, w int, th theme.Theme, colourless bool) string {
 	if segWidth >= w {
 		return seg
@@ -29,8 +16,6 @@ func preHeaderPadRight(seg string, segWidth, w int, th theme.Theme, colourless b
 	return lipgloss.JoinHorizontal(lipgloss.Top, seg, pad)
 }
 
-// preNoticeBandPadRight reproduces the ORIGINAL noticeBandPadRight inline body
-// verbatim — the golden the consolidation must preserve.
 func preNoticeBandPadRight(seg string, segWidth, w int, tint theme.Token, th theme.Theme, colourless bool) string {
 	if segWidth >= w {
 		return seg
@@ -39,9 +24,6 @@ func preNoticeBandPadRight(seg string, segWidth, w int, tint theme.Token, th the
 	return lipgloss.JoinHorizontal(lipgloss.Top, seg, pad)
 }
 
-// TestPadRightWithStyle_ReturnsSegUnchangedWhenFull pins the guard clause: a
-// segment already at/over w is returned verbatim (no pad joined), for both a
-// canvas fill and a tint fill, across modes × colourless.
 func TestPadRightWithStyle_ReturnsSegUnchangedWhenFull(t *testing.T) {
 	const seg = "PORTAL"
 	segWidth := lipgloss.Width(seg)
@@ -52,12 +34,10 @@ func TestPadRightWithStyle_ReturnsSegUnchangedWhenFull(t *testing.T) {
 				"tint":   noticeBandTintStyle(th.BgSelection, th, colourless),
 			}
 			for name, fill := range fills {
-				// segWidth == w
 				if got := padRightWithStyle(seg, segWidth, segWidth, fill); got != seg {
 					t.Errorf("padRightWithStyle(%s, w==segWidth, th=%v col=%v) = %q, want unchanged %q",
 						name, themeLabel(th), colourless, got, seg)
 				}
-				// segWidth > w
 				if got := padRightWithStyle(seg, segWidth, segWidth-2, fill); got != seg {
 					t.Errorf("padRightWithStyle(%s, w<segWidth, th=%v col=%v) = %q, want unchanged %q",
 						name, themeLabel(th), colourless, got, seg)
@@ -67,9 +47,6 @@ func TestPadRightWithStyle_ReturnsSegUnchangedWhenFull(t *testing.T) {
 	}
 }
 
-// TestPadRightWithStyle_JoinsStyledPadOfCorrectWidth pins the fill path: a segment
-// narrower than w is joined with a fill-styled pad of exactly w-segWidth cells,
-// byte-identically to a verbatim canvas-fill / tint-fill JoinHorizontal.
 func TestPadRightWithStyle_JoinsStyledPadOfCorrectWidth(t *testing.T) {
 	const seg = "hi"
 	segWidth := lipgloss.Width(seg)
@@ -96,9 +73,6 @@ func TestPadRightWithStyle_JoinsStyledPadOfCorrectWidth(t *testing.T) {
 	}
 }
 
-// TestHeaderPadRight_DelegatesToPadRightWithStyle proves headerPadRight is a thin
-// wrapper binding the canvas fill: its render is byte-identical to the pre-refactor
-// inline body across width/mode/colourless.
 func TestHeaderPadRight_DelegatesToPadRightWithStyle(t *testing.T) {
 	const seg = "PORTAL ▌"
 	segWidth := lipgloss.Width(seg)
@@ -116,9 +90,6 @@ func TestHeaderPadRight_DelegatesToPadRightWithStyle(t *testing.T) {
 	}
 }
 
-// TestNoticeBandPadRight_DelegatesToPadRightWithStyle proves noticeBandPadRight is
-// a thin wrapper binding the tint fill: its render is byte-identical to the
-// pre-refactor inline body across width/tint/mode/colourless.
 func TestNoticeBandPadRight_DelegatesToPadRightWithStyle(t *testing.T) {
 	const seg = "▌ no tags yet"
 	segWidth := lipgloss.Width(seg)

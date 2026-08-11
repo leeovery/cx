@@ -118,9 +118,7 @@ func TestAtomicWrite(t *testing.T) {
 
 func TestAtomicWrite0600(t *testing.T) {
 	t.Run("writes data with mode 0600 regardless of umask", func(t *testing.T) {
-		// A permissive umask would normally let the temp file be created with
-		// broader-than-0600 bits; the helper must defensively chmod the
-		// final path so its mode does not depend on the caller's umask.
+		// The final mode must not depend on the caller's umask.
 		old := syscall.Umask(0)
 		t.Cleanup(func() { syscall.Umask(old) })
 
@@ -168,8 +166,6 @@ func TestAtomicWrite0600(t *testing.T) {
 	})
 
 	t.Run("propagates AtomicWrite errors", func(t *testing.T) {
-		// A path whose parent cannot be created (a regular file masquerading
-		// as a directory) should propagate the AtomicWrite error verbatim.
 		dir := t.TempDir()
 		blocker := filepath.Join(dir, "blocker")
 		if err := os.WriteFile(blocker, []byte("x"), 0o600); err != nil {

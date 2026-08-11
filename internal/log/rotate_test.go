@@ -12,20 +12,12 @@ import (
 	"time"
 )
 
-// componentCapture is a test slog.Handler that records every Handle call AND
-// preserves the WithAttrs-accumulated attrs (notably the component attr that For
-// delivers via root.With("component", ...)). The package-level recordingHandler
-// discards WithAttrs, so it cannot see the component prefix; this handler keeps
-// the accumulated chain so a test can assert component=log-rotate on a captured
-// record.
 type componentCapture struct {
-	mu       *sync.Mutex // shared across derived handlers so vet sees no copy.
-	sticky   []slog.Attr // accumulated via WithAttrs (carries the component attr).
+	mu       *sync.Mutex
+	sticky   []slog.Attr
 	captured *[]capturedRecord
 }
 
-// capturedRecord is a flattened view of one Handle call: its message plus a
-// merged key->string map of the sticky (WithAttrs) and per-record attrs.
 type capturedRecord struct {
 	message string
 	attrs   map[string]string
@@ -61,8 +53,6 @@ func (h *componentCapture) WithAttrs(attrs []slog.Attr) slog.Handler {
 
 func (h *componentCapture) WithGroup(string) slog.Handler { return h }
 
-// touchFile creates an empty file at ${dir}/${name} with mode 0600 and fails the
-// test on error.
 func touchFile(t *testing.T, dir, name string) string {
 	t.Helper()
 	path := filepath.Join(dir, name)
@@ -72,7 +62,6 @@ func touchFile(t *testing.T, dir, name string) string {
 	return path
 }
 
-// permOf returns the permission bits of path, failing the test on a stat error.
 func permOf(t *testing.T, path string) os.FileMode {
 	t.Helper()
 	info, err := os.Stat(path)
@@ -94,7 +83,6 @@ func TestRotatingSink_SealsPastDayFilesOnRealDayRoll(t *testing.T) {
 		t.Fatalf("day-one Write: %v", err)
 	}
 
-	// Seed a size-cap overflow segment for day one so the roll seals it too.
 	seg := touchFile(t, dir, "portal.log.2026-05-29.1")
 
 	day1Path := filepath.Join(dir, "portal.log.2026-05-29")
@@ -102,8 +90,6 @@ func TestRotatingSink_SealsPastDayFilesOnRealDayRoll(t *testing.T) {
 		t.Fatalf("day-one base sealed before the roll; want still writable")
 	}
 
-	// Roll past local midnight and write again — the day-roll seam must seal all
-	// of yesterday's files.
 	set(mustDate(2026, 5, 30))
 	if _, err := s.Write([]byte("day-two\n")); err != nil {
 		t.Fatalf("day-two Write: %v", err)
@@ -115,13 +101,11 @@ func TestRotatingSink_SealsPastDayFilesOnRealDayRoll(t *testing.T) {
 	if got := permOf(t, seg); got != 0o400 {
 		t.Errorf("day-one segment perm = %o after roll, want 0400", got)
 	}
-	// Today's file is NOT sealed.
 	if got := permOf(t, filepath.Join(dir, "portal.log.2026-05-30")); got == 0o400 {
 		t.Errorf("today's file was sealed by the roll; want still writable")
 	}
 }
 
-// mustDate is a terse local-time date constructor for clock-injection tests.
 func mustDate(year int, month time.Month, day int) time.Time {
 	return time.Date(year, month, day, 12, 0, 0, 0, time.UTC)
 }
@@ -182,8 +166,6 @@ func TestSealPastDayFiles_SkipsFileAlreadyAt0400(t *testing.T) {
 		t.Fatalf("pre-seal chmod: %v", err)
 	}
 
-	// Force chmod to fail if it is invoked at all; an already-0400 file must be
-	// skipped before reaching chmodFunc.
 	prev := chmodFunc
 	chmodFunc = func(string, os.FileMode) error {
 		return errors.New("chmod must not be called for an already-sealed file")
@@ -221,8 +203,6 @@ func TestSealPastDayFiles_DoesNotSealTodayFileOrTodaySameDaySegments(t *testing.
 func TestSealPastDayFiles_WarnsAndContinuesWhenChmodFails(t *testing.T) {
 	dir := t.TempDir()
 
-	// Two past-day candidates. Force chmod to fail for exactly one of them and
-	// assert the OTHER is still sealed (continue-not-abort).
 	failPath := touchFile(t, dir, "portal.log.2026-05-28")
 	okPath := touchFile(t, dir, "portal.log.2026-05-29")
 
@@ -240,7 +220,6 @@ func TestSealPastDayFiles_WarnsAndContinuesWhenChmodFails(t *testing.T) {
 
 	sealPastDayFiles(dir, "2026-05-30")
 
-	// Exactly one WARN under log-rotate naming the failed path.
 	var warns []capturedRecord
 	for _, r := range *captured {
 		if r.message == "chmod failed" {
@@ -261,7 +240,6 @@ func TestSealPastDayFiles_WarnsAndContinuesWhenChmodFails(t *testing.T) {
 		t.Errorf("WARN missing error attr")
 	}
 
-	// The sweep continued: the other candidate is sealed despite the earlier failure.
 	if got := permOf(t, okPath); got != 0o400 {
 		t.Errorf("%s perm = %o, want 0400 (sweep must continue past a chmod failure)", filepath.Base(okPath), got)
 	}

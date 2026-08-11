@@ -1,25 +1,14 @@
 package theme
 
-// Reason is one of the seven reject classes — why a theme is not usable.
-//
-// The string value of each constant is the terse label the surfaces render
-// VERBATIM: the panel row prints it behind a "⚠ " prefix, doctor prints it
-// before the detail, and the theme log component carries it as the `reason`
-// attr. They are user-facing copy rather than internal identifiers.
+// Reason is why a theme is not usable. Each constant's string value is
+// user-facing copy, rendered verbatim by every surface, not an internal
+// identifier.
 type Reason string
 
-// The seven reject classes, declared in evaluation order.
-//
-// The first six are a ladder: they are evaluated in this order and the first
-// failure short-circuits, which is what guarantees a theme always has exactly
-// one reason and the panel's single-reason row is never a choice. The name is
-// decided from the filename before the file is opened, so a bad-name file can
-// never also report on its contents; a lexical failure aborts the parse before
-// any value is validated; and the presence check runs last, on a file that
-// parsed and whose every known value is well-formed.
-//
-// ReasonNotFound is deliberately outside that ladder: it applies to a slug named
-// by prefs.json with no corresponding file, where there is nothing to check.
+// The ladder classes come first, in evaluation order: the first failure
+// short-circuits, which is what guarantees a theme has exactly one reason.
+// ReasonNotFound sits outside the ladder — a nominated slug with no
+// corresponding file, where there is nothing to check.
 const (
 	ReasonBadName       Reason = "bad name"
 	ReasonReservedName  Reason = "reserved name"
@@ -30,38 +19,11 @@ const (
 	ReasonNotFound      Reason = "not found"
 )
 
-// Rejection is why one theme is not usable: exactly one reason, plus the detail
-// naming what is wrong within that reason.
-//
-// One invariant is what the whole rejection machinery is shaped around: a
-// Rejection always carries EXACTLY ONE reason, and its detail never spans two. A
-// file that is both duplicate-keyed and missing tokens is `bad syntax`, and its
-// detail says nothing whatsoever about presence. Detail enumerates WITHIN the
-// reason — every missing token, or every bad-coloured pair — never across
-// reasons.
-//
-// Detail is rendered by whoever produces the rejection, in the exact form its
-// surfaces print: nothing downstream re-derives, re-orders, re-wraps or
-// re-prefixes it. Line carries the same line number in machine-readable form
-// for the one reason that has one (`bad syntax`), and is 0 for every other.
-//
-// BadNameCause is the same shape of narrowing for the one reason whose surfaces
-// need to say WHICH rule was broken while the reason class stays single (see
-// BadNameCause in name.go). It is BadNameNone on every rejection that is not a
-// `bad name` one.
-//
-// Tokens is the same shape of narrowing for the two reasons that name tokens:
-// the absent token names for `missing tokens`, and the offending `key = value`
-// pairs for `bad colour`. It is empty on every other rejection. It is the SOURCE
-// the tokens are carried in and Detail is its rendered form, so a consumer
-// wanting the list reads it here rather than unpicking the sentence.
-//
-// Err carries the underlying OS error for the one reason produced by something
-// other than Portal's own rules (`unreadable`), and is nil for every other. It
-// is the SAME error the Detail renders, kept in structured form because the
-// detail for that reason is the OS error verbatim: a caller wanting to classify
-// the failure — a denial versus a dangling symlink — matches on the error rather
-// than on the text of a message meant for a human.
+// Rejection carries exactly one reason, never two, with a Detail rendered where
+// the rejection is produced, in the exact form its surfaces print — nothing
+// downstream re-derives or re-parses it. Line, BadNameCause, Tokens and Err are
+// the structured sources behind Detail, each populated only for the reason it
+// belongs to and zero on every other.
 type Rejection struct {
 	Reason       Reason
 	Detail       string
@@ -71,13 +33,9 @@ type Rejection struct {
 	Err          error
 }
 
-// Error renders the rejection as "<reason>: <detail>", or as the bare reason
-// when there is no detail.
-//
-// This is the generic propagation form only. Every surface that shows a
-// rejection to a user composes its own line from Reason and Detail — the panel
-// has room for the label alone, doctor frames the pair differently again — so
-// none of them parses this string back apart.
+// Error renders the rejection as "<reason>: <detail>", or the bare reason when
+// there is no detail. For generic propagation — user-facing surfaces compose
+// their own line from Reason and Detail rather than parsing this.
 func (r *Rejection) Error() string {
 	if r.Detail == "" {
 		return string(r.Reason)

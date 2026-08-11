@@ -7,13 +7,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// Tests for Phase 3 task 3-1: the previewAttachSelectedMsg handler records the
-// selected session on the model and returns tea.Quit so the surrounding TUI
-// program exits before the connector handoff runs. This mirrors the
-// Sessions-page Enter shape: handleSessionListEnter sets m.selected + Quit,
-// then processTUIResult performs the connector call AFTER tea.NewProgram.Run
-// returns.
-
 func TestPreviewAttachSelected_RecordsSessionOnModel(t *testing.T) {
 	sessions := []tmux.Session{{Name: "alpha", Windows: 1, Attached: false}}
 	enum := newSinglePaneEnumerator()
@@ -47,9 +40,6 @@ func TestPreviewAttachSelected_ReturnsTeaQuit(t *testing.T) {
 	}
 }
 
-// Parity assertion: a successful preview-Enter dispatched through the pipeline
-// must resolve to a Model whose Selected() matches the previewed session,
-// matching the Sessions-page Enter handoff contract.
 func TestPreviewAttachSelected_ParityWithSessionsPageEnterShape(t *testing.T) {
 	sessions := []tmux.Session{{Name: "bravo", Windows: 1, Attached: false}}
 	enum := newSinglePaneEnumerator()

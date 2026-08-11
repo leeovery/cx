@@ -10,7 +10,6 @@ import (
 	"github.com/leeovery/portal/internal/session"
 )
 
-// mockSessionChecker implements session.SessionChecker for testing.
 type mockSessionChecker struct {
 	existingSessions map[string]bool
 }
@@ -19,12 +18,8 @@ func (m *mockSessionChecker) HasSession(name string) bool {
 	return m.existingSessions[name]
 }
 
-// wantExecArgs builds the expected tmux create-stamp-attach exec chain for a
-// quick-started session: create the session detached, stamp @portal-dir then
-// @portal-id while it is detached (before attach blocks the chain), then attach.
-// ";" elements are literal tmux command separators. token is the value the
-// generator yields on its stamp call; when non-empty the @portal-id step is
-// interpolated between the @portal-dir stamp and attach-session.
+// wantExecArgs builds the expected tmux exec chain. An empty token drops the
+// @portal-id step.
 func wantExecArgs(name, dir, shellCmd, token string) []string {
 	args := []string{"tmux", "new-session", "-d", "-s", name, "-c", dir}
 	if shellCmd != "" {
@@ -66,7 +61,6 @@ func TestQuickStart(t *testing.T) {
 			t.Errorf("result.Dir = %q, want %q", result.Dir, gitRoot)
 		}
 
-		// Verify ExecArgs include resolved dir via -c flag (and the stamp/attach chain).
 		wantSessionName := filepath.Base(gitRoot) + "-abc123"
 		wantArgs := wantExecArgs(wantSessionName, gitRoot, "", "abc123")
 		if !reflect.DeepEqual(result.ExecArgs, wantArgs) {
@@ -75,9 +69,6 @@ func TestQuickStart(t *testing.T) {
 	})
 
 	t.Run("stamps @portal-dir at creation via the exec chain", func(t *testing.T) {
-		// Creating detached gives an in-server point to stamp @portal-dir
-		// BEFORE attaching, so a quick-started session is anchored to its
-		// origin directory and grouping stays stable after the pane cd's away.
 		gitRoot := t.TempDir()
 		gitResolver := &mockGitResolver{resolvedDir: gitRoot}
 		store := &mockProjectStore{}
@@ -92,27 +83,20 @@ func TestQuickStart(t *testing.T) {
 		}
 
 		wantSessionName := filepath.Base(gitRoot) + "-abc123"
-		// The chain must contain: set-option -t <name> @portal-dir <dir>.
 		assertContainsSubseq(t, result.ExecArgs, []string{
 			"set-option", "-t", wantSessionName, session.PortalDirOption, gitRoot,
 		})
-		// It must NOT attach before stamping (stamp-before-attach ordering).
 		setIdx := indexOf(result.ExecArgs, "set-option")
 		attachIdx := indexOf(result.ExecArgs, "attach-session")
 		if setIdx < 0 || attachIdx < 0 || setIdx >= attachIdx {
 			t.Errorf("set-option (%d) must precede attach-session (%d) in %v", setIdx, attachIdx, result.ExecArgs)
 		}
-		// And it must NOT attach directly via new-session -A (which would block
-		// the stamp); detached create is required.
 		if indexOf(result.ExecArgs, "-A") >= 0 {
 			t.Errorf("ExecArgs must not use new-session -A: %v", result.ExecArgs)
 		}
 	})
 
 	t.Run("interpolates the @portal-id token as a literal set-option step in the exec chain", func(t *testing.T) {
-		// The stamp token is generated in Go inside Run (a second qs.gen call,
-		// independent of the name suffix) and interpolated as a single literal
-		// argv element — opaque alphanumeric needs no shell-escaping.
 		gitRoot := t.TempDir()
 		gitResolver := &mockGitResolver{resolvedDir: gitRoot}
 		store := &mockProjectStore{}
@@ -133,8 +117,6 @@ func TestQuickStart(t *testing.T) {
 	})
 
 	t.Run("orders the @portal-id stamp before attach-session", func(t *testing.T) {
-		// The stamp must land while the session is detached; attach-session
-		// blocks the chain, so any step after it never runs.
 		gitRoot := t.TempDir()
 		gitResolver := &mockGitResolver{resolvedDir: gitRoot}
 		store := &mockProjectStore{}
@@ -177,10 +159,8 @@ func TestQuickStart(t *testing.T) {
 	})
 
 	t.Run("omits the @portal-id step when stamp-time token generation fails", func(t *testing.T) {
-		// qs.gen is called twice: first for the name suffix (must succeed), then
-		// for the stamp token. When only the stamp call errors, the @portal-id
-		// step is dropped and the rest of the chain is unchanged (session still
-		// created, un-stamped -> name fallback). Run must not return an error.
+		// gen is called twice: once for the name suffix, once for the stamp token.
+		// Only the second call fails here.
 		gitRoot := t.TempDir()
 		gitResolver := &mockGitResolver{resolvedDir: gitRoot}
 		store := &mockProjectStore{}
@@ -206,7 +186,6 @@ func TestQuickStart(t *testing.T) {
 			t.Errorf("ExecArgs must not contain a @portal-id step when stamp generation fails: %v", result.ExecArgs)
 		}
 
-		// Rest of chain (create -> @portal-dir -> attach) is unchanged: token "" -> no @portal-id step.
 		wantSessionName := filepath.Base(gitRoot) + "-abc123"
 		wantArgs := wantExecArgs(wantSessionName, gitRoot, "", "")
 		if !reflect.DeepEqual(result.ExecArgs, wantArgs) {
@@ -215,8 +194,6 @@ func TestQuickStart(t *testing.T) {
 	})
 
 	t.Run("does not use new-session -A", func(t *testing.T) {
-		// Detached-create + stamp-before-attach ordering must be preserved: a
-		// new-session -A would attach immediately and block the stamp steps.
 		gitRoot := t.TempDir()
 		gitResolver := &mockGitResolver{resolvedDir: gitRoot}
 		store := &mockProjectStore{}
@@ -268,19 +245,16 @@ func TestQuickStart(t *testing.T) {
 
 		qs := session.NewQuickStart(gitResolver, store, checker, gen)
 
-		// First call registers the project
 		_, err := qs.Run(gitRoot, nil)
 		if err != nil {
 			t.Fatalf("unexpected error on first run: %v", err)
 		}
 
-		// Second call should also call Upsert (which updates last_used)
 		_, err = qs.Run(gitRoot, nil)
 		if err != nil {
 			t.Fatalf("unexpected error on second run: %v", err)
 		}
 
-		// Verify Upsert was called twice (once per Run)
 		if store.upsertCount != 2 {
 			t.Errorf("upsert count = %d, want 2", store.upsertCount)
 		}
@@ -394,7 +368,6 @@ func TestQuickStart(t *testing.T) {
 
 		qs := session.NewQuickStart(gitResolver, store, checker, gen)
 
-		// Change SHELL after construction — should NOT affect the QuickStart
 		t.Setenv("SHELL", "/bin/bash")
 
 		result, err := qs.Run(dir, []string{"vim"})
@@ -446,7 +419,6 @@ func TestQuickStart(t *testing.T) {
 	})
 }
 
-// indexOf returns the first index of v in s, or -1.
 func indexOf(s []string, v string) int {
 	for i, x := range s {
 		if x == v {
@@ -456,8 +428,6 @@ func indexOf(s []string, v string) int {
 	return -1
 }
 
-// indexOfSubseq returns the start index of the first occurrence of want as a
-// contiguous subsequence of got, or -1.
 func indexOfSubseq(got, want []string) int {
 	for i := 0; i+len(want) <= len(got); i++ {
 		if reflect.DeepEqual(got[i:i+len(want)], want) {
@@ -467,8 +437,6 @@ func indexOfSubseq(got, want []string) int {
 	return -1
 }
 
-// assertContainsSubseq fails the test unless want appears as a contiguous
-// subsequence of got.
 func assertContainsSubseq(t *testing.T, got, want []string) {
 	t.Helper()
 	for i := 0; i+len(want) <= len(got); i++ {

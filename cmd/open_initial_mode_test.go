@@ -1,7 +1,5 @@
 package cmd
 
-// Tests in this file mutate package-level/env state and MUST NOT use t.Parallel.
-
 import (
 	"os"
 	"path/filepath"
@@ -12,8 +10,6 @@ import (
 	"github.com/leeovery/portal/internal/tui"
 )
 
-// fakeModePersister records Save calls so the cmd-layer wiring test can assert
-// that buildTUIModel threads the persister into the model's s-toggle handler.
 type fakeModePersister struct {
 	calls int
 	last  prefs.SessionListMode
@@ -25,7 +21,6 @@ func (f *fakeModePersister) Save(mode prefs.SessionListMode) error {
 	return nil
 }
 
-// keyS is the browse-mode switch-view key.
 var keyS = tea.KeyPressMsg{Code: 's', Text: "s"}
 
 func TestBuildTUIModel_InjectsInitialMode(t *testing.T) {
@@ -97,10 +92,8 @@ func TestBuildTUIModel_InjectsPersister(t *testing.T) {
 	})
 }
 
-// setPrefsFile writes prefs.json content to a temp file and points
-// PORTAL_PREFS_FILE at it for the duration of the test, returning the path it
-// resolved to (which callers asserting the file is left untouched need). An
-// empty content string leaves the file absent, simulating a first-ever launch.
+// An empty content string leaves the file absent, simulating a first-ever
+// launch.
 func setPrefsFile(t *testing.T, content string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "prefs.json")
@@ -113,8 +106,8 @@ func setPrefsFile(t *testing.T, content string) string {
 	return path
 }
 
-// loadInitialModeForTest mirrors the tolerant prefs read openTUI performs at TUI
-// construction: load the store, read the mode, collapse any failure to Flat.
+// Mirrors the tolerant prefs read openTUI performs at construction: any
+// failure collapses to Flat.
 func loadInitialModeForTest(t *testing.T) prefs.SessionListMode {
 	t.Helper()
 	load, err := loadPrefsStore()
@@ -153,7 +146,6 @@ func TestOpenTUI_InitialModeFromPrefs(t *testing.T) {
 	t.Run("round-trips a persisted toggle back through a fresh read", func(t *testing.T) {
 		setPrefsFile(t, "")
 
-		// First construction reads Flat, persists By Project on one s press.
 		load, err := loadPrefsStore()
 		if err != nil {
 			t.Fatalf("loadPrefsStore: %v", err)
@@ -165,7 +157,6 @@ func TestOpenTUI_InitialModeFromPrefs(t *testing.T) {
 		m := buildTUIModel(cfg, "", nil)
 		m.Update(keyS)
 
-		// A fresh read now observes By Project.
 		if got := loadInitialModeForTest(t); got != prefs.ModeByProject {
 			t.Errorf("re-read initial mode = %v, want ModeByProject", got)
 		}

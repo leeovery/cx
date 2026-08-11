@@ -1,4 +1,3 @@
-// Tests in this file mutate package-level state via Cobra and MUST NOT use t.Parallel.
 package cmd
 
 import (
@@ -14,8 +13,6 @@ import (
 	"github.com/leeovery/portal/internal/state"
 )
 
-// runStateNotify executes "portal state notify" and returns stdout/stderr
-// buffers and the Execute error.
 func runStateNotify(t *testing.T) (*bytes.Buffer, *bytes.Buffer, error) {
 	t.Helper()
 	outBuf := new(bytes.Buffer)
@@ -103,7 +100,6 @@ func TestStateNotify_TruncatesExistingContent(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
 
-	// Pre-create save.requested with some content.
 	path := filepath.Join(dir, "save.requested")
 	if err := os.WriteFile(path, []byte("foo"), 0o600); err != nil {
 		t.Fatalf("seed write: %v", err)
@@ -136,8 +132,7 @@ func TestStateNotify_ExitsNonZeroWhenStateDirNotWritable(t *testing.T) {
 	parent := t.TempDir()
 	dir := filepath.Join(parent, "state")
 
-	// Make parent read+execute only so MkdirAll(dir, ...) cannot create the
-	// state subdirectory beneath it.
+	// Read+execute only so MkdirAll cannot create the state subdirectory.
 	if err := os.Chmod(parent, 0o500); err != nil {
 		t.Fatalf("chmod parent: %v", err)
 	}
@@ -159,7 +154,6 @@ func TestStateNotify_DoesNotReadOrCreateOtherStateFiles(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// sessions.json must not exist after notify.
 	if _, err := os.Stat(filepath.Join(dir, "sessions.json")); !os.IsNotExist(err) {
 		t.Errorf("sessions.json must not exist after notify; stat err = %v", err)
 	}
@@ -193,28 +187,17 @@ func TestStateNotify_DoesNotInvokeBootstrap(t *testing.T) {
 	}
 }
 
-// TestStateNotify_LogsWarnOnSaveRequestedCreateFailure asserts that when the
-// save.requested file cannot be created (e.g. its path is already a
-// directory), the notify subsystem emits a WARN entry to portal.log under the
-// "notify" tag. This is the task 12-5 acceptance: routine
-// notify failure reporting must be visible to portal.log so it can be
-// surfaced via `portal doctor` recent-warnings.
-//
-// We force the OpenFile failure by pre-creating save.requested as a
-// directory beneath the state dir; OpenFile with O_WRONLY|O_CREATE|O_TRUNC
-// against a directory fails with EISDIR.
+// save.requested is pre-created as a directory: OpenFile with
+// O_WRONLY|O_CREATE|O_TRUNC against one fails with EISDIR.
 func TestStateNotify_LogsWarnOnSaveRequestedCreateFailure(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
 
-	// In-process command body logs via notifyLogger (log.For("notify")), which
-	// routes through the process-wide swap handler. SetTestHandler captures
-	// those records for assertion without spawning a subprocess.
 	sink := &logtest.Sink{}
 	log.SetTestHandler(t, sink)
 
-	// EnsureDir would normally create the state dir; do it ourselves so we
-	// can plant the blocking directory at save.requested before notify runs.
+	// Create the state dir here so the blocking directory can be planted at
+	// save.requested before notify runs.
 	if _, err := state.EnsureDir(); err != nil {
 		t.Fatalf("EnsureDir: %v", err)
 	}

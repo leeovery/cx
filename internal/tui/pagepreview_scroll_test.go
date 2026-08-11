@@ -8,9 +8,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// newPreviewModelWithLines builds a previewModel whose viewport content is
-// the given line count, sized to a viewport of width=80 and height=10 so
-// content overflows and YOffset has room to move.
 func newPreviewModelWithLines(t *testing.T, lineCount int) (previewModel, *recordingReader) {
 	t.Helper()
 	var b strings.Builder
@@ -32,8 +29,6 @@ func newPreviewModelWithLines(t *testing.T, lineCount int) (previewModel, *recor
 
 func TestPreviewScrollsDownOnDownKey(t *testing.T) {
 	m, _ := newPreviewModelWithLines(t, 50)
-	// GotoBottom in NewPreviewModel anchors at bottom; scroll up first so
-	// Down has somewhere to go.
 	m.viewport.GotoTop()
 	if !m.viewport.AtTop() {
 		t.Fatalf("setup: expected AtTop after GotoTop, got YOffset=%d", m.viewport.YOffset())
@@ -67,8 +62,6 @@ func TestPreviewSilentNoOpScrollUpAtTop(t *testing.T) {
 func TestPreviewSilentNoOpScrollDownAtBottom(t *testing.T) {
 	m, _ := newPreviewModelWithLines(t, 50)
 
-	// Drive End first to ensure we are at the bottom regardless of any
-	// initial-anchor changes upstream.
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnd})
 	if !m.viewport.AtBottom() {
 		t.Fatalf("setup: expected AtBottom after End, got YOffset=%d", m.viewport.YOffset())
@@ -84,11 +77,8 @@ func TestPreviewSilentNoOpScrollDownAtBottom(t *testing.T) {
 
 func TestPreviewHomeJumpsToTopViaPreviewOwnedBinding(t *testing.T) {
 	m, _ := newPreviewModelWithLines(t, 50)
-	// Page down a couple of times to push YOffset above 0.
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyPgDown})
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyPgDown})
-	// If still at top after PgDn (e.g. content shorter than expected),
-	// fail loudly so we don't inadvertently get a vacuously-passing test.
 	if m.viewport.YOffset() == 0 {
 		t.Fatalf("setup: expected YOffset > 0 after PgDn, got 0")
 	}
@@ -134,7 +124,6 @@ func TestPreviewResizeDoesNotCallTailAcross100Events(t *testing.T) {
 	}
 
 	for i := range 100 {
-		// Vary dimensions slightly so each resize is a distinct value.
 		m, _ = m.Update(tea.WindowSizeMsg{Width: 80 + i, Height: 24 + (i % 5)})
 	}
 
@@ -171,8 +160,6 @@ func TestPreviewPreservesScrollOffsetAcrossResizeWhenAccommodating(t *testing.T)
 		t.Fatalf("setup: expected YOffset=5, got %d", m.viewport.YOffset())
 	}
 
-	// Resize to a height that comfortably accommodates a YOffset of 5
-	// (200 lines minus a 20-line viewport leaves max YOffset of 180).
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
 
 	if updated.viewport.YOffset() != 5 {
@@ -240,7 +227,6 @@ func TestPreviewPgDnDelegatesToViewport(t *testing.T) {
 
 func TestPreviewPgUpDelegatesToViewport(t *testing.T) {
 	m, _ := newPreviewModelWithLines(t, 200)
-	// Already at bottom from initial-open anchor.
 	before := m.viewport.YOffset()
 	if before == 0 {
 		t.Fatalf("setup: expected YOffset > 0 (anchored at bottom), got 0")

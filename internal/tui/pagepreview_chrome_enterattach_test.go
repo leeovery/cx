@@ -9,11 +9,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// TestPreviewFooter_ByteIdenticalAcrossViewportStates pins spec § Discoverability
-// > Token wording is unconditional: the §9.1 footer must produce a byte-identical
-// string regardless of whether the viewport rendered real bytes, the (nil, nil)
-// "(no saved content)" placeholder, or the (nil, err) error string. The footer is
-// a pure function of the descriptor and must not branch on viewport content state.
 func TestPreviewFooter_ByteIdenticalAcrossViewportStates(t *testing.T) {
 	groups := []tmux.WindowGroup{
 		{WindowIndex: 0, WindowName: "main", PaneIndices: []int{0, 1}},
@@ -55,18 +50,6 @@ func TestPreviewFooter_ByteIdenticalAcrossViewportStates(t *testing.T) {
 	}
 }
 
-// TestSessionsPageView_DoesNotContainPreviewChrome pins spec § Discoverability
-// > Sessions-page help bar: the preview chrome must not propagate to or
-// duplicate on the Sessions page. The §9.1 preview footer renders glyph-keyed,
-// space-separated nav-hint tokens (`←→ window  ⇥ pane  ⏎ attach  ␣ back`)
-// plus the `◉ preview` marker that are preview-specific and must never appear
-// on the Sessions page.
-//
-// Note: post the §3.4 footer-glyph switch the condensed Sessions footer reads
-// `⏎ attach` and `␣ preview` (glyph-keyed), so `⏎ attach` is no longer a
-// preview-exclusive token and is NOT guarded here. The preview-exclusive tokens
-// that remain (`◉ preview`, `←→ window`, `⇥ pane`, and `␣ back` — distinct from
-// the Sessions footer's `␣ preview`) still must never leak onto the Sessions page.
 func TestSessionsPageView_DoesNotContainPreviewChrome(t *testing.T) {
 	sessions := []tmux.Session{
 		{Name: "alpha"},
@@ -76,8 +59,6 @@ func TestSessionsPageView_DoesNotContainPreviewChrome(t *testing.T) {
 
 	got := stripANSI(m.View().Content)
 
-	// The preview chrome's preview-specific glyph-keyed tokens must never appear
-	// on the Sessions page.
 	for _, forbidden := range []string{"◉ preview", "←→ window", "⇥ pane", "␣ back"} {
 		if strings.Contains(got, forbidden) {
 			t.Errorf("Sessions-page View() contains forbidden preview-chrome token %q; got %q", forbidden, got)

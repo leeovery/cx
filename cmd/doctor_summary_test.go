@@ -1,10 +1,3 @@
-// Tests in this file mutate package-level Cobra/DI state (doctorDeps, rootCmd)
-// and MUST NOT use t.Parallel.
-//
-// Concern-split from cmd/doctor_test.go (same source file, cmd/doctor.go): this
-// file owns the closing-summary line — doctorCheckCounts, doctorSummaryLine and
-// renderDoctorReport's trailing line — while doctor_test.go keeps the check
-// catalog itself. The split is by concern only; both are derived from doctor.go.
 package cmd
 
 import (
@@ -16,13 +9,8 @@ import (
 	"testing"
 )
 
-// healthyDoctorDeps builds a DoctorDeps whose entire seven-check catalog passes:
-// a seeded state dir (live daemon.pid, version marker, valid sessions.json), the
-// three healthy runtime probes from withHealthyRuntime, an empty hooks.json over
-// a NON-empty live-pane set (so the mass-deletion hazard guard does not defer to
-// not-evaluable), and a projects.json naming only an extant directory. The
-// informational host-terminal line rides along from withHealthyRuntime's stubbed
-// detector, which is exactly what the counts must ignore.
+// The live-pane set must be non-empty: an empty one trips the mass-deletion
+// hazard guard and the stale-hooks check reports not-evaluable instead of passing.
 func healthyDoctorDeps(t *testing.T) *DoctorDeps {
 	t.Helper()
 	dir := t.TempDir()
@@ -32,10 +20,6 @@ func healthyDoctorDeps(t *testing.T) *DoctorDeps {
 	return staleDeps(dir, fakeHookLister{keys: []string{"sessA:0.0"}}, hookStore, projectStore)
 }
 
-// TestDoctorSummary_AllChecksPassed drives the real command body over a fully
-// healthy catalog: all seven Portal-health checks pass and the informational
-// host-terminal line is present, so the report ends with the all-passed form
-// counting seven — the info line in neither count.
 func TestDoctorSummary_AllChecksPassed(t *testing.T) {
 	outBuf, _, err := runDoctorCmd(t, healthyDoctorDeps(t))
 	if err != nil {
@@ -48,10 +32,6 @@ func TestDoctorSummary_AllChecksPassed(t *testing.T) {
 	}
 }
 
-// TestDoctorSummary_PartialForm drives the real command body with exactly one of
-// the seven health checks failing (the saver probe reports absent): the summary
-// switches to the "<N> of <T>" form — the case it exists for — and the exit stays
-// non-zero, since the summary explains the exit code and never computes it.
 func TestDoctorSummary_PartialForm(t *testing.T) {
 	deps := healthyDoctorDeps(t)
 	deps.SaverPresent = func() (bool, error) { return false, nil }
@@ -67,10 +47,6 @@ func TestDoctorSummary_PartialForm(t *testing.T) {
 	}
 }
 
-// TestDoctorSummary_InfoLineOutsideCounts pins the informational host-terminal
-// line out of BOTH counts: appending it to a catalog must leave passed and total
-// untouched. Counting it in the total alone would render "2 of 3 checks passed"
-// beside exit 0 — a healthy run reading as partial.
 func TestDoctorSummary_InfoLineOutsideCounts(t *testing.T) {
 	catalog := []checkResult{
 		{name: "daemon", status: checkPass, detail: "running"},
@@ -88,10 +64,6 @@ func TestDoctorSummary_InfoLineOutsideCounts(t *testing.T) {
 	}
 }
 
-// TestDoctorSummary_NotEvaluableOutsideCounts drives the real command body with
-// one of the seven checks not-evaluable (a transient saver-probe error): the
-// summary reads the all-passed form over the remaining six (N == T == 6) and the
-// run still exits 0, because a not-evaluable check never drives the exit code.
 func TestDoctorSummary_NotEvaluableOutsideCounts(t *testing.T) {
 	deps := healthyDoctorDeps(t)
 	deps.SaverPresent = func() (bool, error) { return false, errors.New("tmux transient") }
@@ -107,14 +79,10 @@ func TestDoctorSummary_NotEvaluableOutsideCounts(t *testing.T) {
 	}
 }
 
-// TestDoctorSummary_UnknownCountsTowardTotalOnly pins the iota-0 sentinel into
-// the total but not the passed count. checkUnknown already reads as unhealthy in
-// doctorUnhealthy, so counting it anywhere else here would make the summary and
-// the exit code disagree about the same run.
 func TestDoctorSummary_UnknownCountsTowardTotalOnly(t *testing.T) {
 	results := []checkResult{
 		{name: "daemon", status: checkPass, detail: "running"},
-		{name: "forgotten"}, // zero-value status — a missed assignment
+		{name: "forgotten"},
 	}
 
 	passed, total := doctorCheckCounts(results)
@@ -129,15 +97,10 @@ func TestDoctorSummary_UnknownCountsTowardTotalOnly(t *testing.T) {
 	}
 }
 
-// TestDoctorSummary_MatchesDoctorUnhealthy asserts the equivalence the summary
-// rests on as a PROPERTY rather than assuming it: passed == total exactly when
-// the run is healthy, across every status and their mixtures. The rendered form
-// is checked alongside it, so the "<N> of <T>" wording appears precisely when the
-// exit is non-zero.
 func TestDoctorSummary_MatchesDoctorUnhealthy(t *testing.T) {
 	pass := checkResult{name: "pass", status: checkPass, detail: "ok"}
 	fail := checkResult{name: "fail", status: checkFail, detail: "broken"}
-	unknown := checkResult{name: "forgotten"} // zero-value status — checkUnknown
+	unknown := checkResult{name: "forgotten"}
 	info := checkResult{name: "host terminal", status: checkInfo, detail: "Ghostty (supported)"}
 	notEval := checkResult{name: "stale hooks", status: checkNotEvaluable, detail: "not evaluable"}
 
@@ -180,9 +143,6 @@ func TestDoctorSummary_MatchesDoctorUnhealthy(t *testing.T) {
 	}
 }
 
-// TestDoctorSummary_IsTheLastLine pins renderDoctorReport's whole output byte
-// for byte over a mixed catalog: the summary is the final line, there is no
-// blank line between it and the last check line, and nothing trails it.
 func TestDoctorSummary_IsTheLastLine(t *testing.T) {
 	results := []checkResult{
 		{name: "daemon", status: checkPass, detail: "running (pid 1, version v1.0.0)"},
@@ -205,16 +165,9 @@ func TestDoctorSummary_IsTheLastLine(t *testing.T) {
 	}
 }
 
-// TestDoctorSummary_FixPathRendersTwo pins one summary per report render: the
-// --fix path renders twice, and each summary reflects its OWN pass — the
-// pre-repair report counts the stale-hook failure, the post-repair report counts
-// the pruned catalog clean.
 func TestDoctorSummary_FixPathRendersTwo(t *testing.T) {
 	dir := t.TempDir()
 	seedHealthyStateDir(t, dir)
-	// A persisted key absent from a NON-empty live set is genuinely stale (the
-	// hazard guard does not defer), so the first pass fails the stale-hooks check
-	// and --fix prunes it before the second.
 	hookStore, _ := seedHooksJSON(t, "sessA:0.0")
 	projectStore, _ := seedProjectsJSON(t, t.TempDir())
 	deps := staleDeps(dir, fakeHookLister{keys: []string{"sessB:0.0"}}, hookStore, projectStore)
@@ -236,9 +189,6 @@ func TestDoctorSummary_FixPathRendersTwo(t *testing.T) {
 	}
 }
 
-// TestDoctorSummary_NoSingularCarveOut pins the single form for the checks
-// count: one passing check reads "1 checks passed", never the grammatical
-// "1 check passed". The count deliberately does NOT route through pluralCount.
 func TestDoctorSummary_NoSingularCarveOut(t *testing.T) {
 	cases := []struct {
 		name    string

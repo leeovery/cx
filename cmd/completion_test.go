@@ -1,8 +1,5 @@
 package cmd
 
-// Tests in this file mutate the package-level completionSessionNames seam and
-// MUST NOT use t.Parallel.
-
 import (
 	"bytes"
 	"os"
@@ -15,10 +12,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// withCompletionSessionNames overrides the injectable session-name seam for the
-// duration of a test and restores it via t.Cleanup. The seam is the ONLY tmux
-// touch-point of the completer; overriding it keeps the completion tests
-// hermetic (no real tmux client, no bootstrap).
 func withCompletionSessionNames(t *testing.T, fn func() []string) {
 	t.Helper()
 	prev := completionSessionNames
@@ -67,10 +60,6 @@ func TestCompleteSessionNames(t *testing.T) {
 	})
 }
 
-// withCompletionAliasKeys overrides the injectable alias-key seam for the
-// duration of a test and restores it via t.Cleanup. The seam is the ONLY
-// config-file touch-point of the alias completer; overriding it keeps the
-// completion tests hermetic (no real aliases file read, no tmux client).
 func withCompletionAliasKeys(t *testing.T, fn func() []string) {
 	t.Helper()
 	prev := completionAliasKeys
@@ -119,10 +108,6 @@ func TestCompleteAliasKeys(t *testing.T) {
 	})
 }
 
-// TestCompletionAliasKeysProductionSeam exercises the REAL completionAliasKeys
-// seam (loadAliasStore -> config-path aliases file via PORTAL_ALIASES_FILE),
-// proving it needs no tmux client (pure config-file I/O) and that a seeded file
-// yields its keys while a missing file yields nothing (no error, no panic).
 func TestCompletionAliasKeysProductionSeam(t *testing.T) {
 	t.Run("loads keys from the seeded aliases file", func(t *testing.T) {
 		aliasFile := filepath.Join(t.TempDir(), "aliases")
@@ -251,11 +236,6 @@ func TestCompletionWiring(t *testing.T) {
 	})
 }
 
-// TestCompletionExcludesInternalSessions proves the leading-underscore internal
-// sessions (_portal-saver / _portal-bootstrap / etc.) are never suggested,
-// inherited from ListSessionNames -> ListSessions' underscore-prefix drop. Uses
-// a real per-test tmux -L socket (UNIT lane: fast real-tmux client, no daemon,
-// no built binary, not integration-tagged).
 func TestCompletionExcludesInternalSessions(t *testing.T) {
 	socket := tmuxtest.New(t, "ptl-complete-")
 	socket.Run(t, "new-session", "-d", "-s", "my-work")
@@ -280,13 +260,8 @@ func TestCompletionExcludesInternalSessions(t *testing.T) {
 	}
 }
 
-// completionCandidates drives cobra's hidden __complete request verb through the
-// real root command and returns the candidate tokens (the text before the first
-// TAB on each line), dropping the trailing ":<directive>" line. It is the
-// behavioural probe for "what the shell would be offered", so a hidden flag or a
-// hidden command (filtered by cobra itself) is provably absent from the result.
-// __complete is bootstrap-exempt (skipTmuxCheck), so no tmux client or injected
-// deps are needed on the flag/subcommand paths exercised here.
+// Goes through the real root command, so cobra's own filtering applies to the
+// returned candidates.
 func completionCandidates(t *testing.T, args ...string) []string {
 	t.Helper()
 	resetRootCmd()
@@ -309,14 +284,9 @@ func completionCandidates(t *testing.T, args ...string) []string {
 	return cands
 }
 
-// TestCompletionHidesInternalSurface proves cobra's generated completion never
-// offers Portal's internal surface: the hidden --ack flag is absent from `open`'s
-// flag completion, and the hidden `state` namespace is absent from top-level
-// command completion. Each subtest also asserts a VISIBLE sibling IS offered, so
-// the probe is non-vacuous (it fails if completion produced nothing at all).
 func TestCompletionHidesInternalSurface(t *testing.T) {
 	t.Run("open flag completion excludes the hidden --ack flag", func(t *testing.T) {
-		// toComplete "-" makes cobra emit flag-name candidates for open.
+		// toComplete "-" makes cobra emit flag-name candidates.
 		cands := completionCandidates(t, "__complete", "open", "-")
 		if slices.Contains(cands, "--ack") {
 			t.Errorf("open flag completion offered the hidden --ack flag; candidates=%v", cands)

@@ -12,11 +12,6 @@ import (
 	"github.com/leeovery/portal/internal/state"
 )
 
-// openTestLogger returns a capturing *slog.Logger plus its logtest.Sink so
-// sweep tests can assert on the rendered log body. The dir parameter is
-// retained for call-site compatibility but unused — logging is in-memory now,
-// which means tests can chmod the state directory mid-sweep without breaking
-// log capture.
 func openTestLogger(t *testing.T, dir string) (*slog.Logger, *logtest.Sink) {
 	t.Helper()
 	_ = dir
@@ -106,7 +101,6 @@ func TestSweepOrphanFIFOs_RemovesAllWhenLiveSetEmpty(t *testing.T) {
 func TestSweepOrphanFIFOs_RoundTripsSanitizedPaneKeys(t *testing.T) {
 	dir := t.TempDir()
 
-	// Session "weird/name" sanitises with a collision suffix.
 	sanitized := state.SanitizePaneKey("weird/name", 0, 0)
 	path := filepath.Join(dir, "hydrate-"+sanitized+".fifo")
 	if err := state.CreateFIFO(path); err != nil {
@@ -145,8 +139,7 @@ func TestSweepOrphanFIFOs_LogsAndContinuesOnPerFileFailure(t *testing.T) {
 
 	lg, sink := openTestLogger(t, dir)
 
-	// Strip write permission AFTER FIFOs are created so os.Remove fails for
-	// both. Sweep should log warn for both and still return nil.
+	// Order matters: the FIFOs exist before the directory loses write permission.
 	if err := os.Chmod(dir, 0o500); err != nil {
 		t.Fatalf("chmod dir: %v", err)
 	}
@@ -158,7 +151,7 @@ func TestSweepOrphanFIFOs_LogsAndContinuesOnPerFileFailure(t *testing.T) {
 		t.Errorf("SweepOrphanFIFOs returned error: %v", err)
 	}
 
-	// Restore permissions so the temp-dir cleanup can remove files.
+	// Restore permissions so the temp-dir cleanup can remove the files.
 	if err := os.Chmod(dir, 0o700); err != nil {
 		t.Fatalf("restore chmod: %v", err)
 	}
@@ -174,12 +167,6 @@ func TestSweepOrphanFIFOs_LogsAndContinuesOnPerFileFailure(t *testing.T) {
 		t.Errorf("log missing WARN level; body = %q", body)
 	}
 }
-
-// NOTE: the per-removal breadcrumb was demoted from INFO on the injected logger
-// to DEBUG "orphan fifo reaped" on the clean-component package logger in Phase 5
-// Task 5-6. That behaviour is now asserted in fifo_sweep_summary_test.go
-// (TestSweepOrphanFIFOs_DemotesPerRemovalInfoToDebugUnderClean), so the old
-// INFO-on-injected-logger assertion is removed.
 
 func TestSweepOrphanFIFOs_TreatsSymlinksAsNonFIFOs(t *testing.T) {
 	dir := t.TempDir()

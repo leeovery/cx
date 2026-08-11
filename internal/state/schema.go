@@ -7,27 +7,19 @@ import (
 	"time"
 )
 
-// SchemaVersion is the current sessions.json schema version. It is bumped on
-// any schema-breaking change; the loader compares this against the version
-// field in a decoded payload to apply known-version logic.
+// SchemaVersion is bumped on any schema-breaking change.
 const SchemaVersion = 1
 
-// Index is the root document persisted to sessions.json. It captures the
-// complete structural topology of all saved tmux sessions plus references to
-// per-pane scrollback files.
+// Index is the root document persisted to sessions.json.
 type Index struct {
 	Version  int       `json:"version"`
 	SavedAt  time.Time `json:"saved_at"`
 	Sessions []Session `json:"sessions"`
 }
 
-// Session captures a single tmux session: its name, environment, and windows.
-//
-// PortalID carries the session's immutable @portal-id (portal_id), persisted so
-// a renamed session's hook key survives a reboot — tmux user-options are
-// in-memory server state and do not outlive the reboot gap. An absent field
-// decodes to "" (a legacy/un-stamped session), which restore treats as the
-// name-fallback path.
+// Session's PortalID persists the immutable @portal-id so a renamed session's
+// hook key survives a reboot — tmux user-options do not outlive the server. It
+// decodes to "" for a legacy un-stamped session, which restore keys by name.
 type Session struct {
 	Name        string            `json:"name"`
 	PortalID    string            `json:"portal_id"`
@@ -35,8 +27,6 @@ type Session struct {
 	Windows     []Window          `json:"windows"`
 }
 
-// Window captures a single tmux window: layout, zoom and active state, and
-// its pane list.
 type Window struct {
 	Index  int    `json:"index"`
 	Name   string `json:"name"`
@@ -46,9 +36,7 @@ type Window struct {
 	Panes  []Pane `json:"panes"`
 }
 
-// Pane captures a single tmux pane: its index, working directory, active
-// flag, current foreground command, and the relative path to its scrollback
-// file under the state directory.
+// Pane's ScrollbackFile is relative to the state directory.
 type Pane struct {
 	Index          int    `json:"index"`
 	CWD            string `json:"cwd"`
@@ -57,15 +45,8 @@ type Pane struct {
 	ScrollbackFile string `json:"scrollback_file"`
 }
 
-// Canonicalize normalises the index for stable on-disk encoding:
-//   - Version is set to SchemaVersion.
-//   - Nil Sessions becomes an empty slice (encodes as [] rather than null).
-//   - Each session's nil Environment becomes an empty map (encodes as {}).
-//   - Each session's nil Windows becomes an empty slice.
-//   - Each window's nil Panes becomes an empty slice.
-//
-// Canonicalize mutates the receiver. EncodeIndex calls it on a local copy so
-// callers' values are never modified by encoding.
+// Canonicalize replaces nil slices and maps so they encode as [] and {} rather
+// than null. It mutates the receiver.
 func (idx *Index) Canonicalize() {
 	idx.Version = SchemaVersion
 
@@ -89,21 +70,15 @@ func (idx *Index) Canonicalize() {
 	}
 }
 
-// EncodeIndex serialises an Index to its canonical JSON byte form: 2-space
-// indent, no null slices or maps, and Version forced to SchemaVersion. The
-// supplied Index is not mutated.
+// EncodeIndex serialises idx to canonical indented JSON without mutating it.
 func EncodeIndex(idx Index) ([]byte, error) {
 	local := idx
 	local.Canonicalize()
 	return json.MarshalIndent(local, "", "  ")
 }
 
-// DecodeIndex parses a sessions.json byte payload into an Index. It returns
-// an error if the JSON is malformed, the version field is missing (zero
-// after unmarshal), or the version does not match SchemaVersion.
-//
-// Unknown fields are silently ignored — that is the default json.Unmarshal
-// behaviour and is desirable for forward compatibility with future writers.
+// DecodeIndex errors on malformed JSON, a missing version field, and a version
+// other than SchemaVersion; unknown fields are ignored for forward compat.
 func DecodeIndex(data []byte) (Index, error) {
 	var idx Index
 	if err := json.Unmarshal(data, &idx); err != nil {

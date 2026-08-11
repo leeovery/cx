@@ -13,8 +13,6 @@ func TestDir(t *testing.T) {
 	t.Run("resolves to PORTAL_STATE_DIR when set", func(t *testing.T) {
 		dir := t.TempDir()
 		t.Setenv("PORTAL_STATE_DIR", dir)
-		// Even when XDG_CONFIG_HOME and HOME are set, PORTAL_STATE_DIR wins
-		// and the result is used verbatim (no /portal/state suffix).
 		t.Setenv("XDG_CONFIG_HOME", filepath.Join(t.TempDir(), "xdg"))
 		t.Setenv("HOME", t.TempDir())
 
@@ -89,7 +87,6 @@ func TestEnsureDir(t *testing.T) {
 			t.Fatalf("first EnsureDir failed: %v", err)
 		}
 
-		// Drop a sentinel file so we can confirm nothing was clobbered.
 		sentinel := filepath.Join(stateRoot, "sentinel")
 		if err := os.WriteFile(sentinel, []byte("keep"), 0o600); err != nil {
 			t.Fatalf("failed to write sentinel: %v", err)
@@ -214,8 +211,7 @@ func TestTouchSaveRequested(t *testing.T) {
 			t.Errorf("save.requested size = %d; want 0", info.Size())
 		}
 		mtime := info.ModTime()
-		// Tolerance accounts for filesystem mtime resolution (e.g. 1s on
-		// some platforms). Bracket inclusive on both sides with a 2s slack.
+		// The 2s slack absorbs filesystem mtime resolution.
 		if mtime.Before(before.Add(-2*time.Second)) || mtime.After(after.Add(2*time.Second)) {
 			t.Errorf("mtime = %v; want within [%v, %v] (±2s)", mtime, before, after)
 		}
@@ -225,7 +221,6 @@ func TestTouchSaveRequested(t *testing.T) {
 		dir := t.TempDir()
 		path := state.SaveRequested(dir)
 
-		// Pre-create save.requested with an old mtime.
 		if err := os.WriteFile(path, []byte("stale"), 0o600); err != nil {
 			t.Fatalf("seed save.requested: %v", err)
 		}
@@ -249,7 +244,6 @@ func TestTouchSaveRequested(t *testing.T) {
 		if !info.ModTime().After(old) {
 			t.Errorf("mtime not bumped: got %v; want after %v", info.ModTime(), old)
 		}
-		// Sanity: mtime must be near `before`, not stale.
 		if info.ModTime().Before(before.Add(-2 * time.Second)) {
 			t.Errorf("mtime = %v; expected near %v", info.ModTime(), before)
 		}
@@ -263,15 +257,12 @@ func TestTouchSaveRequested(t *testing.T) {
 		if err == nil {
 			t.Fatal("expected error when parent dir is missing, got nil")
 		}
-		// File must not have been created.
 		if _, statErr := os.Stat(state.SaveRequested(missing)); !os.IsNotExist(statErr) {
 			t.Errorf("save.requested should not exist; stat err = %v", statErr)
 		}
 	})
 }
 
-// assertDirMode fails the test unless path is a directory whose permission
-// bits exactly equal want.
 func assertDirMode(t *testing.T, path string, want os.FileMode) {
 	t.Helper()
 	info, err := os.Stat(path)

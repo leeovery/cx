@@ -7,20 +7,6 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// The model holds two DIFFERENT light/dark facts, and these cases pin the
-// difference: what the TERMINAL said (themeState.reply, an optional value that
-// only an OSC 11 arrival fills) and the answer IN FORCE (themeState.inForceMode,
-// the one value that selects the active member and names the slot painting the
-// screen). A launch that never asked the question has the first and not the
-// second, which is the whole reason the mid-session conversion can answer at all.
-//
-// No t.Parallel() — the package-level mock convention makes parallelism unsafe
-// across this package's tests.
-
-// TestTerminalReply_NoAnswerShapedReplyIsAnArrival pins the shape of the reply a
-// terminal that answers nothing sends: a nil colour. It is still an ARRIVAL —
-// classified dark, carrying no hex — which is why the arrival is tracked
-// separately from a non-empty retained background.
 func TestTerminalReply_NoAnswerShapedReplyIsAnArrival(t *testing.T) {
 	m := New(fakeLister{})
 
@@ -38,9 +24,6 @@ func TestTerminalReply_NoAnswerShapedReplyIsAnArrival(t *testing.T) {
 	}
 }
 
-// TestTerminalReply_UnansweredIsNotAnArrival pins the other half: with no reply
-// at all the optional is empty, and the answer it stands in for is the standing
-// dark fallback.
 func TestTerminalReply_UnansweredIsNotAnArrival(t *testing.T) {
 	m := New(fakeLister{})
 
@@ -52,11 +35,6 @@ func TestTerminalReply_UnansweredIsNotAnArrival(t *testing.T) {
 	}
 }
 
-// TestInForceMode_ConversionOnAPinnedGateTakesTheRetainedReply drives the case
-// the two facts exist for: a constant launch, whose gate was never armed, in a
-// LIGHT terminal. The conversion must land on the light slot from the reply
-// already in hand, and the gate must keep its own standing fallback — it resolved
-// once and a conversion is not a second resolution.
 func TestInForceMode_ConversionOnAPinnedGateTakesTheRetainedReply(t *testing.T) {
 	dir := newConversionThemesDir(t)
 	m, _, _ := newConversionPanelModel(t, dir, theme.RawKeys{Theme: conversionConstant})
@@ -76,10 +54,6 @@ func TestInForceMode_ConversionOnAPinnedGateTakesTheRetainedReply(t *testing.T) 
 	}
 }
 
-// TestInForceMode_LateReplyIsRecordedButNeverReThemes pins the resolve-once rule
-// at its sharpest point: the timeout resolved the gate first. The reply is still
-// recorded as what the terminal said — restore-on-exit and a later conversion both
-// need it — but the answer in force and the painted palette do not move.
 func TestInForceMode_LateReplyIsRecordedButNeverReThemes(t *testing.T) {
 	m := detectModel(t, testBuiltinPair(t))
 	timedOut, _ := m.Update(appearanceTimeoutMsg{})

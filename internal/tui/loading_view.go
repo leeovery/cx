@@ -8,43 +8,8 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// The honest loading screen render. This is the VISUAL layer over the pure
-// LoadingProgress
-// accumulator: it consumes a LoadingProgressView (bar fraction + the ordered five
-// friendly labels with their done/active/pending states + counter) and composes
-// the centred block the user watches during a cold boot.
-//
-// Reference: testdata/vhs/reference/loading-mv.png (`Loading 6 — Combined (thick
-// bar)`). Top-to-bottom, all CENTRED as a column relative to one another
-// (lipgloss.JoinVertical(Center) — never left-flushed to the widest element): the
-// locked 5-row solid-block PORTAL wordmark + a flush 5-row violet caret bar, a
-// 2-row gap, a thick violet progress bar on the bg.subtle track spanning the FULL
-// rendered wordmark width, a 2-row gap, and a real 5-row tick-list whose rows stay
-// left-aligned within the centred list block. On the error frame the message
-// and quit hint are appended as further centred elements.
-//
-// Every glyph carries the owned canvas background (leaf .Background(canvas));
-// the JoinVertical(Center) padding cells beside narrower elements are painted by
-// the outer View()→fillCanvas backfill, so the centred block has no terminal-bg
-// islands behind it; the outer fill in View() (model.fillCanvas) owns the
-// surrounding canvas. Under the NO_COLOR
-// carve-out every hue and the canvas background drop, leaving the
-// structure (block banner / bar / glyph+label list) intact on the terminal's
-// native fg/bg — state stays distinguishable by glyph (✓/◐/·) + bold/dim.
-
-// loadingWordmark is THE LOCKED hero wordmark (user-approved): a bold 5-row
-// SOLID-block banner spelling PORTAL. A terminal has no font size, so "large
-// PORTAL" becomes a multi-row block banner; the earlier compact 3-row half-block
-// form rendered ambiguously in the real terminal font ("A" read as "U"), so the
-// art is now a bold 5-row solid `█` letterform that reads unambiguously. These
-// five rows are the SINGLE SOURCE OF TRUTH for the banner — do not re-derive or
-// substitute. Each letter is a 5-cell solid-block glyph with single-space gaps;
-// the trailing `L` is `█` on rows 1–4 and `█████` on row 5, so the rows are
-// NATURALLY RAGGED (rows 0–3 are 31 cells, row 4 is 35). renderBlockWordmark
-// right-pads every row to the common max width at render time — this both renders
-// the L's flush-left stem correctly AND keeps the caret a flush vertical bar
-// (NOTE: do NOT add trailing spaces to these constant rows — gofmt/editors strip
-// them, so the padding is applied at runtime).
+// Rows are naturally ragged; renderBlockWordmark right-pads at render time. Do
+// not pad here — gofmt and editors strip trailing spaces.
 var loadingWordmark = [5]string{
 	"█████ █████ █████ █████ █████ █",
 	"█   █ █   █ █   █   █   █   █ █",
@@ -54,58 +19,32 @@ var loadingWordmark = [5]string{
 }
 
 const (
-	// loadingCaretGlyph is the violet caret block. renderBlockWordmark builds a
-	// 5-row caret column from it and joins it ONCE (a loadingCaretGap-cell gap)
-	// against the padded wordmark stack, so the caret is a single flush 5-row-tall
-	// accent.primary bar beside the wordmark — not appended per-row (which jogged on
-	// the ragged bottom row, breaking the caret into a detached comma).
 	loadingCaretGlyph = "█"
 
-	// loadingCaretGap is the blank-cell gap between the block wordmark's trailing L
-	// and the violet caret bar. Deliberately wider than the 1-cell inter-letter gap
-	// so the caret reads as a separate cursor, not a 7th letter — at block weight a
-	// 1-cell gap rendered "PORTAL" + caret as a single word "PORTALI".
+	// Deliberately wider than the 1-cell inter-letter gap: at block weight a
+	// 1-cell gap read the caret as a seventh letter.
 	loadingCaretGap = 3
 
-	// loadingGlyphDone / loadingGlyphActive / loadingGlyphPending are the
-	// tick glyphs. Each occupies a fixed-width slot so the labels align across
-	// rows regardless of glyph cell width.
 	loadingGlyphDone    = "✓"
 	loadingGlyphActive  = "◐"
 	loadingGlyphPending = "·"
-	// loadingGlyphFailed is the fatal-step marker — a state.destructive ✗ on the
-	// step that aborted the boot. It is glyph-distinct from ✓/◐/· so the failure
-	// reads under NO_COLOR without relying on the red hue.
+	// Glyph-distinct from ✓/◐/· so the failure reads under NO_COLOR.
 	loadingGlyphFailed = "✗"
 
-	// loadingBarFilledGlyph / loadingBarTrackGlyph are the thick bar's cells — one
-	// row of solid blocks. The filled run carries the accent.primary background, the
-	// track the bg.subtle background, so the bar reads as one clean thick solid bar
-	// (a full-block glyph over the matching background renders a flush solid cell).
+	// Full blocks over matching backgrounds render as flush solid cells.
 	loadingBarFilledGlyph = "█"
 	loadingBarTrackGlyph  = "█"
 )
 
 const (
-	loadingTickGlyphSlot = 2 // fixed-width glyph column so labels align
+	loadingTickGlyphSlot = 2
 	loadingTickGap       = "  "
 
-	// loadingQuitHint is the error-frame quit hint shown beneath the fatal
-	// message. q/Esc quit from the error frame; this tells the user how to exit.
 	loadingQuitHint = "q quit · esc quit"
 )
 
-// loadingBlockBannerWidth is the rendered cell width of the 5-row block banner
-// INCLUDING the violet caret (the common max row width + one space gap + the caret
-// glyph). Derived from loadingWordmark so the degrade threshold tracks the banner,
-// never a magic number (≈37 cells for the current art). Computed once at package
-// init.
 var loadingBlockBannerWidth = computeBlockBannerWidth()
 
-// blockBannerMaxRowWidth is the widest of the (naturally ragged) banner rows — the
-// common width every row is right-padded to so the rows are uniform and the caret
-// stays flush. Single source for both the render padding and the degrade-threshold
-// width.
 func blockBannerMaxRowWidth() int {
 	widest := 0
 	for _, row := range loadingWordmark {
@@ -117,31 +56,20 @@ func blockBannerMaxRowWidth() int {
 }
 
 func computeBlockBannerWidth() int {
-	// padded rows (max width) + the caret gap + the single-cell caret glyph.
 	return blockBannerMaxRowWidth() + loadingCaretGap + lipgloss.Width(loadingCaretGlyph)
 }
 
-// loadingFallbackWidth/Height mirror the header/viewLoading zero-size fallback so
-// the screen still composes before the first WindowSizeMsg.
+// Mirrors the header's zero-size fallback so the screen composes before the
+// first WindowSizeMsg.
 const (
 	loadingFallbackWidth  = 80
 	loadingFallbackHeight = 24
 )
 
-// singleRowWordmarkHeight is the row count of the degraded single-row wordmark —
-// always one row. Named so the height-degrade arithmetic reads intent.
 const singleRowWordmarkHeight = 1
 
-// loadingSectionGap is the blank-row count between the wordmark→bar and bar→list
-// sections of the centred block (the design's ~34px gap reads as two
-// terminal rows, vs the former single row). Dropped first under the height
-// degrade so the bar(1) + list floor is never overflowed.
 const loadingSectionGap = 2
 
-// renderLoadingScreen composes the honest loading screen centred in the
-// inset content region (w × h), so View()→fillCanvas paints the owned canvas
-// around it. It builds the centred column via composeLoadingBlock and places it
-// dead-centre via lipgloss.Place.
 func renderLoadingScreen(view LoadingProgressView, w, h int, th theme.Theme, colourless bool) string {
 	if w <= 0 {
 		w = loadingFallbackWidth
@@ -152,73 +80,39 @@ func renderLoadingScreen(view LoadingProgressView, w, h int, th theme.Theme, col
 
 	block := composeLoadingBlock(view, w, h, th, colourless)
 
-	// Centre the block in the inset content region. The whitespace lipgloss.Place
-	// emits is canvas-backfilled by the outer View()→fillCanvas wrap (the single
-	// owned-canvas fill), so no per-cell whitespace background is set here —
-	// matching every other page composer. Place never truncates, so a block taller
-	// than h would overflow — the degrade in composeLoadingBlock keeps it within h.
+	// Place never truncates, so composeLoadingBlock's degrade is what keeps the
+	// block within h.
 	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, block)
 }
 
-// composeLoadingBlock builds the centred column: the hero wordmark, a
-// 2-row gap, the thick bar (spanning the full wordmark width), a 2-row gap, the
-// 5-row tick-list, and — on the fatal frame — a 1-row spacer + the centred
-// message line + the centred quit hint. Every element is joined via
-// JoinVertical(lipgloss.Center) so the column centres relative to its WIDEST
-// element regardless of which it is (the wide wordmark on the normal frame, the
-// long message on the error frame) — the two frames then stop diverging.
-//
-// The bar width is DERIVED from the rendered wordmark width (not a fixed 30), so
-// the bar always spans the full length of the logo — including on the
-// width-degraded single-row / compact wordmark, where it matches that narrower
-// form. The wordmark is therefore computed FIRST and measured.
-//
-// Degrade, never overflow:
-//   - Width: the wordmark steps block → single-row letter-spaced → compact; the
-//     bar clamps to the content width w; tick rows truncate with `…`.
-//   - Height: when the full block does not fit in h, the inter-section gaps are
-//     dropped first (saves 2×loadingSectionGap rows), then the banner collapses
-//     to a single row, then is dropped entirely — the bar(1) + list (+ budgeted
-//     footer on the error frame) is the irreducible floor, so the step-list never
-//     overflows.
+// Degrade, never overflow: bar + list (+ error footer) is the irreducible floor.
+// The bar width derives from the rendered wordmark, so it spans the logo in
+// every degraded form.
 func composeLoadingBlock(view LoadingProgressView, w, h int, th theme.Theme, colourless bool) string {
 	list := renderTickList(view.Labels, w, th, colourless)
 	listHeight := lipgloss.Height(list)
 
-	// The error footer rows (message + hint, + a spacer) are SEPARATE centred
-	// elements appended to the column — NOT folded into the left-joined list — so
-	// each centres independently (the wide message becomes a centred caption while
-	// the compact steps-block stays centred and no element sticks out
-	// asymmetrically). The footer is height-BUDGETED to the rows beyond
-	// bar(1)+list so it never pushes the floor past h; on a too-short terminal it
-	// sheds the spacer, then the hint, then the message (the red ✗ on the failed
-	// row still conveys the failure — degrade, never break).
+	// The error footer rows stay separate centred elements rather than folding
+	// into the left-joined list, so each centres independently.
 	var footerParts []string
 	footerHeight := 0
 	if view.Message != "" {
-		footerBudget := h - 1 - listHeight // 1 = the bar's single row
+		footerBudget := h - 1 - listHeight
 		footerParts = renderErrorFooter(view.Message, w, footerBudget, th, colourless)
 		for _, p := range footerParts {
 			footerHeight += lipgloss.Height(p)
 		}
 	}
 
-	// Compute the wordmark FIRST and measure it so the bar spans its full width.
 	wordmark := renderLoadingWordmark(w, h, listHeight+footerHeight, th, colourless)
 	wordmarkWidth := lipgloss.Width(wordmark)
 	bar := renderLoadingBar(view.BarFraction, w, wordmarkWidth, th, colourless)
 
-	floor := 1 + listHeight + footerHeight // bar(1) + list + footer
+	floor := 1 + listHeight + footerHeight
 
-	// Height-driven layout. The floor is irreducible; spend the remaining rows
-	// first on the wordmark (the taller block banner vs the single-row form), then
-	// on the 2-row gaps above and below the bar. On a terminal too short for even
-	// the single-row wordmark + floor, the wordmark is dropped entirely so the
-	// step-list never overflows.
 	parts := []string{bar, list}
 	if singleRowWordmarkHeight+floor <= h {
 		wordmarkHeight := lipgloss.Height(wordmark)
-		// gaps fit only when there is height to spare beyond wordmark + gaps + floor.
 		if wordmarkHeight+2*loadingSectionGap+floor <= h {
 			gap := renderSectionGap(th, colourless)
 			parts = []string{wordmark, gap, bar, gap, list}
@@ -231,11 +125,6 @@ func composeLoadingBlock(view LoadingProgressView, w, h int, th theme.Theme, col
 	return lipgloss.JoinVertical(lipgloss.Center, parts...)
 }
 
-// renderSectionGap renders the 2-row inter-section blank gap, each row carrying
-// the canvas background so the centred-padding cells beside narrower elements
-// never leave a terminal-bg island (the canvas-backfill in fillCanvas paints the
-// JoinVertical(Center) leading pad, and these styled blank rows keep the gap rows
-// themselves on canvas). Under NO_COLOR the rows are bare.
 func renderSectionGap(th theme.Theme, colourless bool) string {
 	row := loadingStyle(th, colourless).Render("")
 	rows := make([]string, loadingSectionGap)
@@ -245,38 +134,21 @@ func renderSectionGap(th theme.Theme, colourless bool) string {
 	return lipgloss.JoinVertical(lipgloss.Left, rows...)
 }
 
-// loadingStyle is the leaf canvas-paint style for the loading screen — a
-// Background(canvas) style from the active theme, bare under NO_COLOR. It delegates to the
-// shared header.go source (headerCanvasBg) rather than re-implementing the rule,
-// so the leaf canvas-paint carve-out lives in exactly one place (mirroring how
-// SessionDelegate.rowBg delegates to the shared rowBgStyle free function).
 func loadingStyle(th theme.Theme, colourless bool) lipgloss.Style {
 	return headerCanvasBg(th, colourless)
 }
 
-// loadingFg is the leaf token-foreground-over-canvas style for the loading screen
-// (bare under NO_COLOR). It delegates to the shared header.go source (headerStyle)
-// rather than re-implementing the rule (mirroring SessionDelegate.rowToken's
-// delegation to the shared rowTokenStyle free function).
 func loadingFg(fg theme.Token, th theme.Theme, colourless bool) lipgloss.Style {
 	return headerStyle(fg, th, colourless)
 }
 
-// renderLoadingWordmark renders the hero wordmark for the laid-out width and the
-// remaining height budget, degrading so it never overflows in either
-// dimension: the 5-row block banner + flush violet caret bar when it fits BOTH the
-// block width (≈37 cells) and the height budget (the bar + everything beneath it
-// still fit), else the single-row letter-spaced wordmark + caret, else the compact
-// wordmark + caret. belowHeight is the rendered height of everything below the bar
-// (the tick-list plus, on the error frame, the footer rows), used so the
-// banner only claims its 5 rows when h leaves room for the bar (1) + that block.
+// belowHeight is the rendered height of everything below the bar, so the block
+// banner claims its rows only when the rest still fits.
 func renderLoadingWordmark(w, h, belowHeight int, th theme.Theme, colourless bool) string {
 	blockFitsHeight := len(loadingWordmark)+1+belowHeight <= h
 	if w >= loadingBlockBannerWidth && blockFitsHeight {
 		return renderBlockWordmark(th, colourless)
 	}
-	// Single-row letter-spaced wordmark + caret (header.go's fullWordmark), if it
-	// fits with the caret (one space + one cell).
 	full := lipgloss.Width(fullWordmark) + 1 + lipgloss.Width(headerCaret)
 	if w >= full {
 		return renderSingleRowWordmark(fullWordmark, th, colourless)
@@ -284,21 +156,8 @@ func renderLoadingWordmark(w, h, belowHeight int, th theme.Theme, colourless boo
 	return renderSingleRowWordmark(headerCompactWordmark, th, colourless)
 }
 
-// renderBlockWordmark renders the locked 5-row solid-block banner so the caret is
-// a single FLUSH 5-row violet bar regardless of the art's ragged row widths:
-//
-//  1. Compute the common max row width across the five banner rows.
-//  2. RIGHT-PAD every row to that width (so all rows are uniform — this fixes the
-//     ragged-row caret jog AND renders the trailing `L` correctly, since padding
-//     rows 0–3 leaves the L's stem flush-left with trailing space, matching row
-//     4's `█████` foot).
-//  3. Build the caret as its OWN 5-row block (one caret glyph per row) and
-//     JoinHorizontal it ONCE — separated by a loadingCaretGap-cell gap column —
-//     against the padded, JoinVertical'd wordmark stack. Appending the caret per-row
-//     (the old
-//     path) jogged it on the wider bottom row, breaking it into a detached comma.
-//
-// The letters carry text.primary (bold); the caret carries accent.primary.
+// The caret is its own column joined once against the padded stack: appending it
+// per-row jogs on the wider bottom row and breaks into a detached comma.
 func renderBlockWordmark(th theme.Theme, colourless bool) string {
 	lettersStyle := loadingFg(th.TextPrimary, th, colourless).Bold(true)
 	caretStyle := loadingFg(th.AccentPrimary, th, colourless)
@@ -325,9 +184,6 @@ func renderBlockWordmark(th theme.Theme, colourless bool) string {
 	return lipgloss.JoinHorizontal(lipgloss.Top, wordmark, gapColumn, caretBar)
 }
 
-// renderSingleRowWordmark renders the narrow-degrade single-row wordmark: the
-// text.primary (bold) wordmark + the violet header caret, reusing
-// header.go's glyphs so the degrade matches the shared chrome.
 func renderSingleRowWordmark(wordmark string, th theme.Theme, colourless bool) string {
 	letters := loadingFg(th.TextPrimary, th, colourless).Bold(true).Render(wordmark)
 	gap := loadingStyle(th, colourless).Render(" ")
@@ -335,15 +191,6 @@ func renderSingleRowWordmark(wordmark string, th theme.Theme, colourless bool) s
 	return lipgloss.JoinHorizontal(lipgloss.Top, letters, gap, caret)
 }
 
-// renderLoadingBar renders the thick block progress bar: one row of solid cells,
-// the filled prefix (driven by fraction) carrying the accent.primary background
-// and the track the bg.subtle background, so it reads as one clean thick solid
-// bar. The target width is barWidth — the rendered wordmark width, so the bar
-// spans the full length of the logo — clamped to the content width w on a
-// narrow terminal so it never overflows. Under NO_COLOR the bar drops both
-// backgrounds and renders the filled run as solid glyphs over the track glyphs on
-// the native bg (still a visible determinate bar via the block run, no colour
-// required).
 func renderLoadingBar(fraction float64, w, barWidth int, th theme.Theme, colourless bool) string {
 	barW := min(barWidth, w)
 	if barW <= 0 {
@@ -358,8 +205,6 @@ func renderLoadingBar(fraction float64, w, barWidth int, th theme.Theme, colourl
 	filled := min(int(float64(barW)*fraction+0.5), barW)
 
 	if colourless {
-		// No hue/canvas: a solid run for the filled prefix, the track glyph for the
-		// remainder, on the terminal's native bg. Still determinate.
 		return strings.Repeat(loadingBarFilledGlyph, filled) +
 			strings.Repeat(loadingBarTrackGlyph, barW-filled)
 	}
@@ -376,8 +221,6 @@ func renderLoadingBar(fraction float64, w, barWidth int, th theme.Theme, colourl
 	return lipgloss.JoinHorizontal(lipgloss.Top, filledRun, trackRun)
 }
 
-// renderTickList renders the 5-row tick-list — a real list, one row per
-// friendly label — clamped to w so no row overflows.
 func renderTickList(labels []LoadingLabel, w int, th theme.Theme, colourless bool) string {
 	rows := make([]string, 0, len(labels))
 	for _, l := range labels {
@@ -386,25 +229,14 @@ func renderTickList(labels []LoadingLabel, w int, th theme.Theme, colourless boo
 	return lipgloss.JoinVertical(lipgloss.Left, rows...)
 }
 
-// renderErrorFooter renders the fatal error-frame footer as SEPARATE
-// centred elements (a slice the caller appends to the JoinVertical(Center)
-// column, so each element centres independently — the wide message becomes a
-// centred caption, the hint a centred line beneath it). Within a row budget:
-// ideally a blank spacer row, the one-line fatal message in state.destructive,
-// and a quit hint in text.faint (all clamped to w). The message reads as
-// red/error (paired with the failed row's red ✗ above it, so red is never the
-// only signal — without colour); the hint tells the user q/Esc quits. When
-// budget is too small to fit all three, rows are SHED in increasing priority —
-// spacer first, then the hint, then the message — so the footer never overflows
-// the height budget. A budget < 1 returns nil (the red ✗ on the failed step row
-// carries the failure on its own).
+// Below one row the footer vanishes and the failed step's ✗ carries it alone.
 func renderErrorFooter(message string, w, budget int, th theme.Theme, colourless bool) []string {
 	if budget < 1 {
 		return nil
 	}
 	messageRow := clampRow(loadingFg(th.StateDestructive, th, colourless).Render(message), w)
 	if budget == 1 {
-		return []string{messageRow} // message wins the single available row
+		return []string{messageRow}
 	}
 	hintRow := clampRow(loadingFg(th.TextFaint, th, colourless).Render(loadingQuitHint), w)
 	if budget == 2 {
@@ -414,9 +246,7 @@ func renderErrorFooter(message string, w, budget int, th theme.Theme, colourless
 	return []string{spacer, messageRow, hintRow}
 }
 
-// clampRow truncates a rendered row to w cells with an ellipsis (names /
-// rows truncate with `…` rather than overflow), preserving the row's SGR runs. A
-// row already within w is returned unchanged.
+// Truncates to w cells preserving the row's SGR runs.
 func clampRow(row string, w int) string {
 	if w <= 0 || lipgloss.Width(row) <= w {
 		return row
@@ -424,16 +254,6 @@ func clampRow(row string, w int) string {
 	return ansi.Truncate(row, w, "…")
 }
 
-// renderTickRow renders one tick-list row: the state glyph in a fixed-width slot,
-// a two-space gap, the friendly label, and (active "Restoring sessions" only) the
-// spaced `N / M` counter. Token + weight per the mapping:
-//
-//	✓ done    → glyph state.positive,  label text.tertiary (regular)
-//	◐ active  → glyph accent.mode,  label text.primary (BOLD)
-//	· pending → glyph text.faint,   label text.subtle (regular)
-//
-// The active row's counter is the accumulator's "N/M" reformatted to the frame's
-// spaced "N / M" and painted text.muted.
 func renderTickRow(l LoadingLabel, th theme.Theme, colourless bool) string {
 	glyph, glyphTok, labelTok, bold := tickRowTokens(l.State, th)
 
@@ -452,11 +272,6 @@ func renderTickRow(l LoadingLabel, th theme.Theme, colourless bool) string {
 	return row
 }
 
-// tickRowTokens maps a label state to its (glyph, glyph token, label token,
-// bold) per the table — the single mapping site so no row drifts. The fatal
-// LabelFailed row is the error-frame failed step: a state.destructive ✗ glyph
-// with the label ALSO in state.destructive so the failure reads as red/error
-// (and stays glyph-distinct under NO_COLOR via the ✗).
 func tickRowTokens(state LabelState, th theme.Theme) (glyph string, glyphTok, labelTok theme.Token, bold bool) {
 	switch state {
 	case LabelDone:
@@ -470,8 +285,7 @@ func tickRowTokens(state LabelState, th theme.Theme) (glyph string, glyphTok, la
 	}
 }
 
-// padGlyphSlot right-pads a tick glyph to the fixed-width slot so labels align
-// across rows regardless of the glyph's cell width.
+// Fixed-width slot so labels align across rows regardless of glyph cell width.
 func padGlyphSlot(glyph string) string {
 	w := lipgloss.Width(glyph)
 	if w >= loadingTickGlyphSlot {
@@ -480,10 +294,6 @@ func padGlyphSlot(glyph string) string {
 	return glyph + strings.Repeat(" ", loadingTickGlyphSlot-w)
 }
 
-// spacedCounter reformats the accumulator's "N/M" counter to the frame's spaced
-// "N / M" form for display (the frame shows `8 / 12`). It returns "" for
-// every non-counter label and the M=0 suppressed case (the accumulator already emits ""
-// there), so the counter shows ONLY on the active "Restoring sessions" row.
 func spacedCounter(l LoadingLabel) string {
 	if l.Counter == "" {
 		return ""

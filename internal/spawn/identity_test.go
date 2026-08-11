@@ -86,8 +86,6 @@ func TestNewIdentity(t *testing.T) {
 }
 
 func TestNewIdentity_NeverEmptyNameForNonEmptyBundleID(t *testing.T) {
-	// A bundle id whose last segment collapses to empty once the channel
-	// suffix is trimmed must still yield a non-empty, human-readable Name.
 	got := NewIdentity("com.example.-Stable", "")
 	if got.IsNull() {
 		t.Fatalf("NewIdentity(%q, \"\") is NULL, want passthrough", "com.example.-Stable")
@@ -137,7 +135,7 @@ func TestMatchesFamily(t *testing.T) {
 		{
 			name:     "it treats a malformed glob pattern as a non-match, not a failure",
 			bundleID: "com.apple.Terminal",
-			pattern:  "[", // path.ErrBadPattern
+			pattern:  "[",
 			want:     false,
 		},
 	}

@@ -2,16 +2,6 @@ package tui
 
 import "testing"
 
-// Tests for the shared flash-tier prologue both notice-band arbiters open with:
-// the theme tier first, every other flash below it, and the filter line's position
-// between the two. The order is the load-bearing rule (a theme flash must outrank
-// the filter line on BOTH pages, or a failed-commit report is destroyed rather than
-// deferred), so the shared prologue holds it in one place.
-//
-// No t.Parallel() — the package-level mock convention makes parallelism unsafe
-// across this package's tests.
-
-// TestFlashSlotClaim_TierOrder: it resolves the two flash tiers in one place.
 func TestFlashSlotClaim_TierOrder(t *testing.T) {
 	t.Run("no flash claims nothing", func(t *testing.T) {
 		m := noticeBandModel("alpha-row")
@@ -49,10 +39,6 @@ func TestFlashSlotClaim_TierOrder(t *testing.T) {
 		}
 	})
 
-	// The tier that lands in the slot is the one the ORIGIN names, never the one the
-	// later call happens to be: an ordinary flash raised while a theme flash is live
-	// replaces the flash outright (setFlash resets the origin), so the theme tier is
-	// only ever displaced by a flash that no longer carries the theme origin.
 	t.Run("the theme tier is not displaced while its flash is live", func(t *testing.T) {
 		m := noticeBandModel("alpha-row")
 		m.setFlash("__ORDINARY__")
@@ -78,9 +64,6 @@ func TestFlashSlotClaim_TierOrder(t *testing.T) {
 	})
 }
 
-// TestFlashSlotClaim_BothArbitersOpenWithIt: both pages' arbiters resolve their
-// flash arms through the one claim function, so a flash — of either tier — wins the
-// slot over each page's own persistent band identically on Sessions and Projects.
 func TestFlashSlotClaim_BothArbitersOpenWithIt(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -91,8 +74,6 @@ func TestFlashSlotClaim_BothArbitersOpenWithIt(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m := noticeBandModel("alpha-row")
-			// Each page's own persistent contender is live, so the flash arm has
-			// something to outrank on both.
 			m.byTagSignpost = true
 			m.commandPending = true
 			tc.set(&m)

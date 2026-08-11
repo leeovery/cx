@@ -13,17 +13,10 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// newSinglePaneEnumerator returns a *stubEnumerator pre-populated with the
-// minimal single-window / single-pane topology used by preview-attach tests
-// that only need a degenerate session shape. Centralised so test files do not
-// repeat the literal across many call sites.
 func newSinglePaneEnumerator() *stubEnumerator {
 	return &stubEnumerator{groups: []tmux.WindowGroup{{WindowIndex: 0, WindowName: "main", PaneIndices: []int{0}}}}
 }
 
-// recordedCall captures a single invocation against fakePreviewAttachTmux so
-// tests can assert both the relative ordering of calls and the per-call
-// arguments. The verb field doubles as a hook for "called once each" asserts.
 type recordedCall struct {
 	verb    string
 	session string
@@ -31,9 +24,6 @@ type recordedCall struct {
 	pane    int
 }
 
-// fakePreviewAttachTmux is the test-only stand-in for the production
-// previewAttachTmux interface. Each method records its call into calls and
-// returns the per-method canned outcome the test set up.
 type fakePreviewAttachTmux struct {
 	calls []recordedCall
 
@@ -59,10 +49,6 @@ func (f *fakePreviewAttachTmux) SelectPane(session string, window, pane int) err
 	return f.selectPaneErr
 }
 
-// fakePreviewConnector records its single Connect invocation. The connector
-// is no longer wired into the pipeline (Phase 3 task 3-1 moved the handoff
-// post-TUI); this fake remains useful for tests that simulate the
-// processTUIResult-side handoff.
 type fakePreviewConnector struct {
 	calls []string
 	err   error
@@ -73,28 +59,17 @@ func (f *fakePreviewConnector) Connect(name string) error {
 	return f.err
 }
 
-// newTestLogger returns a capturing *slog.Logger bound to the preview
-// component plus the sink so tests can read back what was logged. It routes
-// through the shared logtest.Sink so the rendered-body contract
-// ("<LEVEL> <msg> key=value...", component bound on every line) is
-// single-sourced with cmd, internal/state, and internal/restore.
 func newTestLogger(t *testing.T) (*slog.Logger, *logtest.Sink) {
 	t.Helper()
 	logger, sink := logtest.NewCaptureLogger(t)
 	return logger.With("component", "preview"), sink
 }
 
-// readLog renders the captured body of a logtest.Sink.
 func readLog(t *testing.T, sink *logtest.Sink) string {
 	t.Helper()
 	return sink.Body()
 }
 
-// runPipelineCmd invokes the tea.Cmd returned by Run and returns its message.
-// The three-call pre-select path runs synchronously inside the goroutine the
-// Cmd represents, so executing the Cmd inline yields the terminal message
-// directly (previewAttachBailMsg on bail, previewAttachSelectedMsg on
-// success).
 func runPipelineCmd(t *testing.T, cmd tea.Cmd) tea.Msg {
 	t.Helper()
 	if cmd == nil {
@@ -142,7 +117,6 @@ func TestPreviewAttachPipelineSuccessPathOrderAndArgs(t *testing.T) {
 }
 
 func TestPreviewAttachPipelineBailsOnExitError(t *testing.T) {
-	// Build a real *exec.ExitError so the discriminator routes to bail.
 	exitErr := makeExitError(t)
 	tm := &fakePreviewAttachTmux{hasPresent: false, hasErr: exitErr}
 	logger, _ := newTestLogger(t)
@@ -244,10 +218,6 @@ func TestPreviewAttachPipelineBothSelectsErrorBothLoggedAndSelectedEmitted(t *te
 }
 
 func TestPreviewAttachPipelineSilentLoggerDoesNotPanic(t *testing.T) {
-	// Combine every WARN-trigger so every Warn call inside Run is exercised.
-	// Post-migration the pipeline always holds a real *slog.Logger (production
-	// passes log.For("preview")); a silent io.Discard-backed logger must drive
-	// every WARN path without panicking.
 	tm := &fakePreviewAttachTmux{
 		hasPresent:      true,
 		hasErr:          errors.New("os-layer probe failure"),
@@ -257,7 +227,6 @@ func TestPreviewAttachPipelineSilentLoggerDoesNotPanic(t *testing.T) {
 	silent := slog.New(slog.NewTextHandler(io.Discard, nil))
 	p := &previewAttachPipeline{tmux: tm, logger: silent}
 
-	// Run-and-execute must not panic.
 	defer func() {
 		if r := recover(); r != nil {
 			t.Fatalf("pipeline panicked with silent logger: %v", r)
@@ -285,10 +254,6 @@ func TestPreviewAttachPipelineEmptySessionBailsBeforeTmuxCalls(t *testing.T) {
 	}
 }
 
-// makeExitError synthesises a real *exec.ExitError by running a command that
-// is guaranteed to exit non-zero. The discriminator inside the pipeline uses
-// errors.As(err, &*exec.ExitError); fabricating a real one here keeps the
-// test honest about what the production wiring will see from tmux.
 func makeExitError(t *testing.T) error {
 	t.Helper()
 	cmd := exec.Command("sh", "-c", "exit 1")

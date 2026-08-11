@@ -8,79 +8,28 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// FailureMode selects the per-test policy applied by Commander when it
-// observes a `list-panes -a` invocation. PassThrough disables the
-// interception entirely so a single Commander instance can be constructed
-// and rotated between modes during a test without rebuilding the wrapping
-// chain.
 type FailureMode int
 
 const (
-	// PassThrough disables interception — every call (including
-	// `list-panes -a`) delegates to the inner Commander verbatim.
 	PassThrough FailureMode = iota
-	// FailExitNonZero makes intercepted calls return
-	// ("", error) — modelling tmux exit != 0 on the wire.
 	FailExitNonZero
-	// FailEmptyStdout makes intercepted calls return ("", nil) —
-	// modelling tmux exit 0 with empty stdout (the mode (b) trigger
-	// for the bootstrap hazard guard).
 	FailEmptyStdout
 )
 
-// Commander wraps an inner tmux.Commander and intercepts only invocations
-// matching `list-panes` with the `-a` flag. All other invocations
-// (including `list-panes` without `-a`, `list-windows -a`, capture-pane,
-// etc.) are delegated to the inner Commander verbatim — preserving
-// production fidelity for every non-target tmux call.
-//
-// Policy semantics:
-//   - Mode == PassThrough: no interception, inner Commander handles
-//     every call.
-//   - Mode == FailExitNonZero: intercepted calls return
-//     ("", fmt.Errorf("tmux list-panes -a: exit 1 (simulated transient)")).
-//   - Mode == FailEmptyStdout: intercepted calls return ("", nil).
-//
-// The OneShot toggle is the lever used by tests that need an earlier
-// tmux call (e.g. bootstrap step 4 orphan sweep) to succeed before a
-// later `list-panes -a` consumer (e.g. the `doctor --fix` hook-cleanup
-// tail) observes the transient. When OneShot is
-// true, the FIRST intercepted call applies the policy; every subsequent
-// intercepted call falls through to the inner Commander. When OneShot is
-// false (the default), every intercepted call applies the policy —
-// "sticky failure" matching the prevailing semantics across consumers.
-//
-// Concurrent-safety: the interception counter uses atomic.Int64 so the
-// OneShot toggle is safe under the parallel `tmux ...` calls that
-// bootstrap step 4 (orphan sweep) and the `doctor --fix` hook-cleanup
-// tail may issue.
-// The Mode and Inner fields are NOT protected because tests are expected
-// to flip them only between phases, not during concurrent tmux activity.
+// Commander intercepts only `list-panes -a` invocations, delegating everything
+// else to Inner verbatim so the rest of a test keeps production fidelity. The
+// zero value passes everything through, so a test must opt in to a failure
+// policy. OneShot applies the policy to the first intercepted call only; the
+// default is sticky failure. Only that counter is atomic — Mode and Inner are
+// meant to be flipped between phases, not during concurrent tmux activity.
 type Commander struct {
-	// Inner is the downstream Commander. Defaults at construction
-	// time to &tmux.RealCommander{} in production-fidelity tests;
-	// integration tests targeting an isolated tmux server should
-	// wire a socket-anchored Commander here instead.
-	Inner tmux.Commander
-	// Mode selects the interception policy. Default zero value is
-	// PassThrough — explicitly require the test to opt in to a
-	// failure policy.
-	Mode FailureMode
-	// OneShot, when true, causes only the first intercepted call to
-	// apply the policy. Subsequent intercepted calls delegate to
-	// Inner verbatim. Default false (sticky failure).
+	Inner   tmux.Commander
+	Mode    FailureMode
 	OneShot bool
 
-	// intercepted is the atomic counter backing the OneShot toggle.
-	// Zero-value means "no intercepted calls observed yet".
 	intercepted atomic.Int64
 }
 
-// shouldIntercept reports whether the supplied tmux argv targets
-// `list-panes -a`. The check is positional on argv[0] and a substring
-// scan for "-a" in the remaining args — matching the production
-// callsites (tmux.ListAllPanesWithFormat and bootstrap step 4's
-// orphan-sweep pgrep precondition).
 func (c *Commander) shouldIntercept(args []string) bool {
 	if len(args) == 0 || args[0] != "list-panes" {
 		return false
@@ -88,9 +37,6 @@ func (c *Commander) shouldIntercept(args []string) bool {
 	return slices.Contains(args[1:], "-a")
 }
 
-// applyPolicy applies the per-mode policy AFTER the OneShot gate has
-// decided this invocation is the one to act on. Returns the
-// (output, error) pair every Run / RunRaw caller expects.
 func (c *Commander) applyPolicy() (string, error) {
 	switch c.Mode {
 	case FailExitNonZero:
@@ -98,19 +44,15 @@ func (c *Commander) applyPolicy() (string, error) {
 	case FailEmptyStdout:
 		return "", nil
 	case PassThrough:
-		// Should not be reached — PassThrough is filtered before
-		// applyPolicy via the caller's policy check. Defensive
-		// fall-through to a clear error so a future regression
-		// surfaces immediately rather than silently degrading.
+		// Unreachable: the caller filters PassThrough out. Erroring loudly beats
+		// degrading silently if that ever stops being true.
 		return "", fmt.Errorf("transienttest.Commander: applyPolicy called with PassThrough mode")
 	default:
 		return "", fmt.Errorf("transienttest.Commander: unknown failure mode %d", c.Mode)
 	}
 }
 
-// intercept centralises the OneShot / Mode dispatch shared by Run and
-// RunRaw. Returns (output, error, true) when the policy applied, or
-// ("", nil, false) when the caller should delegate to Inner.
+// The bool reports whether the policy applied; false means delegate to Inner.
 func (c *Commander) intercept(args []string) (string, error, bool) {
 	if c.Mode == PassThrough {
 		return "", nil, false
@@ -126,8 +68,6 @@ func (c *Commander) intercept(args []string) (string, error, bool) {
 	return out, err, true
 }
 
-// Run implements tmux.Commander. Intercepts `list-panes -a` per the
-// configured policy and delegates every other call to Inner.
 func (c *Commander) Run(args ...string) (string, error) {
 	if out, err, handled := c.intercept(args); handled {
 		return out, err
@@ -135,9 +75,6 @@ func (c *Commander) Run(args ...string) (string, error) {
 	return c.Inner.Run(args...)
 }
 
-// RunRaw implements tmux.Commander. Intercepts `list-panes -a` per the
-// configured policy and delegates every other call to Inner —
-// scrollback-capturing paths in bootstrap depend on RunRaw fidelity.
 func (c *Commander) RunRaw(args ...string) (string, error) {
 	if out, err, handled := c.intercept(args); handled {
 		return out, err
@@ -145,6 +82,4 @@ func (c *Commander) RunRaw(args ...string) (string, error) {
 	return c.Inner.RunRaw(args...)
 }
 
-// Compile-time guard: Commander must satisfy tmux.Commander so consumers
-// can build a *tmux.Client from it.
 var _ tmux.Commander = (*Commander)(nil)

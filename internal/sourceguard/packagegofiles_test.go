@@ -8,9 +8,6 @@ import (
 	"github.com/leeovery/portal/internal/sourceguard"
 )
 
-// TestPackageGoFiles_ProductionSources asserts the production enumeration takes
-// the directory's own .go files and nothing else: no subdirectory is descended
-// into, non-.go files are skipped, and _test.go sources are left out.
 func TestPackageGoFiles_ProductionSources(t *testing.T) {
 	dir := packageFixture(t)
 
@@ -21,8 +18,6 @@ func TestPackageGoFiles_ProductionSources(t *testing.T) {
 	}
 }
 
-// TestPackageGoFiles_WithTestSources asserts the same enumeration widened by the
-// flag picks up the package's _test.go sources alongside its production ones.
 func TestPackageGoFiles_WithTestSources(t *testing.T) {
 	dir := packageFixture(t)
 
@@ -33,8 +28,6 @@ func TestPackageGoFiles_WithTestSources(t *testing.T) {
 	}
 }
 
-// TestPackageGoFiles_MissingDirErrors asserts an unreadable directory surfaces as
-// an error rather than an empty, silently-passing enumeration.
 func TestPackageGoFiles_MissingDirErrors(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "absent")
 	if _, err := sourceguard.PackageGoFiles(missing, false); err == nil {
@@ -42,9 +35,6 @@ func TestPackageGoFiles_MissingDirErrors(t *testing.T) {
 	}
 }
 
-// TestPackageGoFiles_EmptyMatchErrors is the anti-vacuity rule: a directory that
-// yields no matching source is an error, so a guard driven by this enumeration
-// cannot pass by having stopped looking.
 func TestPackageGoFiles_EmptyMatchErrors(t *testing.T) {
 	dir := t.TempDir()
 	writeFiles(t, dir, map[string]string{

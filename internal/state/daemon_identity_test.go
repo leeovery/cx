@@ -6,9 +6,6 @@ import (
 	"testing"
 )
 
-// withIdentifyPSFake swaps the identifyPS seam for the duration of the test
-// and restores it via t.Cleanup. Tests must not use t.Parallel — identifyPS is
-// package-level mutable state shared across the test binary.
 func withIdentifyPSFake(t *testing.T, fake func(pid int) (string, error)) {
 	t.Helper()
 	prev := identifyPS
@@ -87,8 +84,7 @@ func TestIdentifyDaemon_NotPortalDaemonWhenArgvIsPortalSomethingElse(t *testing.
 }
 
 func TestIdentifyDaemon_NotPortalDaemonAgainstOwnTestProcessPID(t *testing.T) {
-	// Use the real ps seam (no stub). The state.test binary is comm=state.test
-	// (or similar) — definitively not "portal".
+	// Real ps seam, no stub: the test binary's comm is never "portal".
 	got, err := IdentifyDaemon(os.Getpid())
 	if err != nil {
 		t.Fatalf("IdentifyDaemon(os.Getpid()): unexpected err: %v", err)
@@ -99,8 +95,7 @@ func TestIdentifyDaemon_NotPortalDaemonAgainstOwnTestProcessPID(t *testing.T) {
 }
 
 func TestIdentifyDaemon_DeadForNonExistentPID(t *testing.T) {
-	// Use the real ps seam. PID 0x7FFFFFFE is virtually guaranteed not to
-	// exist on a real system; ps will exit non-zero with empty stdout.
+	// Real ps seam: this pid is effectively guaranteed not to exist.
 	got, err := IdentifyDaemon(0x7FFFFFFE)
 	if err != nil {
 		t.Fatalf("IdentifyDaemon(nonexistent): unexpected err: %v", err)
@@ -210,14 +205,10 @@ func TestIdentifyDaemon_DoesNotMatchPortalStateDaemonWithoutSpaces(t *testing.T)
 	}
 }
 
-// fakePSExitError mimics the surface used in IdentifyDaemon's branching:
-// "ps exited non-zero" without depending on os/exec.ExitError construction.
 type fakePSExitError struct{}
 
 func (fakePSExitError) Error() string { return "fake ps exit error" }
 
-// Guard against the sentinel being interpreted as something specific via
-// errors.Is.
 var _ error = fakePSExitError{}
 
 func TestIdentifyDaemon_TransientErrorPreservesUnderlyingErrorViaWrap(t *testing.T) {

@@ -1,12 +1,3 @@
-// Tests in this file seed PORTAL_* env vars and mutate package-level Cobra/DI
-// state (doctorDeps, rootCmd), so they MUST NOT use t.Parallel.
-//
-// Concern-split from cmd/doctor_test.go, alongside cmd/doctor_summary_test.go
-// and cmd/doctor_advisory_test.go: this file owns cmd/doctor_theme.go — the
-// themes-directory scan that produces doctor's FIRST real advisories. The
-// advisory line class itself (its trailing block, its exclusion from the exit
-// code, the summary suffix) stays in doctor_advisory_test.go; what is pinned
-// here is which lines the scan produces and what it leaves alone.
 package cmd
 
 import (
@@ -27,19 +18,14 @@ import (
 	"github.com/leeovery/portal/internal/themetest"
 )
 
-// themesDirWith writes each named file into a fresh `themes` directory under a
-// temp dir and returns it. Names are FILENAMES rather than slugs, so a fixture
-// can carry a non-`.theme` file the enumeration must ignore entirely.
+// Names are filenames rather than slugs, so a fixture can carry a non-`.theme`
+// file the enumeration must ignore entirely.
 func themesDirWith(t *testing.T, files map[string][]byte) string {
 	t.Helper()
 
 	return themesDirIn(t, t.TempDir(), files)
 }
 
-// themesDirIn seeds the same files into a `themes` directory under parent, for a
-// fixture whose claim is about the whole config root: a snapshot of parent then
-// covers the themes directory's own metadata and the space beside it, neither of
-// which is visible when the themes directory is itself the snapshot root.
 func themesDirIn(t *testing.T, parent string, files map[string][]byte) string {
 	t.Helper()
 
@@ -55,19 +41,14 @@ func themesDirIn(t *testing.T, parent string, files map[string][]byte) string {
 	return dir
 }
 
-// themeAdvisoriesFor runs the scan over dir through the production assembly,
-// with every other doctor seam left nil — the scan reads none of them. The
-// assembled form is what the tests here drive, since it is the last point the
-// union's identity fields are observable; collectThemeAdvisories drops them on
-// the way to the renderer.
+// The assembled form is the last point the union's identity fields are
+// observable.
 func themeAdvisoriesFor(t *testing.T, dir string) []themeAdvisory {
 	t.Helper()
 
 	return themeAdvisoryUnion(&DoctorDeps{ThemesDir: dir})
 }
 
-// advisoryLines is the rendered half of a scan result, for assertions that are
-// about the copy rather than the identity fields.
 func advisoryLines(advisories []themeAdvisory) []string {
 	lines := make([]string, 0, len(advisories))
 	for _, a := range advisories {
@@ -76,10 +57,6 @@ func advisoryLines(advisories []themeAdvisory) []string {
 	return lines
 }
 
-// requireOneAdvisory fails unless the scan produced exactly one advisory, and
-// returns it. Cardinality is asserted before content everywhere in this file:
-// "one file, one line" is half of what the scan promises, and a content-only
-// assertion would pass against a second, duplicate line.
 func requireOneAdvisory(t *testing.T, advisories []themeAdvisory) themeAdvisory {
 	t.Helper()
 
@@ -89,9 +66,7 @@ func requireOneAdvisory(t *testing.T, advisories []themeAdvisory) themeAdvisory 
 	return advisories[0]
 }
 
-// skipUnlessModeBitsDeny skips when the suite runs as root, where a mode-0000
-// fixture denies nothing and an "unreadable" assertion would be about the wrong
-// condition entirely.
+// Skips as root, where a mode-0000 fixture denies nothing.
 func skipUnlessModeBitsDeny(t *testing.T) {
 	t.Helper()
 
@@ -100,13 +75,6 @@ func skipUnlessModeBitsDeny(t *testing.T) {
 	}
 }
 
-// TestThemeAdvisories_InvalidFileFrame: it reports an invalid theme file with
-// its reason and detail.
-//
-// The pinned copy's generic frame is `⚠ theme <slug>: <reason> — <detail>`, and the detail
-// is the loader's own, enumerating WITHIN the reason. The three cases are the three
-// content reasons that read the file and produce a detail from Portal's own
-// rules; `unreadable`'s OS-error detail has its own test below.
 func TestThemeAdvisories_InvalidFileFrame(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -115,7 +83,7 @@ func TestThemeAdvisories_InvalidFileFrame(t *testing.T) {
 		want   string
 	}{
 		{
-			name:   "missing tokens names every absent token in §2.4 order",
+			name:   "missing tokens names every absent token in canonical order",
 			slug:   "mine",
 			source: func(t *testing.T) []byte { return sourceMissingTokens(t, "text.primary", "bg.subtle") },
 			want:   "⚠ theme mine: missing tokens — missing text.primary, bg.subtle",
@@ -148,14 +116,6 @@ func TestThemeAdvisories_InvalidFileFrame(t *testing.T) {
 	}
 }
 
-// TestThemeAdvisories_UnreadableFileKeepsOSError: it reports an unreadable file
-// with the OS error verbatim.
-//
-// The pinned copy: the OS error is the only thing distinguishing a permission denial from a
-// dangling symlink, and doctor is where a verbatim system message belongs. The
-// expectation is the error THE OS reports for the same read, so nothing about
-// the message is restated in Go — and it must appear exactly once, since a
-// double-prefixed line would still contain it.
 func TestThemeAdvisories_UnreadableFileKeepsOSError(t *testing.T) {
 	t.Run("a mode-0000 file", func(t *testing.T) {
 		skipUnlessModeBitsDeny(t)
@@ -181,9 +141,6 @@ func TestThemeAdvisories_UnreadableFileKeepsOSError(t *testing.T) {
 	})
 }
 
-// assertUnreadableAdvisory pins the one `unreadable` line the directory
-// produces: the pinned copy's generic frame with the OS error as its detail, carried
-// exactly once.
 func assertUnreadableAdvisory(t *testing.T, dir, slug string, osErr error) {
 	t.Helper()
 
@@ -197,10 +154,6 @@ func assertUnreadableAdvisory(t *testing.T, dir, slug string, osErr error) {
 	}
 }
 
-// TestThemeAdvisories_ValidFileIsSilent: it produces no line for a valid file.
-//
-// The non-`.theme` neighbours are half the assertion: a file that was never a
-// theme file did not fail to be one, so it earns no line either.
 func TestThemeAdvisories_ValidFileIsSilent(t *testing.T) {
 	dir := themesDirWith(t, map[string][]byte{
 		"mine.theme":     validThemeSource(t),
@@ -214,12 +167,6 @@ func TestThemeAdvisories_ValidFileIsSilent(t *testing.T) {
 	}
 }
 
-// TestThemeAdvisories_AbsentDirectoryIsSilent: it is silent for an absent
-// directory.
-//
-// The directory-resolution rule: zero drop-ins is not an error and Portal never creates or
-// seeds the directory — so an absent one produces no line, no error and no log record, and
-// is still absent afterwards.
 func TestThemeAdvisories_AbsentDirectoryIsSilent(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "themes")
 
@@ -237,14 +184,6 @@ func TestThemeAdvisories_AbsentDirectoryIsSilent(t *testing.T) {
 	}
 }
 
-// TestThemeAdvisories_UnusableDirectoryLine: it reports an unusable directory as
-// the only theme-file line.
-//
-// The directory-resolution rule's two unusable states get one pinned line each, carrying the
-// path verbatim. Both fixtures hold a broken drop-in that WOULD produce a per-file
-// line from a readable directory, so "the only line" is a real assertion: the
-// enumeration returns no entries in this state and there is nothing else to
-// report.
 func TestThemeAdvisories_UnusableDirectoryLine(t *testing.T) {
 	cases := []struct {
 		name string
@@ -292,14 +231,6 @@ func TestThemeAdvisories_UnusableDirectoryLine(t *testing.T) {
 	}
 }
 
-// TestThemeAdvisories_UnresolvedDirDegrades: it degrades when the themes
-// directory cannot be resolved.
-//
-// The skip is scoped to the DIRECTORY SCAN, never to collectThemeAdvisories
-// itself: an unresolved path yields no directory line and no per-file line, and
-// the diagnosis still renders every check and its summary. The Execute half is
-// what proves the degradation reaches the user as a complete report rather than
-// as an aborted one.
 func TestThemeAdvisories_UnresolvedDirDegrades(t *testing.T) {
 	t.Run("an empty themes directory scans nothing", func(t *testing.T) {
 		if got := themeAdvisoriesFor(t, ""); len(got) != 0 {
@@ -308,9 +239,8 @@ func TestThemeAdvisories_UnresolvedDirDegrades(t *testing.T) {
 	})
 
 	t.Run("the diagnosis still renders in full", func(t *testing.T) {
-		// resolveDoctorDeps' own best-effort themesDirPath() call is what is under
-		// test here, so the deps carry no ThemesDir override and every input the
-		// resolution reads is removed.
+		// resolveDoctorDeps' own themesDirPath() call is under test, so the
+		// deps carry no ThemesDir override.
 		deps := healthyDoctorDeps(t)
 		unresolvableThemesDir(t)
 
@@ -329,12 +259,6 @@ func TestThemeAdvisories_UnresolvedDirDegrades(t *testing.T) {
 	})
 }
 
-// TestThemeAdvisories_DetailIsVerbatim: it reuses the loader's detail verbatim.
-//
-// Nothing is re-derived, re-ordered, re-wrapped or double-prefixed here. The
-// expectation is read off the SAME loader call the scan makes, so the assertion
-// is that doctor carries the loader's string through rather than that it happens to
-// render an equivalent one today.
 func TestThemeAdvisories_DetailIsVerbatim(t *testing.T) {
 	skipUnlessModeBitsDeny(t)
 
@@ -350,8 +274,6 @@ func TestThemeAdvisories_DetailIsVerbatim(t *testing.T) {
 		t.Fatalf("chmod 0000 %s: %v", denied, err)
 	}
 	t.Cleanup(func() { _ = os.Chmod(denied, 0o644) })
-	// Called for the vacuity guard alone — the OS error it returns is what the
-	// loader re-reads below, so it is not restated here.
 	_ = requireDeniedRead(t, denied)
 
 	loader := theme.NewSilentLoader()
@@ -379,12 +301,6 @@ func TestThemeAdvisories_DetailIsVerbatim(t *testing.T) {
 	}
 }
 
-// TestThemeAdvisories_OneReasonPerFile: it reports exactly one reason per file.
-//
-// The reason vocabulary: doctor enumerates WITHIN the reason and never across, so a file that
-// is both bad-coloured and short of a token is `bad colour` and its line says
-// nothing whatsoever about presence. The second half is the cardinality rule
-// over a whole directory: every entry contributes at most one line.
 func TestThemeAdvisories_OneReasonPerFile(t *testing.T) {
 	t.Run("a doubly-broken file reports the ladder's first reason only", func(t *testing.T) {
 		lines := missingTokenLines(t, badColourLines(t, themeKeyLines(t), themeOverride{"canvas", "blue"}), "bg.subtle")
@@ -419,14 +335,6 @@ func TestThemeAdvisories_OneReasonPerFile(t *testing.T) {
 	})
 }
 
-// TestThemeAdvisories_FileLinesCarryTheirSlug: it carries the slug identity for
-// the union.
-//
-// Every file line carries `slug` and `fromPrefs: false` ALONGSIDE its line,
-// because doctor's one-slug-one-line union drops a file line only when its slug
-// is non-empty and matches a persisted line's. A producer setting `line` alone
-// would silently defeat the dedup and make <M> count detections rather than
-// problems.
 func TestThemeAdvisories_FileLinesCarryTheirSlug(t *testing.T) {
 	dir := themesDirWith(t, map[string][]byte{
 		"a-missing.theme": sourceMissingTokens(t, "text.primary"),
@@ -453,17 +361,6 @@ func TestThemeAdvisories_FileLinesCarryTheirSlug(t *testing.T) {
 	}
 }
 
-// TestThemeAdvisories_EmitsNoThemeRecords: it emits zero theme log records.
-//
-// The `theme` log component: the component records where a theme is USED, never where one is
-// DIAGNOSED. Doctor is the user looking, its whole output is already the
-// diagnostic, and it is the run most likely to hit a full reject set — so the
-// loader is handed log.Discard() and the largest possible WARN volume is never
-// written on the surface needing it least.
-//
-// Both cases run under the shared vacuity guard, which proves the installed
-// sink DOES capture a `theme` event — so the zero-record assertions are
-// evidence about the scan rather than about a deaf harness.
 func TestThemeAdvisories_EmitsNoThemeRecords(t *testing.T) {
 	t.Run("a full reject set writes nothing", func(t *testing.T) {
 		skipUnlessModeBitsDeny(t)
@@ -480,8 +377,6 @@ func TestThemeAdvisories_EmitsNoThemeRecords(t *testing.T) {
 			t.Fatalf("chmod 0000 %s: %v", denied, err)
 		}
 		t.Cleanup(func() { _ = os.Chmod(denied, 0o644) })
-		// Called for the vacuity guard alone: a readable fixture would leave the
-		// reject set one short and the record count arguing about the wrong run.
 		_ = requireDeniedRead(t, denied)
 
 		records := assertNoThemeRecords(t, func() {
@@ -511,12 +406,6 @@ func TestThemeAdvisories_EmitsNoThemeRecords(t *testing.T) {
 	})
 }
 
-// TestThemeAdvisories_ScanIsReadOnly: it writes nothing and reads no prefs.
-//
-// Doctor heals nothing on the read-only path, and there is deliberately no
-// repair for a user's broken palette. The themes directory and every file in it
-// must be byte-identical afterwards, and prefs.json — which is the persisted-theme line's
-// seam, not this scan's — must be neither written nor created.
 func TestThemeAdvisories_ScanIsReadOnly(t *testing.T) {
 	root := t.TempDir()
 	files := map[string][]byte{
@@ -556,17 +445,6 @@ func TestThemeAdvisories_ScanIsReadOnly(t *testing.T) {
 	})
 }
 
-// TestThemeAdvisories_ReachTheDoctorReport pins the production wiring: the scan
-// supplies the report's advisory block on the real `portal doctor` path, its
-// lines trail the whole check catalog, the summary counts them — and none of it
-// touches the exit code, which stays 0 over an all-passing catalog.
-//
-// Both arms of the ThemesDir seam are pinned, because they fail differently. The
-// body drives the doctorDeps OVERRIDE, which is what every other test in this
-// file scans through; the subtest drives resolveDoctorDeps' own best-effort
-// themesDirPath() call with NO override, which is the one line connecting this
-// feature to a real user's themes directory — delete it and an override-only
-// suite stays green while doctor silently scans nothing in production.
 func TestThemeAdvisories_ReachTheDoctorReport(t *testing.T) {
 	deps := healthyDoctorDeps(t)
 	deps.ThemesDir = themesDirWith(t, map[string][]byte{
@@ -595,8 +473,7 @@ func TestThemeAdvisories_ReachTheDoctorReport(t *testing.T) {
 		}))
 
 		// No ThemesDir on the deps: the field can only arrive through the
-		// production resolution, so the advisory below is proof that doctor reads
-		// the directory the user's environment actually names.
+		// production resolution.
 		outBuf, _, err := runDoctorCmd(t, healthyDoctorDeps(t))
 		if err != nil {
 			t.Fatalf("Execute err = %v; a broken drop-in must never drive the exit code", err)
@@ -612,12 +489,8 @@ func TestThemeAdvisories_ReachTheDoctorReport(t *testing.T) {
 	})
 }
 
-// requireBuiltinSlug fails unless slug names one of the embedded built-ins.
-//
-// It is the vacuity guard every deliberately-colliding fixture needs: a
-// `nord.theme` beside no built-in `nord` is an ordinary valid drop-in producing
-// no line at all, so a reserved-name assertion over it would be evidence about
-// nothing. The one test that must name no theme derives its slugs instead.
+// A `nord.theme` beside no built-in `nord` is an ordinary valid drop-in
+// producing no line at all.
 func requireBuiltinSlug(t *testing.T, slug string) {
 	t.Helper()
 
@@ -626,30 +499,10 @@ func requireBuiltinSlug(t *testing.T, slug string) {
 	}
 }
 
-// reservedNameLine composes the pinned copy's reserved-name line for a filename and the
-// slug it collided on.
-//
-// It exists for the one test that derives its fixtures from the embedded set and
-// so must name no theme. Every test that CAN name one states the pinned copy
-// verbatim instead, so the composition below is never the suite's only statement
-// of it.
 func reservedNameLine(filename, slug string) string {
 	return "⚠ theme file " + filename + ": " + slug + " is a built-in — rename it (e.g. " + slug + "-mine.theme)"
 }
 
-// TestThemeAdvisories_BadNameSlugFrame: it renders the slug-cause bad-name
-// frame.
-//
-// The pinned copy composes this line from the FILENAME rather than from a slug, because a
-// `bad name` file has none — and the differing frame (`⚠ theme file <filename>:`
-// versus `⚠ theme <slug>:`) is what carries the reason vocabulary's input class while the
-// reason class itself stays single.
-//
-// Every fixture holds VALID contents, so the name is the only thing wrong with
-// it and the line cannot be a content reason wearing the wrong frame. The cases
-// are the slug charset rule — an uppercase letter, an underscore, a space — plus
-// two of the edges its anchoring closes: a leading hyphen, and the empty stem of
-// a bare `.theme`.
 func TestThemeAdvisories_BadNameSlugFrame(t *testing.T) {
 	cases := []struct{ name, filename string }{
 		{name: "an uppercase stem", filename: "Nord.theme"},
@@ -672,19 +525,8 @@ func TestThemeAdvisories_BadNameSlugFrame(t *testing.T) {
 	}
 }
 
-// TestThemeAdvisories_BadNameExtensionFrame: it renders the extension-cause
-// bad-name frame.
-//
-// A DISTINCT message from the slug cause, off the loader's BadNameCause: with a
-// wrong-cased extension the slug portion is already legal, so telling the user
-// to fix their slug would send them to correct the one thing that is fine —
-// exactly the misdirection the pinned copy discriminates against here.
-//
-// These files are visible at all only because enumeration matches the extension
-// case-insensitively before rejecting it, which is what keeps a `nord.THEME`
-// from being silently absent on the case-insensitive filesystem where it is most
-// likely to be typed. Each case gets its own directory: the two names fold
-// together there.
+// Each case gets its own directory: the two names fold together on a
+// case-insensitive filesystem.
 func TestThemeAdvisories_BadNameExtensionFrame(t *testing.T) {
 	cases := []struct{ name, filename string }{
 		{name: "a shouted extension", filename: "nord.THEME"},
@@ -704,13 +546,6 @@ func TestThemeAdvisories_BadNameExtensionFrame(t *testing.T) {
 	}
 }
 
-// TestThemeAdvisories_DoublyIllegalNameRendersTheSlugLine: a name that is wrong
-// in both its stem and its extension gets the slug line, not the extension one.
-//
-// The extension line asserts the slug portion is already legal, so it must not
-// appear over a name where it is not — it would name a fix that leaves the file
-// still rejected, and the user would rename twice to learn one thing. The slug
-// line is the general statement, so it is what a doubly-illegal name reads.
 func TestThemeAdvisories_DoublyIllegalNameRendersTheSlugLine(t *testing.T) {
 	cases := []struct{ name, filename string }{
 		{name: "an uppercase stem", filename: "Nord.THEME"},
@@ -730,18 +565,9 @@ func TestThemeAdvisories_DoublyIllegalNameRendersTheSlugLine(t *testing.T) {
 	}
 }
 
-// TestThemeAdvisories_FilenameReasonsLabelledByFilename: it labels a
-// filename-reason row by filename.
-//
-// The two frames are asserted against each other over ONE directory holding
-// both classes, which is the only place their split is observable: line by line,
-// every filename-reason row (`bad name` either cause, `reserved name`) reads
-// `⚠ theme file <filename>: …` and every content-reason row reads `⚠ theme
-// <slug>: …`. Neither frame may appear on the other's row.
-//
-// The reserved row is labelled by filename despite having a perfectly valid slug
-// because that slug is IDENTICAL to the built-in's: labelling by slug would print
-// the same name twice with no way to tell which row is the user's file.
+// The reserved row is labelled by filename despite having a valid slug: that
+// slug is identical to the built-in's, so labelling by slug would print the
+// same name twice with no way to tell which row is the user's file.
 func TestThemeAdvisories_FilenameReasonsLabelledByFilename(t *testing.T) {
 	requireBuiltinSlug(t, "nord")
 	dir := themesDirWith(t, map[string][]byte{
@@ -765,17 +591,6 @@ func TestThemeAdvisories_FilenameReasonsLabelledByFilename(t *testing.T) {
 	}
 }
 
-// TestThemeAdvisories_ReservedNameFrame: it renders the reserved-name line
-// naming the conflict and the fix.
-//
-// The pinned copy gives this reason a whole line of its own rather than the generic
-// `<reason> — <detail>` frame, and the `(e.g. <slug>-mine.theme)` suffix is the
-// point of it: the reserved-slug rule's workaround is a two-second rename, and printing the
-// rename is what makes it self-documenting rather than merely short. Its terse `reserved
-// name` label stays the panel's business, where there is no width for either.
-//
-// The fixture's contents are BROKEN, so the line is also proof the reason is
-// settled at the reason vocabulary's rung 2 — above everything that reads the file.
 func TestThemeAdvisories_ReservedNameFrame(t *testing.T) {
 	requireBuiltinSlug(t, "nord")
 	dir := themesDirWith(t, map[string][]byte{"nord.theme": sourceMissingTokens(t, "text.primary")})
@@ -786,7 +601,7 @@ func TestThemeAdvisories_ReservedNameFrame(t *testing.T) {
 		t.Errorf("advisory line = %q; want %q", got.line, want)
 	}
 	if strings.Contains(got.line, string(theme.ReasonReservedName)) {
-		t.Errorf("advisory line = %q carries the terse reason label; §14A's line names the conflict and the fix INSTEAD of following the generic `<reason> — <detail>` frame", got.line)
+		t.Errorf("advisory line = %q carries the terse reason label; the reserved-name line names the conflict and the fix INSTEAD of following the generic `<reason> — <detail>` frame", got.line)
 	}
 	if got.slug != "nord" {
 		t.Errorf("advisory slug = %q; want %q — a reserved-name entry has a valid slug, and it is what collided", got.slug, "nord")
@@ -796,14 +611,6 @@ func TestThemeAdvisories_ReservedNameFrame(t *testing.T) {
 	}
 }
 
-// TestThemeAdvisories_ReservedSetIsTheEmbeddedSet: it derives the reserved set
-// from the embedded built-ins.
-//
-// The set doctor reports against is the embedded set ITSELF (the reserved-slug rule via
-// builtinSlugSet), never a list restated here — so a built-in added by a later PR
-// is covered with no edit to doctor and no edit to this test. That is asserted by
-// seeding one colliding file per member and NAMING NO THEME: a hardcoded slug
-// would pass right up until someone forgot to extend it.
 func TestThemeAdvisories_ReservedSetIsTheEmbeddedSet(t *testing.T) {
 	slugs := theme.BuiltinSlugs()
 	if len(slugs) == 0 {
@@ -829,14 +636,6 @@ func TestThemeAdvisories_ReservedSetIsTheEmbeddedSet(t *testing.T) {
 	}
 }
 
-// TestThemeAdvisories_BadNameNeverReportsContent: it never reports a bad-name
-// file's contents.
-//
-// The reason vocabulary's rung 1 is decided from the filename BEFORE the file is opened, so a
-// `bad name` file can never also report `unreadable` or anything about what is
-// inside it. The fixture is broken at every rung below it that a file can be put
-// into at once — a mode denying the read outright, a duplicate key and a bad hex
-// — and still owes exactly one line, the filename one.
 func TestThemeAdvisories_BadNameNeverReportsContent(t *testing.T) {
 	skipUnlessModeBitsDeny(t)
 
@@ -848,8 +647,6 @@ func TestThemeAdvisories_BadNameNeverReportsContent(t *testing.T) {
 		t.Fatalf("chmod 0000 %s: %v", path, err)
 	}
 	t.Cleanup(func() { _ = os.Chmod(path, 0o644) })
-	// Called for the vacuity guard alone: a readable fixture would leave
-	// `unreadable` unreachable and the assertion arguing about the wrong run.
 	_ = requireDeniedRead(t, path)
 
 	got := requireOneAdvisory(t, themeAdvisoriesFor(t, dir))
@@ -864,14 +661,6 @@ func TestThemeAdvisories_BadNameNeverReportsContent(t *testing.T) {
 	}
 }
 
-// TestThemeAdvisories_BadNameCarriesNoSlug: it leaves a bad-name advisory
-// without a slug.
-//
-// A `bad name` file yields NO usable identity — the enumeration leaves Entry.Slug empty
-// exactly there — and doctor's row inherits that emptiness rather than inventing
-// a label for the union to match on. It is what makes doctor's one-slug-one-line
-// dedup structural for this class: a bad-name row can never collide with a
-// persisted slug, because it carries none.
 func TestThemeAdvisories_BadNameCarriesNoSlug(t *testing.T) {
 	cases := []struct{ name, filename string }{
 		{name: "the slug cause", filename: "Nord.theme"},
@@ -893,17 +682,8 @@ func TestThemeAdvisories_BadNameCarriesNoSlug(t *testing.T) {
 	}
 }
 
-// TestThemeAdvisories_BadNameSlugIsStatedNotCopied: it states the bad-name row's
-// empty slug rather than copying the entry's.
-//
-// Every `bad name` entry the ENUMERATION can produce already carries an empty
-// Slug (the enumeration leaves it empty exactly there), so on a directory fixture
-// "stated" and "copied" are indistinguishable — and the claim that the emptiness
-// follows from the REASON rather than from an upstream field happening to be
-// empty would rest on nothing. A hand-built entry separates them: it names a
-// slug, the reason vocabulary's rung 1 says a bad-name file yields no usable identity, and the
-// row must take the reason's answer. That is what makes doctor's dedup structural for
-// this class — a bad-name row can never collide with a persisted slug.
+// Only a hand-built entry separates stated from copied: every enumerated
+// `bad name` entry already carries an empty Slug.
 func TestThemeAdvisories_BadNameSlugIsStatedNotCopied(t *testing.T) {
 	entry := theme.Entry{
 		Filename:  "Bad_Name.theme",
@@ -923,15 +703,6 @@ func TestThemeAdvisories_BadNameSlugIsStatedNotCopied(t *testing.T) {
 	}
 }
 
-// TestThemeAdvisories_NotFoundIsNeverAFileLine: it produces no line for a `not
-// found` entry.
-//
-// The reason vocabulary's seventh reason is the one this producer does NOT own — it applies to
-// a persisted slug with no file, which is the other producer's line — and the
-// switch skips it VISIBLY rather than sweeping it into the generic frame, where
-// it would render `⚠ theme gone: not found — ` with an empty detail. The
-// enumeration cannot produce such an entry (every entry came from a file that
-// exists), so only a hand-built one can pin the arm.
 func TestThemeAdvisories_NotFoundIsNeverAFileLine(t *testing.T) {
 	entry := theme.Entry{
 		Filename:  "gone.theme",
@@ -944,13 +715,6 @@ func TestThemeAdvisories_NotFoundIsNeverAFileLine(t *testing.T) {
 	}
 }
 
-// TestThemeAdvisories_ReservedNameDecidedBeforeRead: it reports a reserved-name
-// file whose contents are valid.
-//
-// The reason vocabulary's rung 2 is decided from the SLUG alone, before any read, so the
-// contents bear on it not at all in either direction: a perfectly valid palette is still
-// refused (it would otherwise shadow the built-in Portal falls back to), and one
-// that cannot be read at all is still `reserved name` rather than `unreadable`.
 func TestThemeAdvisories_ReservedNameDecidedBeforeRead(t *testing.T) {
 	requireBuiltinSlug(t, "nord")
 	want := reservedNameLine("nord.theme", "nord")
@@ -973,8 +737,6 @@ func TestThemeAdvisories_ReservedNameDecidedBeforeRead(t *testing.T) {
 			t.Fatalf("chmod 0000 %s: %v", path, err)
 		}
 		t.Cleanup(func() { _ = os.Chmod(path, 0o644) })
-		// Called for the vacuity guard alone — an actually-readable fixture would
-		// prove nothing about the rung's position.
 		_ = requireDeniedRead(t, path)
 
 		got := requireOneAdvisory(t, themeAdvisoriesFor(t, dir))
@@ -984,17 +746,6 @@ func TestThemeAdvisories_ReservedNameDecidedBeforeRead(t *testing.T) {
 	})
 }
 
-// TestThemeAdvisories_FilenameFramesAreSingleSourced: it states each filename
-// frame exactly once.
-//
-// The copy is single-sourced following the convention spawn.UnsupportedNoopMessage
-// set, and these three frames need it more than most: doctor grows a SECOND
-// theme-advisory producer for persisted slugs, whose union renders into the same
-// block, so a second rendering of "is a built-in — rename it" would be invisible
-// at review and would drift silently.
-//
-// The scan is the cmd package's production sources, which is where every pinned copy
-// frame is composed — doctor's report and `portal theme export`'s stderr alike.
 func TestThemeAdvisories_FilenameFramesAreSingleSourced(t *testing.T) {
 	fragments := []string{
 		"slug must be lowercase letters, digits and hyphens",
@@ -1013,8 +764,6 @@ func TestThemeAdvisories_FilenameFramesAreSingleSourced(t *testing.T) {
 	}
 }
 
-// cmdLiteralSites counts, per production file of the cmd package, the string
-// literals containing fragment.
 func cmdLiteralSites(t *testing.T, fragment string) map[string]int {
 	t.Helper()
 

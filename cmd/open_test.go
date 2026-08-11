@@ -1,7 +1,5 @@
 package cmd
 
-// Tests in this file mutate package-level state (bootstrapDeps, openDeps, openTUIFunc) and MUST NOT use t.Parallel.
-
 import (
 	"bytes"
 	"context"
@@ -28,7 +26,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// testAliasLookup implements resolver.AliasLookup for testing.
 type testAliasLookup struct {
 	aliases map[string]string
 }
@@ -47,7 +44,6 @@ func (t *testAliasLookup) Keys() []string {
 	return keys
 }
 
-// testZoxideQuerier implements resolver.ZoxideQuerier for testing.
 type testZoxideQuerier struct {
 	result string
 	err    error
@@ -57,7 +53,6 @@ func (t *testZoxideQuerier) Query(terms string) (string, error) {
 	return t.result, t.err
 }
 
-// testDirValidator implements resolver.DirValidator for testing.
 type testDirValidator struct {
 	existing map[string]bool
 }
@@ -66,8 +61,6 @@ func (t *testDirValidator) Exists(path string) bool {
 	return t.existing[path]
 }
 
-// testSessionLister implements resolver.SessionLister for testing — it returns
-// the user-visible (leading-underscore-filtered) session name set.
 type testSessionLister struct {
 	names []string
 	err   error
@@ -78,8 +71,8 @@ func (t *testSessionLister) ListSessionNames() ([]string, error) {
 }
 
 func TestOpenCommand_PathArgument_NonExistentPath(t *testing.T) {
-	// A Client is required in context: the session-domain pre-check consults it
-	// via buildQueryResolver → tmuxClient(cmd) before path resolution runs.
+	// The session-domain pre-check reads the tmux client from context before
+	// path resolution runs.
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}, Client: tmux.NewClient(&stubCommander{})}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -101,8 +94,8 @@ func TestOpenCommand_PathArgument_NonExistentPath(t *testing.T) {
 }
 
 func TestOpenCommand_PathArgument_FileNotDirectory(t *testing.T) {
-	// A Client is required in context: the session-domain pre-check consults it
-	// via buildQueryResolver → tmuxClient(cmd) before path resolution runs.
+	// The session-domain pre-check reads the tmux client from context before
+	// path resolution runs.
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}, Client: tmux.NewClient(&stubCommander{})}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -130,11 +123,6 @@ func TestOpenCommand_PathArgument_FileNotDirectory(t *testing.T) {
 }
 
 func TestOpenCommand_PathArgument_SkipsTUI(t *testing.T) {
-	// When a path argument is given, the TUI should not be launched.
-	// We verify this by checking that IsPathArgument returns true for the arg,
-	// and the command enters the path resolution branch.
-	// A valid directory that exists will proceed to session creation, which
-	// requires tmux -- so we test the path detection logic independently.
 	if !resolver.IsPathArgument(".") {
 		t.Error("expected IsPathArgument(\".\") to return true")
 	}
@@ -153,8 +141,6 @@ func TestOpenCommand_QueryResolution_AliasNotFound(t *testing.T) {
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
-	// When a non-path query resolves to an alias that points to a non-existent directory,
-	// the error message should indicate the directory was not found.
 	openDeps = &OpenDeps{
 		SessionLister: &testSessionLister{},
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{"myapp": "/nonexistent/alias/path"}},
@@ -184,8 +170,6 @@ func TestOpenCommand_QueryResolution_ZoxideNotFound(t *testing.T) {
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
-	// When a non-path query resolves via zoxide to a non-existent directory,
-	// the error message should indicate the directory was not found.
 	openDeps = &OpenDeps{
 		SessionLister: &testSessionLister{},
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{}},
@@ -215,8 +199,6 @@ func TestOpenCommand_SessionNameHit_RoutesToSessionConnector(t *testing.T) {
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
-	// An exact user-visible session-name hit must attach (openSessionFunc),
-	// never mint (openPathFunc) or launch the picker (openTUIFunc).
 	openDeps = &OpenDeps{
 		SessionLister: &testSessionLister{names: []string{"api-x7Kd9a"}},
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{}},
@@ -267,9 +249,6 @@ func TestOpenCommand_SessionNameHit_RoutesToSessionConnector(t *testing.T) {
 }
 
 func TestOpenCommand_SessionPin_ExactHit_RoutesToConnector(t *testing.T) {
-	// `open -s <exact-user-visible-name>` resolves in the session domain only and
-	// attaches (openSessionFunc) — never mints (openPathFunc) or opens the picker
-	// (openTUIFunc). Spec § Domain-pinning flags: -s attaches, never mints.
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -323,11 +302,6 @@ func TestOpenCommand_SessionPin_ExactHit_RoutesToConnector(t *testing.T) {
 }
 
 func TestOpenCommand_BareSessionAttach_WithCommand_UsageError(t *testing.T) {
-	// A command (-e/--) is mint-scoped: an existing (attach) session has no safe
-	// command-injection channel, so `open <exact-session-name> -e <cmd>` is a
-	// usage error (exit 2) and NO attach happens (spec § Command passthrough —
-	// mint-scoped). The bare-positional session hit routes through the shared
-	// openResolved dispatch, where the *SessionResult arm rejects a command.
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -368,10 +342,6 @@ func TestOpenCommand_BareSessionAttach_WithCommand_UsageError(t *testing.T) {
 }
 
 func TestOpenCommand_BareSessionAttach_WithDashDashCommand_UsageError(t *testing.T) {
-	// The `--` command spelling is the exact sibling of the -e spelling above:
-	// `open <exact-session-name> -- <cmd>` is mint-scoped, so it is the same usage
-	// error (exit 2) with NO attach, proving the mint-scoped guard fires for BOTH
-	// command spellings (spec § Command passthrough — mint-scoped).
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -412,9 +382,6 @@ func TestOpenCommand_BareSessionAttach_WithDashDashCommand_UsageError(t *testing
 }
 
 func TestOpenCommand_SessionPin_WithCommand_UsageError(t *testing.T) {
-	// The same mint-scoped guard fires for the -s pin: `open -s <session> -e <cmd>`
-	// is a usage error (exit 2), because the -s pin also dispatches its session hit
-	// through the shared openResolved switch. No attach happens.
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -455,13 +422,10 @@ func TestOpenCommand_SessionPin_WithCommand_UsageError(t *testing.T) {
 }
 
 func TestOpenCommand_SessionPin_Glob_HardFailsNoFirstMatch(t *testing.T) {
-	// Regression guard (report 13-1): a glob-bearing `-s` value reaching the single-pin
-	// path must NEVER silently fork to the first match — glob fan-out is EXCLUSIVELY the
-	// burst's job. In production the isMultiTarget/os.Args gate diverts a glob-bearing
-	// `-s` value to the burst; but under `go test` that gate is inert (openOwnArgs()
-	// finds no "open" token in the test binary's argv and returns nil), so this drives
-	// the exact os.Args-assumption-break the report is about: `open -s 'api-*'` reaches
-	// ResolveSessionPin directly and must hard-fail LOUDLY instead of attaching api-1.
+	// Under `go test` the multi-target gate is inert (the test binary's argv
+	// holds no "open" token), so a glob-bearing -s reaches ResolveSessionPin
+	// directly — where it must hard-fail loudly rather than attach the first
+	// match. Glob fan-out is the burst's job alone.
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -497,9 +461,6 @@ func TestOpenCommand_SessionPin_Glob_HardFailsNoFirstMatch(t *testing.T) {
 }
 
 func TestOpenCommand_SessionPin_Miss_HardFailsNoPicker(t *testing.T) {
-	// A -s miss (no exact, zero glob, or empty set) hard-fails with the verbatim
-	// attach miss message and NEVER opens the picker or mints. Spec § Pinned-domain
-	// contract: pins never fall back to the picker.
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -544,7 +505,6 @@ func TestOpenCommand_SessionPin_Miss_HardFailsNoPicker(t *testing.T) {
 	if pathCalled {
 		t.Error("openPathFunc must not be called on a -s miss")
 	}
-	// A missing session is a runtime failure → plain error (exit 1), not UsageError.
 	var usageErr *UsageError
 	if errors.As(err, &usageErr) {
 		t.Error("-s miss error must be a plain error, not a *UsageError")
@@ -552,9 +512,6 @@ func TestOpenCommand_SessionPin_Miss_HardFailsNoPicker(t *testing.T) {
 }
 
 func TestOpenCommand_SessionPin_EmitsNoResolveLine(t *testing.T) {
-	// A -s pin is deterministic (session-domain by construction), not a guess, so
-	// it emits NO "resolve" decision line (spec § Wrong-guess feedback — pins emit
-	// no resolve line; Phase 1 gates the line to the bare-positional path).
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -585,9 +542,6 @@ func TestOpenCommand_SessionPin_EmitsNoResolveLine(t *testing.T) {
 }
 
 func TestOpenCommand_PathPin_Mints_NoPicker(t *testing.T) {
-	// `open -p <existing-dir>` resolves in the path domain only and mints
-	// (openPathFunc) — never attaches (openSessionFunc) and never opens the picker
-	// (openTUIFunc). Spec § Domain-pinning flags: -p mints; dir must exist.
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -643,10 +597,6 @@ func TestOpenCommand_PathPin_Mints_NoPicker(t *testing.T) {
 }
 
 func TestOpenCommand_PathPin_GlobNamedDir_Mints(t *testing.T) {
-	// A directory whose name contains glob metacharacters (foo[1]) is UNREACHABLE
-	// as a bare positional (the glob pre-check hard-fails it), but -p reaches it:
-	// ResolvePath stats the literal path, bypassing glob detection, and mints.
-	// Spec § Glob targets (glob-named dir escape).
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -684,12 +634,6 @@ func TestOpenCommand_PathPin_GlobNamedDir_Mints(t *testing.T) {
 }
 
 func TestOpenCommand_PathPin_Miss_HardFailsNoPicker(t *testing.T) {
-	// A -p miss (a non-existent directory) hard-fails with the verbatim
-	// "Directory not found" message and NEVER opens the picker or mints. This is
-	// the path-domain sibling of TestOpenCommand_SessionPin_Miss_HardFailsNoPicker
-	// — spec § Pinned-domain contract: pins never fall back to the picker. -p stats
-	// the LITERAL path via ResolvePath, so the miss dir must genuinely not exist on
-	// disk (the DirValidator seam is not consulted on the -p path).
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -701,8 +645,6 @@ func TestOpenCommand_PathPin_Miss_HardFailsNoPicker(t *testing.T) {
 	}
 	t.Cleanup(func() { openDeps = nil })
 
-	// filepath.Join(t.TempDir(), …) is absolute, so ResolvePath's filepath.Abs is a
-	// no-op and the reported path is exactly this string.
 	missDir := filepath.Join(t.TempDir(), "does-not-exist")
 
 	tuiCalled := false
@@ -738,7 +680,6 @@ func TestOpenCommand_PathPin_Miss_HardFailsNoPicker(t *testing.T) {
 	if pathCalled {
 		t.Error("openPathFunc must not be called on a -p miss (never mints)")
 	}
-	// A missing directory is a runtime failure → plain error (exit 1), not UsageError.
 	var usageErr *UsageError
 	if errors.As(err, &usageErr) {
 		t.Error("-p miss error must be a plain error, not a *UsageError")
@@ -746,8 +687,6 @@ func TestOpenCommand_PathPin_Miss_HardFailsNoPicker(t *testing.T) {
 }
 
 func TestOpenCommand_PathPin_ThreadsCommandIntoMint(t *testing.T) {
-	// A present -e/-- command threads into the minted session unchanged:
-	// `open -p <dir> -e claude` → openPathFunc receives command == [claude].
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -787,9 +726,6 @@ func TestOpenCommand_PathPin_ThreadsCommandIntoMint(t *testing.T) {
 }
 
 func TestOpenCommand_PathPin_EmitsNoResolveLine(t *testing.T) {
-	// A -p pin is deterministic (path-domain by construction), not a guess, so it
-	// emits NO "resolve" decision line (spec § Wrong-guess feedback — pins emit no
-	// resolve line).
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -822,19 +758,12 @@ func TestOpenCommand_PathPin_EmitsNoResolveLine(t *testing.T) {
 }
 
 func TestOpenCommand_AliasPin_Mints_NoPicker(t *testing.T) {
-	// `open -a <key>` resolves in the alias domain only and mints (openPathFunc) at
-	// the aliased dir — even when a SAME-NAMED session exists (a session shadows the
-	// key in the bare precedence chain). -a bypasses precedence: it never attaches
-	// (openSessionFunc) and never opens the picker (openTUIFunc). Spec § Domain-
-	// pinning flags: -a is the only way to reach a shadowed alias key.
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
 	dir := t.TempDir()
 
 	openDeps = &OpenDeps{
-		// A same-named session ("myapp") shadows the alias key in the bare chain;
-		// -a must ignore it entirely and mint at the aliased dir.
 		SessionLister: &testSessionLister{names: []string{"myapp"}},
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{"myapp": dir}},
 		Zoxide:        &testZoxideQuerier{err: resolver.ErrNoMatch},
@@ -884,9 +813,6 @@ func TestOpenCommand_AliasPin_Mints_NoPicker(t *testing.T) {
 }
 
 func TestOpenCommand_AliasPin_UnknownKey_HardFailsNoPicker(t *testing.T) {
-	// A -a miss (unknown key) hard-fails with "No alias found: <key>" and NEVER
-	// opens the picker or mints. Spec § Pinned-domain contract: pins never fall back
-	// to the picker.
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -931,7 +857,6 @@ func TestOpenCommand_AliasPin_UnknownKey_HardFailsNoPicker(t *testing.T) {
 	if pathCalled {
 		t.Error("openPathFunc must not be called on a -a unknown-key miss")
 	}
-	// An unknown alias key is a runtime failure → plain error (exit 1), not a UsageError.
 	var usageErr *UsageError
 	if errors.As(err, &usageErr) {
 		t.Error("-a unknown-key error must be a plain error, not a *UsageError")
@@ -939,8 +864,6 @@ func TestOpenCommand_AliasPin_UnknownKey_HardFailsNoPicker(t *testing.T) {
 }
 
 func TestOpenCommand_AliasPin_ThreadsCommandIntoMint(t *testing.T) {
-	// A present -e/-- command threads into the minted session unchanged:
-	// `open -a <key> -e claude` → openPathFunc receives command == [claude].
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -980,9 +903,6 @@ func TestOpenCommand_AliasPin_ThreadsCommandIntoMint(t *testing.T) {
 }
 
 func TestOpenCommand_AliasPin_EmitsNoResolveLine(t *testing.T) {
-	// A -a pin is deterministic (alias-domain by construction), not a guess, so it
-	// emits NO "resolve" decision line (spec § Wrong-guess feedback — pins emit no
-	// resolve line).
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -1015,10 +935,6 @@ func TestOpenCommand_AliasPin_EmitsNoResolveLine(t *testing.T) {
 }
 
 func TestOpenCommand_ZoxidePin_Mints_NoPicker(t *testing.T) {
-	// `open -z <query>` resolves in the zoxide domain only and mints (openPathFunc)
-	// at zoxide's best-match dir — never attaches (openSessionFunc) and never opens
-	// the picker (openTUIFunc). Spec § Domain-pinning flags: -z mints at zoxide's
-	// best match.
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -1074,10 +990,6 @@ func TestOpenCommand_ZoxidePin_Mints_NoPicker(t *testing.T) {
 }
 
 func TestOpenCommand_ZoxidePin_NotInstalled_ErrorsNoPicker(t *testing.T) {
-	// zoxide-absence is surfaced verbatim as ErrZoxideNotInstalled (a script sees
-	// WHY), distinct from the bare chain's silent fall-through, and the pin NEVER
-	// opens the picker. Spec § Domain-pinning flags: explicit error if zoxide is not
-	// installed.
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -1124,9 +1036,6 @@ func TestOpenCommand_ZoxidePin_NotInstalled_ErrorsNoPicker(t *testing.T) {
 }
 
 func TestOpenCommand_ZoxidePin_NoMatch_HardFailsNoPicker(t *testing.T) {
-	// A -z no-match hard-fails with "No zoxide match for: <query>" and NEVER opens
-	// the picker or mints. Spec § Pinned-domain contract: pins never fall back to
-	// the picker.
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -1171,7 +1080,6 @@ func TestOpenCommand_ZoxidePin_NoMatch_HardFailsNoPicker(t *testing.T) {
 	if pathCalled {
 		t.Error("openPathFunc must not be called on a -z no-match")
 	}
-	// A no-match is a runtime failure → plain error (exit 1), not a UsageError.
 	var usageErr *UsageError
 	if errors.As(err, &usageErr) {
 		t.Error("-z no-match error must be a plain error, not a *UsageError")
@@ -1179,8 +1087,6 @@ func TestOpenCommand_ZoxidePin_NoMatch_HardFailsNoPicker(t *testing.T) {
 }
 
 func TestOpenCommand_ZoxidePin_ThreadsCommandIntoMint(t *testing.T) {
-	// A present -e/-- command threads into the minted session unchanged:
-	// `open -z <query> -e claude` → openPathFunc receives command == [claude].
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -1220,9 +1126,6 @@ func TestOpenCommand_ZoxidePin_ThreadsCommandIntoMint(t *testing.T) {
 }
 
 func TestOpenCommand_ZoxidePin_EmitsNoResolveLine(t *testing.T) {
-	// A -z pin is deterministic (zoxide-domain by construction), not a guess, so it
-	// emits NO "resolve" decision line (spec § Wrong-guess feedback — pins emit no
-	// resolve line).
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -1255,9 +1158,6 @@ func TestOpenCommand_ZoxidePin_EmitsNoResolveLine(t *testing.T) {
 }
 
 func TestOpenSession_DelegatesToBuildSessionConnector(t *testing.T) {
-	// openSession must build the connector via buildSessionConnector and connect
-	// through it — no real tmux. Inside tmux the connector is *SwitchConnector, so
-	// Connect issues switch-client -t =<name> through the client's commander.
 	t.Setenv("TMUX", "/tmp/fake-socket,1,0")
 
 	cmder := &recordingCommander{}
@@ -1281,7 +1181,6 @@ func TestOpenSession_DelegatesToBuildSessionConnector(t *testing.T) {
 	}
 }
 
-// mockSwitchClient implements the SwitchClienter interface for testing.
 type mockSwitchClient struct {
 	switchedTo string
 	err        error
@@ -1319,7 +1218,6 @@ func TestSwitchConnector(t *testing.T) {
 	})
 }
 
-// mockSessionCreator implements the sessionCreatorIface for testing.
 type mockSessionCreator struct {
 	createdDir     string
 	createdCommand []string
@@ -1333,7 +1231,6 @@ func (m *mockSessionCreator) CreateFromDir(dir string, command []string) (string
 	return m.sessionName, m.err
 }
 
-// mockQuickStarter implements the quickStarter interface for testing.
 type mockQuickStarter struct {
 	ranPath    string
 	ranCommand []string
@@ -1347,7 +1244,6 @@ func (m *mockQuickStarter) Run(path string, command []string) (*session.QuickSta
 	return m.result, m.err
 }
 
-// mockExecer implements the execer interface for testing.
 type mockExecer struct {
 	calledPath string
 	calledArgs []string
@@ -1383,17 +1279,14 @@ func TestPathOpener(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		// Verify detached session creation
 		if creator.createdDir != "/home/user/project" {
 			t.Errorf("CreateFromDir called with %q, want %q", creator.createdDir, "/home/user/project")
 		}
 
-		// Verify switch-client called with correct session name
 		if switcher.switchedTo != "myproject-abc123" {
 			t.Errorf("SwitchClient called with %q, want %q", switcher.switchedTo, "myproject-abc123")
 		}
 
-		// Verify no exec happened
 		if execer.calledPath != "" {
 			t.Errorf("exec was called with %q, expected no exec inside tmux", execer.calledPath)
 		}
@@ -1426,12 +1319,10 @@ func TestPathOpener(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		// Verify QuickStart was called
 		if qs.ranPath != "/home/user/project" {
 			t.Errorf("QuickStart.Run called with %q, want %q", qs.ranPath, "/home/user/project")
 		}
 
-		// Verify exec was called with correct args
 		if execer.calledPath != "/usr/bin/tmux" {
 			t.Errorf("exec path = %q, want %q", execer.calledPath, "/usr/bin/tmux")
 		}
@@ -1445,7 +1336,6 @@ func TestPathOpener(t *testing.T) {
 			}
 		}
 
-		// Verify CreateFromDir was NOT called (outside tmux uses QuickStart)
 		if creator.createdDir != "" {
 			t.Errorf("CreateFromDir should not be called outside tmux, but was called with %q", creator.createdDir)
 		}
@@ -1492,7 +1382,6 @@ func TestPathOpener(t *testing.T) {
 			t.Fatal("expected error, got nil")
 		}
 
-		// Verify switch-client was NOT called
 		if switcher.switchedTo != "" {
 			t.Errorf("SwitchClient should not be called when creation fails, but was called with %q", switcher.switchedTo)
 		}
@@ -1603,8 +1492,6 @@ func TestPathOpener(t *testing.T) {
 
 }
 
-// newTestOpenCmd creates a fresh cobra command with the -e/--exec flag for testing
-// parseCommandArgs in isolation, avoiding state leaks between subtests.
 func newTestOpenCmd() (*cobra.Command, *cobra.Command) {
 	child := &cobra.Command{
 		Use:  "open",
@@ -1694,25 +1581,18 @@ func TestParseCommandArgs(t *testing.T) {
 			wantUsageErr: true,
 		},
 		{
-			// Regression (Task 3-7): the Phase-2 -e/-- exclusivity guard still fires
-			// with MULTIPLE positionals present (the multi-target burst path), before
-			// any resolve/spawn.
 			name:         "both -e and -- with multiple targets produces exit code 2",
 			args:         []string{"open", "api", "web", "-e", "vim", "--", "claude"},
 			wantErr:      "cannot use both -e/--exec and -- to specify a command",
 			wantUsageErr: true,
 		},
 		{
-			// Regression (Task 3-7): the Phase-2 empty -e guard still fires with
-			// MULTIPLE positionals present.
 			name:         "-e empty with multiple targets produces exit code 2",
 			args:         []string{"open", "api", "web", "-e", ""},
 			wantErr:      "-e/--exec value must not be empty",
 			wantUsageErr: true,
 		},
 		{
-			// Regression (Task 3-7): the Phase-2 empty -- guard still fires with
-			// MULTIPLE positionals present.
 			name:         "-- with multiple targets but no command args produces exit code 2",
 			args:         []string{"open", "api", "web", "--"},
 			wantErr:      "no command specified after --",
@@ -1772,7 +1652,6 @@ func TestParseCommandArgs(t *testing.T) {
 				t.Fatalf("unexpected parse error: %v", gotErr)
 			}
 
-			// Check command slice
 			if tt.wantCmd == nil {
 				if gotCmd != nil {
 					t.Errorf("command = %v, want nil", gotCmd)
@@ -1788,7 +1667,6 @@ func TestParseCommandArgs(t *testing.T) {
 				}
 			}
 
-			// Check destination
 			if gotDest != tt.wantDest {
 				t.Errorf("destination = %q, want %q", gotDest, tt.wantDest)
 			}
@@ -1796,7 +1674,6 @@ func TestParseCommandArgs(t *testing.T) {
 	}
 }
 
-// stubProjectStore implements tui.ProjectStore for cmd-level testing.
 type stubProjectStore struct {
 	projects []project.Project
 }
@@ -1807,24 +1684,20 @@ func (s *stubProjectStore) CleanStale() ([]project.Project, error) {
 }
 func (s *stubProjectStore) Remove(_, _ string) error { return nil }
 
-// stubSessionKiller implements tui.SessionKiller for cmd-level testing.
 type stubSessionKiller struct{}
 
 func (s *stubSessionKiller) KillSession(_ string) error { return nil }
 
-// stubSessionRenamer implements tui.SessionRenamer for cmd-level testing.
 type stubSessionRenamer struct{}
 
 func (s *stubSessionRenamer) RenameSession(_, _ string) error { return nil }
 
-// stubTUISessionCreator implements tui.SessionCreator for cmd-level testing.
 type stubTUISessionCreator struct{}
 
 func (s *stubTUISessionCreator) CreateFromDir(_ string, _ []string) (string, error) {
 	return "stub-session", nil
 }
 
-// stubProjectEditor implements tui.ProjectEditor for cmd-level testing.
 type stubProjectEditor struct{}
 
 func (s *stubProjectEditor) Rename(_, _, _ string) error { return nil }
@@ -1833,7 +1706,6 @@ func (s *stubProjectEditor) AddTag(_, _ string) error { return nil }
 
 func (s *stubProjectEditor) RemoveTag(_, _ string) error { return nil }
 
-// stubAliasEditor implements tui.AliasEditor for cmd-level testing.
 type stubAliasEditor struct {
 	aliases map[string]string
 }
@@ -1859,8 +1731,6 @@ func (s *stubAliasEditor) DeleteAndSave(name, _ string) (bool, error) {
 	return true, nil
 }
 
-// stubCommander implements tmux.Commander for cmd-level testing.
-// Returns a single session so list-sessions queries succeed during tests.
 type stubCommander struct{}
 
 func (s *stubCommander) Run(args ...string) (string, error) {
@@ -1870,14 +1740,10 @@ func (s *stubCommander) Run(args ...string) (string, error) {
 	return "", nil
 }
 
-// RunRaw satisfies tmux.Commander; the cmd-level stub never expects raw
-// callers, so it returns the same empty defaults Run does.
 func (s *stubCommander) RunRaw(args ...string) (string, error) {
 	return "", nil
 }
 
-// defaultTestTUIConfig returns a tuiConfig with all stub dependencies wired.
-// Tests override individual fields as needed for their specific scenario.
 func defaultTestTUIConfig() tuiConfig {
 	return tuiConfig{
 		lister:         &mockSessionLister{},
@@ -2004,21 +1870,15 @@ func TestBuildTUIModel(t *testing.T) {
 
 		m := buildTUIModel(cfg, "", nil)
 
-		// Navigate to projects page and populate
 		var model tea.Model = m
-		// Resolve the §2.6 detect-or-timeout first-paint gate: Build arms it for
-		// the default (auto) appearance, so View renders the neutral blank frame
-		// until OSC 11 detection (or the timeout) resolves the canvas mode. Deliver
-		// the OSC 11 reply exactly as the live program does so View paints the real
-		// content (the edit modal) this test asserts on.
+		// Build arms the first-paint gate, so View renders a blank frame until OSC
+		// 11 detection resolves. Deliver the reply as the live program does, or the
+		// asserted content is never painted.
 		model, _ = model.Update(tea.BackgroundColorMsg{Color: color.RGBA{R: 0x0b, G: 0x0c, B: 0x14, A: 0xff}})
-		// x is the sole Sessions↔Projects toggle (§12.2; the former p alias is
-		// dropped). The model starts on Sessions, so x navigates to Projects.
 		model, _ = model.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
 		model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 		model, _ = model.Update(tui.ProjectsLoadedMsg{Projects: projects})
 
-		// Press e to open edit modal
 		model, _ = model.Update(tea.KeyPressMsg{Code: 'e', Text: "e"})
 
 		view := model.View().Content
@@ -2090,7 +1950,6 @@ func TestBuildTUIModel_ServerStarted(t *testing.T) {
 func TestProcessTUIResult(t *testing.T) {
 	t.Run("clean exit without selection returns nil", func(t *testing.T) {
 		m := tui.New(&mockSessionLister{})
-		// m.Selected() is "" by default
 		connector := &mockSessionConnector{}
 
 		err := processTUIResult(m, connector)
@@ -2108,7 +1967,6 @@ func TestProcessTUIResult(t *testing.T) {
 			{Name: "dev", Windows: 3},
 		}
 		m := tui.NewModelWithSessions(sessions)
-		// Simulate user selecting a session via Update with Enter
 		updated, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 		m = updated.(tui.Model)
 		updated, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -2128,10 +1986,6 @@ func TestProcessTUIResult(t *testing.T) {
 }
 
 func TestOpenCommand_TotalMiss_HardFails(t *testing.T) {
-	// A target that resolves to nothing across every domain is a hard failure
-	// carrying the escape-hatch message — the TUI picker is NEVER launched on a
-	// miss (spec § Miss handling — total miss is a hard fail). The implicit
-	// fallback-to-TUI-with-filter is removed.
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -2165,7 +2019,6 @@ func TestOpenCommand_TotalMiss_HardFails(t *testing.T) {
 	if tuiCalled {
 		t.Error("openTUIFunc must not be called on a total miss")
 	}
-	// A plain (non-usage) error → exit code 1, not the UsageError code 2.
 	var usageErr *UsageError
 	if errors.As(err, &usageErr) {
 		t.Error("miss error must be a plain error, not a *UsageError")
@@ -2173,9 +2026,6 @@ func TestOpenCommand_TotalMiss_HardFails(t *testing.T) {
 }
 
 func TestOpenCommand_ResolveLog_SessionHit(t *testing.T) {
-	// A session-domain hit emits exactly one INFO "resolve" decision line with
-	// domain=session and resolved_path = the session name (the attr is overloaded
-	// per the spec: resolved directory, or session name for a session hit).
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -2214,8 +2064,6 @@ func TestOpenCommand_ResolveLog_SessionHit(t *testing.T) {
 }
 
 func TestOpenCommand_ResolveLog_ZoxideMint(t *testing.T) {
-	// A zoxide mint emits one INFO "resolve" line with domain=zoxide and
-	// resolved_path = the resolved directory.
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -2254,9 +2102,6 @@ func TestOpenCommand_ResolveLog_ZoxideMint(t *testing.T) {
 }
 
 func TestOpenCommand_ResolveLog_Miss(t *testing.T) {
-	// A total miss emits one INFO "resolve" line with domain=miss and an empty
-	// resolved_path — IN ADDITION to (not instead of) the separate stderr
-	// hard-fail error, which the command still returns.
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -2296,14 +2141,6 @@ func TestOpenCommand_ResolveLog_Miss(t *testing.T) {
 }
 
 func TestOpenCommand_ResolveLog_GlobEmitsNoLine(t *testing.T) {
-	// A glob target is deterministic (session-domain by construction, not a
-	// guess), so it emits NO "resolve" decision line — the component stays
-	// focused on guessing-chain resolutions. A glob routes to the burst (the
-	// multi-target gate diverts any glob-bearing target), so this drives the
-	// production path via an injected raw argv: the glob's resolve-line
-	// suppression lives in resolveOpenSurfaces' emitResolveDecision gate, NOT in
-	// the single-target Resolve (which is now non-glob-only — a glob reaching it
-	// is a loud miss, never a first-match).
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -2338,9 +2175,6 @@ func TestOpenCommand_ResolveLog_GlobEmitsNoLine(t *testing.T) {
 }
 
 func TestEmitResolveDecision_Helper(t *testing.T) {
-	// emitResolveDecision is the single-sourced resolve-decision emitter shared by
-	// both bare paths (single-target open.go + resolveOpenSurfaces). The !HasGlobMeta
-	// gate lives INSIDE it, so a glob target emits nothing from either call site.
 	t.Run("non-glob target emits exactly one resolve line", func(t *testing.T) {
 		h := newCapturingHandler()
 		log.SetTestHandler(t, h)
@@ -2372,9 +2206,6 @@ func TestEmitResolveDecision_Helper(t *testing.T) {
 }
 
 func TestLogExecHandoff_Helper(t *testing.T) {
-	// logExecHandoff is the single-sourced exec-handoff emitter shared by both exec
-	// paths (AttachConnector + PathOpener). It defensively strips argv[0] so both
-	// sites render args=argv[1:] byte-identically.
 	t.Run("strips argv[0] and joins the rest under target=tmux", func(t *testing.T) {
 		h := newCapturingHandler()
 		log.SetTestHandler(t, h)
@@ -2413,10 +2244,6 @@ func TestLogExecHandoff_Helper(t *testing.T) {
 }
 
 func TestOpenCommand_BareProjectName_MintsNeverAttaches(t *testing.T) {
-	// 'open api' with a running api-x7Kd9a session must NOT attach it: the
-	// exact-name check misses ({project}-{nanoid} names never equal the bare
-	// project name), so api falls through the directory chain and mints
-	// (spec § Bare project shorthand does not reattach).
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -2459,8 +2286,6 @@ func TestOpenCommand_BareProjectName_MintsNeverAttaches(t *testing.T) {
 }
 
 func TestOpenCommand_CommandThreadsIntoMintedTarget(t *testing.T) {
-	// The -- command must thread through openPath into the minted session,
-	// unchanged from today's openPath(cmd, path, command) routing.
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -2498,8 +2323,6 @@ func TestOpenCommand_CommandThreadsIntoMintedTarget(t *testing.T) {
 }
 
 func TestOpenCommand_DirectTUI_PassesServerStarted(t *testing.T) {
-	// When no destination is provided, the direct TUI path must pass
-	// the real serverWasStarted value so the TUI shows its loading interstitial.
 	runner := &recordingRunner{started: true}
 	bootstrapDeps = &BootstrapDeps{Orchestrator: runner}
 	t.Cleanup(func() { bootstrapDeps = nil })
@@ -2524,9 +2347,6 @@ func TestOpenCommand_DirectTUI_PassesServerStarted(t *testing.T) {
 	}
 }
 
-// recordingFilterLister records whether its ListSessionNames was consulted, so a
-// -f invocation can assert the query resolver's session pre-check never ran (i.e.
-// resolution was skipped entirely — -f is a picker redirect, not a target).
 type recordingFilterLister struct {
 	names  []string
 	called bool
@@ -2538,9 +2358,6 @@ func (r *recordingFilterLister) ListSessionNames() ([]string, error) {
 }
 
 func TestOpenCommand_Filter_OpensPickerPrefilteredAndSkipsResolution(t *testing.T) {
-	// -f <text> (no positional) skips resolution and launches the picker
-	// pre-filled with the filter text (spec § -f/--filter is the sole
-	// non-composing flag). The query resolver's session pre-check must never run.
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -2586,9 +2403,6 @@ func TestOpenCommand_Filter_OpensPickerPrefilteredAndSkipsResolution(t *testing.
 }
 
 func TestOpenCommand_Filter_WithPositionalTarget_UsageError(t *testing.T) {
-	// -f combined with a positional target is a usage error (exit 2); neither the
-	// resolver nor the picker is invoked (spec § -f is mutually exclusive with a
-	// positional target).
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -2633,11 +2447,6 @@ func TestOpenCommand_Filter_WithPositionalTarget_UsageError(t *testing.T) {
 }
 
 func TestOpenCommand_Filter_WithPin_UsageError(t *testing.T) {
-	// -f combined with ANY domain pin (-s/-p/-z/-a) is a usage error (exit 2):
-	// -f is the sole non-composing flag (spec § -f/--filter is the sole
-	// non-composing flag; § Target-set composition). The guard runs BEFORE pin
-	// dispatch, so neither the resolver nor the picker is invoked, and no
-	// resolution outcome (attach/mint) fires.
 	cases := []struct {
 		name string
 		flag string
@@ -2715,8 +2524,6 @@ func TestOpenCommand_Filter_WithPin_UsageError(t *testing.T) {
 }
 
 func TestOpenCommand_Filter_WithMultiplePins_UsageError(t *testing.T) {
-	// -f combined with multiple pins is still a usage error — the guard rejects
-	// on ANY pin, so -f + -s + -p is rejected the same as a single pin.
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -2761,8 +2568,6 @@ func TestOpenCommand_Filter_WithMultiplePins_UsageError(t *testing.T) {
 }
 
 func TestOpenCommand_Filter_EmptyValue_UsageError(t *testing.T) {
-	// An explicitly empty -f value is a usage error (exit 2), mirroring the
-	// existing empty -e guard (planner decision).
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -2795,8 +2600,6 @@ func TestOpenCommand_Filter_EmptyValue_UsageError(t *testing.T) {
 }
 
 func TestOpenCommand_NoArgs_NoFilter_LaunchesPicker(t *testing.T) {
-	// Regression guard: no-arg open (no -f) still launches the picker with an
-	// empty initial filter — the -f feature must not disturb this path.
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -2825,13 +2628,6 @@ func TestOpenCommand_NoArgs_NoFilter_LaunchesPicker(t *testing.T) {
 }
 
 func TestOpenCommand_CommandNoTarget_ExecFlag_OpensProjectsPicker(t *testing.T) {
-	// Regression guard (spec § Mint-only command with no target → picker in
-	// Projects mode): `open -e <cmd>` with NO target and NO pin must reach the
-	// no-target early-return and thread the command into the picker (initialFilter
-	// == "", command == [claude]) — NOT the Task 2-6 usage error. The command is
-	// threaded so the model lands in command-pending Projects mode; because there
-	// is no positional and no pin, resolution + openResolved never run, so the
-	// mint-scoped *SessionResult guard cannot fire on this path.
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -2889,7 +2685,7 @@ func TestOpenCommand_CommandNoTarget_ExecFlag_OpensProjectsPicker(t *testing.T) 
 		t.Errorf("command = %v, want %v (threaded into Projects mode)", gotCommand, wantCmd)
 	}
 	if sessionCalled || pathCalled {
-		t.Error("no resolution outcome (attach/mint) may fire on the no-target command path — the Task 2-6 guard must not run")
+		t.Error("no resolution outcome (attach/mint) may fire on the no-target command path — the command-on-attach guard must not run")
 	}
 	if lister.called {
 		t.Error("query resolver must not be consulted on the no-target command path (resolution skipped)")
@@ -2897,9 +2693,6 @@ func TestOpenCommand_CommandNoTarget_ExecFlag_OpensProjectsPicker(t *testing.T) 
 }
 
 func TestOpenCommand_CommandNoTarget_DashDash_OpensProjectsPicker(t *testing.T) {
-	// Same contract as the -e spelling via the -- spelling: `open -- <cmd>` with
-	// no target and no pin threads the command into the Projects-mode picker
-	// (initialFilter == "", command == [claude]) and is NOT a usage error.
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -2957,7 +2750,7 @@ func TestOpenCommand_CommandNoTarget_DashDash_OpensProjectsPicker(t *testing.T) 
 		t.Errorf("command = %v, want %v (threaded into Projects mode)", gotCommand, wantCmd)
 	}
 	if sessionCalled || pathCalled {
-		t.Error("no resolution outcome (attach/mint) may fire on the no-target command path — the Task 2-6 guard must not run")
+		t.Error("no resolution outcome (attach/mint) may fire on the no-target command path — the command-on-attach guard must not run")
 	}
 	if lister.called {
 		t.Error("query resolver must not be consulted on the no-target command path (resolution skipped)")
@@ -2965,8 +2758,6 @@ func TestOpenCommand_CommandNoTarget_DashDash_OpensProjectsPicker(t *testing.T) 
 }
 
 func TestOpenCommand_Filter_ThreadsCommandToPicker(t *testing.T) {
-	// -f threads any present -e/-- command straight through to the picker,
-	// preserving the command-present ⇒ Projects specialization for free.
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -2996,9 +2787,6 @@ func TestOpenCommand_Filter_ThreadsCommandToPicker(t *testing.T) {
 }
 
 func TestOpenCommand_Filter_ThreadsDashDashCommandToPicker(t *testing.T) {
-	// The `--` command spelling is the exact sibling of the -e spelling above: -f
-	// threads a `--`-spelled command straight through to the picker just the same,
-	// preserving the command-present ⇒ Projects specialization for both spellings.
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -3051,10 +2839,8 @@ func TestBuildSessionConnector(t *testing.T) {
 	})
 }
 
-// recordingExecer captures syscall.Exec arguments without replacing the
-// test process. Used to verify AttachConnector's argv shape — the
-// production AttachConnector hands off to tmux via syscall.Exec, which
-// would otherwise destroy the test process.
+// Captures the argv without the real syscall.Exec, which would replace the
+// test process.
 type recordingExecer struct {
 	argv0 string
 	argv  []string
@@ -3066,12 +2852,6 @@ func (r *recordingExecer) Exec(argv0 string, argv []string, _ []string) error {
 	return nil
 }
 
-// TestAttachConnectorConnectArgv pins the argv passed to syscall.Exec at the
-// AttachConnector boundary. The "=" prefix on the target forces tmux's
-// exact-match resolution — without it, a killed session "foo" coexisting
-// with a live "foo-2" would silently prefix-match the wrong session. See
-// spec § Pre-select + attach sequence > step 4 and > Exact-match target
-// syntax.
 func TestAttachConnectorConnectArgv(t *testing.T) {
 	rec := &recordingExecer{}
 	ac := &AttachConnector{
@@ -3097,19 +2877,13 @@ func TestAttachConnectorConnectArgv(t *testing.T) {
 	}
 }
 
-// capturedRecord pairs a captured slog.Record with the WithAttrs chain that was
-// in force on the handler when it arrived. log.For("process") delivers the
-// "component" attr via root.With(...) — i.e. through WithAttrs, not on the record
-// itself — so a handler that wants to see the component must remember its
-// accumulated attrs and merge them at lookup time.
+// log.For delivers the component attr through WithAttrs rather than on the
+// record, so a handler must remember its accumulated attrs to see it.
 type capturedRecord struct {
 	record slog.Record
 	attrs  []slog.Attr
 }
 
-// capturingHandler is an in-memory slog.Handler that records every Handle call
-// together with the WithAttrs-accumulated context, so the exec-marker tests can
-// assert on the For-delivered component via log.SetTestHandler.
 type capturingHandler struct {
 	mu       *sync.Mutex
 	captured *[]capturedRecord
@@ -3132,8 +2906,6 @@ func (h *capturingHandler) Handle(_ context.Context, r slog.Record) error {
 	return nil
 }
 
-// WithAttrs returns a derived handler sharing the same capture sink but carrying
-// the extended attr chain, so For-delivered attrs (component) are remembered.
 func (h *capturingHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	merged := make([]slog.Attr, len(h.attrs)+len(attrs))
 	copy(merged, h.attrs)
@@ -3143,9 +2915,6 @@ func (h *capturingHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 
 func (h *capturingHandler) WithGroup(string) slog.Handler { return h }
 
-// snapshot returns a copy of the records captured so far. Used by the
-// ordering-aware execer to prove the exec marker was already emitted at the
-// instant Exec was invoked.
 func (h *capturingHandler) snapshot() []capturedRecord {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -3154,8 +2923,6 @@ func (h *capturingHandler) snapshot() []capturedRecord {
 	return out
 }
 
-// execRecords returns every captured record whose component is "process" and
-// whose message is "exec".
 func (h *capturingHandler) execRecords() []capturedRecord {
 	return filterExecRecords(h.snapshot())
 }
@@ -3173,8 +2940,6 @@ func filterExecRecords(in []capturedRecord) []capturedRecord {
 	return out
 }
 
-// resolveRecords returns every captured record whose component is "resolve" and
-// whose message is "resolved" — the resolution-decision receipt line.
 func (h *capturingHandler) resolveRecords() []capturedRecord {
 	var out []capturedRecord
 	for _, cr := range h.snapshot() {
@@ -3188,8 +2953,6 @@ func (h *capturingHandler) resolveRecords() []capturedRecord {
 	return out
 }
 
-// assertResolveAttr asserts that a captured resolve record carries the named
-// string attr with the expected value.
 func assertResolveAttr(t *testing.T, cr capturedRecord, key, want string) {
 	t.Helper()
 	got, ok := recordStringAttr(cr, key)
@@ -3202,8 +2965,6 @@ func assertResolveAttr(t *testing.T, cr capturedRecord, key, want string) {
 	}
 }
 
-// recordComponent extracts the "component" attr from a captured record, checking
-// the record's own attrs first then the WithAttrs-accumulated chain.
 func recordComponent(cr capturedRecord) string {
 	if v, ok := recordStringAttr(cr, "component"); ok {
 		return v
@@ -3211,8 +2972,6 @@ func recordComponent(cr capturedRecord) string {
 	return ""
 }
 
-// recordStringAttr extracts a named string attr from a captured record, checking
-// the record's own attrs first then the WithAttrs-accumulated chain.
 func recordStringAttr(cr capturedRecord, key string) (string, bool) {
 	var (
 		found string
@@ -3237,11 +2996,8 @@ func recordStringAttr(cr capturedRecord, key string) (string, bool) {
 	return "", false
 }
 
-// orderingExecer is a recording execer that, at Exec invocation time, snapshots
-// the records already captured by the handler. The exec-marker contract requires
-// the marker to be emitted BEFORE syscall.Exec — this seam proves it by checking
-// that a process: exec record exists in the snapshot taken at Exec time (i.e.
-// before the real syscall.Exec would have replaced the image).
+// Snapshots the captured records at Exec time, so the exec marker's emission
+// can be placed before the handoff.
 type orderingExecer struct {
 	handler        *capturingHandler
 	argv0          string
@@ -3387,8 +3143,8 @@ func TestPathOpener_EmitsExecMarkerBeforeExec_OutsideTmux(t *testing.T) {
 }
 
 func TestExecMarker_ArgsLoggedVerbatim(t *testing.T) {
-	// Privacy posture: full args land in portal.log verbatim (single-user threat
-	// model). A multi-word shell-command tail must survive unredacted.
+	// Privacy posture: args land in portal.log verbatim (single-user threat
+	// model), so a multi-word command tail must survive unredacted.
 	h := newCapturingHandler()
 	log.SetTestHandler(t, h)
 
@@ -3466,9 +3222,7 @@ func TestPathOpener_InsideTmux_EmitsNoExecMarker(t *testing.T) {
 	}
 }
 
-// lifecycleBypassMessages mirrors the production handler's closed
-// process-lifecycle message set (spec § "Lifecycle markers bypass the level
-// filter"); "exec" is the message under test here.
+// Mirrors the production handler's closed process-lifecycle message set.
 var lifecycleBypassMessages = map[string]bool{
 	"start":              true,
 	"exit":               true,
@@ -3477,14 +3231,8 @@ var lifecycleBypassMessages = map[string]bool{
 	"log-level resolved": true,
 }
 
-// warnBypassHandler models the production textHandler's WARN-level gate plus the
-// process-lifecycle bypass: a record whose component is "process" and whose
-// message is in the lifecycle set ("exec" among them) writes through even though
-// it is INFO and the configured level is WARN. Any other INFO record is dropped.
-// It tracks the WithAttrs chain so the For-delivered component is visible (same
-// reasoning as capturingHandler). This lets the test prove the call-site emits
-// the marker in a shape the production bypass admits at PORTAL_LOG_LEVEL=warn —
-// without exporting the unexported production newTextHandler.
+// Models the production WARN gate plus the lifecycle bypass, without exporting
+// the production handler.
 type warnBypassHandler struct {
 	mu       *sync.Mutex
 	captured *[]capturedRecord
@@ -3495,8 +3243,8 @@ func newWARNBypassHandler() *warnBypassHandler {
 	return &warnBypassHandler{mu: &sync.Mutex{}, captured: &[]capturedRecord{}}
 }
 
-// Enabled mirrors the production coarse INFO-floor pre-gate so an INFO lifecycle
-// record is not skipped by slog before Handle can apply the bypass.
+// Mirrors the production coarse INFO-floor pre-gate, so an INFO lifecycle
+// record reaches Handle instead of being dropped by slog.
 func (h *warnBypassHandler) Enabled(_ context.Context, level slog.Level) bool {
 	floor := min(slog.LevelInfo, slog.LevelWarn)
 	return level >= floor
@@ -3532,11 +3280,6 @@ func (h *warnBypassHandler) execRecords() []capturedRecord {
 }
 
 func TestExecMarker_VisibleAtWARN(t *testing.T) {
-	// The exec marker is a forensic tripwire: it must reach the sink even when
-	// PORTAL_LOG_LEVEL filters out ordinary INFO. The call site emits an ordinary
-	// INFO line under component=process with message=exec; the production handler
-	// special-cases that lifecycle set to bypass the level gate. This handler
-	// models the WARN gate + bypass and asserts the marker survives.
 	h := newWARNBypassHandler()
 	log.SetTestHandler(t, h)
 
@@ -3560,9 +3303,6 @@ func TestExecMarker_VisibleAtWARN(t *testing.T) {
 	}
 }
 
-// countingSessionLister records how many times ListSessionNames is invoked, so a
-// test can prove a fast-fail (e.g. a malformed --ack) short-circuits before any
-// session-domain resolution touches tmux.
 type countingSessionLister struct {
 	names []string
 	calls int
@@ -3574,9 +3314,6 @@ func (c *countingSessionLister) ListSessionNames() ([]string, error) {
 }
 
 func TestOpenCommand_Ack_MalformedValue_UsageErrorBeforeTmux(t *testing.T) {
-	// `open <target> --ack <malformed>` is a usage error (exit 2) rejected at the
-	// very top of RunE — BEFORE any resolver/tmux call — so the session lister is
-	// never touched and neither connector seam fires (spec § Hidden --ack flag).
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -3632,9 +3369,6 @@ func TestOpenCommand_Ack_MalformedValue_UsageErrorBeforeTmux(t *testing.T) {
 }
 
 func TestOpenCommand_Ack_MarkerWrittenBeforeSessionAttach(t *testing.T) {
-	// `open -s <name> --ack <batch>:<token>` writes the @portal-spawn marker as the
-	// last act before the attach handoff: the ack Write fires with (batch, token)
-	// AND strictly before openSessionFunc (spec § Hidden --ack flag).
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -3680,9 +3414,6 @@ func TestOpenCommand_Ack_MarkerWrittenBeforeSessionAttach(t *testing.T) {
 }
 
 func TestOpenCommand_Ack_MarkerWrittenBeforePathMint(t *testing.T) {
-	// `open -p <dir> --ack <batch>:<token>` writes the @portal-spawn marker as the
-	// last act before the mint handoff: the ack Write fires with (batch, token) AND
-	// strictly before openPathFunc (spec § Hidden --ack flag).
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -3730,9 +3461,6 @@ func TestOpenCommand_Ack_MarkerWrittenBeforePathMint(t *testing.T) {
 }
 
 func TestOpenCommand_Ack_WriteFailureStillConnects(t *testing.T) {
-	// A best-effort marker-write failure must NOT abort the handoff: the connector
-	// still runs (false negative, no orphan) and RunE returns nil (spec § Hidden
-	// --ack flag — the write is best-effort).
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -3806,9 +3534,6 @@ func TestOpenCommand_Ack_WriteFailureStillConnects(t *testing.T) {
 }
 
 func TestOpenCommand_Ack_CommandAttachGuardFiresBeforeWrite(t *testing.T) {
-	// The command+attach usage guard must fire BEFORE the marker write on the
-	// session arm: `open -s <name> -e <cmd> --ack b:t` is a usage error and NO
-	// marker is written (spec § Command passthrough — mint-scoped).
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -3846,8 +3571,6 @@ func TestOpenCommand_Ack_CommandAttachGuardFiresBeforeWrite(t *testing.T) {
 }
 
 func TestOpenCommand_Ack_FlagIsHidden(t *testing.T) {
-	// --ack is an internal receipt flag: hidden from --help and completion via
-	// Cobra MarkHidden (spec § Hidden --ack flag).
 	f := openCmd.Flags().Lookup("ack")
 	if f == nil {
 		t.Fatal("open command has no --ack flag")

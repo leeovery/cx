@@ -8,8 +8,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// fakeLister is a minimal SessionLister test double so New can be exercised
-// without a real tmux client. ListSessions is never invoked by construction.
 type fakeLister struct{}
 
 func (fakeLister) ListSessions() ([]tmux.Session, error) { return nil, nil }
@@ -42,7 +40,6 @@ func TestWithInitialMode(t *testing.T) {
 		projects := []project.Project{{Path: dir, Name: "Portal", Tags: []string{"work"}}}
 		sessions := []tmux.Session{{Name: "portal-abc", Dir: dir}}
 
-		// Construct in By Tag, then seed projects and feed the first SessionsMsg.
 		m := New(fakeLister{}, WithInitialMode(prefs.ModeByTag))
 		m.setProjects(projects)
 		m.applySessionListSize(80, 24)

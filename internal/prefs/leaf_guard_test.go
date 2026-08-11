@@ -6,26 +6,17 @@ import (
 	"testing"
 )
 
-// prefsPkg is the import path of the package under test.
 const prefsPkg = "github.com/leeovery/portal/internal/prefs"
 
-// forbiddenLeafDeps are internal packages that internal/prefs must never depend
-// on, transitively. prefs is documented as a pure leaf (stdlib + internal/fileutil
-// only) so it can be imported from internal/tui without an import cycle, and it is
-// deliberately outside the closed state-mutation audit-trail set — so it must not
-// pull in the logging machinery.
+// prefs stays a leaf so internal/tui can import it without a cycle.
 var forbiddenLeafDeps = []string{
 	"github.com/leeovery/portal/internal/log",
 	"github.com/leeovery/portal/internal/storelog",
 }
 
-// TestPrefsIsALeaf asserts internal/prefs' full transitive internal-dependency set
-// contains only internal/fileutil (and itself) — proving it stays a leaf and never
-// pulls in internal/log or internal/storelog. Modelled on cmd/capturetool's
-// go-list-deps import guard.
 func TestPrefsIsALeaf(t *testing.T) {
-	// Anchored at the import path (not a relative dir) so it resolves regardless
-	// of the test binary's runtime CWD.
+	// Anchored at the import path so it resolves regardless of the test
+	// binary's runtime CWD.
 	cmd := exec.Command("go", "list", "-deps", prefsPkg)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -41,8 +32,7 @@ func TestPrefsIsALeaf(t *testing.T) {
 		}
 	}
 
-	// Positive sanity check: the only internal dependency (besides itself) is
-	// internal/fileutil, so the guard above is meaningful rather than vacuous.
+	// Keeps the guard from passing vacuously.
 	const fileutilPkg = "github.com/leeovery/portal/internal/fileutil"
 	var sawFileutil bool
 	for _, dep := range deps {

@@ -10,10 +10,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// newPreviewModelForEnter constructs a previewModel directly so the Enter
-// branch in Update can be exercised against curated groups with a recorded
-// PreviewAttacher injected, without going through NewPreviewModel's initial
-// enumeration / read dance.
 func newPreviewModelForEnter(session string, groups []tmux.WindowGroup, windowIdx, paneIdx int, reader ScrollbackReader, attacher PreviewAttacher, width, height int) previewModel {
 	return previewModel{
 		session:   session,
@@ -29,9 +25,6 @@ func newPreviewModelForEnter(session string, groups []tmux.WindowGroup, windowId
 }
 
 func TestPreviewEnter_DispatchesWithCapturedRawIndicesWhenNoNavigation(t *testing.T) {
-	// User opened preview on a session; never pressed ← / → / Tab.
-	// Enter must dispatch with the captured-at-open coordinates — the first
-	// WindowGroup's WindowIndex and that group's first PaneIndex.
 	groups := []tmux.WindowGroup{
 		{WindowIndex: 0, WindowName: "main", PaneIndices: []int{0, 1}},
 		{WindowIndex: 1, WindowName: "other", PaneIndices: []int{0}},
@@ -56,8 +49,6 @@ func TestPreviewEnter_DispatchesWithCapturedRawIndicesWhenNoNavigation(t *testin
 }
 
 func TestPreviewEnter_DispatchesWithWalkedIndicesAfterPaneNav(t *testing.T) {
-	// User cycles to the next pane within the same window via Tab, then
-	// presses Enter.
 	groups := []tmux.WindowGroup{
 		{WindowIndex: 0, WindowName: "main", PaneIndices: []int{0, 1, 2}},
 	}
@@ -65,7 +56,6 @@ func TestPreviewEnter_DispatchesWithWalkedIndicesAfterPaneNav(t *testing.T) {
 	attacher := &fakePreviewAttacher{}
 	m := newPreviewModelForEnter("work", groups, 0, 0, reader, attacher, 80, 24)
 
-	// Walk forward via Tab.
 	updated, _ := m.Update(nextPaneKey)
 	if updated.paneIdx != 1 {
 		t.Fatalf("setup: expected paneIdx=1 after Tab, got %d", updated.paneIdx)
@@ -87,7 +77,6 @@ func TestPreviewEnter_DispatchesWithWalkedIndicesAfterPaneNav(t *testing.T) {
 }
 
 func TestPreviewEnter_DispatchesWithWalkedIndicesAfterWindowNav(t *testing.T) {
-	// User cycles forward to the next window via →, then presses Enter.
 	groups := []tmux.WindowGroup{
 		{WindowIndex: 0, WindowName: "first", PaneIndices: []int{0, 1}},
 		{WindowIndex: 1, WindowName: "second", PaneIndices: []int{0}},
@@ -97,7 +86,6 @@ func TestPreviewEnter_DispatchesWithWalkedIndicesAfterWindowNav(t *testing.T) {
 	attacher := &fakePreviewAttacher{}
 	m := newPreviewModelForEnter("work", groups, 0, 0, reader, attacher, 80, 24)
 
-	// → advances windowIdx by 1 and resets paneIdx to 0.
 	updated, _ := m.Update(nextWindowKey)
 	if updated.windowIdx != 1 {
 		t.Fatalf("setup: expected windowIdx=1 after →, got %d", updated.windowIdx)
@@ -116,16 +104,12 @@ func TestPreviewEnter_DispatchesWithWalkedIndicesAfterWindowNav(t *testing.T) {
 }
 
 func TestPreviewEnter_DispatchesWithRawTmuxIndicesOnNonContiguousSession(t *testing.T) {
-	// Session with non-contiguous WindowIndex and pane-base-index 1.
-	// Spec § Captured coordinate values pins that raw tmux indices — not
-	// 0-based slice positions — are passed to the pipeline.
 	groups := []tmux.WindowGroup{
 		{WindowIndex: 0, WindowName: "first", PaneIndices: []int{1}},
 		{WindowIndex: 5, WindowName: "second", PaneIndices: []int{3}},
 	}
 	reader := &recordingReader{bytes: []byte("content")}
 	attacher := &fakePreviewAttacher{}
-	// Cursor on second window (slice 1 → raw 5), only pane (slice 0 → raw 3).
 	m := newPreviewModelForEnter("work", groups, 1, 0, reader, attacher, 80, 24)
 
 	_, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -141,23 +125,12 @@ func TestPreviewEnter_DispatchesWithRawTmuxIndicesOnNonContiguousSession(t *test
 }
 
 func TestPreviewEnter_NotForwardedToViewport(t *testing.T) {
-	// Pin that Enter does NOT reach the embedded viewport — the case must
-	// return before viewport.Update. bubbles/viewport@v1.0.0 treats Enter as
-	// a no-op for scrolling today, but the intercept must hold so any future
-	// viewport binding on Enter cannot leak through preview.
-	//
-	// We exercise this by pre-scrolling the viewport to the top and asserting
-	// the YOffset is untouched after Enter: if Enter were forwarded, a future
-	// viewport binding to Enter that calls GotoBottom (or similar) would
-	// mutate YOffset, while the intercept keeps it pinned.
 	groups := []tmux.WindowGroup{
 		{WindowIndex: 0, WindowName: "main", PaneIndices: []int{0}},
 	}
 	reader := &recordingReader{bytes: []byte("content")}
 	attacher := &fakePreviewAttacher{}
 	m := newPreviewModelForEnter("work", groups, 0, 0, reader, attacher, 80, 10)
-	// Fill viewport with content larger than its height so scroll position
-	// is meaningfully observable, then park at top.
 	var lines strings.Builder
 	for range 50 {
 		lines.WriteString("line\n")
@@ -174,16 +147,12 @@ func TestPreviewEnter_NotForwardedToViewport(t *testing.T) {
 	if updated.viewport.YOffset() != prevYOffset {
 		t.Errorf("viewport.YOffset = %d; want unchanged %d (Enter must not reach viewport)", updated.viewport.YOffset(), prevYOffset)
 	}
-	// Sanity: Enter was intercepted, not silently ignored — the attacher fired.
 	if len(attacher.calls) != 1 {
 		t.Errorf("expected attacher.Run to have fired (proof of interception), got %d calls", len(attacher.calls))
 	}
 }
 
 func TestPreviewEnter_NoOpWhenAttacherIsNil(t *testing.T) {
-	// Defensive guard: tests that construct preview without an attacher
-	// (older callsites and any future ones that never wire the seam) must
-	// receive a silent no-op for Enter, not a nil-deref panic.
 	groups := []tmux.WindowGroup{
 		{WindowIndex: 0, WindowName: "main", PaneIndices: []int{0}},
 	}
@@ -201,22 +170,18 @@ func TestPreviewEnter_NoOpWhenAttacherIsNil(t *testing.T) {
 	if cmd != nil {
 		t.Errorf("expected nil cmd on nil-attacher no-op, got non-nil")
 	}
-	// Model is otherwise unchanged.
 	if updated.windowIdx != m.windowIdx || updated.paneIdx != m.paneIdx {
 		t.Errorf("expected windowIdx/paneIdx unchanged on nil-attacher no-op")
 	}
 }
 
 func TestPreviewEnter_DispatchesWhenViewportHasRealBytes(t *testing.T) {
-	// Spec § Mid-load: Enter attaches unconditionally regardless of viewport
-	// content state. Real-bytes branch.
 	groups := []tmux.WindowGroup{
 		{WindowIndex: 0, WindowName: "main", PaneIndices: []int{0}},
 	}
 	reader := &recordingReader{bytes: []byte("real content bytes")}
 	attacher := &fakePreviewAttacher{}
 	m := newPreviewModelForEnter("work", groups, 0, 0, reader, attacher, 80, 24)
-	// Simulate a real-bytes viewport by pre-loading content.
 	m.viewport.SetContent("real content bytes")
 
 	_, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -227,16 +192,12 @@ func TestPreviewEnter_DispatchesWhenViewportHasRealBytes(t *testing.T) {
 }
 
 func TestPreviewEnter_DispatchesWhenViewportRenderedPlaceholder(t *testing.T) {
-	// Spec § Mid-load: (nil, nil) placeholder branch must NOT gate Enter.
 	groups := []tmux.WindowGroup{
 		{WindowIndex: 0, WindowName: "main", PaneIndices: []int{0}},
 	}
-	// reader returns (nil, nil) — the no-saved-content shape.
 	reader := &recordingReader{bytes: nil, err: nil}
 	attacher := &fakePreviewAttacher{}
 	m := newPreviewModelForEnter("work", groups, 0, 0, reader, attacher, 80, 24)
-	// Simulate the placeholder render so the test honestly reflects the
-	// observable viewport content state.
 	m.viewport.SetContent(previewPlaceholder)
 
 	_, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -247,15 +208,12 @@ func TestPreviewEnter_DispatchesWhenViewportRenderedPlaceholder(t *testing.T) {
 }
 
 func TestPreviewEnter_DispatchesWhenViewportRenderedReadError(t *testing.T) {
-	// Spec § Mid-load: OS read-error branch must NOT gate Enter.
 	groups := []tmux.WindowGroup{
 		{WindowIndex: 0, WindowName: "main", PaneIndices: []int{0}},
 	}
 	reader := &recordingReader{bytes: nil, err: errors.New("EACCES")}
 	attacher := &fakePreviewAttacher{}
 	m := newPreviewModelForEnter("work", groups, 0, 0, reader, attacher, 80, 24)
-	// Simulate the error string render so the test honestly reflects the
-	// observable viewport content state.
 	m.viewport.SetContent(previewReadError)
 
 	_, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})

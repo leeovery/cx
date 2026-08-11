@@ -8,17 +8,11 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// borderFgSeq returns the bare `38;2;r;g;b` foreground SGR parameter substring a
-// border drawn in tok renders with. lipgloss paints a border glyph's colour as a
-// FOREGROUND, so the panel frame's border colour appears as that token's
-// foreground SGR core in the rendered modal — the same probe shape as tokenFgSeq.
 func borderFgSeq(t *testing.T, tok theme.Token) string {
 	t.Helper()
 	return tokenFgSeq(t, tok)
 }
 
-// TestHelpModalPanelBorderColour asserts FIX 3 for the help modal specifically:
-// its own panel frame is drawn in the border token (not white), dark + light.
 func TestHelpModalPanelBorderColour(t *testing.T) {
 	forEachBuiltinTheme(t, func(t *testing.T, th theme.Theme) {
 		panel := renderHelpModalOnClearedCanvas(sessionsKeymap(), 100, 30, th, false)
@@ -28,19 +22,12 @@ func TestHelpModalPanelBorderColour(t *testing.T) {
 	})
 }
 
-// TestHelpModalDividerToken asserts the SINGLE-TONE frame: the header divider
-// under `? Keybindings` and the whole frame are drawn in THE border token — the
-// separate roles once named `border.separator` and `border.footer` were removed
-// and folded into it, so no second border hue exists for any frame glyph to drift
-// onto.
 func TestHelpModalDividerToken(t *testing.T) {
 	content := renderHelpModalContent(sessionsKeymap(), testDarkTheme(t), false)
 	sepSeq := tokenFgSeq(t, testDarkTheme(t).Border)
 	if !strings.Contains(content, sepSeq) {
 		t.Errorf("help frame + divider must be drawn in the border SGR core %q; missing in:\n%s", sepSeq, content)
 	}
-	// Every frame glyph carries that one core: no other 24-bit foreground appears
-	// on a line made only of frame glyphs.
 	for line := range strings.SplitSeq(content, "\n") {
 		if bare := strings.TrimSpace(ansi.Strip(line)); bare == "" || strings.Trim(bare, panelRuleGlyph+panelFrameTeeLeft+panelFrameTeeRight+"╭╮╰╯") != "" {
 			continue
@@ -51,15 +38,10 @@ func TestHelpModalDividerToken(t *testing.T) {
 	}
 }
 
-// TestHelpModalDividerJoined asserts the divider line visibly JOINS the side
-// borders via real `├`/`┤` junctions (the hand-drawn frame). On the composed panel
-// the divider line starts with `├` and ends with `┤`, with `─` between.
 func TestHelpModalDividerJoined(t *testing.T) {
 	panel := renderHelpModalOnClearedCanvas(sessionsKeymap(), 120, 36, testDarkTheme(t), false)
 	var dividerRow string
 	for raw := range strings.SplitSeq(panel, "\n") {
-		// lipgloss.Place centres the panel, so trim BOTH the leading centring pad and
-		// the trailing fill before inspecting the frame line.
 		line := strings.TrimSpace(ansi.Strip(raw))
 		if strings.HasPrefix(line, panelFrameTeeLeft) && strings.HasSuffix(line, panelFrameTeeRight) {
 			dividerRow = line
@@ -75,14 +57,8 @@ func TestHelpModalDividerJoined(t *testing.T) {
 	}
 }
 
-// TestHelpModalDividerConnectsToBorders asserts the divider runs the FULL inner
-// panel width so its `├`/`┤` tees join the left/right frame, while the header text
-// and body rows keep their own L/R inset. Practically: on the composed panel, the
-// divider line is `├` + rule glyphs + `┤` with no inset gap, whereas the header/
-// body rows (between their `│` side borders) ARE inset.
 func TestHelpModalDividerConnectsToBorders(t *testing.T) {
 	panel := renderHelpModalOnClearedCanvas(sessionsKeymap(), 120, 36, testDarkTheme(t), false)
-	// Find the divider row: starts `├`, ends `┤`, all rule glyphs between.
 	var dividerRow string
 	for raw := range strings.SplitSeq(panel, "\n") {
 		line := strings.TrimSpace(ansi.Strip(raw))
@@ -94,15 +70,11 @@ func TestHelpModalDividerConnectsToBorders(t *testing.T) {
 	if dividerRow == "" {
 		t.Fatalf("no divider row joining both side borders (├ … ┤) found; panel:\n%s", panel)
 	}
-	// The divider interior must contain NO leading/trailing space (flush to the
-	// junctions), proving it reaches both sides.
 	interior := strings.TrimSuffix(strings.TrimPrefix(dividerRow, panelFrameTeeLeft), panelFrameTeeRight)
 	if strings.HasPrefix(interior, " ") || strings.HasSuffix(interior, " ") {
 		t.Errorf("divider must run flush junction-to-junction (no inset gap); interior = %q", interior)
 	}
 
-	// And a body row IS inset (it has leading spaces inside the `│` side borders) —
-	// proving the inset lives on the rows, not the divider.
 	var bodyRow string
 	for raw := range strings.SplitSeq(panel, "\n") {
 		line := ansi.Strip(raw)
@@ -121,11 +93,6 @@ func TestHelpModalDividerConnectsToBorders(t *testing.T) {
 	}
 }
 
-// TestHelpModalFlushVerticalSpacing asserts the FLUSH layout (terminal-native,
-// diverging from the Paper reference's px title padding): ZERO blank rows anywhere.
-// The title line sits immediately adjacent to the top border line, and the divider
-// line is the immediate next line after the title — no blank between any of:
-// top-border / title / divider / first-body-row.
 func TestHelpModalFlushVerticalSpacing(t *testing.T) {
 	panel := renderHelpModalOnClearedCanvas(sessionsKeymap(), 120, 40, testDarkTheme(t), false)
 	lines := strings.Split(panel, "\n")
@@ -134,8 +101,6 @@ func TestHelpModalFlushVerticalSpacing(t *testing.T) {
 	titleIdx := -1
 	dividerIdx := -1
 	for i, raw := range lines {
-		// lipgloss.Place centres the panel; trim the centring pad before matching frame
-		// edges by prefix/suffix.
 		line := strings.TrimSpace(ansi.Strip(raw))
 		if topIdx < 0 && strings.HasPrefix(line, panelFrameTopLeft) && strings.HasSuffix(line, panelFrameTopRight) {
 			topIdx = i
@@ -151,18 +116,15 @@ func TestHelpModalFlushVerticalSpacing(t *testing.T) {
 		t.Fatalf("could not locate top (%d), title (%d), divider (%d) rows; panel:\n%s", topIdx, titleIdx, dividerIdx, panel)
 	}
 
-	// ZERO blank rows above the title: it sits immediately under the top border.
 	above := titleIdx - topIdx - 1
 	if above != 0 {
 		t.Errorf("title must sit FLUSH under the top border (0 blanks above); got %d (rows:\n%s)", above, strings.Join(neighbourhood(lines, titleIdx), "\n"))
 	}
-	// ZERO blank rows between the title and the divider.
 	below := dividerIdx - titleIdx - 1
 	if below != 0 {
 		t.Errorf("divider must sit FLUSH under the title (0 blanks between); got %d (rows:\n%s)", below, strings.Join(neighbourhood(lines, titleIdx), "\n"))
 	}
 
-	// And ZERO blanks between the divider and the first body row.
 	firstBodyIdx := -1
 	for i := dividerIdx + 1; i < len(lines); i++ {
 		if strings.Contains(ansi.Strip(lines[i]), "Move selection") {
@@ -178,7 +140,6 @@ func TestHelpModalFlushVerticalSpacing(t *testing.T) {
 	}
 }
 
-// neighbourhood returns the stripped panel lines bracketing idx for diagnostics.
 func neighbourhood(lines []string, idx int) []string {
 	lo := max(idx-3, 0)
 	hi := idx + 3
@@ -192,10 +153,6 @@ func neighbourhood(lines []string, idx int) []string {
 	return out
 }
 
-// TestHelpModalBodyContiguousRows asserts FIX 5's rhythm clause: the keymap rows
-// are CONTIGUOUS (1-row rhythm) — no blank rows between consecutive body entries
-// (the project terminal-native convention, NOT the Paper px gaps). The rows for
-// "Move selection" and the next entry "Next / prev page" sit on adjacent lines.
 func TestHelpModalBodyContiguousRows(t *testing.T) {
 	panel := renderHelpModalOnClearedCanvas(sessionsKeymap(), 120, 40, testDarkTheme(t), false)
 	lines := strings.Split(panel, "\n")

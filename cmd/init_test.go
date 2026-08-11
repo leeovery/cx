@@ -67,7 +67,6 @@ func TestInitZsh_OutputContainsCompletionFunction(t *testing.T) {
 
 	output := buf.String()
 
-	// Cobra's zsh completion generates a completion function named _portal.
 	if !strings.Contains(output, "_portal") {
 		t.Errorf("output does not contain Cobra-generated completion function _portal\ngot:\n%s", output)
 	}

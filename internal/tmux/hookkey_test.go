@@ -7,25 +7,8 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// portalIDLiteral is the exact "@portal-id" session user-option name that MUST
-// be embedded in tmux.HookKeyFormat. It is spelled out here as a literal
-// (rather than imported from session.PortalIDOption) to avoid an import cycle:
-// internal/session imports internal/tmux, so internal/tmux cannot import
-// internal/session, and this test lives alongside the tmux package. The literal
-// MUST stay byte-identical to session.PortalIDOption and to the "@portal-id"
-// embedded in HookKeyFormat.
 const portalIDLiteral = "@portal-id"
 
-// TestHookKeyFormatContainsPortalIDLiteral is a fast static byte-identity
-// tripwire for HookKeyFormat's embedded @portal-id conditional. The fix's
-// correctness rests on three independent embeddings of "@portal-id" staying
-// byte-identical (session.PortalIDOption, tmux.HookKeyFormat, and the
-// unexported captureFormat in internal/state); the end-to-end consistency is
-// otherwise exercised only by the SkipIfNoTmux-gated real-tmux guards, which
-// SKIP silently where tmux is absent. This guard runs under plain `go test`
-// with NO tmux (it is deliberately NOT gated by SkipIfNoTmux), so a
-// one-character typo in the conditional (e.g. @portal_id) is caught even where
-// tmux is unavailable.
 func TestHookKeyFormatContainsPortalIDLiteral(t *testing.T) {
 	if portalIDLiteral != "@portal-id" {
 		t.Fatalf("portalIDLiteral = %q; want %q (must stay byte-identical to session.PortalIDOption)", portalIDLiteral, "@portal-id")
@@ -98,8 +81,6 @@ func TestHookKey(t *testing.T) {
 }
 
 func TestHookKey_DistinctSuffixesUnderOneID(t *testing.T) {
-	// A multi-pane session stamped with a single @portal-id must yield a
-	// distinct w.p suffix per pane, so hooks address individual panes.
 	const id = "id-abc"
 	keys := map[string]struct{}{}
 	panes := []struct {

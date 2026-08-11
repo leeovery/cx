@@ -2,13 +2,6 @@ package tui
 
 import "testing"
 
-// Tests for the Sessions-page inline-flash state primitives (spec
-// § Inline flash — feature-local infrastructure, § Replacement on rapid
-// successive bails). These cover the pure state plumbing only: zero
-// value, setFlash gen-bump + text set, clearFlash text-only zero,
-// idempotence, and combined sequencing. No render, scheduling, or
-// message-dispatch coverage — those land in later Phase 2 tasks.
-
 func TestModel_FlashState_ZeroValue(t *testing.T) {
 	var m Model
 	if m.flashText != "" {
@@ -92,14 +85,6 @@ func TestModel_FlashState_SetClearSet(t *testing.T) {
 	}
 }
 
-// TestModel_SetSuccessFlash_InheritsTheWholeSetFlashSequence asserts the success
-// variant raises everything setFlash raises — the generation bump, the text, the
-// default precedence tier and the layout re-sync — and differs in the KIND alone.
-//
-// That shared sequence is what the auto-clear tick, its generation guard and the
-// actionable-key clear all key on, so a success flash raising only part of it is a
-// band no key clears and no tick retires. The two are equal only by being ONE
-// sequence: two that agree today drift the next time a field joins the flash state.
 func TestModel_SetSuccessFlash_InheritsTheWholeSetFlashSequence(t *testing.T) {
 	const text = "__SUCCESS_PARITY__"
 
@@ -137,8 +122,6 @@ func TestModel_SetSuccessFlash_InheritsTheWholeSetFlashSequence(t *testing.T) {
 }
 
 func TestModel_SetFlash_EmptyStringStillBumpsGen(t *testing.T) {
-	// Per task edge cases: setFlash("") is a state primitive; the caller
-	// decides what counts as a flash. Empty input still bumps gen.
 	var m Model
 	m.setFlash("")
 	if m.flashText != "" {

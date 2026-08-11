@@ -1,13 +1,3 @@
-// Tests in this file mutate package-level Cobra/DI state (doctorDeps, rootCmd)
-// and MUST NOT use t.Parallel.
-//
-// Concern-split from cmd/doctor_test.go (same source file, cmd/doctor.go),
-// alongside cmd/doctor_summary_test.go: this file owns the ADVISORY line class —
-// the user-content half of the two-class doctor contract — covering its trailing
-// block position, its exclusion from the exit code, and the summary's advisory
-// suffix. doctor_test.go keeps the check catalog; doctor_summary_test.go keeps
-// the <N>/<T> counts. The split is by concern only; all three derive from
-// doctor.go.
 package cmd
 
 import (
@@ -18,17 +8,13 @@ import (
 	"testing"
 )
 
-// doctorUnhealthy's sole input is the check catalog, so an advisory cannot reach
-// the exit decision even by accident — the structural half of the guarantee
-// TestAdvisories_NeverDriveExitCode asserts at runtime. Widening the signature
-// stops this file compiling.
+// doctorUnhealthy's sole input is the check catalog, so an advisory cannot
+// reach the exit decision even by accident; widening the signature stops this
+// file compiling.
 var _ func([]checkResult) bool = doctorUnhealthy
 
-// themeAdvisories builds n distinct advisory values whose lines are shaped like
-// the theme copy the producers will emit — each already carrying its leading
-// "⚠ ", since the producers own the whole string and the renderer only indents.
-// The exact wording is the producers' contract, not this file's: these stand-ins
-// only need to be distinguishable and glyph-led.
+// themeAdvisories builds n distinct advisory values, each already carrying its
+// leading glyph: producers own the whole string and the renderer only indents.
 func themeAdvisories(n int) []advisory {
 	out := make([]advisory, 0, n)
 	for i := range n {
@@ -39,9 +25,8 @@ func themeAdvisories(n int) []advisory {
 	return out
 }
 
-// renderedLines renders one report and returns its lines, with the trailing
-// newline dropped rather than yielding a phantom empty final element — so a line
-// index in a test is the index of a real rendered line.
+// renderedLines drops the trailing newline rather than yielding a phantom empty
+// final element, so a line index here is the index of a real rendered line.
 func renderedLines(t *testing.T, results []checkResult, advisories []advisory) []string {
 	t.Helper()
 	var buf bytes.Buffer
@@ -53,9 +38,6 @@ func renderedLines(t *testing.T, results []checkResult, advisories []advisory) [
 	return strings.Split(strings.TrimSuffix(out, "\n"), "\n")
 }
 
-// mixedCatalog is a small three-check catalog spanning a marked pass, a marked
-// fail and the unmarked informational line, so a positional assertion covers
-// every marker shape the catalog region can render.
 func mixedCatalog() []checkResult {
 	return []checkResult{
 		{name: "daemon", status: checkPass, detail: "running (pid 1, version v1.0.0)"},
@@ -64,11 +46,6 @@ func mixedCatalog() []checkResult {
 	}
 }
 
-// TestAdvisories_CarryOnlyTheRenderedLine pins the class to what the renderer
-// reads. Any further field would be identity a producer has to remember to
-// populate for a rule it knows nothing about — the shape that lets an unrelated
-// producer silently defeat the theme union's one-slug-one-line dedup by setting
-// the line alone.
 func TestAdvisories_CarryOnlyTheRenderedLine(t *testing.T) {
 	typ := reflect.TypeFor[advisory]()
 
@@ -84,9 +61,6 @@ func TestAdvisories_CarryOnlyTheRenderedLine(t *testing.T) {
 	}
 }
 
-// TestAdvisories_BlockPositionIsFixed pins the report's three regions BY INDEX:
-// header, then one line per check in catalog order, then one line per advisory
-// in slice order, then the single summary — and nothing else.
 func TestAdvisories_BlockPositionIsFixed(t *testing.T) {
 	results := mixedCatalog()
 	advisories := themeAdvisories(2)
@@ -112,10 +86,6 @@ func TestAdvisories_BlockPositionIsFixed(t *testing.T) {
 	}
 }
 
-// TestAdvisories_NeverInterleave asserts the structural property behind that
-// fixed order over a larger report: every advisory line sits after every check
-// line, and the advisory lines are contiguous. Interleaving would make a
-// fixed-order report vary in position with the contents of a directory.
 func TestAdvisories_NeverInterleave(t *testing.T) {
 	results := []checkResult{
 		{name: "daemon", status: checkPass, detail: "running"},
@@ -127,8 +97,7 @@ func TestAdvisories_NeverInterleave(t *testing.T) {
 
 	lines := renderedLines(t, results, advisories)
 
-	// The catalog occupies indices 1..len(results) (index 0 is the header), so
-	// every check line must be found there and nowhere later.
+	// Index 0 is the header, so the catalog occupies indices 1..len(results).
 	for i, r := range results {
 		want := fmt.Sprintf("  %s %s: %s", checkMarker(r.status), r.name, r.detail)
 		if got := lines[1+i]; got != want {
@@ -153,10 +122,6 @@ func TestAdvisories_NeverInterleave(t *testing.T) {
 	}
 }
 
-// TestAdvisories_HostTerminalStaysInCatalog pins the informational host-terminal
-// line as the LAST line of the catalog region rather than the first of the
-// advisory block: the report has three regions, not two. It runs the real
-// diagnosis so the assertion is against the production catalog order.
 func TestAdvisories_HostTerminalStaysInCatalog(t *testing.T) {
 	deps := healthyDoctorDeps(t)
 	results, err := runDoctorDiagnosis(deps)
@@ -180,9 +145,6 @@ func TestAdvisories_HostTerminalStaysInCatalog(t *testing.T) {
 	}
 }
 
-// TestAdvisories_SummarySuffix pins the suffix against BOTH summary forms and
-// both grammatical numbers: the advisory count appends to whichever form the
-// check counts produced, and never alters those counts.
 func TestAdvisories_SummarySuffix(t *testing.T) {
 	allPassed := []checkResult{
 		{name: "daemon", status: checkPass},
@@ -213,8 +175,6 @@ func TestAdvisories_SummarySuffix(t *testing.T) {
 				t.Errorf("doctorSummaryLine = %q; want %q", got, tc.want)
 			}
 
-			// <M> is the length of the slice the renderer was handed — the same
-			// number reaches the rendered line.
 			lines := renderedLines(t, tc.results, advisories)
 			if got, want := lines[len(lines)-1], "  "+tc.want; got != want {
 				t.Errorf("rendered summary = %q; want %q", got, want)
@@ -223,9 +183,6 @@ func TestAdvisories_SummarySuffix(t *testing.T) {
 	}
 }
 
-// TestAdvisories_SuffixSuppressedAtZero pins the M=0 output byte-identical to the
-// summary as it stood before the advisory class existed: no separator, no
-// "0 advisories". A clean install's report gains no stray punctuation.
 func TestAdvisories_SuffixSuppressedAtZero(t *testing.T) {
 	cases := []struct {
 		name       string
@@ -249,13 +206,6 @@ func TestAdvisories_SuffixSuppressedAtZero(t *testing.T) {
 	}
 }
 
-// TestAdvisories_NeverDriveExitCode asserts the class boundary the contract
-// amendment exists for. It has two halves because production supplies an empty
-// advisory slice in this phase (the theme scan is the first producer): the
-// Execute half proves an all-passing catalog exits 0 through the real command
-// body, and the advisory half renders THAT SAME catalog with five advisories and
-// re-asks doctorUnhealthy — which also catches a renderer that folded the
-// advisories into the results slice it was handed.
 func TestAdvisories_NeverDriveExitCode(t *testing.T) {
 	deps := healthyDoctorDeps(t)
 	if _, _, err := runDoctorCmd(t, deps); err != nil {
@@ -280,10 +230,6 @@ func TestAdvisories_NeverDriveExitCode(t *testing.T) {
 	}
 }
 
-// TestAdvisories_FailingCheckAndAdvisoriesShareOneSummary pins ONE summary line
-// carrying both counts when the two classes report at once: the check counts
-// explain the non-zero exit, the advisory count sits beside them, and no second
-// summary line is minted for the second class.
 func TestAdvisories_FailingCheckAndAdvisoriesShareOneSummary(t *testing.T) {
 	deps := healthyDoctorDeps(t)
 	deps.SaverPresent = func() (bool, error) { return false, nil }
@@ -313,10 +259,6 @@ func TestAdvisories_FailingCheckAndAdvisoriesShareOneSummary(t *testing.T) {
 	}
 }
 
-// TestAdvisories_GlyphBackedNoMarker pins the advisory line's shape: the two-space
-// body indent and then the advisory's own string, verbatim — no pass/fail marker,
-// no name column, nothing appended. Its text leads with the ⚠ glyph the producers
-// bake in, so the class survives a colourless terminal.
 func TestAdvisories_GlyphBackedNoMarker(t *testing.T) {
 	a := advisory{line: "⚠ themes directory unreadable: /home/u/.config/portal/themes"}
 
@@ -336,9 +278,6 @@ func TestAdvisories_GlyphBackedNoMarker(t *testing.T) {
 	}
 }
 
-// TestAdvisories_EmptyBlockRendersNothing pins zero bytes between the last check
-// line and the summary when there are no advisories: no blank line, no heading,
-// and no difference between a nil and an empty slice.
 func TestAdvisories_EmptyBlockRendersNothing(t *testing.T) {
 	results := mixedCatalog()
 

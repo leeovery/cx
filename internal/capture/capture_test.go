@@ -13,10 +13,6 @@ import (
 	"github.com/leeovery/portal/internal/tui"
 )
 
-// TestFixtureByName resolves the named fixtures and verifies the deterministic
-// session set wired into the sessions-flat fixture matches the Paper-mock list
-// (spec § 15 / tick task), in order, with the correct window counts and
-// attached flags.
 func TestFixtureByName(t *testing.T) {
 	t.Run("unknown fixture is reported as an error", func(t *testing.T) {
 		if _, err := capture.FixtureByName("does-not-exist"); err == nil {
@@ -40,8 +36,6 @@ func TestFixtureByName(t *testing.T) {
 			windows  int
 			attached bool
 		}
-		// The exact ordered set named in the tick task (load-bearing for the
-		// deterministic capture).
 		wants := []want{
 			{"agentic-workflows-code-based", 3, true},
 			{"agentic-workflows-codify", 2, false},
@@ -80,8 +74,6 @@ func TestFixtureByName(t *testing.T) {
 			t.Fatalf("FixtureByName(sessions-flat): %v", err)
 		}
 
-		// The fixture exposes its seam set as a tui.Deps so the harness builds
-		// the production model — no bespoke render path.
 		m := tui.Build(fx.Deps(darkBuiltinTheme(t)))
 		if m.ActivePage() != tui.PageSessions {
 			t.Errorf("ActivePage() = %d, want PageSessions", m.ActivePage())
@@ -89,11 +81,6 @@ func TestFixtureByName(t *testing.T) {
 	})
 }
 
-// TestSessionsEmptyFixture verifies the §11.1 empty-sessions fixture: ZERO sessions
-// (an empty Lister) opened in Flat mode, so the empty-sessions state renders. The
-// render assertion (glyph / message / hint / replaced footer styling) lives in
-// internal/tui; here the gate is that the fixture wires ZERO sessions through to the
-// production Sessions model (the precondition the empty state needs).
 func TestSessionsEmptyFixture(t *testing.T) {
 	fx, err := capture.FixtureByName("sessions-empty")
 	if err != nil {
@@ -117,8 +104,6 @@ func TestSessionsEmptyFixture(t *testing.T) {
 	}
 }
 
-// TestFixtureNamesIncludesSessionsEmpty pins the empty-sessions fixture into the
-// discoverable name list (the --fixture help + FixtureByName error share this source).
 func TestFixtureNamesIncludesSessionsEmpty(t *testing.T) {
 	found := false
 	for _, n := range capture.FixtureNames() {
@@ -131,12 +116,6 @@ func TestFixtureNamesIncludesSessionsEmpty(t *testing.T) {
 	}
 }
 
-// TestLoadingScreenFixture verifies the §10 loading-screen fixture: it parks the
-// production model on PageLoading (serverStarted) and is registered in the
-// discoverable name list. The render assertions (block banner / bar / step-list /
-// tokens / counter) live in internal/tui; here the gate is that the fixture wires
-// the loading page through to the production model so the capture can screenshot
-// it.
 func TestLoadingScreenFixture(t *testing.T) {
 	fx, err := capture.FixtureByName("loading-screen")
 	if err != nil {
@@ -148,9 +127,6 @@ func TestLoadingScreenFixture(t *testing.T) {
 		t.Errorf("ActivePage() = %d, want PageLoading (the loading-screen fixture must park on the loading page)", m.ActivePage())
 	}
 
-	// The progress receiver is wired (the seeded mid-restore events stream through
-	// the real Update path), so Build does NOT synthesize the terminal complete
-	// event — the page stays on PageLoading for the capture.
 	if !m.ServerStarted() {
 		t.Error("loading-screen fixture must set ServerStarted so the cold-boot loading page shows")
 	}
@@ -166,31 +142,17 @@ func TestLoadingScreenFixture(t *testing.T) {
 	}
 }
 
-// TestLoadingErrorFixture verifies the §10.5 fatal cold-boot error fixture
-// (MOCKED — no §15.1 Paper oracle): it parks the production model on
-// PageLoading (serverStarted), and driving its seeded receiver events (steps
-// 1–2 done, then a terminal fatal at step 3) through the real Update path
-// enters the in-TUI error state — the failed step's row renders the
-// state.destructive ✗, the one-line message + a quit hint render beneath the
-// step-list, and the page never transitions to the picker. It is registered in
-// the discoverable name list.
 func TestLoadingErrorFixture(t *testing.T) {
 	fx, err := capture.FixtureByName("loading-error")
 	if err != nil {
 		t.Fatalf("FixtureByName(loading-error): %v", err)
 	}
 
-	// Pass the CONSTANT nomination shape (as the capturetool does) so the
-	// detect-or-timeout first-paint gate is already resolved and View() paints the
-	// real frame rather than the neutral held blank.
 	m := tui.Build(fx.Deps(darkBuiltinTheme(t)))
 	if m.ActivePage() != tui.PageLoading {
 		t.Errorf("ActivePage() = %d, want PageLoading (the loading-error fixture must park on the loading page)", m.ActivePage())
 	}
 
-	// Drive the seeded receiver events through the real Update path: steps 1–2
-	// (progress) then the terminal fatal. The fixture wires loadingFatalReceiver,
-	// so each pull yields the next seeded msg in order.
 	var model tea.Model = m
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	model, _ = model.Update(tui.BootstrapProgressMsg{Index: 1})
@@ -231,18 +193,12 @@ func TestLoadingErrorFixture(t *testing.T) {
 	}
 }
 
-// TestSessionsByProjectFixture verifies the grouped (by-project) fixture: it
-// opens in ModeByProject and carries projects whose paths match most session dirs,
-// plus exactly one session whose directory matches NO project so it lands in the
-// pinned Unknown catch-all. This is the fixture that drives the §5.2 By-Project
-// grouped capture (mode suffix + heading reskin + nested rows).
 func TestSessionsByProjectFixture(t *testing.T) {
 	fx, err := capture.FixtureByName("sessions-by-project")
 	if err != nil {
 		t.Fatalf("FixtureByName(sessions-by-project): %v", err)
 	}
 
-	// It builds the production Sessions model opened in By-Project mode.
 	m := tui.Build(fx.Deps(darkBuiltinTheme(t)))
 	if m.ActivePage() != tui.PageSessions {
 		t.Errorf("ActivePage() = %d, want PageSessions", m.ActivePage())
@@ -251,7 +207,6 @@ func TestSessionsByProjectFixture(t *testing.T) {
 		t.Errorf("SessionListTitle() = %q, want %q (fixture opens in By-Project mode)", got, want)
 	}
 
-	// There must be MULTIPLE projects so several group headings render.
 	projects, err := fx.Deps(darkBuiltinTheme(t)).ProjectStore.List()
 	if err != nil {
 		t.Fatalf("ProjectStore.List: %v", err)
@@ -260,8 +215,6 @@ func TestSessionsByProjectFixture(t *testing.T) {
 		t.Errorf("sessions-by-project fixture has %d projects, want >=2 (multiple group headings)", len(projects))
 	}
 
-	// At least one session's directory must match no project, so the Unknown
-	// catch-all heading renders alongside the resolvable groups.
 	idx := project.NewIndex(projects)
 	sessions, err := fx.Lister.ListSessions()
 	if err != nil {
@@ -278,9 +231,6 @@ func TestSessionsByProjectFixture(t *testing.T) {
 	}
 }
 
-// TestFixtureNamesIncludesByProject pins the by-project fixture into the
-// discoverable name list (the --fixture help + FixtureByName error share this
-// source).
 func TestFixtureNamesIncludesByProject(t *testing.T) {
 	found := false
 	for _, n := range capture.FixtureNames() {
@@ -293,10 +243,6 @@ func TestFixtureNamesIncludesByProject(t *testing.T) {
 	}
 }
 
-// TestSessionsByTagFixtureExercisesMultiTagAndUntagged pins the §5.3 Pattern B +
-// catch-all coverage the by-tag capture must exercise: at least one project with
-// MULTIPLE tags (so a session repeats under each tag heading) AND at least one
-// session whose directory is untagged (so the Untagged catch-all heading renders).
 func TestSessionsByTagFixtureExercisesMultiTagAndUntagged(t *testing.T) {
 	fx, err := capture.FixtureByName("sessions-by-tag")
 	if err != nil {
@@ -337,24 +283,17 @@ func TestSessionsByTagFixtureExercisesMultiTagAndUntagged(t *testing.T) {
 	}
 }
 
-// TestSessionsByTagFixture verifies the grouped (by-tag) fixture: it opens in
-// ModeByTag and carries tagged projects whose paths match the session dirs, so the
-// By-Tag grouping renders real `— by tag` headings (not the "No tags yet"
-// signpost). This is the fixture that drives the mode-suffix capture.
 func TestSessionsByTagFixture(t *testing.T) {
 	fx, err := capture.FixtureByName("sessions-by-tag")
 	if err != nil {
 		t.Fatalf("FixtureByName(sessions-by-tag): %v", err)
 	}
 
-	// It builds the production Sessions model opened in By-Tag mode.
 	m := tui.Build(fx.Deps(darkBuiltinTheme(t)))
 	if got, want := m.SessionListTitle(), "Sessions — by tag"; got != want {
 		t.Errorf("SessionListTitle() = %q, want %q (fixture opens in By-Tag mode)", got, want)
 	}
 
-	// At least one project carries a tag, so the By-Tag view groups rather than
-	// degrading to the "No tags yet" signpost.
 	projects, err := fx.Deps(darkBuiltinTheme(t)).ProjectStore.List()
 	if err != nil {
 		t.Fatalf("ProjectStore.List: %v", err)
@@ -371,8 +310,6 @@ func TestSessionsByTagFixture(t *testing.T) {
 	}
 }
 
-// TestFixtureNamesIncludesByTag pins the by-tag fixture into the discoverable
-// name list (the --fixture help + FixtureByName error share this source).
 func TestFixtureNamesIncludesByTag(t *testing.T) {
 	found := false
 	for _, n := range capture.FixtureNames() {
@@ -385,10 +322,6 @@ func TestFixtureNamesIncludesByTag(t *testing.T) {
 	}
 }
 
-// TestSessionsPagedFixture verifies the multi-page (sessions-paged) fixture: it
-// carries enough deterministic sessions to span more than one page at the
-// 1280×800 capture size, so the height-driven paginator renders the §3.5 dot row.
-// Determinism (a fixed session count and names) is the capture gate.
 func TestSessionsPagedFixture(t *testing.T) {
 	fx, err := capture.FixtureByName("sessions-paged")
 	if err != nil {
@@ -399,13 +332,10 @@ func TestSessionsPagedFixture(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListSessions: %v", err)
 	}
-	// 100 sessions spans several pages at the capture size (measured PerPage ≤ 31
-	// there, so ~4 pages), so a multi-dot row renders. The count is fixed for determinism.
 	const wantCount = 100
 	if len(sessions) != wantCount {
 		t.Fatalf("sessions-paged has %d sessions, want %d (multi-page determinism)", len(sessions), wantCount)
 	}
-	// Deterministic, unique names (no duplicates that could reorder a capture).
 	seen := map[string]bool{}
 	for i, s := range sessions {
 		if s.Name == "" {
@@ -417,8 +347,6 @@ func TestSessionsPagedFixture(t *testing.T) {
 		seen[s.Name] = true
 	}
 
-	// It builds the production Sessions model opened in Flat mode (the dots are a
-	// Flat-list concern; By-Tag has its own fixture).
 	m := tui.Build(fx.Deps(darkBuiltinTheme(t)))
 	if m.ActivePage() != tui.PageSessions {
 		t.Errorf("ActivePage() = %d, want PageSessions", m.ActivePage())
@@ -428,8 +356,6 @@ func TestSessionsPagedFixture(t *testing.T) {
 	}
 }
 
-// TestFixtureNamesIncludesPaged pins the multi-page fixture into the discoverable
-// name list (the --fixture help + FixtureByName error share this source).
 func TestFixtureNamesIncludesPaged(t *testing.T) {
 	found := false
 	for _, n := range capture.FixtureNames() {
@@ -442,11 +368,6 @@ func TestFixtureNamesIncludesPaged(t *testing.T) {
 	}
 }
 
-// TestSessionsInlineFlashFixture verifies the §11.2 inline-flash fixture: a small
-// Flat-mode session set with the warning flash seeded so the band renders on the
-// first frame (mirroring testdata/vhs/reference/sessions-inline-flash-mv.png). The
-// session set matches the reference exactly and the flash message + ⚠ glyph appear
-// in the rendered View.
 func TestSessionsInlineFlashFixture(t *testing.T) {
 	fx, err := capture.FixtureByName("sessions-inline-flash")
 	if err != nil {
@@ -472,10 +393,6 @@ func TestSessionsInlineFlashFixture(t *testing.T) {
 		}
 	}
 
-	// The §11.2 warning flash is seeded into the Deps seam (the only way to render
-	// the otherwise-transient band in the inert harness). The render assertion (band
-	// styling, ⚠ glyph, bg.attention tint) lives in internal/tui; here we pin that the
-	// fixture wires the message through to Build.
 	const msg = "folio-Jiz4el closed externally — list updated"
 	if got := fx.Deps(darkBuiltinTheme(t)).Capture.Flash; got != msg {
 		t.Errorf("Deps().Capture.Flash = %q, want %q (seeded warning flash)", got, msg)
@@ -490,8 +407,6 @@ func TestSessionsInlineFlashFixture(t *testing.T) {
 	}
 }
 
-// TestFixtureNamesIncludesInlineFlash pins the inline-flash fixture into the
-// discoverable name list (the --fixture help + FixtureByName error share this source).
 func TestFixtureNamesIncludesInlineFlash(t *testing.T) {
 	found := false
 	for _, n := range capture.FixtureNames() {
@@ -504,18 +419,12 @@ func TestFixtureNamesIncludesInlineFlash(t *testing.T) {
 	}
 }
 
-// TestSessionsNoTagsSignpostFixture verifies the §11.3 no-tags-signpost fixture:
-// it opens in By-Tag mode with projects that carry NO tags, so anyTagsExist is
-// false and the By-Tag view degrades to the flat list under the persistent violet
-// info signpost (rather than grouping). The session set matches the reference
-// frame exactly (testdata/vhs/reference/sessions-no-tags-signpost-mv.png).
 func TestSessionsNoTagsSignpostFixture(t *testing.T) {
 	fx, err := capture.FixtureByName("sessions-no-tags-signpost")
 	if err != nil {
 		t.Fatalf("FixtureByName(sessions-no-tags-signpost): %v", err)
 	}
 
-	// It opens in By-Tag mode (the mode that drives the zero-tags signpost).
 	m := tui.Build(fx.Deps(darkBuiltinTheme(t)))
 	if m.ActivePage() != tui.PageSessions {
 		t.Errorf("ActivePage() = %d, want PageSessions", m.ActivePage())
@@ -524,8 +433,6 @@ func TestSessionsNoTagsSignpostFixture(t *testing.T) {
 		t.Errorf("SessionListTitle() = %q, want %q (fixture opens in By-Tag mode)", got, want)
 	}
 
-	// NO project carries a tag → the signpost shows over the flat list (degrade
-	// with message, not silent flatten).
 	projects, err := fx.Deps(darkBuiltinTheme(t)).ProjectStore.List()
 	if err != nil {
 		t.Fatalf("ProjectStore.List: %v", err)
@@ -539,8 +446,6 @@ func TestSessionsNoTagsSignpostFixture(t *testing.T) {
 		}
 	}
 
-	// The session set matches the reference frame exactly, in order, with the
-	// reference window counts + attached flags.
 	sessions, err := fx.Lister.ListSessions()
 	if err != nil {
 		t.Fatalf("ListSessions: %v", err)
@@ -573,9 +478,6 @@ func TestSessionsNoTagsSignpostFixture(t *testing.T) {
 	}
 }
 
-// TestFixtureNamesIncludesNoTagsSignpost pins the no-tags-signpost fixture into
-// the discoverable name list (the --fixture help + FixtureByName error share this
-// source).
 func TestFixtureNamesIncludesNoTagsSignpost(t *testing.T) {
 	found := false
 	for _, n := range capture.FixtureNames() {
@@ -588,19 +490,12 @@ func TestFixtureNamesIncludesNoTagsSignpost(t *testing.T) {
 	}
 }
 
-// TestProjectsFixture verifies the §6 Projects-page fixture: it opens on the
-// Sessions page (the production default; the tape types `x` to reach Projects) and
-// carries a rich project store (14 projects with real-looking absolute paths) so the
-// Projects (MV) reskin capture has a representative project set. Determinism (a
-// fixed project count, names, and paths) is the capture gate.
 func TestProjectsFixture(t *testing.T) {
 	fx, err := capture.FixtureByName("projects")
 	if err != nil {
 		t.Fatalf("FixtureByName(projects): %v", err)
 	}
 
-	// It builds the production model opened on the Sessions page (the tape reaches
-	// Projects via the `x` key, mirroring a real no-arg launch).
 	m := tui.Build(fx.Deps(darkBuiltinTheme(t)))
 	if m.ActivePage() != tui.PageSessions {
 		t.Errorf("ActivePage() = %d, want PageSessions (the tape types x to reach Projects)", m.ActivePage())
@@ -614,7 +509,6 @@ func TestProjectsFixture(t *testing.T) {
 	if len(projects) != wantCount {
 		t.Fatalf("projects fixture has %d projects, want %d (matches the reference count)", len(projects), wantCount)
 	}
-	// Deterministic, unique names and non-empty real-looking paths.
 	seen := map[string]bool{}
 	for i, p := range projects {
 		if p.Name == "" {
@@ -628,14 +522,11 @@ func TestProjectsFixture(t *testing.T) {
 		}
 		seen[p.Name] = true
 	}
-	// The reference's selected (cursor) row is flow-v1-api, so it must be first.
 	if projects[0].Name != "flow-v1-api" {
 		t.Errorf("projects fixture first project = %q, want %q (the reference cursor row)", projects[0].Name, "flow-v1-api")
 	}
 }
 
-// TestFixtureNamesIncludesProjects pins the projects fixture into the discoverable
-// name list (the --fixture help + FixtureByName error share this source).
 func TestFixtureNamesIncludesProjects(t *testing.T) {
 	found := false
 	for _, n := range capture.FixtureNames() {
@@ -648,21 +539,12 @@ func TestFixtureNamesIncludesProjects(t *testing.T) {
 	}
 }
 
-// TestPreviewScreenFixture verifies the §9 preview-screen fixture: a Flat-mode
-// session list whose FIRST (default-selected) session is aviva-proxy-qNyfEO, so
-// pressing Space opens the §9 preview overlay onto a single-window single-pane
-// session (Window 1/1 · Pane 1/1) seeded with generic canned scrollback. The
-// render assertion (the §9.1 cyan peek-mode chrome) lives in internal/tui; here
-// the gate is that the fixture wires the right session order, the single-pane
-// enumerator shape, and the generic (tool-agnostic) scrollback through Deps.
 func TestPreviewScreenFixture(t *testing.T) {
 	fx, err := capture.FixtureByName("preview-screen")
 	if err != nil {
 		t.Fatalf("FixtureByName(preview-screen): %v", err)
 	}
 
-	// It builds the production Sessions model opened in Flat mode (the tape
-	// presses Space to reach the preview overlay).
 	m := tui.Build(fx.Deps(darkBuiltinTheme(t)))
 	if m.ActivePage() != tui.PageSessions {
 		t.Errorf("ActivePage() = %d, want PageSessions (the tape presses Space to reach the preview)", m.ActivePage())
@@ -671,8 +553,6 @@ func TestPreviewScreenFixture(t *testing.T) {
 		t.Errorf("SessionListTitle() = %q, want %q (fixture opens in Flat mode)", got, want)
 	}
 
-	// The default-selected (first) session must be aviva-proxy-qNyfEO so Space
-	// opens the preview onto the reference session.
 	sessions, err := fx.Lister.ListSessions()
 	if err != nil {
 		t.Fatalf("ListSessions: %v", err)
@@ -681,8 +561,6 @@ func TestPreviewScreenFixture(t *testing.T) {
 		t.Fatalf("first session = %+v, want first to be aviva-proxy-qNyfEO", sessions)
 	}
 
-	// The enumerator must be a single 1/1 window/pane so the §9.1 counters read
-	// "Window 1/1 · Pane 1/1" (matching the reference frame).
 	groups, err := fx.Deps(darkBuiltinTheme(t)).Enumerator.ListWindowsAndPanesInSession("aviva-proxy-qNyfEO")
 	if err != nil {
 		t.Fatalf("Enumerator: %v", err)
@@ -691,8 +569,6 @@ func TestPreviewScreenFixture(t *testing.T) {
 		t.Errorf("enumerator groups = %+v, want a single window with a single pane (Window 1/1 · Pane 1/1)", groups)
 	}
 
-	// The scrollback is non-empty generic example output — and must NOT
-	// reference any specific tool/model (Portal's preview is tool-agnostic).
 	body, err := fx.Deps(darkBuiltinTheme(t)).Reader.Tail("any-pane-key")
 	if err != nil {
 		t.Fatalf("Reader.Tail: %v", err)
@@ -707,8 +583,6 @@ func TestPreviewScreenFixture(t *testing.T) {
 	}
 }
 
-// TestFixtureNamesIncludesPreviewScreen pins the preview-screen fixture into the
-// discoverable name list (the --fixture help + FixtureByName error share this source).
 func TestFixtureNamesIncludesPreviewScreen(t *testing.T) {
 	found := false
 	for _, n := range capture.FixtureNames() {
@@ -721,21 +595,12 @@ func TestFixtureNamesIncludesPreviewScreen(t *testing.T) {
 	}
 }
 
-// TestSessionsMultiSelectActiveFixture verifies the §5 multi-select-active fixture:
-// it reuses the sessions-flat set (same 12 sessions, same order), opens in Flat
-// mode, and seeds the multi-select seed seam — three marked sessions
-// (agentic-workflows-codify / fab-flowx-explore / designlab-web-r8suyU) with the
-// cursor anchored on fab-flowx-explore (a marked, banded row per the delivered
-// frame). The render assertions (violet banner / ● markers / footer) live in the
-// visual gate; here the gate is that the fixture wires the seed seam through Deps.
 func TestSessionsMultiSelectActiveFixture(t *testing.T) {
 	fx, err := capture.FixtureByName("sessions-multi-select-active")
 	if err != nil {
 		t.Fatalf("FixtureByName(sessions-multi-select-active): %v", err)
 	}
 
-	// It reuses the sessions-flat set exactly (same names, order, window counts,
-	// attached flags) — determinism is the capture gate.
 	sessions, err := fx.Lister.ListSessions()
 	if err != nil {
 		t.Fatalf("ListSessions: %v", err)
@@ -769,7 +634,6 @@ func TestSessionsMultiSelectActiveFixture(t *testing.T) {
 		}
 	}
 
-	// The seed seam wires the three marked names + the cursor anchor through Deps.
 	deps := fx.Deps(darkBuiltinTheme(t))
 	wantMarked := []string{"agentic-workflows-codify", "fab-flowx-explore", "designlab-web-r8suyU"}
 	if len(deps.Capture.MultiSelect) != len(wantMarked) {
@@ -784,8 +648,6 @@ func TestSessionsMultiSelectActiveFixture(t *testing.T) {
 		t.Errorf("Deps().Capture.Cursor = %q, want %q (cursor on a marked, banded row)", got, want)
 	}
 
-	// It builds the production Sessions model in Flat multi-select mode with the
-	// three sessions marked.
 	m := tui.Build(deps)
 	if m.ActivePage() != tui.PageSessions {
 		t.Errorf("ActivePage() = %d, want PageSessions", m.ActivePage())
@@ -806,9 +668,6 @@ func TestSessionsMultiSelectActiveFixture(t *testing.T) {
 	}
 }
 
-// TestFixtureNamesIncludesMultiSelectActive pins the multi-select-active fixture
-// into the discoverable name list (the --fixture help + FixtureByName error share
-// this source).
 func TestFixtureNamesIncludesMultiSelectActive(t *testing.T) {
 	found := false
 	for _, n := range capture.FixtureNames() {
@@ -821,9 +680,6 @@ func TestFixtureNamesIncludesMultiSelectActive(t *testing.T) {
 	}
 }
 
-// flatFixtureWants is the ordered sessions-flat set (names / window counts /
-// attached flags) the §6 picker-burst fixtures reuse verbatim, asserted so a fixture
-// that silently drifts from the shared set fails loudly.
 type flatFixtureWant struct {
 	name     string
 	windows  int
@@ -872,12 +728,6 @@ func assertFixtureNameListed(t *testing.T, name string) {
 	}
 }
 
-// TestSessionsUnsupportedTerminalFixture verifies the §6.2 proactive
-// unsupported-terminal fixture: it reuses the sessions-flat set (NORMAL mode, no
-// multi-select) and seeds the detection cache with a non-NULL Apple Terminal
-// identity, so the built model resolves unsupported and DetectUnsupported() is true
-// (the proactive amber banner renders). The banner render assertion lives in
-// internal/tui; here the gate is that the fixture wires the identity through Deps.
 func TestSessionsUnsupportedTerminalFixture(t *testing.T) {
 	fx, err := capture.FixtureByName("sessions-unsupported-terminal")
 	if err != nil {
@@ -896,7 +746,6 @@ func TestSessionsUnsupportedTerminalFixture(t *testing.T) {
 	if got, want := deps.Capture.Detection.BundleID, "com.apple.Terminal"; got != want {
 		t.Errorf("Deps().Capture.Detection.BundleID = %q, want %q", got, want)
 	}
-	// It must NOT be in multi-select mode — the banner is proactive over the normal list.
 	if len(deps.Capture.MultiSelect) != 0 {
 		t.Errorf("Deps().Capture.MultiSelect = %v, want empty (NORMAL mode)", deps.Capture.MultiSelect)
 	}
@@ -913,21 +762,10 @@ func TestSessionsUnsupportedTerminalFixture(t *testing.T) {
 	}
 }
 
-// TestFixtureNamesIncludesUnsupportedTerminal pins the unsupported-terminal fixture
-// into the discoverable name list.
 func TestFixtureNamesIncludesUnsupportedTerminal(t *testing.T) {
 	assertFixtureNameListed(t, "sessions-unsupported-terminal")
 }
 
-// TestSessionsUnsupportedNullFixture verifies the §7 NULL-identity fixture: it
-// reuses the sessions-flat set (NORMAL mode, no multi-select) and seeds the
-// detection cache with an EMPTY spawn.Identity{} (empty BundleID → IsNull() true),
-// which resolves unsupported-NULL through the production resolver. So the built
-// model has DetectResolved()/DetectUnsupported() true and a NULL DetectedIdentity —
-// yet renders the STANDARD `Sessions ··· N` header with no banner (visually
-// identical to sessions-flat). The no-banner render assertion is the Part B visual
-// gate; here the code-level proxy is that the seed path resolves NULL-unsupported
-// while the title stays plain `Sessions` (Flat).
 func TestSessionsUnsupportedNullFixture(t *testing.T) {
 	fx, err := capture.FixtureByName("sessions-unsupported-null")
 	if err != nil {
@@ -943,8 +781,6 @@ func TestSessionsUnsupportedNullFixture(t *testing.T) {
 	if got := deps.Capture.Detection.BundleID; got != "" {
 		t.Errorf("Deps().Capture.Detection.BundleID = %q, want \"\" (NULL identity)", got)
 	}
-	// It must NOT be in multi-select mode — the NULL case is the normal list with
-	// no banner.
 	if len(deps.Capture.MultiSelect) != 0 {
 		t.Errorf("Deps().Capture.MultiSelect = %v, want empty (NORMAL mode)", deps.Capture.MultiSelect)
 	}
@@ -970,18 +806,10 @@ func TestSessionsUnsupportedNullFixture(t *testing.T) {
 	}
 }
 
-// TestFixtureNamesIncludesUnsupportedNull pins the NULL-identity fixture into the
-// discoverable name list.
 func TestFixtureNamesIncludesUnsupportedNull(t *testing.T) {
 	assertFixtureNameListed(t, "sessions-unsupported-null")
 }
 
-// TestSessionsMultiSelectPreflightAbortFixture verifies the §6.7 pre-flight abort
-// fixture: it reuses the sessions-flat set, opens in multi-select mode with the three
-// marked sessions, anchors the cursor on fab-flowx-explore (the gone row), and seeds
-// the gone-flag on fab-flowx-explore so the red abort banner + gone-row badge render
-// while the survivors keep their ●. The render assertions live in the visual gate;
-// here the gate is that the fixture wires the seed seams through Deps.
 func TestSessionsMultiSelectPreflightAbortFixture(t *testing.T) {
 	fx, err := capture.FixtureByName("sessions-multi-select-preflight-abort")
 	if err != nil {
@@ -1017,18 +845,10 @@ func TestSessionsMultiSelectPreflightAbortFixture(t *testing.T) {
 	}
 }
 
-// TestFixtureNamesIncludesMultiSelectPreflightAbort pins the pre-flight abort fixture
-// into the discoverable name list.
 func TestFixtureNamesIncludesMultiSelectPreflightAbort(t *testing.T) {
 	assertFixtureNameListed(t, "sessions-multi-select-preflight-abort")
 }
 
-// TestSessionsBurstOpeningFixture verifies the §6.5 in-burst Opening fixture: it
-// reuses the sessions-flat set, opens in multi-select mode with the three marked
-// sessions, and seeds the in-burst Opening band as (2, 3) so the built model renders
-// the `Opening 2/3…` band (BurstPending with the done/total counters). The band
-// render assertion lives in internal/tui; here the gate is that the fixture wires the
-// seed seam through Deps.
 func TestSessionsBurstOpeningFixture(t *testing.T) {
 	fx, err := capture.FixtureByName("sessions-burst-opening")
 	if err != nil {
@@ -1061,15 +881,10 @@ func TestSessionsBurstOpeningFixture(t *testing.T) {
 	}
 }
 
-// TestFixtureNamesIncludesBurstOpening pins the in-burst Opening fixture into the
-// discoverable name list.
 func TestFixtureNamesIncludesBurstOpening(t *testing.T) {
 	assertFixtureNameListed(t, "sessions-burst-opening")
 }
 
-// TestFakeSeamsAreInert verifies the mutating fakes are no-ops (the harness must
-// never mutate any tmux/server/config state) and the read seams return canned
-// data without touching a real tmux server.
 func TestFakeSeamsAreInert(t *testing.T) {
 	fx, err := capture.FixtureByName("sessions-flat")
 	if err != nil {
@@ -1087,7 +902,6 @@ func TestFakeSeamsAreInert(t *testing.T) {
 		t.Errorf("Creator.CreateFromDir returned %v, want nil (no-op)", err)
 	}
 
-	// The enumerator and reader return canned data deterministically.
 	groups, err := d.Enumerator.ListWindowsAndPanesInSession("agentic-workflows-code-based")
 	if err != nil {
 		t.Errorf("Enumerator returned %v, want nil", err)

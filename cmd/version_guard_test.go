@@ -1,5 +1,3 @@
-// Tests in this file mutate package-level state (versionChecker, bootstrapDeps,
-// listDeps, openDeps, openSessionFunc, killDeps) and MUST NOT use t.Parallel.
 package cmd
 
 import (
@@ -12,8 +10,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// stubVersionChecker records call count and returns the configured error
-// from every invocation. Substituted for the package-level versionChecker.
 type stubVersionChecker struct {
 	calls int
 	err   error
@@ -24,11 +20,8 @@ func (s *stubVersionChecker) check(_ tmux.Commander) error {
 	return s.err
 }
 
-// installStubVersionChecker replaces the package-level versionChecker with the
-// given stub. It resets the sync.Once gate up-front so the test sees a fresh
-// check (other tests in the same binary may already have consumed the gate),
-// and registers cleanup that restores the previous checker and resets the
-// gate again so the next test starts clean.
+// installStubVersionChecker resets the sync.Once gate up front, because another
+// test in the same binary may already have consumed it, and again on cleanup.
 func installStubVersionChecker(t *testing.T, stub *stubVersionChecker) {
 	t.Helper()
 	prev := versionChecker
@@ -42,16 +35,15 @@ func TestVersionGuard_InvokedForNonExemptOpen(t *testing.T) {
 	stub := &stubVersionChecker{}
 	installStubVersionChecker(t, stub)
 
-	// A Client is required in context: open's session-domain pre-check consults
-	// it via buildQueryResolver → tmuxClient(cmd) before path resolution runs.
+	// A client must be in context: open's session-domain pre-check reaches for it
+	// before path resolution runs.
 	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}, Client: tmux.NewClient(&stubCommander{})}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "/nonexistent/path/that/does/not/exist"})
-	// We expect a directory-not-found error from the resolver. The point of
-	// the test is that PersistentPreRunE — and therefore the version
-	// checker — ran *before* the resolver was reached.
+	// The resolver error is expected; what matters is that PersistentPreRunE ran
+	// before the resolver was reached.
 	_ = rootCmd.Execute()
 
 	if stub.calls != 1 {
@@ -83,8 +75,7 @@ func TestVersionGuard_InvokedForOtherNonExemptCommands(t *testing.T) {
 				openDeps = &OpenDeps{SessionLister: &testSessionLister{names: []string{"my-session"}}}
 				t.Cleanup(func() { openDeps = nil })
 
-				// Route the resolved session hit into a no-op so no real
-				// connector (syscall.Exec / switch-client) fires.
+				// A no-op so no real connector fires.
 				origSession := openSessionFunc
 				openSessionFunc = func(_ *cobra.Command, _ string) error { return nil }
 				t.Cleanup(func() { openSessionFunc = origSession })
@@ -143,34 +134,24 @@ func TestVersionGuard_NotInvokedForExemptCommands(t *testing.T) {
 			stub := &stubVersionChecker{}
 			installStubVersionChecker(t, stub)
 
-			// ISOLATION IS LOAD-BEARING HERE. These exempt commands Execute
-			// their REAL bodies (that is the point — prove the version
-			// checker is skipped on real dispatch), so every side-effect
-			// surface must be stubbed or poisoned. Incident of record: the
-			// former `portal state cleanup` body (now `portal uninstall`) ran
-			// against tmux.DefaultClient(), which honours the ambient TMUX —
-			// the developer's REAL server when tests run inside tmux — so every
-			// `go test ./cmd` KILLED the developer's live _portal-saver
-			// session (SIGHUP'ing the real daemon) and unregistered the real
-			// global hook table. The TMUX poison below is defence-in-depth:
-			// any future DefaultClient in an exempt command fails loudly
-			// against a dead socket instead of silently reaching the real
-			// server.
+			// These exempt commands Execute their real bodies, so every
+			// side-effect surface must be stubbed or poisoned. A command that
+			// builds tmux.DefaultClient() would otherwise honour the ambient TMUX
+			// and reach the developer's real server; the poison makes that fail
+			// loudly against a dead socket instead.
 			t.Setenv("TMUX", "/nonexistent/portal-version-guard-test,0,0")
 			t.Setenv("PORTAL_STATE_DIR", t.TempDir())
 			t.Setenv("PORTAL_ALIASES_FILE", t.TempDir()+"/aliases")
 			t.Setenv("PORTAL_PROJECTS_FILE", t.TempDir()+"/projects.json")
 			t.Setenv("PORTAL_HOOKS_FILE", t.TempDir()+"/hooks.json")
 
-			// `portal uninstall` builds a tmux client in its real body —
-			// inject its seam so no real client exists.
+			// uninstall builds a tmux client in its real body.
 			installUninstallDeps(t, &UninstallDeps{
 				Client:     tmux.NewClient(&recordingCommander{}),
 				Unregister: func(*tmux.Client) error { return nil },
 			})
 
-			// state daemon's RunE blocks on signal; stub the run-func so the
-			// command returns immediately for argv-only assertions.
+			// The daemon's RunE blocks on a signal, so stub the run-func.
 			if len(tt.args) >= 2 && tt.args[0] == "state" && tt.args[1] == "daemon" {
 				t.Setenv("PORTAL_STATE_DIR", t.TempDir())
 				prev := daemonRunFunc

@@ -8,21 +8,6 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// The consolidation gate for keyColumnRow — the one builder behind BOTH key-column
-// surfaces: the help modal's two-column body row and the theme panel's vertical
-// footer row. Each used to compose the same measure/pad/gap/join sequence
-// independently, differing only in tokens, boldness, column width and gap.
-//
-// preHelpModalRow and preThemePanelFooterRow reproduce the ORIGINAL bodies
-// verbatim, and every descriptor entry either surface can be handed is asserted
-// against them across both palettes and colourless on/off — so a drift in the pad
-// arithmetic, the measurement, the canvas painting or the segment order is caught
-// byte-for-byte.
-//
-// No t.Parallel() — the shared canvas helpers make parallelism unsafe.
-
-// preHelpModalRow reproduces the ORIGINAL helpModalRow body verbatim — the golden
-// the extraction must preserve.
 func preHelpModalRow(e keymapEntry, th theme.Theme, colourless bool) string {
 	keyTok := th.AccentKey
 	if isDestructiveHelpKey(e) {
@@ -39,8 +24,6 @@ func preHelpModalRow(e keymapEntry, th theme.Theme, colourless bool) string {
 	return lipgloss.JoinHorizontal(lipgloss.Top, key, pad, gap, label)
 }
 
-// preThemePanelFooterRow reproduces the ORIGINAL themePanelFooterRow body verbatim —
-// the golden the extraction must preserve, pad-to-width wrap included.
 func preThemePanelFooterRow(e keymapEntry, width int, th theme.Theme, colourless bool) string {
 	key := headerStyle(th.AccentKey, th, colourless).Render(helpKeyGlyph(e))
 	keyWidth := lipgloss.Width(key)
@@ -55,14 +38,6 @@ func preThemePanelFooterRow(e keymapEntry, width int, th theme.Theme, colourless
 	return headerPadRight(row, lipgloss.Width(row), width, th, colourless)
 }
 
-// keyColumnRowEntries is every descriptor entry either surface can hand a row
-// builder — the two page scopes and the preview scope the help body renders, plus
-// the panel scope and the confirm scope substituted into its footer.
-//
-// BOTH surfaces are exercised over the WHOLE set rather than each over its own
-// scope: the row builders are entry-agnostic, and the widest glyphs (`^↑/↓`) are
-// what drive the panel's narrow column past its width — the pad-omission branch
-// its own four rows only reach on `esc`.
 func keyColumnRowEntries() []keymapEntry {
 	scopes := [][]keymapEntry{
 		sessionsKeymap(),
@@ -78,10 +53,6 @@ func keyColumnRowEntries() []keymapEntry {
 	return all
 }
 
-// TestHelpModalRow_ByteIdenticalAcrossExtraction asserts the post-extraction
-// helpModalRow reproduces the pre-extraction body byte-for-byte for every
-// descriptor entry, both palettes, colourless on/off — the destructive key token
-// and the bold key glyph included.
 func TestHelpModalRow_ByteIdenticalAcrossExtraction(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		for _, colourless := range []bool{false, true} {
@@ -96,11 +67,6 @@ func TestHelpModalRow_ByteIdenticalAcrossExtraction(t *testing.T) {
 	}
 }
 
-// TestThemePanelFooterRow_ByteIdenticalAcrossExtraction asserts the
-// post-extraction themePanelFooterRow reproduces the pre-extraction body
-// byte-for-byte across the panel's inner-width band, both palettes and colourless
-// on/off. Width 0 is in the band because the footer's self-measured height renders
-// the block at it.
 func TestThemePanelFooterRow_ByteIdenticalAcrossExtraction(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		for _, colourless := range []bool{false, true} {
@@ -117,13 +83,6 @@ func TestThemePanelFooterRow_ByteIdenticalAcrossExtraction(t *testing.T) {
 	}
 }
 
-// TestKeyColumnRow_BuildsBothSurfacesRows asserts BOTH callers delegate to the one
-// builder: each surface's row is exactly keyColumnRow handed that surface's own
-// styles, column width and gap.
-//
-// The help side passes its destructive-aware key token and its bold key glyph as an
-// already-resolved STYLE, which is the point of the seam — the divergence lives at
-// the call site, so the builder carries no branch for either.
 func TestKeyColumnRow_BuildsBothSurfacesRows(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		for _, colourless := range []bool{false, true} {
@@ -157,14 +116,6 @@ func TestKeyColumnRow_BuildsBothSurfacesRows(t *testing.T) {
 	}
 }
 
-// TestKeyColumnRow_PadsOnlyWhenTheGlyphIsNarrowerThanTheColumn asserts the pad
-// segment is emitted for a short glyph and OMITTED entirely once the glyph reaches
-// the column width.
-//
-// The omission is load-bearing rather than cosmetic: a canvas style renders the
-// empty string as a styled EMPTY RUN, not as nothing, so padding unconditionally
-// would put a stray SGR pair on every full-width row — the panel's `esc close` row
-// is one at its three-cell column.
 func TestKeyColumnRow_PadsOnlyWhenTheGlyphIsNarrowerThanTheColumn(t *testing.T) {
 	const columnWidth = 3
 	th := testDarkTheme(t)

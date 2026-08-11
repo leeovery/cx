@@ -12,20 +12,8 @@ import (
 	"github.com/leeovery/portal/internal/themetest"
 )
 
-// brokenCanvasValue is the typo'd hex the reserved-slug rule tells its story with — a value
-// that is not a `#RRGGBB` at all, so a file carrying it is `bad colour` the moment
-// anything reads it.
 const brokenCanvasValue = "blue"
 
-// TestLoadFile_ReservedSlugRejected pins the reserved-slug rule on the PRODUCTION loader: a
-// drop-in whose slug collides with a built-in is rejected `reserved name`, even
-// when there is nothing else wrong with it whatsoever.
-//
-// This is the wiring test, and it is deliberately distinct from the loader's
-// rung test (TestLoadFile_ReservedNameDecidedFromSlugAlone), which drives the
-// rung through an injected synthetic set: that one passes whether or not
-// NewLoader populates the seam, so it can say nothing about whether the safety
-// property actually EXISTS in a Portal that has been built.
 func TestLoadFile_ReservedSlugRejected(t *testing.T) {
 	path := themetest.Write(t, t.TempDir(), tokyoNightSlug+".theme", themetest.Lines())
 
@@ -34,16 +22,6 @@ func TestLoadFile_ReservedSlugRejected(t *testing.T) {
 	requireLoadRejection(t, got, rejection, theme.ReasonReservedName, "")
 }
 
-// TestLoadFile_ReservedDecidedBeforeRead pins rung 2's POSITION against the
-// production set: the verdict comes from the slug alone, so a colliding file is
-// never opened and can never report `unreadable` instead.
-//
-// Both fixtures are files a read would certainly fail on, which is what makes
-// the reserved verdict evidence of ordering rather than a coincidence — and the
-// ordering is what makes the guarantee unconditional. A reserved check placed
-// after the read would leave a permission-denied `tokyo-night.theme` reported as
-// a mere read failure, which is the shape of an answer that invites a "so fix
-// the permissions and it will work" reading of a name that will never work.
 func TestLoadFile_ReservedDecidedBeforeRead(t *testing.T) {
 	tests := []struct {
 		name string
@@ -80,20 +58,6 @@ func TestLoadFile_ReservedDecidedBeforeRead(t *testing.T) {
 	}
 }
 
-// TestLoadFile_MixedCaseFilenameIsBadNameNotReserved pins the half of the
-// no-shadowing property that lives in the slug charset rule's reject-never-normalise rule: a
-// mis-cased filename is `bad name` at rung 1 and never reaches the reserved
-// rung, so it yields NO slug rather than a quietly corrected one.
-//
-// That is what keeps the reserved check EXACT STRING EQUALITY and keeps
-// `Nord.theme` beside a built-in `nord` safe on a case-insensitive macOS
-// filesystem — the filesystem a user is most likely to type it on. Were the
-// stem lowercased anywhere on this path, the file would become a collision the
-// ladder had already waved through, and a `reserved name` verdict here would be
-// the symptom.
-//
-// The variants are derived from the embedded set rather than named, so a
-// built-in added later is covered with no edit here.
 func TestLoadFile_MixedCaseFilenameIsBadNameNotReserved(t *testing.T) {
 	loader := productionLoader()
 
@@ -121,14 +85,6 @@ func TestLoadFile_MixedCaseFilenameIsBadNameNotReserved(t *testing.T) {
 	}
 }
 
-// TestReservedSet_CoversEveryBuiltinSlug pins the set as DERIVED: every member
-// of BuiltinSlugs() reserves, and the test NAMES no theme.
-//
-// A built-in added by a later PR is therefore covered here without this file
-// changing — which is the property that keeps the reserved-slug rule's guarantee true as the
-// set grows. A hand-maintained reserved list, or a test that spelled the slugs out,
-// would both pass right up until the day someone added a built-in and forgot,
-// at which point the new theme would ship shadowable.
 func TestReservedSet_CoversEveryBuiltinSlug(t *testing.T) {
 	loader := productionLoader()
 
@@ -143,19 +99,6 @@ func TestReservedSet_CoversEveryBuiltinSlug(t *testing.T) {
 	}
 }
 
-// TestNoShadowing_BrokenDropInCannotReplaceBuiltin is the safety property
-// itself, stated end to end: the built-in Portal falls back to can never
-// be the user's broken file.
-//
-// The fixture is the reserved-slug rule's own story — `tokyo-night.theme` dropped into the
-// themes directory with a typo'd hex — driven through the two calls that would have to
-// agree for the property to hold: the enumerating path REPORTS it, and the
-// built-in lookup is UNAFFECTED by it. Without the reserved rung the first
-// would hand the panel a selectable palette from that file and the second would
-// be the only thing standing between a typo and an unusable Portal.
-//
-// The reported reason is asserted exactly: `bad colour` would mean the ladder
-// read the file, which is the ordering half of the same guarantee.
 func TestNoShadowing_BrokenDropInCannotReplaceBuiltin(t *testing.T) {
 	embedded, found := theme.BuiltinBytes(tokyoNightSlug)
 	if !found {
@@ -210,15 +153,6 @@ func TestNoShadowing_BrokenDropInCannotReplaceBuiltin(t *testing.T) {
 	}
 }
 
-// TestLoadFile_RenamedCopyIsAccepted pins the reserved-slug rule's published workaround — copy
-// `nord` to `nord-lee.theme` — as a working escape hatch, for every built-in.
-//
-// It is the other face of exact string equality: a slug that merely CONTAINS a
-// reserved one is not a collision, so the two-second rename really is the whole
-// answer, and a user who wants a built-in with one value changed is never stuck.
-// The palette is compared against the built-in's own, so the copy is proved to
-// be the same theme under a different identity rather than merely something
-// that parsed.
 func TestLoadFile_RenamedCopyIsAccepted(t *testing.T) {
 	loader := productionLoader()
 
@@ -238,7 +172,7 @@ func TestLoadFile_RenamedCopyIsAccepted(t *testing.T) {
 			got, rejection := loader.LoadFile(path)
 
 			if rejection != nil {
-				t.Fatalf("LoadFile(%q) rejected §5.4's published workaround: %v", path, rejection)
+				t.Fatalf("LoadFile(%q) rejected the published rename workaround: %v", path, rejection)
 			}
 			if got.Slug != renamed {
 				t.Errorf("slug = %q, want %q", got.Slug, renamed)
@@ -250,15 +184,10 @@ func TestLoadFile_RenamedCopyIsAccepted(t *testing.T) {
 	}
 }
 
-// productionLoader returns the Loader the PRODUCTION constructor builds — the
-// one carrying the derived reserved set — with a silenced event seam, since
-// nothing in this file asserts on a log line.
 func productionLoader() theme.Loader {
 	return theme.NewLoader(theme.NewEventLogger(nil))
 }
 
-// requireBuiltinSlugs returns the embedded set, failing the test if it is empty
-// so a loop over it can never assert vacuously.
 func requireBuiltinSlugs(t *testing.T) []string {
 	t.Helper()
 
@@ -269,24 +198,11 @@ func requireBuiltinSlugs(t *testing.T) []string {
 	return slugs
 }
 
-// caseVariant is one mis-cased filename plus the `bad name` cause it must be
-// rejected for.
 type caseVariant struct {
 	base  string
 	cause theme.BadNameCause
 }
 
-// caseVariants renders the ways a built-in's filename is most plausibly typed
-// with the wrong case: a shouted stem, a capitalised stem, either of those with
-// a shouted extension as well, and a shouted extension alone.
-//
-// A mis-cased stem carries the slug cause whatever its extension does, because
-// the extension message would claim the stem is already fine — which for these
-// variants is the very thing that is not true.
-//
-// A stem that does not change under upper-casing — a slug of digits alone —
-// contributes no variant, because it would stage the canonical filename and
-// assert `bad name` of a name that is perfectly good.
 func caseVariants(t *testing.T, slug string) []caseVariant {
 	t.Helper()
 

@@ -1,33 +1,5 @@
 //go:build integration
 
-// Scaffolding for the transient-listpanes integration test covering the
-// `doctor --fix` stale-hook prune callsite
-// (cmd/cleanstale_transient_listpanes_doctorfix_integration_test.go). The
-// original consumers — the bootstrap-step callsite (retired when hooks
-// stale-cleanup left the orchestrator) and the `portal clean` RunE tail
-// (deleted in the cli-verb-surface redesign) — are both gone; this file now
-// backs the single doctor --fix consumer. Its helpers
-// (isolateCleanStaleTestEnv, runTransientCleanStaleModeSubtest,
-// configDirFromEnvSlice, staleHookCleanupLogLines, containsLineMatching)
-// are consumed by that single file.
-//
-// isolateCleanStaleTestEnv is the single source of truth for the four
-// invariant scaffolding steps: portaltest.IsolateStateForTest →
-// Setenv("PORTAL_STATE_DIR") → Setenv("PORTAL_LOG_LEVEL", "debug") →
-// Setenv("XDG_CONFIG_HOME", ...). runTransientCleanStaleModeSubtest is the
-// table-driven driver for the mode_a / mode_b subtest shape (byte-identity
-// hooks.json invariant + `runHookStaleCleanup` log-fingerprint needles);
-// the callsite passes a `transientModeSpec` declaring only the deltas
-// (entry-point invoker closure + an optional extra-assert closure to verify
-// no "Removed stale hook:" line surfaces on stdout).
-//
-// The "normal_path" and "persisted_empty_early_exit" subtests are left as
-// bespoke subtest bodies in the consumer file — they diverge enough in
-// shape that table-driving them would obscure rather than clarify.
-//
-// Package + build tag match the consumer file so the shared helpers are
-// visible at compile time and only compile under the integration build.
-
 package cmd
 
 import (
@@ -40,97 +12,29 @@ import (
 	"github.com/leeovery/portal/internal/transienttest"
 )
 
-// isolateCleanStaleTestEnv performs the four invariant scaffolding
-// steps shared by every transient-listpanes integration subtest:
-//
-//  1. portaltest.IsolateStateForTest — scrubs HOME / XDG on the test
-//     process and registers the fingerprint-diff backstop. Returns
-//     the env slice (carrying the isolated XDG_CONFIG_HOME for any
-//     would-be subprocesses) and the isolated stateDir.
-//  2. Setenv("PORTAL_STATE_DIR", stateDir) — so any in-process or
-//     subprocess code resolving the state dir lands on the isolated
-//     one (the log handler, ReadPortalLogSafe, and the saver
-//     pane's `portal state daemon` all observe this).
-//  3. Setenv("PORTAL_LOG_LEVEL", "debug") — the assertions in both
-//     callsites' subtests grep for Debug breadcrumbs that the
-//     default log level (LevelWarn) would suppress.
-//  4. Setenv("XDG_CONFIG_HOME", configDir) — the load-bearing
-//     XDG_CONFIG_HOME re-push.
-//
-// XDG_CONFIG_HOME re-push rationale (documented here once so the
-// two file-level helpers can stay focused on their extras):
-// portaltest.IsolateStateForTest deliberately sets XDG_CONFIG_HOME=""
-// on the test process — its fingerprint-diff backstop relies on the
-// scrubbed test-process env to detect leaks against the developer's
-// real config dir — and only injects the isolated XDG_CONFIG_HOME
-// into the returned env slice (which subprocesses pick up via
-// `cmd.Env = env`). The doctor --fix stale-hook prune (pruneDoctorStaleHooks)
-// runs IN the test process, so cmd-package config path resolution
-// (`configFilePath` → `xdg.ConfigBase` → `$XDG_CONFIG_HOME`) would resolve to
-// the test process's HOME-based fallback and miss the seeded hooks.json.
-// Re-pushing
-// XDG_CONFIG_HOME onto the test process here AFTER IsolateStateForTest
-// has snapshotted the pre-test state is safe — the backstop captures
-// its baseline before this call returns, so the post-snapshot Setenv
-// does not perturb it.
+// XDG_CONFIG_HOME must be re-pushed onto the test process because
+// IsolateStateForTest deliberately scrubs it there and injects the isolated
+// value only into the returned env slice — but the doctor --fix prune runs
+// in-process, so its config resolution would miss the seeded hooks.json.
+// Re-pushing after IsolateStateForTest is safe: the backstop has already
+// snapshotted its baseline.
 func isolateCleanStaleTestEnv(t *testing.T) (env []string, stateDir string) {
 	t.Helper()
-	// TestMain (testmain_isolation_test.go) poisons PORTAL_HOOKS_FILE to
-	// /nonexistent/... so a test that forgets to isolate fails loudly.
-	// IsolateStateForTest scrubs only XDG_CONFIG_HOME — NOT
-	// PORTAL_HOOKS_FILE — so the poisoned value would survive into the env
-	// slice it derives from os.Environ() (which SeedHooksJSON /
-	// ResolveHooksFilePathFromEnv prefer over the XDG-derived default,
-	// matching production precedence), and SeedHooksJSON would mkdir
-	// /nonexistent and fail. Point PORTAL_HOOKS_FILE at a writable isolated
-	// location BEFORE IsolateStateForTest so the derived env slice carries
-	// the good path AND the in-process doctor --fix prune (which resolves
-	// hooks.json via os.Getenv) lands on the same file. Minimal test-local
-	// fix; the broader "IsolateStateForTest should also scrub PORTAL_*_FILE"
-	// root cause is deliberately out of scope for this task.
+	// IsolateStateForTest scrubs XDG_CONFIG_HOME but not PORTAL_HOOKS_FILE, so
+	// TestMain's poisoned /nonexistent value would survive into the derived env
+	// slice and the seeder would try to mkdir it. Must be set before the call.
 	t.Setenv("PORTAL_HOOKS_FILE", filepath.Join(t.TempDir(), "portal", "hooks.json"))
 	env, stateDir = portaltest.IsolateStateForTest(t)
 	t.Setenv("PORTAL_STATE_DIR", stateDir)
 	t.Setenv("PORTAL_LOG_LEVEL", "debug")
 	t.Setenv("XDG_CONFIG_HOME", configDirFromEnvSlice(t, env))
-	// Wire the production internal/log file handler at the isolated state dir
-	// so the in-process doctor --fix prune (which logs via the global
-	// log.For("bootstrap") component logger) lands its stale-hook cleanup
-	// breadcrumbs in <stateDir>/portal.log — exactly as main -> log.Init does
-	// in the real binary. The observability migration (internal/log) replaced
-	// the old openNoRotateLogger, which auto-resolved portal.log from
-	// PORTAL_STATE_DIR; the global-handler model needs an explicit Init, which
-	// this scaffolding never re-added (masked until now by the earlier
-	// PORTAL_HOOKS_FILE fast-fail). initTestLogToStateDirAs brackets the
-	// process-wide handler swap with SetTestHandler snapshot/restore, so it
-	// does not leak into sibling subtests.
+	// Stands in for main's log.Init so the in-process prune's breadcrumbs land
+	// in the isolated state dir's portal.log; the handler swap is bracketed so
+	// it does not leak into sibling subtests.
 	initTestLogToStateDirAs(t, stateDir, "test", "clean")
 	return env, stateDir
 }
 
-// transientModeSpec parameterises the table-driven driver below.
-// Only the deltas between the mode_a / mode_b subtest bodies
-// are declared — the seed map, the snapshot/byte-identity assertion,
-// and the `runHookStaleCleanup` log-fingerprint needles are baked
-// into the driver itself.
-//
-// Fields:
-//   - name: the subtest name (also used in failure messages to
-//     identify which mode failed).
-//   - mode: which transienttest.FailureMode the Commander should
-//     simulate. Drives both the install-commander step and the
-//     mode-specific log-fingerprint needles the driver asserts.
-//   - invoke: entry-point closure. Receives the env slice + stateDir
-//     produced by the env-builder and is responsible for wiring the
-//     callsite's HookLister seam (the transient-wrapped tmux client),
-//     invoking the entry point, and returning any post-invocation
-//     output the extraAssert may want to inspect. A non-nil err
-//     return fails the subtest with a callsite-appropriate message
-//     supplied by the closure.
-//   - extraAssert: optional post-invocation assertions beyond the
-//     shared byte-identity + log-fingerprint asserts. The doctor --fix
-//     callsite uses this to additionally verify no "Pruned stale hook:"
-//     line surfaces on stdout.
 type transientModeSpec struct {
 	name        string
 	mode        transienttest.FailureMode
@@ -138,31 +42,14 @@ type transientModeSpec struct {
 	extraAssert func(t *testing.T, output string, seededKeys []string)
 }
 
-// transientModeSeedEntries is the canonical seed map shared by every
-// mode_a / mode_b subtest in both callsite files. Three entries are
-// the minimum needed to make the `persisted=3` substring meaningful
-// (any positive count would do; three is what the original subtests
-// used and the log-fingerprint needles below pin it).
+// The count is load-bearing: the log-fingerprint needles below match on
+// entries=3.
 var transientModeSeedEntries = map[string]string{
 	"alpha:0.0": "echo a",
 	"beta:0.0":  "echo b",
 	"gamma:0.0": "echo c",
 }
 
-// runTransientCleanStaleModeSubtest executes the six-step shape
-// shared by the mode_a / mode_b subtests in both callsite files:
-//
-//  1. isolateCleanStaleTestEnv — shared scaffolding.
-//  2. SeedHooksJSON + snapshot `before` bytes.
-//  3. spec.invoke — install callsite-specific commander seam and
-//     fire the entry point.
-//  4. snapshot `after` bytes and assert byte-identity (the wipe
-//     invariant — the whole point of the workstream).
-//  5. spec.extraAssert (if non-nil) — callsite-specific extras.
-//  6. portal.log fingerprint needles for spec.mode.
-//
-// Failure messages reference spec.name so a regression in either mode
-// subtest is unambiguous when they run in the same `go test` invocation.
 func runTransientCleanStaleModeSubtest(t *testing.T, spec transientModeSpec) {
 	t.Helper()
 
@@ -205,9 +92,8 @@ func runTransientCleanStaleModeSubtest(t *testing.T, spec transientModeSpec) {
 
 	switch spec.mode {
 	case transienttest.FailExitNonZero:
-		// mode (a): propagated-error Warn must be present; the entry-point
-		// Debug ("stale-hook cleanup counts ...") must be absent — the
-		// err-from-ListAllPanes branch returns BEFORE the Debug emission.
+		// The entry-point Debug must be absent: the err-from-ListAllPanes
+		// branch returns before it is emitted.
 		if !containsLineMatching(lines, "stale-hook cleanup:", "list-panes failed", "simulated transient") {
 			t.Fatalf("missing mode (a) propagated-error Warn line under %s; want a `stale-hook cleanup:` line containing `list-panes failed` and `simulated transient`\n"+
 				"  matched stale-hook lines:\n%s",
@@ -221,11 +107,6 @@ func runTransientCleanStaleModeSubtest(t *testing.T, spec transientModeSpec) {
 			}
 		}
 	case transienttest.FailEmptyStdout:
-		// mode (b): entry-point Debug (panes=0, entries=N) AND the
-		// hazard-guard Warn must both be present. runHookStaleCleanup emits
-		// the entry-point breadcrumb as "stale-hook cleanup counts panes=N
-		// entries=M" (the observability-migration wording; the pre-migration
-		// "live=0 persisted=N" phrasing is gone).
 		if !containsLineMatching(lines, "stale-hook cleanup counts", "panes=0", "entries=3") {
 			t.Fatalf("missing mode (b) entry-point Debug under %s; want a `stale-hook cleanup counts` line containing `panes=0` and `entries=3`\n"+
 				"  matched stale-hook lines:\n%s",
@@ -242,10 +123,6 @@ func runTransientCleanStaleModeSubtest(t *testing.T, spec transientModeSpec) {
 	}
 }
 
-// configDirFromEnvSlice extracts the XDG_CONFIG_HOME value from the
-// env slice produced by portaltest.IsolateStateForTest. The slice
-// always contains exactly one such entry — its absence signals an
-// isolation regression worth a fatal test failure.
 func configDirFromEnvSlice(t *testing.T, env []string) string {
 	t.Helper()
 	const key = "XDG_CONFIG_HOME="
@@ -258,16 +135,8 @@ func configDirFromEnvSlice(t *testing.T, env []string) string {
 	return ""
 }
 
-// staleHookCleanupLogLines returns the subset of portal.log lines that
-// carry the stale-hook cleanup prefix. The prefix is matched WITHOUT the
-// trailing colon so it captures both the colon-suffixed Warn lines
-// ("stale-hook cleanup: list-panes failed", "stale-hook cleanup: zero
-// live panes ...", "stale-hook cleanup: persisted=0, skipping") AND the
-// no-colon entry-point / completion Debug lines ("stale-hook cleanup
-// counts panes=N entries=M", "stale-hook cleanup removed reaped=N")
-// emitted by runHookStaleCleanup. It still excludes bootstrap step 9's
-// CleanStaleMarkers log lines (a distinct message) and unrelated noise,
-// narrowing the assertion surface to exactly the hook-cleanup path.
+// The prefix deliberately omits the trailing colon so it captures both the
+// colon-suffixed Warn lines and the no-colon Debug ones.
 func staleHookCleanupLogLines(portalLog string) []string {
 	const prefix = "stale-hook cleanup"
 	var matches []string
@@ -279,8 +148,6 @@ func staleHookCleanupLogLines(portalLog string) []string {
 	return matches
 }
 
-// containsLineMatching reports whether any line contains every
-// substring in needles (AND semantics).
 func containsLineMatching(lines []string, needles ...string) bool {
 	for _, line := range lines {
 		matched := true

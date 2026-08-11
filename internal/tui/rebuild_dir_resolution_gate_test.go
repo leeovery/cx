@@ -8,13 +8,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// TestRebuildSessionListResolutionGate locks the placement guard: lazy
-// stamp-on-render resolution is a grouped-render mechanism. It MUST fire on the
-// ModeByProject / ModeByTag (non-signpost) render paths and MUST NOT fire on the
-// Flat (default) or byTagSignpost (zero-tags) render paths. fakeStamper's
-// ActivePaneCurrentPath reads are the per-session resolution counter: an
-// empty-Dir session resolves via one pane read, so len(reads) == number of
-// resolutions performed this rebuild.
 func TestRebuildSessionListResolutionGate(t *testing.T) {
 	t.Run("Flat (default) performs zero resolutions over un-stamped sessions", func(t *testing.T) {
 		sessions := []tmux.Session{
@@ -40,7 +33,6 @@ func TestRebuildSessionListResolutionGate(t *testing.T) {
 
 	t.Run("byTagSignpost (ByTag, zero tags anywhere) performs zero resolutions", func(t *testing.T) {
 		dir := t.TempDir()
-		// Project carries NO tags => anyTagsExist is false => signpost arm.
 		projects := []project.Project{{Path: dir, Name: "Portal"}}
 		sessions := []tmux.Session{
 			{Name: "portal-a", Dir: ""},

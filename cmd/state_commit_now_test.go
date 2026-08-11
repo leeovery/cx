@@ -1,4 +1,3 @@
-// Tests in this file mutate package-level state via Cobra and MUST NOT use t.Parallel.
 package cmd
 
 import (
@@ -17,11 +16,6 @@ import (
 	"github.com/leeovery/portal/internal/state"
 )
 
-// installCommitNowLogCapture installs an in-process slog capture sink via
-// log.SetTestHandler so commit-now's daemonLogger (log.For("daemon"))
-// records are captured for assertion. The command body logs through the
-// process-wide swap handler, not a per-process file, so capturing in-process
-// replaces the old "read state.PortalLog(dir)" pattern.
 func installCommitNowLogCapture(t *testing.T) *logtest.Sink {
 	t.Helper()
 	sink := &logtest.Sink{}
@@ -29,8 +23,6 @@ func installCommitNowLogCapture(t *testing.T) *logtest.Sink {
 	return sink
 }
 
-// runStateCommitNow executes "portal state commit-now" with stdout/stderr
-// captured and returns the Execute error.
 func runStateCommitNow(t *testing.T) (*bytes.Buffer, *bytes.Buffer, error) {
 	t.Helper()
 	outBuf := new(bytes.Buffer)
@@ -44,9 +36,6 @@ func runStateCommitNow(t *testing.T) (*bytes.Buffer, *bytes.Buffer, error) {
 	return outBuf, errBuf, err
 }
 
-// fakeCaptureClient is a state.CaptureClient stub returning canned values from
-// its three methods. Sessions returned by ListSessionNames are filtered by
-// state.CaptureStructure via keepSessionNames.
 type fakeCaptureClient struct {
 	sessions   []string
 	sessionErr error
@@ -71,9 +60,6 @@ func (f *fakeCaptureClient) ShowEnvironment(name string) (string, error) {
 	return f.env[name], nil
 }
 
-// installCommitNowDeps wires a CommitNowDeps with real ReadIndex/Commit
-// (against the temp state dir) but a faked CaptureStructure + client, then
-// registers cleanup. Returns pointers tests may inspect.
 type commitNowFixture struct {
 	client          *fakeCaptureClient
 	captureCalls    int
@@ -89,7 +75,6 @@ type commitNowFixture struct {
 	readIdxReturn   state.Index
 	readIdxOverride bool
 
-	// @portal-restoring / save.requested seams.
 	restoring      bool
 	restoringErr   error
 	restoringCalls int
@@ -124,7 +109,6 @@ func installCommitNowDeps(t *testing.T, f *commitNowFixture) {
 			if f.commitErr != nil {
 				return f.commitErr
 			}
-			// Write a real file so on-disk assertions still pass.
 			return state.Commit(dir, idx, any, nil)
 		},
 		IsRestoring: func() (bool, error) {
@@ -162,12 +146,6 @@ func readSessionsJSON(t *testing.T, dir string) state.Index {
 	return idx
 }
 
-// sessionNamesSlice extracts session names from an Index in declaration order
-// — used in assertions that care about identity but not ordering of other
-// fields. Returns []string so reflect.DeepEqual / slice comparisons work.
-// The cmd_test integration files declare a different sessionNames helper
-// returning map[string]struct{} for presence-set assertions; the two helpers
-// have intentionally distinct shapes and live in different packages.
 func sessionNamesSlice(idx state.Index) []string {
 	out := make([]string, 0, len(idx.Sessions))
 	for _, s := range idx.Sessions {
@@ -176,9 +154,6 @@ func sessionNamesSlice(idx state.Index) []string {
 	return out
 }
 
-// --- Tests ---
-
-// 1. zero live sessions
 func TestStateCommitNow_WritesEmptySessionsJSONWhenZeroLiveSessions(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
@@ -205,7 +180,6 @@ func TestStateCommitNow_WritesEmptySessionsJSONWhenZeroLiveSessions(t *testing.T
 	}
 }
 
-// 2. single session with windows + panes
 func TestStateCommitNow_WritesSessionWithWindowsAndPanes(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
@@ -251,7 +225,6 @@ func TestStateCommitNow_WritesSessionWithWindowsAndPanes(t *testing.T) {
 	}
 }
 
-// 3. multi-window, multi-pane
 func TestStateCommitNow_WritesMultiWindowMultiPaneSession(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
@@ -309,12 +282,10 @@ func TestStateCommitNow_WritesMultiWindowMultiPaneSession(t *testing.T) {
 	}
 }
 
-// 4. prevIndex is passed through so future hash/content preservation works.
 func TestStateCommitNow_PassesPrevIndexFromDiskToCaptureStructure(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
 
-	// Seed sessions.json so ReadIndex returns a real prior Index.
 	prior := state.Index{
 		Version: state.SchemaVersion,
 		Sessions: []state.Session{
@@ -359,7 +330,6 @@ func TestStateCommitNow_PassesPrevIndexFromDiskToCaptureStructure(t *testing.T) 
 		t.Errorf("prev.Sessions = %v, want [{Name: work, ...}]", got.Sessions)
 	}
 
-	// Post-commit file still contains "work" with its pane fields preserved.
 	out := readSessionsJSON(t, dir)
 	if len(out.Sessions) != 1 || out.Sessions[0].Name != "work" {
 		t.Fatalf("post-commit sessions = %v, want [work]", sessionNamesSlice(out))
@@ -370,17 +340,13 @@ func TestStateCommitNow_PassesPrevIndexFromDiskToCaptureStructure(t *testing.T) 
 	}
 }
 
-//  5. underscore-prefixed sessions filtered (delegated to keepSessionNames in
-//     real CaptureStructure — to assert the integration here we use the real
-//     CaptureStructure with a fake client.
 func TestStateCommitNow_OmitsUnderscorePrefixedSessions(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
 
-	// Real CaptureStructure with a fake client returning both "work" and
-	// "_portal-saver"; the live-tmux row data omits the underscore session
-	// (tmux would never emit panes for a session filtered by keep, but the
-	// list-panes -a output is filtered by parser via the keep set).
+	// The real CaptureStructure runs here, against a fake client that lists
+	// both sessions; the pane rows omit the underscore session because the
+	// parser filters them by the keep set.
 	client := &fakeCaptureClient{
 		sessions: []string{"work", "_portal-saver"},
 		rows: strings.Join([]string{
@@ -394,11 +360,8 @@ func TestStateCommitNow_OmitsUnderscorePrefixedSessions(t *testing.T) {
 		NewClient:        func() state.CaptureClient { return client },
 		CaptureStructure: state.CaptureStructure,
 		Commit:           state.Commit,
-		// Must be injected: a nil IsRestoring falls through to the real
-		// IsRestoringSet(tmux.DefaultClient()) — a live query against
-		// whatever server the ambient TMUX names (caught by the TestMain
-		// TMUX poison, which turns the silent real-server read into a
-		// loud connect failure).
+		// Must be injected: a nil IsRestoring falls through to a live query
+		// against whatever server the ambient TMUX names.
 		IsRestoring: func() (bool, error) { return false, nil },
 	}
 	t.Cleanup(func() { commitNowDeps = prev })
@@ -418,14 +381,12 @@ func TestStateCommitNow_OmitsUnderscorePrefixedSessions(t *testing.T) {
 	}
 }
 
-// 6. ReadIndex ENOENT → zero-value prev + WARN log, exit 0.
 func TestStateCommitNow_FallsBackToZeroPrevAndLogsWarnWhenSessionsJSONMissing(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
 	t.Setenv("PORTAL_LOG_LEVEL", "warn")
 	sink := installCommitNowLogCapture(t)
 
-	// No sessions.json exists in dir → ReadIndex returns (Index{}, true, nil).
 	f := &commitNowFixture{
 		client: &fakeCaptureClient{sessions: nil},
 		captureReturn: state.Index{
@@ -439,7 +400,6 @@ func TestStateCommitNow_FallsBackToZeroPrevAndLogsWarnWhenSessionsJSONMissing(t 
 		t.Fatalf("expected exit 0, got: %v", err)
 	}
 
-	// Prev passed must be the zero-value Index (no sessions).
 	if f.captureCalls != 1 {
 		t.Fatalf("CaptureStructure calls = %d, want 1", f.captureCalls)
 	}
@@ -447,7 +407,6 @@ func TestStateCommitNow_FallsBackToZeroPrevAndLogsWarnWhenSessionsJSONMissing(t 
 		t.Errorf("prev should be zero-value Index, got: %+v", got)
 	}
 
-	// Log must contain a WARN entry under ComponentDaemon mentioning sessions.json.
 	logged := sink.Body()
 	if !strings.Contains(logged, "WARN") {
 		t.Errorf("log missing WARN level entry: %q", logged)
@@ -459,13 +418,11 @@ func TestStateCommitNow_FallsBackToZeroPrevAndLogsWarnWhenSessionsJSONMissing(t 
 		t.Errorf("log missing 'sessions.json' marker: %q", logged)
 	}
 
-	// sessions.json was still written.
 	if _, err := os.Stat(filepath.Join(dir, "sessions.json")); err != nil {
 		t.Errorf("sessions.json not written: %v", err)
 	}
 }
 
-// 7. ReadIndex decode error → zero-value prev + WARN, exit 0.
 func TestStateCommitNow_FallsBackToZeroPrevAndLogsWarnOnCorruptSessionsJSON(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
@@ -505,7 +462,6 @@ func TestStateCommitNow_FallsBackToZeroPrevAndLogsWarnOnCorruptSessionsJSON(t *t
 	}
 }
 
-// 8. save.requested untouched on success.
 func TestStateCommitNow_DoesNotTouchSaveRequestedOnSuccess(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
@@ -528,8 +484,6 @@ func TestStateCommitNow_DoesNotTouchSaveRequestedOnSuccess(t *testing.T) {
 	}
 }
 
-//  9. exits 0 on success — also asserts no .bin files and no scrollback dir
-//     growth (per spec: synchronous commit writes only sessions.json).
 func TestStateCommitNow_ExitsZeroAndWritesNoBinFiles(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
@@ -547,8 +501,6 @@ func TestStateCommitNow_ExitsZeroAndWritesNoBinFiles(t *testing.T) {
 		t.Fatalf("expected exit 0, got: %v", err)
 	}
 
-	// scrollback/ may exist (Commit creates none on its own here; EnsureDir
-	// only creates the state dir). Either way, no .bin entries.
 	entries, err := os.ReadDir(filepath.Join(dir, "scrollback"))
 	if err == nil {
 		for _, e := range entries {
@@ -560,7 +512,6 @@ func TestStateCommitNow_ExitsZeroAndWritesNoBinFiles(t *testing.T) {
 		t.Errorf("unexpected scrollback dir stat error: %v", err)
 	}
 
-	// Commit was called with anyScrollbackChanged=false.
 	if f.commitCalls != 1 {
 		t.Fatalf("commit calls = %d, want 1", f.commitCalls)
 	}
@@ -569,15 +520,10 @@ func TestStateCommitNow_ExitsZeroAndWritesNoBinFiles(t *testing.T) {
 	}
 }
 
-// --- @portal-restoring short-circuit (task 1-2) ---
-
-// 11. short-circuit: no sessions.json write while @portal-restoring is set.
 func TestStateCommitNow_ShortCircuits_DoesNotWriteSessionsJSONWhenRestoring(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
 
-	// Seed sessions.json with a known byte sequence so we can prove
-	// byte-equivalence pre/post invocation.
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
@@ -597,7 +543,6 @@ func TestStateCommitNow_ShortCircuits_DoesNotWriteSessionsJSONWhenRestoring(t *t
 		t.Fatalf("expected exit 0, got: %v", err)
 	}
 
-	// None of the structural primitives may have fired.
 	if f.captureCalls != 0 {
 		t.Errorf("CaptureStructure called %d times; want 0", f.captureCalls)
 	}
@@ -614,8 +559,8 @@ func TestStateCommitNow_ShortCircuits_DoesNotWriteSessionsJSONWhenRestoring(t *t
 	}
 }
 
-// 12. short-circuit touches save.requested so the daemon's first
-// post-restoration tick commits without waiting for the gap rule.
+// The touch is what lets the daemon's first post-restoration tick commit
+// without waiting out the gap rule.
 func TestStateCommitNow_ShortCircuits_TouchesSaveRequested(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
@@ -638,7 +583,6 @@ func TestStateCommitNow_ShortCircuits_TouchesSaveRequested(t *testing.T) {
 	}
 }
 
-// 13. short-circuit emits an INFO-level structured log entry.
 func TestStateCommitNow_ShortCircuits_LogsInfoSkipEvent(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
@@ -667,7 +611,6 @@ func TestStateCommitNow_ShortCircuits_LogsInfoSkipEvent(t *testing.T) {
 	}
 }
 
-// 14. exit code is 0 on the short-circuit.
 func TestStateCommitNow_ShortCircuits_ExitsZero(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
@@ -683,8 +626,6 @@ func TestStateCommitNow_ShortCircuits_ExitsZero(t *testing.T) {
 	}
 }
 
-// 15. short-circuit with touch failure still exits 0 and logs the touch
-// failure at WARN.
 func TestStateCommitNow_ShortCircuits_ExitsZeroWhenSaveRequestedTouchFails(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
@@ -719,17 +660,14 @@ func TestStateCommitNow_ShortCircuits_ExitsZeroWhenSaveRequestedTouchFails(t *te
 	}
 }
 
-// 15b. IsRestoring query error → treat as marker presumed set: skip
-// structural commit, touch save.requested, exit 0, log WARN with the
-// underlying error. Risk priority: protect an in-flight restore over a
-// marginally-extended resurrection window on transient query failure.
+// A query error is treated as marker-presumed-set: protecting an in-flight
+// restore outranks a marginally-extended resurrection window.
 func TestStateCommitNow_TreatsIsRestoringErrorAsMarkerPresumedSet(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
 	t.Setenv("PORTAL_LOG_LEVEL", "warn")
 	sink := installCommitNowLogCapture(t)
 
-	// Seed sessions.json so we can verify byte-equivalence post-invocation.
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
@@ -750,13 +688,10 @@ func TestStateCommitNow_TreatsIsRestoringErrorAsMarkerPresumedSet(t *testing.T) 
 		t.Fatalf("expected exit 0 on isRestoring error, got: %v", err)
 	}
 
-	// IsRestoring is queried exactly once per invocation — no retry, no
-	// double-read.
 	if f.restoringCalls != 1 {
 		t.Errorf("IsRestoring calls = %d, want 1", f.restoringCalls)
 	}
 
-	// Structural primitives must NOT have fired.
 	if f.captureCalls != 0 {
 		t.Errorf("CaptureStructure called %d times; want 0", f.captureCalls)
 	}
@@ -764,7 +699,6 @@ func TestStateCommitNow_TreatsIsRestoringErrorAsMarkerPresumedSet(t *testing.T) 
 		t.Errorf("Commit called %d times; want 0", f.commitCalls)
 	}
 
-	// save.requested must be touched (daemon-fallback handoff).
 	if f.touchCalls != 1 {
 		t.Errorf("TouchSaveRequested calls = %d, want 1", f.touchCalls)
 	}
@@ -772,7 +706,6 @@ func TestStateCommitNow_TreatsIsRestoringErrorAsMarkerPresumedSet(t *testing.T) 
 		t.Errorf("save.requested must exist after isRestoring error; stat err = %v", err)
 	}
 
-	// sessions.json must be byte-identical to the seed.
 	got, err := os.ReadFile(sessionsPath)
 	if err != nil {
 		t.Fatalf("read sessions.json: %v", err)
@@ -781,7 +714,6 @@ func TestStateCommitNow_TreatsIsRestoringErrorAsMarkerPresumedSet(t *testing.T) 
 		t.Errorf("sessions.json mutated despite isRestoring error:\nwant %q\ngot  %q", seed, got)
 	}
 
-	// WARN log entry under ComponentDaemon, mentioning the underlying error.
 	logged := sink.Body()
 	if !strings.Contains(logged, "WARN") {
 		t.Errorf("log missing WARN level entry: %q", logged)
@@ -794,7 +726,6 @@ func TestStateCommitNow_TreatsIsRestoringErrorAsMarkerPresumedSet(t *testing.T) 
 	}
 }
 
-// 16. marker clear: happy path proceeds unchanged.
 func TestStateCommitNow_ProceedsNormallyWhenRestoringClear(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
@@ -827,17 +758,6 @@ func TestStateCommitNow_ProceedsNormallyWhenRestoringClear(t *testing.T) {
 	}
 }
 
-// --- Failure-path discipline (task 1-3) ---
-//
-// On any failure of CaptureStructure or Commit, commit-now must:
-//   (a) emit an ERROR log under "daemon" with the underlying err,
-//   (b) touch save.requested best-effort (daemon-fallback handoff),
-//   (c) exit non-zero — never panic, never print a Go stack trace.
-//
-// If the save.requested touch itself fails on a failure exit, log WARN and
-// preserve the non-zero exit (original failure dominates).
-
-// 17. CaptureStructure error → non-zero exit (sentinel empty-message error).
 func TestStateCommitNow_ExitsNonZeroWhenCaptureStructureFails(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
@@ -857,7 +777,6 @@ func TestStateCommitNow_ExitsNonZeroWhenCaptureStructureFails(t *testing.T) {
 	}
 }
 
-// 18. CaptureStructure error → touches save.requested.
 func TestStateCommitNow_TouchesSaveRequestedWhenCaptureStructureFails(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
@@ -880,7 +799,6 @@ func TestStateCommitNow_TouchesSaveRequestedWhenCaptureStructureFails(t *testing
 	}
 }
 
-// 19. CaptureStructure error → ERROR log under ComponentDaemon, mentions err.
 func TestStateCommitNow_LogsErrorWhenCaptureStructureFails(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
@@ -909,7 +827,6 @@ func TestStateCommitNow_LogsErrorWhenCaptureStructureFails(t *testing.T) {
 	}
 }
 
-// 20. Commit error → non-zero exit.
 func TestStateCommitNow_ExitsNonZeroWhenCommitFails(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
@@ -929,7 +846,6 @@ func TestStateCommitNow_ExitsNonZeroWhenCommitFails(t *testing.T) {
 	}
 }
 
-// 21. Commit error → touches save.requested.
 func TestStateCommitNow_TouchesSaveRequestedWhenCommitFails(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
@@ -956,11 +872,8 @@ func TestStateCommitNow_TouchesSaveRequestedWhenCommitFails(t *testing.T) {
 	}
 }
 
-// 22. Commit error pre-rename leaves sessions.json byte-identical.
-//
-// Mocked Commit returns an error WITHOUT calling the real state.Commit, which
-// models a Commit that fails before the atomic rename. The seeded sessions.json
-// must be untouched.
+// The mocked Commit errors without calling the real one, modelling a failure
+// before the atomic rename.
 func TestStateCommitNow_LeavesSessionsJSONByteIdenticalWhenCommitFailsBeforeRename(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
@@ -980,9 +893,8 @@ func TestStateCommitNow_LeavesSessionsJSONByteIdenticalWhenCommitFailsBeforeRena
 			Version:  state.SchemaVersion,
 			Sessions: []state.Session{},
 		},
-		// readIdxOverride avoids the seeded sentinel failing JSON decode; the
-		// seed is intentionally invalid JSON so we exercise the ReadIndex
-		// fallback path while still pinning the on-disk bytes.
+		// The seed is deliberately invalid JSON, so the override is what keeps
+		// the decode failure off the path while still pinning the on-disk bytes.
 		readIdxOverride: true,
 		readIdxSkip:     true,
 		commitErr:       errors.New("disk full pre-rename"),
@@ -1002,7 +914,6 @@ func TestStateCommitNow_LeavesSessionsJSONByteIdenticalWhenCommitFailsBeforeRena
 	}
 }
 
-// 23. Commit error → ERROR log.
 func TestStateCommitNow_LogsErrorWhenCommitFails(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
@@ -1035,7 +946,6 @@ func TestStateCommitNow_LogsErrorWhenCommitFails(t *testing.T) {
 	}
 }
 
-// 24. Both Commit and save.requested touch fail → still non-zero exit.
 func TestStateCommitNow_ExitsNonZeroWhenBothCommitAndTouchFail(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
@@ -1060,7 +970,6 @@ func TestStateCommitNow_ExitsNonZeroWhenBothCommitAndTouchFail(t *testing.T) {
 	}
 }
 
-// 25. Touch failure on a failure exit → WARN log alongside the primary ERROR.
 func TestStateCommitNow_LogsWarnForTouchFailureAlongsidePrimaryError(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
@@ -1100,8 +1009,7 @@ func TestStateCommitNow_LogsWarnForTouchFailureAlongsidePrimaryError(t *testing.
 	}
 }
 
-// 26. No panic on any failure path. Exercises capture-fail, commit-fail, and
-// both-fail without recover() so a panic propagates as a test failure.
+// No recover(): a panic must propagate as a test failure.
 func TestStateCommitNow_DoesNotPanicOnAnyFailurePath(t *testing.T) {
 	cases := []struct {
 		name string
@@ -1159,18 +1067,14 @@ func TestStateCommitNow_DoesNotPanicOnAnyFailurePath(t *testing.T) {
 				}
 			}()
 
-			// Non-zero exit is expected; we only care that no panic escaped.
 			_, _, _ = runStateCommitNow(t)
 		})
 	}
 }
 
-// 27. Failure exit error must be detectable via errors.Is(err, errCommitNowFailed)
-// so main.go's top-level handler can suppress stderr silently — the hook
-// subprocess has nowhere meaningful to send stderr; diagnostics route
-// exclusively through portal.log. Cobra (with SilenceErrors=true) is
-// responsible for not printing the error; main.go is responsible for not
-// duplicating it.
+// The failure must be detectable by errors.Is so the top-level handler can
+// suppress stderr: the hook subprocess has nowhere meaningful to send it and
+// diagnostics route through portal.log.
 func TestStateCommitNow_FailureExitErrorIsDetectableSentinel(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
@@ -1193,9 +1097,6 @@ func TestStateCommitNow_FailureExitErrorIsDetectableSentinel(t *testing.T) {
 	}
 }
 
-// 27b. failCommitNow must wrap the underlying cause via fmt.Errorf("%w: %v", ...)
-// so errors.Unwrap surfaces the cause. The empty-message convention is gone;
-// silent-exit is now driven by errors.Is, not string comparison.
 func TestStateCommitNow_FailureExitPreservesCauseViaUnwrap(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
@@ -1218,23 +1119,17 @@ func TestStateCommitNow_FailureExitPreservesCauseViaUnwrap(t *testing.T) {
 	if unwrapped == nil {
 		t.Fatalf("errors.Unwrap returned nil; want a wrapped error chain")
 	}
-	// The wrapped error chain should mention the cause's text (via %v wrap).
 	if !strings.Contains(err.Error(), "tmux unreachable cause") {
 		t.Errorf("err.Error() = %q; must contain the underlying cause text", err.Error())
 	}
 }
 
-// 27c. errCommitNowFailed must carry a descriptive (non-empty) message — the
-// empty-string convention is no longer load-bearing.
 func TestErrCommitNowFailed_HasDescriptiveMessage(t *testing.T) {
 	if errCommitNowFailed.Error() == "" {
 		t.Fatal("errCommitNowFailed.Error() must be non-empty; the silent-exit contract is now driven by errors.Is, not string compare")
 	}
 }
 
-// 27d. IsSilentExitError must return true for the commit-now sentinel and
-// any error wrapping it, so main.go's stderr-suppression guard is
-// compile-time-linked to the cmd package.
 func TestIsSilentExitError_DetectsCommitNowSentinel(t *testing.T) {
 	if !IsSilentExitError(errCommitNowFailed) {
 		t.Error("IsSilentExitError(errCommitNowFailed) = false; want true")
@@ -1245,8 +1140,6 @@ func TestIsSilentExitError_DetectsCommitNowSentinel(t *testing.T) {
 	}
 }
 
-// 27f. IsSilentExitError must return false for ordinary errors so the
-// suppression guard does not over-fire.
 func TestIsSilentExitError_RejectsOrdinaryErrors(t *testing.T) {
 	if IsSilentExitError(nil) {
 		t.Error("IsSilentExitError(nil) = true; want false")
@@ -1256,7 +1149,6 @@ func TestIsSilentExitError_RejectsOrdinaryErrors(t *testing.T) {
 	}
 }
 
-// 10. registered subcommand discoverability.
 func TestStateCommitNow_IsRegisteredAsStateSubcommand(t *testing.T) {
 	var found bool
 	for _, c := range stateCmd.Commands() {

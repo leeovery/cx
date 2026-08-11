@@ -7,9 +7,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// killDispatchModel builds a Sessions model wired with a killer and a known
-// session set (the cursor starts on the first row), for exercising the kill-confirm
-// dispatch behaviour (NOT the render shell — that is covered by kill_modal_test.go).
 func killDispatchModel(t *testing.T) (Model, *killerStub) {
 	t.Helper()
 	sessions := []tmux.Session{
@@ -22,8 +19,6 @@ func killDispatchModel(t *testing.T) (Model, *killerStub) {
 		},
 	}
 	reader := &recordingReader{bytes: []byte("hi")}
-	// killAndRefresh re-lists sessions after the kill, so a lister is required for
-	// the `y` parity path (draining the cmd) not to nil-deref.
 	lister := &stepListerStub{steps: [][]tmux.Session{sessions}}
 	m := modelWithSeamsAndLister(t, sessions, enum, reader, lister)
 	killer := &killerStub{}
@@ -31,11 +26,9 @@ func killDispatchModel(t *testing.T) (Model, *killerStub) {
 	return m, killer
 }
 
-// TestKillKey_StoresNameAndWindows asserts handleKillKey records BOTH the target's
-// name and its window count (the count feeds the modal's `· N window(s)` line).
 func TestKillKey_StoresNameAndWindows(t *testing.T) {
 	m, _ := killDispatchModel(t)
-	m.sessionList.Select(0) // alpha, 3 windows
+	m.sessionList.Select(0)
 
 	updated, _ := m.Update(tea.KeyPressMsg{Code: 'k', Text: "k"})
 	got := updated.(Model)
@@ -51,12 +44,9 @@ func TestKillKey_StoresNameAndWindows(t *testing.T) {
 	}
 }
 
-// TestKillConfirm_YConfirmsParity asserts `y` confirms exactly as before: it closes
-// the modal, clears both pending fields, and emits the killAndRefresh cmd that calls
-// KillSession with the stored name (behaviour parity — the reskin only restyles).
 func TestKillConfirm_YConfirmsParity(t *testing.T) {
 	m, killer := killDispatchModel(t)
-	m.sessionList.Select(1) // bravo, 1 window
+	m.sessionList.Select(1)
 
 	updated, _ := m.Update(tea.KeyPressMsg{Code: 'k', Text: "k"})
 	afterK := updated.(Model)
@@ -79,19 +69,15 @@ func TestKillConfirm_YConfirmsParity(t *testing.T) {
 	if cmd == nil {
 		t.Fatalf("y must emit the killAndRefresh cmd; got nil")
 	}
-	// Draining the cmd kills the stored name (parity with killAndRefresh).
 	_ = cmd()
 	if killer.killedName != "bravo" {
 		t.Errorf("killAndRefresh must kill the stored name; KillSession(%q), want %q", killer.killedName, "bravo")
 	}
 }
 
-// TestKillConfirm_EscCancelsClearsBoth asserts `Esc` cancels: it closes the modal,
-// emits no cmd (no kill), and clears BOTH pendingKillName and pendingKillWindows
-// (no stale state on cancel).
 func TestKillConfirm_EscCancelsClearsBoth(t *testing.T) {
 	m, killer := killDispatchModel(t)
-	m.sessionList.Select(0) // alpha, 3 windows
+	m.sessionList.Select(0)
 
 	updated, _ := m.Update(tea.KeyPressMsg{Code: 'k', Text: "k"})
 	afterK := updated.(Model)
@@ -116,11 +102,9 @@ func TestKillConfirm_EscCancelsClearsBoth(t *testing.T) {
 	}
 }
 
-// TestKillConfirm_NIgnored asserts `n` is no longer a cancel key (§8.3 drops n):
-// it is ignored — the modal stays open, no kill fires, the pending state is intact.
 func TestKillConfirm_NIgnored(t *testing.T) {
 	m, killer := killDispatchModel(t)
-	m.sessionList.Select(0) // alpha, 3 windows
+	m.sessionList.Select(0)
 
 	updated, _ := m.Update(tea.KeyPressMsg{Code: 'k', Text: "k"})
 	afterK := updated.(Model)

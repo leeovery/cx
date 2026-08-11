@@ -1,8 +1,5 @@
 package cmd
 
-// Tests in this file mutate the package-level bootstrapWarnings sink and
-// MUST NOT use t.Parallel.
-
 import (
 	"bytes"
 	"strings"
@@ -95,7 +92,6 @@ func TestBootstrapWarningsSink_ConcurrentAddAndDrainAreSafe(t *testing.T) {
 	const perGoroutine = 64
 	var wg sync.WaitGroup
 
-	// Concurrent Adds.
 	wg.Add(goroutines)
 	for range goroutines {
 		go func() {
@@ -105,7 +101,6 @@ func TestBootstrapWarningsSink_ConcurrentAddAndDrainAreSafe(t *testing.T) {
 			}
 		}()
 	}
-	// Concurrent Drains, racing with Adds.
 	drained := make(chan int, goroutines)
 	wg.Add(goroutines)
 	for range goroutines {
@@ -117,11 +112,8 @@ func TestBootstrapWarningsSink_ConcurrentAddAndDrainAreSafe(t *testing.T) {
 	wg.Wait()
 	close(drained)
 
-	// Final drain to flush whatever's left.
 	finalRemainder := len(s.Drain())
 
-	// Sum of every observed Drain plus the final remainder must equal the
-	// total Adds. Disjoint slices are the contract.
 	total := finalRemainder
 	for n := range drained {
 		total += n
@@ -132,9 +124,6 @@ func TestBootstrapWarningsSink_ConcurrentAddAndDrainAreSafe(t *testing.T) {
 	}
 }
 
-// TestStageBootstrapWarningsOnModel verifies the openTUI glue: drain the
-// package-level sink and stage any pending warnings on the model so Init
-// can fold them into BootstrapCompleteMsg.
 func TestStageBootstrapWarningsOnModel(t *testing.T) {
 	t.Run("empty sink leaves model pending warnings nil", func(t *testing.T) {
 		bootstrapWarnings = &BootstrapWarningsSink{}
@@ -168,14 +157,12 @@ func TestStageBootstrapWarningsOnModel(t *testing.T) {
 			t.Errorf("got[1].Lines = %v, want %v", got[1].Lines, wantSecond)
 		}
 
-		// Sink drained.
 		if remaining := bootstrapWarnings.Drain(); len(remaining) != 0 {
 			t.Errorf("sink not drained; remaining = %d", len(remaining))
 		}
 	})
 }
 
-// equalStringSlices reports whether a and b are element-wise equal.
 func equalStringSlices(a, b []string) bool {
 	if len(a) != len(b) {
 		return false
@@ -188,10 +175,6 @@ func equalStringSlices(a, b []string) bool {
 	return true
 }
 
-// TestPersistentPreRunE_EmitsWarningsToStderrOnCLIPath verifies that for
-// non-TUI commands, PersistentPreRunE drains every accumulated warning to
-// stderr in orchestrator-observation order before the command's RunE
-// executes.
 func TestPersistentPreRunE_EmitsWarningsToStderrOnCLIPath(t *testing.T) {
 	resetBootstrapOnce(t)
 
@@ -232,7 +215,6 @@ func TestPersistentPreRunE_EmitsWarningsToStderrOnCLIPath(t *testing.T) {
 		}
 	}
 
-	// Order: saver lines must precede corrupt-index lines.
 	saverIdx := strings.Index(got, "Portal save daemon failed")
 	corruptIdx := strings.Index(got, "Portal state file unusable")
 	if saverIdx < 0 || corruptIdx < 0 {
@@ -243,15 +225,9 @@ func TestPersistentPreRunE_EmitsWarningsToStderrOnCLIPath(t *testing.T) {
 	}
 }
 
-// TestPersistentPreRunE_DoesNotEmitWarningsForOpenWithNoArgs verifies the
-// TUI path: when invoked as `portal open` with zero positional args, the
-// warnings stay buffered in the sink so openTUI (Phase 6 task 6-10) can
-// drain them post-loading-page dismissal.
 func TestPersistentPreRunE_DoesNotEmitWarningsForOpenWithNoArgs(t *testing.T) {
 	resetBootstrapOnce(t)
 
-	// Stub openTUIFunc so the TUI program never actually launches; we only
-	// care about PersistentPreRunE's stderr behaviour up to that point.
 	originalOpenTUI := openTUIFunc
 	openTUIFunc = func(_ *cobra.Command, _ string, _ []string, _ bool) error { return nil }
 	t.Cleanup(func() { openTUIFunc = originalOpenTUI })
@@ -274,31 +250,25 @@ func TestPersistentPreRunE_DoesNotEmitWarningsForOpenWithNoArgs(t *testing.T) {
 		t.Errorf("stderr must be empty on TUI path (warnings buffered for openTUI); got %q", stderr.String())
 	}
 
-	// Sink retains the warning for openTUI to drain.
 	remaining := bootstrapWarnings.Drain()
 	if len(remaining) != 1 {
 		t.Errorf("sink remaining warnings = %d, want 1 (still buffered for TUI)", len(remaining))
 	}
 }
 
-// TestPersistentPreRunE_EmitsWarningsForOpenWithPositionalArg verifies
-// that `portal open <path>` is a CLI-shape invocation: PersistentPreRunE
-// must emit warnings to stderr before openPath runs.
 func TestPersistentPreRunE_EmitsWarningsForOpenWithPositionalArg(t *testing.T) {
 	resetBootstrapOnce(t)
 
 	runner := &recordingRunner{
 		warnings: []bootstrap.Warning{bootstrap.SaverDownWarning()},
 	}
-	// Provide the tmux client that production's PersistentPreRunE always injects
-	// into context — the session-domain check at the front of open resolution
-	// consults it via buildQueryResolver → tmuxClient(cmd).
+	// The session-domain check at the front of open resolution reads the tmux
+	// client production's PersistentPreRunE always injects into context.
 	bootstrapDeps = &BootstrapDeps{Orchestrator: runner, Client: tmux.NewClient(&stubCommander{})}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
-	// Resolution will fail on a non-existent path, but PersistentPreRunE's
-	// warning emission happens BEFORE RunE, so the resolution failure is
-	// irrelevant to this assertion.
+	// Resolution fails on the non-existent path; warning emission happens before
+	// RunE, so that failure is irrelevant here.
 	resetRootCmd()
 	var stderr bytes.Buffer
 	rootCmd.SetErr(&stderr)

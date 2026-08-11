@@ -9,9 +9,6 @@ import (
 	"time"
 )
 
-// recordAttrs flattens a captured slog.Record's attrs into a map, resolving each
-// value to its string form. Used by the Close-emission tests to assert on the
-// code/took attrs without depending on rendered text.
 func recordAttrs(r slog.Record) map[string]slog.Value {
 	attrs := make(map[string]slog.Value, r.NumAttrs())
 	r.Attrs(func(a slog.Attr) bool {
@@ -21,7 +18,6 @@ func recordAttrs(r slog.Record) map[string]slog.Value {
 	return attrs
 }
 
-// exitRecords returns every "exit" record captured by rec.
 func exitRecords(rec *recordingHandler) []slog.Record {
 	rec.mu.Lock()
 	defer rec.mu.Unlock()
@@ -121,10 +117,6 @@ func TestClose_EmitsProcessComponent(t *testing.T) {
 	if len(exits) != 1 {
 		t.Fatalf("expected exactly 1 process: exit record, got %d", len(exits))
 	}
-	// component arrives via For(processComponent) -> root.With("component",...),
-	// which recordingHandler.WithAttrs discards (returns h), so it does not land
-	// on the record's own attrs. Assert the component via a rendering handler in
-	// the level-bypass test; here just confirm the message is the lifecycle exit.
 	if got := exits[0].Message; got != "exit" {
 		t.Errorf("process exit message = %q, want %q", got, "exit")
 	}
@@ -138,9 +130,7 @@ func TestClose_NonNegativeTookForNormalInitThenClose(t *testing.T) {
 		t.Fatalf("Init returned error: %v", err)
 	}
 
-	// Swap the capture handler in AFTER Init: Init's own setHandler call would
-	// otherwise displace it. startTime is already captured by Init, so the took
-	// computed at Close still reflects the real Init->Close window.
+	// The swap must follow Init: Init's own setHandler would otherwise displace it.
 	rec := &recordingHandler{}
 	SetTestHandler(t, rec)
 
@@ -166,10 +156,8 @@ func TestClose_SafeBeforeInitEmitsBoundedTook(t *testing.T) {
 	rec := &recordingHandler{}
 	SetTestHandler(t, rec)
 
-	// Model a never-Init'd process: zero-value startTime.
 	startTime = time.Time{}
 
-	// Must not panic.
 	Close(0)
 
 	exits := exitRecords(rec)
@@ -181,7 +169,6 @@ func TestClose_SafeBeforeInitEmitsBoundedTook(t *testing.T) {
 	if !ok {
 		t.Fatalf("process: exit record missing took attr; attrs=%v", attrs)
 	}
-	// time.Since(zero) is a large but valid (finite, non-negative) duration.
 	if tookVal.Duration() <= 0 {
 		t.Errorf("took before Init = %v, want a large positive bounded duration", tookVal.Duration())
 	}
@@ -213,8 +200,6 @@ func TestClose_EmitsExactlyOneExitLinePerCall(t *testing.T) {
 func TestClose_ExitLineVisibleAtConfiguredWarn(t *testing.T) {
 	snapshotInitState(t)
 
-	// A real text handler configured at WARN: it applies the authoritative level
-	// filter, so only the lifecycle bypass lets process: exit through.
 	var buf bytes.Buffer
 	SetTestHandler(t, newTextHandler(&buf, slog.LevelWarn, 12345, "0.5.0", "tui"))
 
@@ -232,7 +217,6 @@ func TestClose_ExitLineVisibleAtConfiguredWarn(t *testing.T) {
 	if !strings.Contains(line, "took=") {
 		t.Errorf("rendered exit line missing took=, got: %q", line)
 	}
-	// Baselines are auto-injected per-record by the handler, not passed by Close.
 	for _, want := range []string{"pid=12345", "version=0.5.0", "process_role=tui"} {
 		if !strings.Contains(line, want) {
 			t.Errorf("rendered exit line missing baseline %q, got: %q", want, line)

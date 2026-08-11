@@ -10,7 +10,6 @@ import (
 
 func TestShowGlobalHooksForEvent(t *testing.T) {
 	t.Run("calls show-hooks -g <event> and returns raw output", func(t *testing.T) {
-		// Raw output for a single per-event read; the wrapper must not normalize it.
 		raw := "pane-focus-out[0] run-shell 'command -v portal'\n"
 		mock := &MockCommander{Output: raw}
 		client := tmux.NewClient(mock)
@@ -106,7 +105,6 @@ func TestAppendGlobalHook(t *testing.T) {
 		mock := &MockCommander{}
 		client := tmux.NewClient(mock)
 
-		// Single-quoted command — must arrive verbatim as one argv element.
 		command := `run-shell 'command -v portal >/dev/null 2>&1 && portal state signal-hydrate #{session_name}'`
 
 		err := client.AppendGlobalHook("client-attached", command)
@@ -118,7 +116,6 @@ func TestAppendGlobalHook(t *testing.T) {
 		if len(mock.Calls) != 1 {
 			t.Fatalf("expected 1 call, got %d", len(mock.Calls))
 		}
-		// The command must be a single argv element (index 3) with single quotes intact.
 		if len(mock.Calls[0]) != 4 {
 			t.Fatalf("got %d args %v, want 4 args", len(mock.Calls[0]), mock.Calls[0])
 		}

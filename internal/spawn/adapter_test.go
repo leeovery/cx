@@ -3,9 +3,6 @@ package spawn
 import "testing"
 
 func TestResultOutcomes_AllThreeDistinct(t *testing.T) {
-	// "it distinguishes all three outcomes with distinct enum values"
-	// ("unsupported" is a resolution-tier outcome, not an Adapter Outcome — see
-	// adapter.go; OpenWindow only ever reports these three.)
 	seen := map[Outcome]bool{}
 	for _, r := range []Result{
 		Success("s"),
@@ -18,7 +15,6 @@ func TestResultOutcomes_AllThreeDistinct(t *testing.T) {
 		t.Fatalf("expected 3 distinct Outcome values, got %d: %v", len(seen), seen)
 	}
 
-	// Each constructor stamps its designated Outcome constant.
 	if got := Success("").Outcome; got != OutcomeSuccess {
 		t.Errorf("Success().Outcome = %v, want OutcomeSuccess", got)
 	}
@@ -31,7 +27,6 @@ func TestResultOutcomes_AllThreeDistinct(t *testing.T) {
 }
 
 func TestResultOK_TrueOnlyForSuccess(t *testing.T) {
-	// "it reports OK only for the success outcome"
 	if !Success("ok").OK() {
 		t.Errorf("Success(...).OK() = false, want true")
 	}
@@ -46,10 +41,6 @@ func TestResultOK_TrueOnlyForSuccess(t *testing.T) {
 }
 
 func TestResultZeroValue_IsUnknownNotSuccess(t *testing.T) {
-	// The zero value of Outcome must be the invalid/unset sentinel
-	// OutcomeUnknown, mirroring RecipeKind's zero-invalid treatment — so a
-	// bare Result{} is never silently classified as a success that could gate
-	// a self-attach.
 	var zero Outcome
 	if zero != OutcomeUnknown {
 		t.Errorf("zero Outcome = %v, want OutcomeUnknown", zero)
@@ -60,7 +51,6 @@ func TestResultZeroValue_IsUnknownNotSuccess(t *testing.T) {
 }
 
 func TestResult_RoundTripsDetailAndGuidance(t *testing.T) {
-	// "it round-trips opaque detail and guidance without interpretation"
 	r := PermissionRequired("evt -1743", "grant Automation for Ghostty")
 	if r.Detail != "evt -1743" {
 		t.Errorf("Detail = %q, want %q", r.Detail, "evt -1743")
@@ -69,8 +59,6 @@ func TestResult_RoundTripsDetailAndGuidance(t *testing.T) {
 		t.Errorf("Guidance = %q, want %q", r.Guidance, "grant Automation for Ghostty")
 	}
 
-	// Every non-permission constructor carries Detail verbatim and leaves
-	// Guidance empty (Guidance is populated only by the permission path).
 	for _, tc := range []struct {
 		name   string
 		got    Result

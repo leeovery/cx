@@ -11,18 +11,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// The §5 multi-select marker gate. These tests pin the selection ● the delegate
-// draws in the fixed 2-cell left-bar column for a MARKED row: violet on the dark
-// canvas, carried on the bg.selection tint when the row is also the cursor,
-// glyph-only under NO_COLOR, and NEVER shifting the name/count/attached columns
-// (the ● occupies the SAME 2-cell column the ▌ selector would). The set is keyed
-// on Session.Name, so a By-Tag multi-tag session shows the ● on every one of its
-// rows, and a HeaderItem never carries one.
-//
-// No t.Parallel() — the package-level mock convention and shared canvas helpers
-// make parallelism unsafe across this package's tests.
-
-// markedSet builds a Selected set from the given session names.
 func markedSet(names ...string) map[string]struct{} {
 	set := make(map[string]struct{}, len(names))
 	for _, n := range names {
@@ -31,9 +19,6 @@ func markedSet(names ...string) map[string]struct{} {
 	return set
 }
 
-// TestSessionRow_MarkedShowsVioletBulletInLeftBar asserts a marked (multi-select)
-// row renders the ● at the far-left of the fixed 2-cell left-bar column in
-// accent.primary (dark canvas), while an unmarked row in the same set renders no ●.
 func TestSessionRow_MarkedShowsVioletBulletInLeftBar(t *testing.T) {
 	d := SessionDelegate{Theme: testDarkTheme(t), MultiSelect: true, Selected: markedSet("alpha")}
 	items := flatItems(
@@ -41,7 +26,6 @@ func TestSessionRow_MarkedShowsVioletBulletInLeftBar(t *testing.T) {
 		tmux.Session{Name: "bravo", Windows: 1, Attached: false},
 	)
 
-	// alpha is marked; render it unselected (cursor parked on bravo).
 	marked := renderRow(d, 80, items, 0, 1)
 	if col := visibleColOf(marked, multiSelectMarker); col != 0 {
 		t.Errorf("marked row ● should sit at the left-bar col 0, got col %d: %q", col, ansi.Strip(marked))
@@ -50,62 +34,44 @@ func TestSessionRow_MarkedShowsVioletBulletInLeftBar(t *testing.T) {
 		t.Errorf("marked ● missing accent.violet fg %q: %q", seq, escSeq(marked))
 	}
 
-	// bravo is NOT marked and unattached; render it unselected — no ● anywhere.
 	unmarked := renderRow(d, 80, items, 1, 0)
 	if strings.Contains(ansi.Strip(unmarked), multiSelectMarker) {
 		t.Errorf("unmarked, unattached row must render no ●: %q", ansi.Strip(unmarked))
 	}
 }
 
-// TestSessionRow_NoBulletWhenMultiSelectFalse asserts the marker is gated on the
-// MultiSelect flag: a populated Selected set with MultiSelect == false renders no
-// ● (the mode is off, so the set is inert).
 func TestSessionRow_NoBulletWhenMultiSelectFalse(t *testing.T) {
 	d := SessionDelegate{Theme: testDarkTheme(t), MultiSelect: false, Selected: markedSet("alpha")}
 	items := flatItems(
 		tmux.Session{Name: "alpha", Windows: 1, Attached: false},
 		tmux.Session{Name: "bravo", Windows: 1, Attached: false},
 	)
-	// alpha is in the set but MultiSelect is off; render it unselected.
 	out := renderRow(d, 80, items, 0, 1)
 	if strings.Contains(ansi.Strip(out), multiSelectMarker) {
 		t.Errorf("MultiSelect==false must render no ● even for a set member: %q", ansi.Strip(out))
 	}
 }
 
-// TestSessionRow_CursorRowMarkedShowsBandAndBullet asserts the cursor+marked row
-// renders BOTH the bg.selection band AND the ● (the marker takes precedence over
-// the ▌ selector in the shared left-bar column, and its violet is carried on the
-// selection tint).
 func TestSessionRow_CursorRowMarkedShowsBandAndBullet(t *testing.T) {
 	d := SessionDelegate{Theme: testDarkTheme(t), MultiSelect: true, Selected: markedSet("alpha")}
 	items := flatItems(tmux.Session{Name: "alpha", Windows: 2, Attached: false})
 
-	// Cursor ON alpha (selected) AND alpha is marked.
 	out := renderRow(d, 80, items, 0, 0)
 
 	if col := visibleColOf(out, multiSelectMarker); col != 0 {
 		t.Errorf("cursor+marked row ● should sit at left-bar col 0, got col %d: %q", col, ansi.Strip(out))
 	}
-	// The ● supersedes the ▌ selector in this column.
 	if strings.Contains(ansi.Strip(out), selectorBar) {
 		t.Errorf("cursor+marked row must render ● not the ▌ selector: %q", ansi.Strip(out))
 	}
-	// The bg.selection band still spans the row.
 	if params := selectionBgParams(t, testDarkTheme(t)); !lineHasBgParams(out, params) {
 		t.Errorf("cursor+marked row missing the bg.selection tint %q: %q", params, escSeq(out))
 	}
-	// The ● is violet.
 	if seq := tokenFgSeq(t, testDarkTheme(t).AccentPrimary); !strings.Contains(out, seq) {
 		t.Errorf("cursor+marked ● missing accent.violet fg %q: %q", seq, escSeq(out))
 	}
 }
 
-// TestSessionRow_MarkedAlignmentByteUnchanged is the §3.5 / §4.1 no-width-shift
-// gate: a marked and an unmarked row (same session, same width) place the name,
-// the window count, and the attached marker at the SAME columns, and the rows are
-// the same total width — the ● occupies the same 2-cell column the blank/▌ left
-// bar would, with no downstream shift.
 func TestSessionRow_MarkedAlignmentByteUnchanged(t *testing.T) {
 	const w = 80
 	sess := tmux.Session{Name: "alpha", Windows: 3, Attached: true}
@@ -128,9 +94,6 @@ func TestSessionRow_MarkedAlignmentByteUnchanged(t *testing.T) {
 	}
 }
 
-// TestSessionRow_ByTagMarkedBulletOnEveryRow asserts the By-Tag multi-membership
-// case: a session that spans several grouped rows (all sharing Session.Name) is
-// marked on that single name, so EVERY one of its rows renders the ●.
 func TestSessionRow_ByTagMarkedBulletOnEveryRow(t *testing.T) {
 	sess := tmux.Session{Name: "portal-abc", Windows: 1, Attached: false}
 	items := []list.Item{
@@ -139,7 +102,6 @@ func TestSessionRow_ByTagMarkedBulletOnEveryRow(t *testing.T) {
 	}
 	d := SessionDelegate{Theme: testDarkTheme(t), MultiSelect: true, Selected: markedSet("portal-abc")}
 
-	// Render each row unselected (cursor parked on the other row).
 	for _, tc := range []struct{ index, sel int }{{0, 1}, {1, 0}} {
 		out := renderRow(d, 80, items, tc.index, tc.sel)
 		bulletCol := visibleColOf(out, multiSelectMarker)
@@ -154,9 +116,6 @@ func TestSessionRow_ByTagMarkedBulletOnEveryRow(t *testing.T) {
 	}
 }
 
-// TestSessionRow_HeaderNeverRendersBullet asserts a HeaderItem never carries a ●,
-// even while the delegate is in multi-select mode (the header render arm is
-// untouched by the marker logic).
 func TestSessionRow_HeaderNeverRendersBullet(t *testing.T) {
 	d := SessionDelegate{Theme: testDarkTheme(t), MultiSelect: true, Selected: markedSet("work")}
 	items := []list.Item{HeaderItem{Heading: "work", Count: 3, Key: "work"}}
@@ -166,12 +125,6 @@ func TestSessionRow_HeaderNeverRendersBullet(t *testing.T) {
 	}
 }
 
-// TestMultiSelectMarkerReflectsSetLive is the model-level wiring gate: the
-// session delegate must track the multi-select set live, so marking a session
-// through the `m` toggle shows the ● in the rendered list on the next frame, and
-// Esc-exiting clears it. It proves applyCanvasMode/refreshSessionDelegate feed the
-// current multiSelectMode + selectedSessions into the delegate (the default
-// SessionDelegate the list is constructed with has MultiSelect == false).
 func TestMultiSelectMarkerReflectsSetLive(t *testing.T) {
 	m := NewModelWithSessions([]tmux.Session{
 		{Name: "alpha", Windows: 1, Attached: false},
@@ -182,7 +135,6 @@ func TestMultiSelectMarkerReflectsSetLive(t *testing.T) {
 		t.Fatalf("precondition: no ● should render before multi-select mode")
 	}
 
-	// Enter mode: mark-on-entry marks the highlighted row (alpha).
 	m = pressSession(t, m, pressM)
 	if !m.IsSessionSelected("alpha") {
 		t.Fatalf("precondition: alpha should be marked after entering")
@@ -191,7 +143,6 @@ func TestMultiSelectMarkerReflectsSetLive(t *testing.T) {
 		t.Errorf("marking a session must render the ● (delegate not refreshed): %q", ansi.Strip(m.sessionList.View()))
 	}
 
-	// Esc exits and clears the set; the ● must disappear.
 	updated, _ := m.updateSessionList(tea.KeyPressMsg{Code: tea.KeyEscape})
 	m = updated.(Model)
 	if strings.Contains(ansi.Strip(m.sessionList.View()), multiSelectMarker) {
@@ -199,18 +150,12 @@ func TestMultiSelectMarkerReflectsSetLive(t *testing.T) {
 	}
 }
 
-// TestSessionRow_MarkedColourlessGlyphSurvivesNoHue asserts the NO_COLOR carve-out
-// (§2.5): a marked row under Colourless keeps the ● glyph (structurally present)
-// but emits NO violet hue and NO canvas/selection background — glyph-backed, never
-// colour-only.
 func TestSessionRow_MarkedColourlessGlyphSurvivesNoHue(t *testing.T) {
 	d := SessionDelegate{Theme: testDarkTheme(t), Colourless: true, MultiSelect: true, Selected: markedSet("alpha")}
 	items := flatItems(
 		tmux.Session{Name: "alpha", Windows: 1, Attached: false},
 		tmux.Session{Name: "bravo", Windows: 1, Attached: false},
 	)
-	// Marked + selected (cursor on alpha): the glyph must still render, with no hue
-	// and no band.
 	out := renderRow(d, 80, items, 0, 0)
 
 	if !strings.Contains(ansi.Strip(out), multiSelectMarker) {

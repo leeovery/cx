@@ -13,9 +13,7 @@ import (
 	"github.com/leeovery/portal/internal/state"
 )
 
-// inodeOf returns the inode number of path via lstat (so symlinks report the
-// link's own inode, not the target's). Tests use it to assert that
-// CreateFIFO replaces — not reuses — an existing inode at the path.
+// Lstat, so a symlink reports its own inode rather than the target's.
 func inodeOf(t *testing.T, path string) uint64 {
 	t.Helper()
 	info, err := os.Lstat(path)
@@ -29,8 +27,6 @@ func inodeOf(t *testing.T, path string) uint64 {
 	return uint64(st.Ino)
 }
 
-// assertIsFIFO fails the test unless path is a FIFO (named pipe) with the
-// given permission bits. Uses Lstat so a lingering symlink would be caught.
 func assertIsFIFO(t *testing.T, path string, wantPerm os.FileMode) {
 	t.Helper()
 	info, err := os.Lstat(path)
@@ -97,11 +93,6 @@ func TestCreateFIFO_ReplacesStaleFIFOCleanly(t *testing.T) {
 }
 
 func TestCreateFIFO_RecreatesEvenWhenExistingFIFOIsAlreadyMode0600(t *testing.T) {
-	// Distinct from the "stale FIFO" test in intent: we are explicitly
-	// asserting that CreateFIFO does not short-circuit when the existing
-	// FIFO already has the desired mode. The contract is "always remove +
-	// recreate" so callers can rely on a fresh inode (no lingering reader
-	// from a dead helper holding the old end open).
 	dir := t.TempDir()
 	path := filepath.Join(dir, "fifo")
 
@@ -152,11 +143,8 @@ func TestCreateFIFO_ReplacesSymlinkWithFIFO(t *testing.T) {
 		t.Fatalf("CreateFIFO: %v", err)
 	}
 
-	// Path itself is now a FIFO, not a symlink.
 	assertIsFIFO(t, link, 0o600)
 
-	// Symlink target must remain untouched — CreateFIFO must not have
-	// followed the link and clobbered the target.
 	data, err := os.ReadFile(target)
 	if err != nil {
 		t.Fatalf("read target: %v", err)
@@ -174,8 +162,6 @@ func TestCreateFIFO_ReplacesSymlinkWithFIFO(t *testing.T) {
 }
 
 func TestCreateFIFO_ToleratesENOENTFromOSRemove(t *testing.T) {
-	// Fresh, never-existed path: os.Remove returns ENOENT, which CreateFIFO
-	// must swallow silently.
 	dir := t.TempDir()
 	path := filepath.Join(dir, "never-existed")
 
@@ -187,9 +173,6 @@ func TestCreateFIFO_ToleratesENOENTFromOSRemove(t *testing.T) {
 }
 
 func TestCreateFIFO_WrapsMkfifoErrorWithPathWhenParentMissing(t *testing.T) {
-	// Parent directory does not exist → Mkfifo returns ENOENT. The error
-	// must be wrapped with the path so log readers can identify the offending
-	// FIFO without grepping.
 	dir := t.TempDir()
 	path := filepath.Join(dir, "nonexistent-subdir", "fifo")
 
@@ -207,11 +190,6 @@ func TestCreateFIFO_WrapsMkfifoErrorWithPathWhenParentMissing(t *testing.T) {
 }
 
 func TestCreateFIFO_PreservesPathErrorSoErrorsIsPermissionTraverses(t *testing.T) {
-	// Boundary class 3 contract: a non-ENOENT os.Remove failure must wrap with
-	// %w so the underlying *os.PathError stays reachable. Stripping write
-	// permission from the parent dir makes the unlink fail with EACCES;
-	// errors.Is(err, fs.ErrPermission) must traverse the "remove existing: %w"
-	// wrap. (An errors.New or %s wrap would drop it.)
 	if runtime.GOOS == "windows" {
 		t.Skip("chmod-based EACCES setup is unix-specific")
 	}
@@ -250,18 +228,17 @@ func TestCreateFIFO_WrapsRemoveErrorWithPath(t *testing.T) {
 	}
 
 	parent := t.TempDir()
-	// Seed a regular file we want CreateFIFO to attempt to remove.
 	path := filepath.Join(parent, "fifo")
 	if err := os.WriteFile(path, []byte("seed"), 0o600); err != nil {
 		t.Fatalf("seed file: %v", err)
 	}
 
-	// Strip write permission from the parent so unlink fails with EACCES.
+	// Strip parent write permission so the unlink fails with EACCES.
 	if err := os.Chmod(parent, 0o500); err != nil {
 		t.Fatalf("chmod parent: %v", err)
 	}
 	t.Cleanup(func() {
-		// Restore so t.TempDir's own cleanup can succeed.
+		// Restore so t.TempDir's cleanup can succeed.
 		_ = os.Chmod(parent, 0o700)
 	})
 

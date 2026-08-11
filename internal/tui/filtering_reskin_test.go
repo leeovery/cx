@@ -12,29 +12,9 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// This file is the §7 / §7.1 / §7.2 filtering-reskin gate (task 2-8). It pins the
-// MV treatment of the bubbles/list filter input: the `/` prompt + the live query
-// in accent.attention, the two mutually-exclusive modes (input-active = typing,
-// cursor at end, NO selected row; list-active = locked cursor-less query, selected
-// row, no input bg tint), the two contextual footers driven by the filter mode,
-// and the §5.1 flatten-on-filter behaviour (grouped headings vanish the instant a
-// query is typed via HeaderItem.FilterValue()==""). The filter ENGINE is unchanged
-// (parity) — these tests assert only the styling + the mode-clarity rendering +
-// the engine's commit/clear transitions hold.
-//
-// Colour roles are pinned with exact mode-resolved SGR (the §2.9 token core), like
-// the row / footer / header / grouped-reskin tests — a token swap is caught, not
-// merely the glyph's presence. No t.Parallel() (the package-level mock convention
-// and the shared canvas helpers make parallelism unsafe across this package's
-// tests).
-
 const filteringReskinWidth = 120
 const filteringReskinHeight = 40
 
-// filteringTestModel builds a production-shaped Sessions model pinned to the given
-// mode, sized for rendering, loaded with the deterministic fab* session set
-// through the production applySessions path. The fab* names mirror the committed
-// Paper references so the rendered query matches "fab" filtering.
 func filteringTestModel(t *testing.T, th theme.Theme) Model {
 	t.Helper()
 	sessions := []tmux.Session{
@@ -50,11 +30,6 @@ func filteringTestModel(t *testing.T, th theme.Theme) Model {
 	return m
 }
 
-// drainFilterCmd runs cmd (if non-nil) and, when it produces a list
-// FilterMatchesMsg, feeds it back into the model so the asynchronous filter result
-// is applied (bubbles/list's filterItems is a tea.Cmd, so VisibleItems only
-// updates once its message is processed). Non-filter messages are ignored — the
-// tests only need the filtered visible set to settle.
 func drainFilterCmd(model tea.Model, cmd tea.Cmd) tea.Model {
 	if cmd == nil {
 		return model
@@ -66,9 +41,6 @@ func drainFilterCmd(model tea.Model, cmd tea.Cmd) tea.Model {
 	return model
 }
 
-// typeKeys feeds each rune of s into the model as an individual KeyPressMsg,
-// draining the async filter cmd after each keystroke so the filtered visible set
-// settles. It mirrors how vhs drives the live filter input one keystroke at a time.
 func typeKeys(t *testing.T, m Model, s string) Model {
 	t.Helper()
 	var model tea.Model = m
@@ -80,8 +52,6 @@ func typeKeys(t *testing.T, m Model, s string) Model {
 	return model.(Model)
 }
 
-// pressSlash activates the filter input (the `/` key) and returns the model in the
-// Filtering (input-active) state.
 func pressSlash(t *testing.T, m Model) Model {
 	t.Helper()
 	var model tea.Model = m
@@ -89,8 +59,6 @@ func pressSlash(t *testing.T, m Model) Model {
 	return model.(Model)
 }
 
-// enterInputActive drives the model into the input-active state with the query
-// "fab" typed (cursor at end). The list is in Filtering.
 func enterInputActive(t *testing.T, th theme.Theme) Model {
 	t.Helper()
 	m := filteringTestModel(t, th)
@@ -102,8 +70,6 @@ func enterInputActive(t *testing.T, th theme.Theme) Model {
 	return m
 }
 
-// enterListActive drives the model into the list-active state: query "fab" typed,
-// then Enter to commit Filtering→FilterApplied (locked query, selectable rows).
 func enterListActive(t *testing.T, th theme.Theme) Model {
 	t.Helper()
 	m := enterInputActive(t, th)
@@ -116,9 +82,6 @@ func enterListActive(t *testing.T, th theme.Theme) Model {
 	return out
 }
 
-// TestFiltering_InputActiveQueryOrange asserts §7: while typing (input-active) the
-// `/` prompt and the query text render in accent.attention. Pinned in exact
-// mode-resolved SGR so a token swap is caught.
 func TestFiltering_InputActiveQueryOrange(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		m := enterInputActive(t, th)
@@ -128,7 +91,6 @@ func TestFiltering_InputActiveQueryOrange(t *testing.T) {
 		if !strings.Contains(view, orange) {
 			t.Errorf("[%v] input-active view missing accent.orange filter SGR %q:\n%s", themeLabel(th), orange, ansi.Strip(view))
 		}
-		// The visible query + `/` prefix are present in the rendered frame.
 		vis := ansi.Strip(view)
 		if !strings.Contains(vis, "/") {
 			t.Errorf("[%v] input-active view missing the `/` prefix:\n%s", themeLabel(th), vis)
@@ -139,24 +101,15 @@ func TestFiltering_InputActiveQueryOrange(t *testing.T) {
 	}
 }
 
-// TestFiltering_InputActiveNoRowSelected asserts §7.1: while typing (input-active)
-// NO list row is selected — there is no bg.selection band painted on any row. The
-// cursor sits at end-of-text in the filter input instead (the input owns the
-// cursor; the list owns no selected row).
 func TestFiltering_InputActiveNoRowSelected(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		m := enterInputActive(t, th)
 		view := m.View().Content
 
-		// No bg.selection tint may appear anywhere in the input-active frame — the
-		// definitive "no row selected" signal (the §3.3 selected-row band).
 		selBg := selectionBgParams(t, th)
 		if strings.Contains(view, selBg) {
 			t.Errorf("[%v] input-active frame must NOT paint a selected row (bg.selection %q present):\n%s", themeLabel(th), selBg, escSeq(view))
 		}
-		// And no violet selector bar glyph on a SESSION ROW (the §3.3 selection
-		// signal). The header wordmark also uses the ▌ caret, so scope the check to
-		// lines that carry a fab* session name — no such line may lead with the bar.
 		for line := range strings.SplitSeq(ansi.Strip(view), "\n") {
 			if strings.Contains(line, "fab") && strings.Contains(line, selectorBar) {
 				t.Errorf("[%v] input-active session row must NOT render the selector bar %q while typing:\n%s", themeLabel(th), selectorBar, line)
@@ -165,9 +118,6 @@ func TestFiltering_InputActiveNoRowSelected(t *testing.T) {
 	}
 }
 
-// TestFiltering_InputActiveFooter asserts §7.1: the input-active footer reads
-// `type to filter · ↵/↓ browse results · esc clear`, replacing the standard
-// condensed footer.
 func TestFiltering_InputActiveFooter(t *testing.T) {
 	m := enterInputActive(t, testDarkTheme(t))
 	view := ansi.Strip(m.View().Content)
@@ -177,15 +127,11 @@ func TestFiltering_InputActiveFooter(t *testing.T) {
 			t.Errorf("input-active footer missing %q:\n%s", want, view)
 		}
 	}
-	// The standard condensed footer entries must NOT be shown while filtering.
 	if strings.Contains(view, "switch view") {
 		t.Errorf("input-active footer must replace the standard footer (found 'switch view'):\n%s", view)
 	}
 }
 
-// TestFiltering_InputActiveFooterColours asserts §7.1 per-word colours: the
-// filter-specific action word reads in accent.attention, the nav glyphs in
-// accent.key, the labels in text.muted.
 func TestFiltering_InputActiveFooterColours(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		footer := renderFilteringFooter(filteringReskinWidth, th, false)
@@ -202,9 +148,6 @@ func TestFiltering_InputActiveFooterColours(t *testing.T) {
 	}
 }
 
-// TestFiltering_ListActiveLockedQueryOrange asserts §7.1: after committing
-// (list-active) the query renders as a locked accent.attention `/ query` with NO
-// cursor — the cursor-less locked query signals the list is filtered.
 func TestFiltering_ListActiveLockedQueryOrange(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		m := enterListActive(t, th)
@@ -221,20 +164,15 @@ func TestFiltering_ListActiveLockedQueryOrange(t *testing.T) {
 	}
 }
 
-// TestFiltering_ListActiveSelectedRowNoInputTint asserts §7.1: in list-active a row
-// IS selected (the §3.3 violet bar + bg.selection band) but the filter input
-// itself carries NO background tint.
 func TestFiltering_ListActiveSelectedRowNoInputTint(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		m := enterListActive(t, th)
 		view := m.View().Content
 		selBg := selectionBgParams(t, th)
 
-		// A row IS selected — the bg.selection band must be present somewhere.
 		if !strings.Contains(view, selBg) {
 			t.Errorf("[%v] list-active frame must paint a selected row (bg.selection %q absent):\n%s", themeLabel(th), selBg, escSeq(view))
 		}
-		// The locked query header itself carries no bg.selection tint.
 		header := renderFilterQueryHeader(m.sessionList.FilterValue(), filteringReskinWidth, th, false)
 		if strings.Contains(header, selBg) {
 			t.Errorf("[%v] list-active filter input must have NO bg tint (bg.selection %q present):\n%s", themeLabel(th), selBg, escSeq(header))
@@ -242,8 +180,6 @@ func TestFiltering_ListActiveSelectedRowNoInputTint(t *testing.T) {
 	}
 }
 
-// TestFiltering_ListActiveFooter asserts §7.1: the list-active footer reads
-// `↵ attach · ↑↓ navigate · esc clear filter`.
 func TestFiltering_ListActiveFooter(t *testing.T) {
 	m := enterListActive(t, testDarkTheme(t))
 	view := ansi.Strip(m.View().Content)
@@ -255,8 +191,6 @@ func TestFiltering_ListActiveFooter(t *testing.T) {
 	}
 }
 
-// TestFiltering_ListActiveFooterClearIsOrange asserts §7.1: the `esc` clear-filter
-// key reads accent.attention in the list-active footer.
 func TestFiltering_ListActiveFooterClearIsOrange(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		footer := renderFilterAppliedFooter(filteringReskinWidth, th, false)
@@ -266,9 +200,6 @@ func TestFiltering_ListActiveFooterClearIsOrange(t *testing.T) {
 	}
 }
 
-// TestFiltering_EnterOrDownCommitsInputToList asserts §7.2: enter OR down commits
-// input-active → list-active (Filtering → FilterApplied). The engine owns this
-// transition; the test verifies it holds for both keys.
 func TestFiltering_EnterOrDownCommitsInputToList(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -289,8 +220,6 @@ func TestFiltering_EnterOrDownCommitsInputToList(t *testing.T) {
 	}
 }
 
-// TestFiltering_EscClearsFromEitherMode asserts §7.2: Esc clears the filter from
-// BOTH the input-active and list-active modes (parity with the engine).
 func TestFiltering_EscClearsFromEitherMode(t *testing.T) {
 	t.Run("from input-active", func(t *testing.T) {
 		m := enterInputActive(t, testDarkTheme(t))
@@ -312,17 +241,11 @@ func TestFiltering_EscClearsFromEitherMode(t *testing.T) {
 	})
 }
 
-// TestFiltering_TypingFlattensGroupedView asserts §5.1: typing a query makes
-// grouped headings vanish (flatten-on-filter via HeaderItem.FilterValue()=="").
-// This is preserved, not changed — a query removes every HeaderItem from the
-// visible set.
 func TestFiltering_TypingFlattensGroupedView(t *testing.T) {
 	m := filteringTestModel(t, testDarkTheme(t))
-	// Switch to a grouped mode so HeaderItems are present pre-filter.
 	m.sessionListMode = prefs.ModeByProject
 	(&m).rebuildSessionList()
 
-	// Precondition: at least one HeaderItem is visible before filtering.
 	preHeaders := 0
 	for _, it := range m.sessionList.VisibleItems() {
 		if _, ok := it.(HeaderItem); ok {
@@ -336,7 +259,6 @@ func TestFiltering_TypingFlattensGroupedView(t *testing.T) {
 	m = pressSlash(t, m)
 	m = typeKeys(t, m, "fab")
 
-	// After typing, no HeaderItem may remain in the visible set (headings vanish).
 	for _, it := range m.sessionList.VisibleItems() {
 		if _, ok := it.(HeaderItem); ok {
 			t.Errorf("grouped heading did not vanish on filter: %+v", it)
@@ -344,9 +266,6 @@ func TestFiltering_TypingFlattensGroupedView(t *testing.T) {
 	}
 }
 
-// TestFiltering_SLiteralWhileInputActive asserts §7: `s` is a literal filter
-// character while input-active — it appends to the query rather than cycling the
-// grouping mode. The dispatch case sits below the SettingFilter() guard (task 2-1).
 func TestFiltering_SLiteralWhileInputActive(t *testing.T) {
 	m := filteringTestModel(t, testDarkTheme(t))
 	startMode := m.sessionListMode
@@ -361,9 +280,6 @@ func TestFiltering_SLiteralWhileInputActive(t *testing.T) {
 	}
 }
 
-// TestFiltering_NoMatchCountShown asserts §7: no match-count is shown anywhere — in
-// either filter mode. The bubbles/list status bar (which would render "N filtered")
-// stays suppressed.
 func TestFiltering_NoMatchCountShown(t *testing.T) {
 	t.Run("input-active", func(t *testing.T) {
 		m := enterInputActive(t, testDarkTheme(t))

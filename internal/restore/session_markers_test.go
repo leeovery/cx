@@ -13,9 +13,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// markersSession builds a minimal Session shell with the given saved windows
-// and panes. Only structural counts and indices matter for skeleton-marker
-// tests — CWD/scrollback fields are unused.
 func markersSession(name string, windows ...state.Window) state.Session {
 	return state.Session{Name: name, Windows: windows}
 }
@@ -28,10 +25,6 @@ func markersPane(idx int) state.Pane {
 	return state.Pane{Index: idx}
 }
 
-// parseLivePanes parses a "<window>:<pane>\n…" string (the same format
-// list-panes -F '#{window_index}:#{pane_index}' emits) into a sorted
-// []tmux.PaneCoord. Used by markers/geometry tests to build the slice that
-// armPanes would have produced from the live re-query.
 func parseLivePanes(t *testing.T, output string) []tmux.PaneCoord {
 	t.Helper()
 	if output == "" {
@@ -59,8 +52,6 @@ func parseLivePanes(t *testing.T, output string) []tmux.PaneCoord {
 	return out
 }
 
-// findSetOptionMarker returns the index of the first set-option call whose
-// option name matches markerName. Expects argv shape [set-option, -s, name, value].
 func findSetOptionMarker(calls [][]string, markerName string) int {
 	for i, c := range calls {
 		if len(c) >= 4 && c[0] == "set-option" && c[2] == markerName {
@@ -70,7 +61,6 @@ func findSetOptionMarker(calls [][]string, markerName string) int {
 	return -1
 }
 
-// allSetOptionCalls returns the indices of every set-option call.
 func allSetOptionCalls(calls [][]string) []int {
 	var out []int
 	for i, c := range calls {
@@ -82,8 +72,6 @@ func allSetOptionCalls(calls [][]string) []int {
 }
 
 func TestApplySkeletonMarkers_SetsOneMarkerPerSuppliedLivePane(t *testing.T) {
-	// New contract: ApplySkeletonMarkers consumes the live PaneCoord slice
-	// threaded through from Restore — it does NOT call list-panes itself.
 	mock := &mockCommander{}
 	client := tmux.NewClient(mock)
 	r := &restore.SessionRestorer{Client: client}
@@ -96,18 +84,15 @@ func TestApplySkeletonMarkers_SetsOneMarkerPerSuppliedLivePane(t *testing.T) {
 
 	r.ApplySkeletonMarkers(sess, livePanes)
 
-	// No list-panes invocation — the slice is supplied by the caller.
 	if got := len(findAllCalls(mock.Calls, "list-panes")); got != 0 {
 		t.Errorf("list-panes calls = %d, want 0 (caller supplies livePanes); calls: %v", got, mock.Calls)
 	}
 
-	// Three set-option calls — one per live pane.
 	setIdxs := allSetOptionCalls(mock.Calls)
 	if len(setIdxs) != 3 {
 		t.Fatalf("set-option calls = %d, want 3; calls: %v", len(setIdxs), mock.Calls)
 	}
 
-	// Each marker name corresponds to a live paneKey at (0,0), (0,1), (1,0).
 	wantMarkers := []string{
 		"@portal-skeleton-" + state.SanitizePaneKey("work", 0, 0),
 		"@portal-skeleton-" + state.SanitizePaneKey("work", 0, 1),
@@ -121,8 +106,6 @@ func TestApplySkeletonMarkers_SetsOneMarkerPerSuppliedLivePane(t *testing.T) {
 }
 
 func TestApplySkeletonMarkers_UsesLivePaneKey(t *testing.T) {
-	// The live PaneCoord slice reports the pane at 1:0. Markers must use the
-	// supplied live paneKey.
 	mock := &mockCommander{}
 	client := tmux.NewClient(mock)
 	dir := t.TempDir()
@@ -137,7 +120,6 @@ func TestApplySkeletonMarkers_UsesLivePaneKey(t *testing.T) {
 
 	r.ApplySkeletonMarkers(sess, livePanes)
 
-	// Marker should be set with the live paneKey (1:0).
 	wantLive := "@portal-skeleton-" + state.SanitizePaneKey("work", 1, 0)
 	if findSetOptionMarker(mock.Calls, wantLive) < 0 {
 		t.Errorf("expected set-option for live marker %q; calls: %v", wantLive, mock.Calls)
@@ -145,7 +127,6 @@ func TestApplySkeletonMarkers_UsesLivePaneKey(t *testing.T) {
 }
 
 func TestApplySkeletonMarkers_LogsSanityWarningOnPaneCountMismatch(t *testing.T) {
-	// Saved 2 panes, live reports 1 → sanity warning expected.
 	mock := &mockCommander{}
 	client := tmux.NewClient(mock)
 	logger, sink := newCaptureLogger(t)
@@ -218,18 +199,11 @@ func TestApplySkeletonMarkers_ContinuesWhenOneSetOptionFails(t *testing.T) {
 
 	r.ApplySkeletonMarkers(sess, livePanes)
 
-	// All three set-option calls should still have been attempted.
 	setIdxs := allSetOptionCalls(mock.Calls)
 	if len(setIdxs) != 3 {
 		t.Errorf("set-option calls = %d, want 3 (each attempted)", len(setIdxs))
 	}
 }
-
-// TestApplySkeletonMarkers_ReturnsErrorWhenListPanesFails was removed — the
-// markers function no longer queries list-panes itself; the caller threads
-// the live PaneCoord slice through from Restore. The error path that test
-// covered is now exercised in Restore tests (armPanes' list-panes call is the
-// failure point in the new wiring).
 
 func TestApplySkeletonMarkers_SetsMarkerValueToLiteralOne(t *testing.T) {
 	mock := &mockCommander{}
@@ -248,7 +222,6 @@ func TestApplySkeletonMarkers_SetsMarkerValueToLiteralOne(t *testing.T) {
 		t.Fatalf("set-option calls = %d, want 1", len(setIdxs))
 	}
 	args := mock.Calls[setIdxs[0]]
-	// args = [set-option, -s, <name>, <value>]
 	if len(args) != 4 {
 		t.Fatalf("set-option args = %v, want length 4", args)
 	}
@@ -281,10 +254,6 @@ func TestApplySkeletonMarkers_UsesHashedPaneKeyForCollisionSession(t *testing.T)
 }
 
 func TestApplySkeletonMarkers_EnumeratesLivePanesInSuppliedOrder(t *testing.T) {
-	// The caller (armPanes) hands in a slice already sorted by (window, pane);
-	// markers walks it in the order received. The test passes pre-sorted input
-	// (since that's the caller's contract) and asserts the output ordering
-	// matches.
 	mock := &mockCommander{}
 	client := tmux.NewClient(mock)
 	r := &restore.SessionRestorer{Client: client}
@@ -302,7 +271,6 @@ func TestApplySkeletonMarkers_EnumeratesLivePanesInSuppliedOrder(t *testing.T) {
 		t.Fatalf("set-option calls = %d, want 4", len(setIdxs))
 	}
 
-	// Markers should appear in (window, pane) sorted order: 0:0, 0:1, 1:0, 1:1.
 	wantOrder := []string{
 		"@portal-skeleton-" + state.SanitizePaneKey("work", 0, 0),
 		"@portal-skeleton-" + state.SanitizePaneKey("work", 0, 1),
@@ -321,8 +289,6 @@ func TestApplySkeletonMarkers_EnumeratesLivePanesInSuppliedOrder(t *testing.T) {
 }
 
 func TestApplySkeletonMarkers_MarksExtraLivePanesWhenLiveCountExceedsSaved(t *testing.T) {
-	// Saved 1 pane, live reports 2 — both extras must still be marked using
-	// their live paneKey.
 	mock := &mockCommander{}
 	client := tmux.NewClient(mock)
 	dir := t.TempDir()

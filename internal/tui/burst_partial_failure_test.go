@@ -1,34 +1,5 @@
 package tui
 
-// restore-host-terminal-windows-6-6 — partial-failure leave-what-opened +
-// selection mutation.
-//
-// White-box (package tui) tests of the NON-all-confirmed arm of the terminal
-// spawnCompleteMsg handler: a pre-spawn Burster.Run error, and a post-flight burst
-// where one or more external windows fail / time out / hit the permission wall.
-// They assert Portal:
-//   - leaves every opened host window in place (there is NO teardown seam —
-//     spawn.Adapter exposes only OpenWindow, so the adapter call count cannot grow),
-//   - skips the trigger self-attach (Selected()=="" and no tea.Quit — the picker
-//     stays in multi-select mode),
-//   - unmarks EXACTLY the confirmed sessions (so a second Enter retries the
-//     still-marked missing set) while keeping failed / un-acked / un-attempted
-//     sessions marked,
-//   - surfaces ONE transient flash — the driver's permission Guidance verbatim once
-//     if any window hit the permission wall, else a one-line failed-window message
-//     (the ⚠ glyph is added by the warning notice band, matching the
-//     formatSessionGoneFlash convention — the message text carries no glyph).
-//
-// Fast-path scenarios (spawn-failed, permission → AckFailed with no ack wait, both
-// classified immediately) are driven end-to-end through the real burster; the
-// ack-timeout and pre-spawn-error scenarios inject a crafted terminal
-// spawnCompleteMsg into a directly-constructed pending-burst model, avoiding the
-// real ~8 s per-window ack timeout and any background goroutine to race under -race.
-//
-// Shared seam helpers (wireBurstSeams, allPresent, resolveDetection, markRow,
-// spawnedSession, ghosttyIdentity, driveBurstToTerminal) live in the sibling burst
-// test files. No t.Parallel: consistent with the rest of the tui test surface.
-
 import (
 	"errors"
 	"slices"
@@ -41,12 +12,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// newPendingBurstModel builds a multi-select model with every `names` session
-// marked, then places it directly in the burst-pending state a real dispatch would
-// leave — external = names[:last], trigger = names[last], burstPending — WITHOUT
-// launching the async goroutine. A §6-6 handler test then injects a crafted terminal
-// spawnCompleteMsg to exercise the arm deterministically and fast (no real per-window
-// ack timeout, no background goroutine).
 func newPendingBurstModel(t *testing.T, names []string) Model {
 	t.Helper()
 	m := NewModelWithSessions(sessionsFromNames(names))
@@ -65,19 +30,12 @@ func newPendingBurstModel(t *testing.T, names []string) Model {
 	return m
 }
 
-// injectComplete applies a terminal spawnCompleteMsg through Update and returns the
-// resulting model plus the follow cmd (nil on the §6-6 partial path; tea.Quit only on
-// full success).
 func injectComplete(t *testing.T, m Model, msg spawnCompleteMsg) (Model, tea.Cmd) {
 	t.Helper()
 	updated, cmd := m.Update(msg)
 	return updated.(Model), cmd
 }
 
-// TestBurstPartialFailure_LeavesOpenedWindowsAndSkipsSelfAttach drives an end-to-end
-// spawn-failed burst (alpha fails fast, bravo confirms) and asserts the §6-6 arm:
-// the opened windows are left in place (no teardown seam exists), the self-attach is
-// skipped (Selected()=="", no tea.Quit), and the picker stays in multi-select mode.
 func TestBurstPartialFailure_LeavesOpenedWindowsAndSkipsSelfAttach(t *testing.T) {
 	sessions := []tmux.Session{
 		{Name: "alpha", Windows: 1},
@@ -85,8 +43,6 @@ func TestBurstPartialFailure_LeavesOpenedWindowsAndSkipsSelfAttach(t *testing.T)
 		{Name: "charlie", Windows: 3},
 	}
 	ack := &spawntest.FakeAckChannel{}
-	// external = [alpha, bravo]; alpha spawn-fails (AckFailed, classified with no ack
-	// wait so the burst finishes fast), bravo opens + confirms.
 	adapter := &spawntest.FakeAdapter{Ack: ack, Results: []spawn.Result{spawn.SpawnFailed("boom")}}
 	m := NewModelWithSessions(sessions)
 	wireBurstSeams(&m, adapter, spawn.ResolutionNative, allPresent, ack)
@@ -119,13 +75,9 @@ func TestBurstPartialFailure_LeavesOpenedWindowsAndSkipsSelfAttach(t *testing.T)
 	if rm.BurstPending() {
 		t.Error("partial failure must clear burst-pending")
 	}
-	// No teardown: spawn.Adapter exposes only OpenWindow (no close seam), so the
-	// opened windows are left in place — the adapter call count cannot grow after the
-	// completion handler runs.
 	if len(adapter.Calls) != openedBefore {
 		t.Errorf("no opened window may be torn down; adapter calls grew %d → %d", openedBefore, len(adapter.Calls))
 	}
-	// Confirmed bravo unmarked; failed alpha + the trigger charlie stay marked.
 	if rm.IsSessionSelected("bravo") {
 		t.Error("the confirmed session bravo must be unmarked")
 	}
@@ -135,10 +87,6 @@ func TestBurstPartialFailure_LeavesOpenedWindowsAndSkipsSelfAttach(t *testing.T)
 	if !rm.IsSessionSelected("charlie") {
 		t.Error("the trigger charlie must stay marked (its self-attach did not happen)")
 	}
-	// Assert through the shared renderer: the picker's bare flash body IS
-	// spawn.PartialFailureMessage (the CLI carries the same body under its "spawn:"
-	// prefix), so the spec's "same one-line message" parity is structural. The ⚠ is
-	// added by the warning band, not this body.
 	if want := spawn.PartialFailureMessage([]string{"alpha"}, true); rm.flashText != want {
 		t.Errorf("flashText = %q, want %q (names the failed window; ⚠ added by the warning band)", rm.flashText, want)
 	}
@@ -147,10 +95,6 @@ func TestBurstPartialFailure_LeavesOpenedWindowsAndSkipsSelfAttach(t *testing.T)
 	}
 }
 
-// TestBurstPartialFailure_PreSpawnError_GenericFlashSelectionUnchanged injects a
-// Burster.Run pre-spawn error (empty Results) and asserts the generic flash, an
-// UNCHANGED selection (nothing opened → nothing to unmark), cleared burst-pending,
-// and no degenerate empty-named "failed to open" message.
 func TestBurstPartialFailure_PreSpawnError_GenericFlashSelectionUnchanged(t *testing.T) {
 	m := newPendingBurstModel(t, []string{"alpha", "bravo", "charlie"})
 	before := m.SelectedSessionCount()
@@ -166,7 +110,6 @@ func TestBurstPartialFailure_PreSpawnError_GenericFlashSelectionUnchanged(t *tes
 	if strings.Contains(rm.flashText, "failed to open") {
 		t.Errorf("a pre-spawn error must NOT surface the degenerate empty-named failed-to-open copy: %q", rm.flashText)
 	}
-	// Nothing opened → nothing to unmark: the selection is UNCHANGED.
 	if rm.SelectedSessionCount() != before {
 		t.Errorf("pre-spawn error must leave the selection unchanged; count %d → %d", before, rm.SelectedSessionCount())
 	}
@@ -189,13 +132,8 @@ func TestBurstPartialFailure_PreSpawnError_GenericFlashSelectionUnchanged(t *tes
 	}
 }
 
-// TestBurstPartialFailure_UnmarksConfirmedKeepsFailedForRetry pins the retry
-// contract: after the mutation the still-marked set is EXACTLY the retry set (the
-// failed window + the un-attached trigger), and the confirmed windows are unmarked.
 func TestBurstPartialFailure_UnmarksConfirmedKeepsFailedForRetry(t *testing.T) {
 	m := newPendingBurstModel(t, []string{"alpha", "bravo", "charlie", "delta"})
-	// external = [alpha, bravo, charlie]; trigger = delta. alpha + charlie confirm,
-	// bravo times out.
 	msg := spawnCompleteMsg{
 		Batch: "batch-xyz",
 		Results: []spawn.WindowResult{
@@ -215,13 +153,8 @@ func TestBurstPartialFailure_UnmarksConfirmedKeepsFailedForRetry(t *testing.T) {
 	}
 }
 
-// TestBurstPartialFailure_AckTimeoutAndSpawnFailedClassifyIdentically asserts an ack
-// timeout and an adapter spawn-failed both classify as failed (stay marked; only the
-// confirmed window is unmarked) and are both named in the one-line flash.
 func TestBurstPartialFailure_AckTimeoutAndSpawnFailedClassifyIdentically(t *testing.T) {
 	m := newPendingBurstModel(t, []string{"alpha", "bravo", "charlie", "delta"})
-	// external = [alpha, bravo, charlie]; trigger = delta. alpha confirms, bravo times
-	// out (AckTimeout), charlie's adapter reports spawn-failed (AckFailed).
 	msg := spawnCompleteMsg{
 		Batch: "batch-xyz",
 		Results: []spawn.WindowResult{
@@ -247,10 +180,6 @@ func TestBurstPartialFailure_AckTimeoutAndSpawnFailedClassifyIdentically(t *test
 	}
 }
 
-// TestBurstPartialFailure_PermissionGuidanceOnceAffectedStaysMarked drives an
-// end-to-end permission burst and asserts the driver's Result.Guidance is surfaced
-// verbatim, once — not the generic failed-window flash — and the affected session
-// stays marked.
 func TestBurstPartialFailure_PermissionGuidanceOnceAffectedStaysMarked(t *testing.T) {
 	const guidance = "grant Automation access to Ghostty in System Settings"
 	sessions := []tmux.Session{
@@ -259,7 +188,6 @@ func TestBurstPartialFailure_PermissionGuidanceOnceAffectedStaysMarked(t *testin
 		{Name: "charlie", Windows: 3},
 	}
 	ack := &spawntest.FakeAckChannel{}
-	// alpha opens + confirms; bravo hits the permission wall (the burster then stops).
 	adapter := &spawntest.FakeAdapter{
 		Ack:     ack,
 		Results: []spawn.Result{spawn.Success(""), spawn.PermissionRequired("evt -1743", guidance)},
@@ -302,9 +230,6 @@ func TestBurstPartialFailure_PermissionGuidanceOnceAffectedStaysMarked(t *testin
 	}
 }
 
-// TestBurstPartialFailure_UnattemptedPostPermissionStayMarked asserts the windows
-// after a permission wall are never attempted (not in Results) and therefore stay
-// marked — the burst stopped on the wall.
 func TestBurstPartialFailure_UnattemptedPostPermissionStayMarked(t *testing.T) {
 	sessions := []tmux.Session{
 		{Name: "alpha", Windows: 1},
@@ -313,8 +238,6 @@ func TestBurstPartialFailure_UnattemptedPostPermissionStayMarked(t *testing.T) {
 		{Name: "delta", Windows: 4},
 	}
 	ack := &spawntest.FakeAckChannel{}
-	// alpha confirms, bravo hits the permission wall → the burster stops; charlie is
-	// never attempted.
 	adapter := &spawntest.FakeAdapter{
 		Ack:     ack,
 		Results: []spawn.Result{spawn.Success(""), spawn.PermissionRequired("evt -1743", "grant Automation for Ghostty")},
@@ -361,16 +284,8 @@ func TestBurstPartialFailure_UnattemptedPostPermissionStayMarked(t *testing.T) {
 	}
 }
 
-// TestBurstPartialFailure_StaysInMultiSelectMode is the focused mode-preservation
-// guard: a partial failure never exits multi-select mode and never self-attaches.
-// It is also the total-failure parity case — external = [alpha] alone fails, nothing
-// else confirms — so the flash body must render "— nothing opened" byte-identically
-// with the open burst's total-failure copy (spawn.PartialFailureMessage(…, false)); the
-// skipped trigger bravo is not an external result, so it never counts as an "other".
 func TestBurstPartialFailure_StaysInMultiSelectMode(t *testing.T) {
 	m := newPendingBurstModel(t, []string{"alpha", "bravo"})
-	// external = [alpha], trigger = bravo. alpha times out with nothing else confirmed
-	// → TOTAL failure (othersOpened == false).
 	msg := spawnCompleteMsg{
 		Batch: "batch-xyz",
 		Results: []spawn.WindowResult{
@@ -395,8 +310,6 @@ func TestBurstPartialFailure_StaysInMultiSelectMode(t *testing.T) {
 	if !rm.IsSessionSelected("bravo") {
 		t.Error("the trigger bravo must stay marked")
 	}
-	// Total-failure parity: nothing opened, so the picker flash IS the open burst's
-	// total-failure body (spawn.PartialFailureMessage(…, false) = "… — nothing opened").
 	if want := spawn.PartialFailureMessage([]string{"alpha"}, false); rm.flashText != want {
 		t.Errorf("flashText = %q, want %q (total failure → — nothing opened, byte-identical to the CLI)", rm.flashText, want)
 	}

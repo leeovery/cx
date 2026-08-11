@@ -13,21 +13,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// The §5 multi-select banner: a filter-line analogue that REPLACES the standard
-// `Sessions ··· N` section header while multi-select mode is active — `N selected`
-// (accent.primary) on the left, a right-aligned `esc cancel` hint (text.muted) on
-// the same row, the gap filled with a canvas-painted flex spacer to the content
-// width. NO `▌` left-bar (it is a section-header analogue, not a notice band).
-// These tests pin the colour roles, the right-alignment, the N=0 render, the
-// single-row height, the §2.7 narrow degrade, and the NO_COLOR carve-out.
-//
-// No t.Parallel() — the package-level mock convention and shared canvas helpers
-// make parallelism unsafe across this package's tests.
-
-// TestMultiSelectHeader_CountVioletCancelDetail asserts the banner renders the
-// `N selected` cluster in accent.primary and the `esc cancel` hint in text.muted
-// (the SAME dim chrome token the standard `/ to filter` hint uses), on both the
-// dark and light canvas.
 func TestMultiSelectHeader_CountVioletCancelDetail(t *testing.T) {
 	forEachBuiltinTheme(t, func(t *testing.T, th theme.Theme) {
 		header := renderMultiSelectHeader(3, sectionHeaderWidth, th, false)
@@ -38,8 +23,6 @@ func TestMultiSelectHeader_CountVioletCancelDetail(t *testing.T) {
 		if !strings.Contains(header, multiSelectCancelHint) {
 			t.Errorf("banner missing the %q hint:\n%s", multiSelectCancelHint, header)
 		}
-		// The `N selected` cluster is accent.primary, the `esc cancel` hint is
-		// text.muted — assert the exact styled runs appear verbatim.
 		violetRun := headerStyle(th.AccentPrimary, th, false).Render("3 selected")
 		if !strings.Contains(header, violetRun) {
 			t.Errorf("banner missing the accent.violet %q run:\n%s", "3 selected", header)
@@ -51,9 +34,6 @@ func TestMultiSelectHeader_CountVioletCancelDetail(t *testing.T) {
 	})
 }
 
-// TestMultiSelectHeader_RightAlignedCancelHint asserts the `esc cancel` hint is
-// right-aligned (the left cluster and the hint are separated by a flex spacer to
-// the content width) and the single rendered row is exactly the content width.
 func TestMultiSelectHeader_RightAlignedCancelHint(t *testing.T) {
 	header := renderMultiSelectHeader(2, sectionHeaderWidth, testDarkTheme(t), false)
 
@@ -70,9 +50,6 @@ func TestMultiSelectHeader_RightAlignedCancelHint(t *testing.T) {
 	}
 }
 
-// TestMultiSelectHeader_ExactlyOneRow asserts the banner is exactly one rendered
-// row — it REPLACES the section-header row and must not perturb the one-row-per-
-// delegate pagination budget (§3.5).
 func TestMultiSelectHeader_ExactlyOneRow(t *testing.T) {
 	for _, count := range []int{0, 1, 42} {
 		header := renderMultiSelectHeader(count, sectionHeaderWidth, testDarkTheme(t), false)
@@ -82,15 +59,11 @@ func TestMultiSelectHeader_ExactlyOneRow(t *testing.T) {
 	}
 }
 
-// TestMultiSelectHeader_ZeroSelected asserts the N=0 render: the banner shows
-// `0 selected` (the banner renders even with an empty set — it is a mode
-// affordance, not a count-gated element).
 func TestMultiSelectHeader_ZeroSelected(t *testing.T) {
 	header := renderMultiSelectHeader(0, sectionHeaderWidth, testDarkTheme(t), false)
 	if !strings.Contains(ansi.Strip(header), "0 selected") {
 		t.Errorf("banner for N=0 must read %q:\n%s", "0 selected", ansi.Strip(header))
 	}
-	// Still accent.primary, still right-anchored with the hint.
 	violetRun := headerStyle(testDarkTheme(t).AccentPrimary, testDarkTheme(t), false).Render("0 selected")
 	if !strings.Contains(header, violetRun) {
 		t.Errorf("N=0 banner missing the accent.violet %q run:\n%s", "0 selected", header)
@@ -100,19 +73,12 @@ func TestMultiSelectHeader_ZeroSelected(t *testing.T) {
 	}
 }
 
-// TestMultiSelectHeader_NarrowDegradeDropsHint asserts the §2.7 narrow degrade:
-// below the width at which the left cluster + a spacer + the hint fit, the right
-// `esc cancel` hint drops and the row never overflows — matching the standard
-// section header's degrade exactly (both route through the shared right-anchor
-// core).
 func TestMultiSelectHeader_NarrowDegradeDropsHint(t *testing.T) {
-	// Wide: hint present.
 	wide := renderMultiSelectHeader(3, sectionHeaderWidth, testDarkTheme(t), false)
 	if !strings.Contains(wide, multiSelectCancelHint) {
 		t.Fatalf("wide banner missing the hint:\n%s", wide)
 	}
 
-	// Narrow: a width that cannot hold `N selected` + a spacer + `esc cancel`.
 	const narrow = 14
 	narrowHeader := renderMultiSelectHeader(3, narrow, testDarkTheme(t), false)
 	if strings.Contains(narrowHeader, multiSelectCancelHint) {
@@ -128,10 +94,6 @@ func TestMultiSelectHeader_NarrowDegradeDropsHint(t *testing.T) {
 	}
 }
 
-// TestMultiSelectHeader_ColourlessDropsHueAndCanvas asserts the NO_COLOR carve-out
-// (§2.5): a colourless banner carries no canvas background SGR and no foreground
-// hue — the `N selected` / `esc cancel` text survives on the terminal's native
-// fg/bg.
 func TestMultiSelectHeader_ColourlessDropsHueAndCanvas(t *testing.T) {
 	header := renderMultiSelectHeader(3, sectionHeaderWidth, testDarkTheme(t), true)
 
@@ -148,9 +110,6 @@ func TestMultiSelectHeader_ColourlessDropsHueAndCanvas(t *testing.T) {
 	}
 }
 
-// TestMultiSelectHeader_PaintsCanvasNoEdgeBleed asserts the banner cells carry the
-// owned canvas background (leaf .Background(canvas)) so the right-aligned spacer
-// gap is canvas-painted, not a terminal-bg island.
 func TestMultiSelectHeader_PaintsCanvasNoEdgeBleed(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		header := renderMultiSelectHeader(3, sectionHeaderWidth, th, false)
@@ -160,9 +119,6 @@ func TestMultiSelectHeader_PaintsCanvasNoEdgeBleed(t *testing.T) {
 	}
 }
 
-// multiSelectBannerModel builds a Sessions-page model seeded with the given
-// session names at 80x24, entered into multi-select mode with the named sessions
-// marked, so applySectionHeader renders the banner deterministically.
 func multiSelectBannerModel(marked []string, names ...string) Model {
 	sessions := make([]tmux.Session, 0, len(names))
 	for _, n := range names {
@@ -176,16 +132,11 @@ func multiSelectBannerModel(marked []string, names ...string) Model {
 	return m
 }
 
-// bannerFirstLine returns the first (section-header) line of applySectionHeader's
-// output — the line the banner / section header / filter-query header swap into.
 func bannerFirstLine(m Model) string {
 	out := m.applySectionHeader(m.sessionList.View())
 	return strings.SplitN(out, "\n", 2)[0]
 }
 
-// TestApplySectionHeader_MultiSelectShowsBanner asserts that in multi-select mode
-// the section-header row swaps to the `N selected` banner (accent.primary), and the
-// standard `Sessions` section header is NOT shown on that row.
 func TestApplySectionHeader_MultiSelectShowsBanner(t *testing.T) {
 	m := multiSelectBannerModel([]string{"alpha", "bravo", "charlie"}, "alpha", "bravo", "charlie")
 
@@ -201,9 +152,6 @@ func TestApplySectionHeader_MultiSelectShowsBanner(t *testing.T) {
 	}
 }
 
-// TestApplySectionHeader_MultiSelectZero asserts the N=0 case: a zero-selected set
-// (reachable via double-`m` or Esc-then-reenter) still swaps in the `0 selected`
-// banner (the banner shows even with an empty selection).
 func TestApplySectionHeader_MultiSelectZero(t *testing.T) {
 	m := multiSelectBannerModel(nil, "alpha", "bravo")
 
@@ -216,10 +164,6 @@ func TestApplySectionHeader_MultiSelectZero(t *testing.T) {
 	}
 }
 
-// TestApplySectionHeader_FilteringOwnsRowInMultiSelect asserts the precedence: while
-// the filter input is focused (FilterState == Filtering) the banner steps aside —
-// applySectionHeader returns the list view untouched so the live filter input owns
-// the row (the banner never overwrites what the user is typing), even in the mode.
 func TestApplySectionHeader_FilteringOwnsRowInMultiSelect(t *testing.T) {
 	m := multiSelectBannerModel([]string{"alpha"}, "alpha", "bravo")
 	m.sessionList.SetFilterState(list.Filtering)
@@ -234,9 +178,6 @@ func TestApplySectionHeader_FilteringOwnsRowInMultiSelect(t *testing.T) {
 	}
 }
 
-// TestApplySectionHeader_FilterAppliedInMultiSelectShowsBanner asserts the branch
-// order: a committed/applied filter WHILE in multi-select shows the BANNER, not the
-// locked query header — the multi-select branch precedes the FilterApplied branch.
 func TestApplySectionHeader_FilterAppliedInMultiSelectShowsBanner(t *testing.T) {
 	m := multiSelectBannerModel([]string{"alpha", "bravo"}, "alpha", "bravo")
 	m.SetSessionListFilter("al")
@@ -248,14 +189,11 @@ func TestApplySectionHeader_FilterAppliedInMultiSelectShowsBanner(t *testing.T) 
 	if !strings.Contains(ansi.Strip(first), "2 selected") {
 		t.Errorf("FilterApplied + multi-select must show the %q banner, not the query header:\n%s", "2 selected", ansi.Strip(first))
 	}
-	// The locked `/ ` query prompt must NOT own the row in the mode.
 	if strings.Contains(ansi.Strip(first), filterPromptPrefix+"al") {
 		t.Errorf("FilterApplied + multi-select must NOT render the locked query header:\n%s", ansi.Strip(first))
 	}
 }
 
-// TestApplySectionHeader_CountUpdatesLive asserts the count updates live: each `m`
-// toggle changes the rendered banner number by exactly 1.
 func TestApplySectionHeader_CountUpdatesLive(t *testing.T) {
 	m := NewModelWithSessions([]tmux.Session{
 		{Name: "alpha", Windows: 1},
@@ -264,25 +202,21 @@ func TestApplySectionHeader_CountUpdatesLive(t *testing.T) {
 	m.termWidth = 80
 	m.termHeight = 24
 
-	// Enter the mode on a session row: mark-on-entry marks the highlighted alpha → 1 selected.
 	m = pressSession(t, m, pressM)
 	if got := ansi.Strip(bannerFirstLine(m)); !strings.Contains(got, "1 selected") {
 		t.Fatalf("after entering on a session row the banner must read %q:\n%s", "1 selected", got)
 	}
 
-	// Toggle the highlighted alpha OFF (double-`m`): 0 selected.
 	m = pressSession(t, m, pressM)
 	if got := ansi.Strip(bannerFirstLine(m)); !strings.Contains(got, "0 selected") {
 		t.Errorf("after unmarking the banner must read %q:\n%s", "0 selected", got)
 	}
 
-	// Toggle alpha back ON: 1 selected.
 	m = pressSession(t, m, pressM)
 	if got := ansi.Strip(bannerFirstLine(m)); !strings.Contains(got, "1 selected") {
 		t.Errorf("after re-marking the banner must read %q:\n%s", "1 selected", got)
 	}
 
-	// Move to bravo and toggle it ON: 2 selected.
 	m.sessionList.Select(1)
 	m = pressSession(t, m, pressM)
 	if got := ansi.Strip(bannerFirstLine(m)); !strings.Contains(got, "2 selected") {
@@ -290,10 +224,6 @@ func TestApplySectionHeader_CountUpdatesLive(t *testing.T) {
 	}
 }
 
-// TestApplySectionHeader_ByTagMultiMembershipCountsOnce asserts the distinct-
-// session count contract at the banner level: a By-Tag session that spans several
-// rows, marked via one of them, contributes exactly 1 to the banner count
-// (len(m.selectedSessions), keyed on Session.Name).
 func TestApplySectionHeader_ByTagMultiMembershipCountsOnce(t *testing.T) {
 	dir := t.TempDir()
 	projects := []project.Project{{Path: dir, Name: "Portal", Tags: []string{"work", "infra"}}}
@@ -309,8 +239,6 @@ func TestApplySectionHeader_ByTagMultiMembershipCountsOnce(t *testing.T) {
 		t.Fatalf("precondition: multi-tag session must span 2 rows; got %d", len(rows))
 	}
 
-	// Enter with the cursor on the first of the two rows: mark-on-entry marks the
-	// multi-tag session once (keyed on Session.Name).
 	m.sessionList.Select(rows[0])
 	m = pressSession(t, m, pressM)
 
@@ -319,10 +247,6 @@ func TestApplySectionHeader_ByTagMultiMembershipCountsOnce(t *testing.T) {
 	}
 }
 
-// TestActiveNoticeBand_SuppressesSignpostInMultiSelect asserts that while in
-// multi-select mode the By-Tag "No tags yet" signpost is suppressed (does not own
-// the slot) — the banner replaces the section header, and the signpost must not
-// also render.
 func TestActiveNoticeBand_SuppressesSignpostInMultiSelect(t *testing.T) {
 	m := signpostModel(t)
 	if _, _, ok := m.activeNoticeBand(); !ok {
@@ -335,9 +259,6 @@ func TestActiveNoticeBand_SuppressesSignpostInMultiSelect(t *testing.T) {
 	}
 }
 
-// TestActiveNoticeBand_FlashOutranksBannerInMultiSelect asserts a transient flash
-// still owns the notice slot while in the mode — the flash arm stays FIRST, so a
-// flash outranks both the banner and the (suppressed) signpost.
 func TestActiveNoticeBand_FlashOutranksBannerInMultiSelect(t *testing.T) {
 	m := signpostModel(t)
 	m.multiSelectMode = true

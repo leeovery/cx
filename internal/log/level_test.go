@@ -68,7 +68,6 @@ func TestResolveLevel_NormalisesMixedCaseAndWhitespace(t *testing.T) {
 			if source != sourceEnv {
 				t.Errorf("source = %q, want %q", source, sourceEnv)
 			}
-			// raw is preserved verbatim (not trimmed/lowercased).
 			if raw != tc.raw {
 				t.Errorf("raw = %q, want verbatim %q", raw, tc.raw)
 			}

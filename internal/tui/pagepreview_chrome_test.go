@@ -8,9 +8,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// stripANSI returns s with ANSI escape sequences removed so chrome assertions
-// key off plain content regardless of any lipgloss styling applied by
-// chromeLine().
 func stripANSI(s string) string {
 	return ansi.Strip(s)
 }
@@ -33,8 +30,6 @@ func TestPreviewChromeLine_Renders1BasedOrdinalsForZeroIndexedGroups(t *testing.
 }
 
 func TestPreviewChromeLine_RendersOneToNCountersWhenWindowIndexValuesAreNonContiguous(t *testing.T) {
-	// Non-contiguous tmux window_index values (0, 2, 5). Chrome must show
-	// 1..N as the user cycles, never the raw window_index value.
 	groups := []tmux.WindowGroup{
 		{WindowIndex: 0, WindowName: "first", PaneIndices: []int{0}},
 		{WindowIndex: 2, WindowName: "second", PaneIndices: []int{0}},
@@ -55,7 +50,6 @@ func TestPreviewChromeLine_RendersOneToNCountersWhenWindowIndexValuesAreNonConti
 		if !strings.Contains(got, tc.want) {
 			t.Errorf("windowIdx=%d: chromeLine() = %q; want substring %q", tc.windowIdx, got, tc.want)
 		}
-		// Defensively ensure raw window_index (5) never leaks as a counter.
 		if strings.Contains(got, "Window 5/3") {
 			t.Errorf("windowIdx=%d: chromeLine() = %q; raw window_index 5 leaked into chrome", tc.windowIdx, got)
 		}
@@ -63,7 +57,6 @@ func TestPreviewChromeLine_RendersOneToNCountersWhenWindowIndexValuesAreNonConti
 }
 
 func TestPreviewChromeLine_RendersOneToNCountersWhenPaneIndicesStartAt1(t *testing.T) {
-	// pane-base-index 1 — PaneIndices=[1,2]. Chrome must show 1..N ordinals.
 	groups := []tmux.WindowGroup{
 		{WindowIndex: 0, WindowName: "main", PaneIndices: []int{1, 2}},
 	}
@@ -85,8 +78,6 @@ func TestPreviewChromeLine_RendersOneToNCountersWhenPaneIndicesStartAt1(t *testi
 }
 
 func TestPreviewChromeLine_IncludesSessionNameVerbatimIncludingSpaces(t *testing.T) {
-	// §9.1 surfaces the SESSION name in the top bar (not the window name). It is
-	// rendered verbatim, including embedded spaces.
 	groups := []tmux.WindowGroup{
 		{WindowIndex: 0, WindowName: "editor window", PaneIndices: []int{0}},
 	}
@@ -107,8 +98,6 @@ func TestPreviewFooter_IncludesWindowPaneAttachBackAsVisibleHints(t *testing.T) 
 
 	got := stripANSI(footerLineForTest(m))
 
-	// §9.3 nav-hint glyphs: ←→ window, ⇥ pane, ⏎ attach, ␣ back. The footer
-	// must surface every keypress glyph as a visible hint.
 	for _, token := range []string{"←", "→", "⇥", "⏎", "␣"} {
 		if !strings.Contains(got, token) {
 			t.Errorf("footer = %q; want visible hint token %q", got, token)
@@ -124,8 +113,6 @@ func TestPreviewFooter_OrdersWindowPaneAttachBackLeftToRight(t *testing.T) {
 
 	got := stripANSI(footerLineForTest(m))
 
-	// §9.1 footer: labelled groups, space-separated, in nav order
-	// window → pane → attach → back.
 	const wantSegment = "←→ window  ⇥ pane  ⏎ attach  ␣ back"
 	if !strings.Contains(got, wantSegment) {
 		t.Errorf("footer = %q; want substring %q", got, wantSegment)
@@ -150,8 +137,6 @@ func TestPreviewChromeLine_FullStringEqualityForCanonicalShape(t *testing.T) {
 	}
 	m := newPreviewModelForHelpers("work", groups, 0, 0)
 
-	// The §9.1 header carries the marker + session + slash counters; the nav
-	// hints now live in the footer compartment (asserted separately).
 	header := stripANSI(chromeLineForTest(m))
 	if want := "◉ preview work Window 1/2 · Pane 1/2"; !strings.Contains(header, want) {
 		t.Errorf("header = %q; want substring %q", header, want)
@@ -163,8 +148,6 @@ func TestPreviewChromeLine_FullStringEqualityForCanonicalShape(t *testing.T) {
 }
 
 func TestPreviewChromeLine_DoesNotExposeRawTmuxIndices(t *testing.T) {
-	// Construct a session where the raw indices are large and would be
-	// visually distinct from the ordinals. Chrome must not surface them.
 	groups := []tmux.WindowGroup{
 		{WindowIndex: 0, WindowName: "first", PaneIndices: []int{0}},
 		{WindowIndex: 99, WindowName: "second", PaneIndices: []int{42, 43}},
@@ -245,8 +228,6 @@ func TestPreviewChromeLine_SingleWindowSinglePaneRendersOneOfOne(t *testing.T) {
 }
 
 func TestPreviewChromeLine_SessionNameWithPipeRenderedVerbatim(t *testing.T) {
-	// The §9.1 top bar renders the session name verbatim regardless of contents
-	// (an embedded pipe is rendered as-is, not stripped or escaped).
 	groups := []tmux.WindowGroup{
 		{WindowIndex: 0, WindowName: "main", PaneIndices: []int{0}},
 	}
@@ -259,9 +240,6 @@ func TestPreviewChromeLine_SessionNameWithPipeRenderedVerbatim(t *testing.T) {
 	}
 }
 
-// Regression guard for analysis-cycle-1 task 5-3: the original chrome format
-// embedded the literal "#W:" tmux-format-code as a user-facing label. Pinning
-// its absence here so a future revision cannot silently reintroduce it.
 func TestPreviewChromeLine_DoesNotEmbedTmuxFormatCodePrefix(t *testing.T) {
 	groups := []tmux.WindowGroup{
 		{WindowIndex: 0, WindowName: "main", PaneIndices: []int{0}},

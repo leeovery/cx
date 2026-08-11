@@ -25,14 +25,11 @@ func TestIndexMatch(t *testing.T) {
 	t.Run("it resolves a session dir to the same project as a canonical-key scan", func(t *testing.T) {
 		idx := NewIndex(projects)
 
-		// Pass a trailing-slash variant to confirm canonicalisation on both sides.
 		dir := projDir + string(os.PathSeparator)
 
 		gotIdx, gotKey, okIdx := idx.Match(dir)
 
-		// Inline oracle: scan the project set for one whose canonical key equals
-		// the canonical key of the lookup dir — the same logic the index
-		// performs, computed independently here as a differential cross-check.
+		// Independent oracle: the same match computed by a linear scan.
 		wantKey := CanonicalDirKey(dir)
 		var wantProj Project
 		wantOk := false
@@ -53,7 +50,6 @@ func TestIndexMatch(t *testing.T) {
 		if gotIdx.Name != "Proj" {
 			t.Errorf("Index.Match(%q) name = %q, want %q", dir, gotIdx.Name, "Proj")
 		}
-		// The returned key is always the canonical form of the input dir.
 		if gotKey != wantKey {
 			t.Errorf("Index.Match(%q) key = %q, want %q", dir, gotKey, wantKey)
 		}
@@ -74,9 +70,6 @@ func TestIndexMatch(t *testing.T) {
 		if got.Name != "Proj" {
 			t.Errorf("Index.Match(symlink) name = %q, want %q", got.Name, "Proj")
 		}
-		// The returned key captures EvalSymlinks resolution: it equals the
-		// canonical (symlink-resolved) form of the symlinked input, which is the
-		// same key callers reuse as the By-Project GroupKey.
 		if want := CanonicalDirKey(link); gotKey != want {
 			t.Errorf("Index.Match(symlink) key = %q, want %q", gotKey, want)
 		}
@@ -93,8 +86,6 @@ func TestIndexMatch(t *testing.T) {
 		if got.Path != "" || got.Name != "" || !got.LastUsed.IsZero() || got.Tags != nil {
 			t.Errorf("Index.Match(unknown) project = %+v, want zero value", got)
 		}
-		// Even on a miss the key is still the canonicalised input — a valid key
-		// that simply isn't present in the map.
 		if want := CanonicalDirKey(nope); gotKey != want {
 			t.Errorf("Index.Match(unknown) key = %q, want %q", gotKey, want)
 		}
@@ -116,8 +107,6 @@ func TestNewIndexCollisionLastWins(t *testing.T) {
 		t.Fatalf("Mkdir(%q) error = %v", projDir, err)
 	}
 
-	// Two projects with the same canonical key (same dir, one trailing-slash
-	// variant). Documented policy: last-write-wins.
 	projects := []Project{
 		{Path: projDir, Name: "First"},
 		{Path: projDir + string(os.PathSeparator), Name: "Last"},

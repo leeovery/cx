@@ -14,21 +14,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// The picker idiom's arrow-preview: `↑`/`↓` move the panel cursor, `Ctrl+↑`/`Ctrl+↓` page it,
-// the cursor steps past unselectable rows, and every landing re-themes the
-// WHOLE frame — main screen and panel chrome alike — through the swap-speed finding
-// restyle path.
-//
-// Most of this file asserts NEGATIVES, because live preview's whole risk profile
-// is what a keypress must NOT do: no file read, no rebuild and no lazy pane
-// read, no movement of the startup canvas hex, and no write of any
-// kind ("nothing is written").
-//
-// No t.Parallel() — the package-level mock convention makes parallelism unsafe
-// across this package's tests.
-
-// The four navigation presses the panel routes, and the banned forms the arrow-only keymap
-// revision drops.
 var (
 	arrowUp       = tea.KeyPressMsg{Code: tea.KeyUp}
 	arrowDown     = tea.KeyPressMsg{Code: tea.KeyDown}
@@ -36,58 +21,28 @@ var (
 	arrowPageDown = tea.KeyPressMsg{Code: tea.KeyDown, Mod: tea.ModCtrl}
 )
 
-// arrowTermW / arrowTermH size every renderable arrow fixture. They are wide and
-// tall enough that the panel composites over a real content region with the main
-// screen's own rows still visible to the left of it — which is what makes "the
-// main screen AND the panel both re-themed" two separate observations.
 const (
 	arrowTermW = 100
 	arrowTermH = 28
 )
 
-// arrowPagingTermH / arrowPagingPerPage are the fixture terminal height the PAGING
-// cases run at, and the page the production sizing gives the panel's list there.
-//
-// A fixture that wants a page boundary sizes the TERMINAL and lets
-// applyThemePanelListStyles derive the page, because that is the only shape in
-// which the paging assertions are about production: the arithmetic is
-// themePanelListSize's, shared with the per-frame copy renderThemePanel sizes, so
-// a test that installed a page of its own would be asserting against a page the
-// user never gets. At arrowTermH the body is 17 rows and a handful of fixture rows
-// fit on one page, so `Ctrl+↓` would have nowhere to go at all.
-//
-// The arithmetic: contentHeight(15) = 13, less the header's 5 (the page-measured
-// region — header block plus section header) and the four-row vertical footer leaves
-// a 4-row body, of which `bubbles/list` spends 2 on its own pagination block (the
-// dot row plus its leading blank) — a two-row page. It is the SHORTEST terminal that
-// paginates, one row above the geometry rule's floor.
 const (
 	arrowPagingTermH   = 15
 	arrowPagingPerPage = 2
 )
 
-// arrowPaletteReds are the leading red bytes of the distinct synthetic palettes
-// the arrow fixtures paint their rows from. Every channel of a synthetic palette
-// is three decimal digits, so one palette's rendered SGR core can never be a
-// substring of another's — the property the "the stale colour is absent" half of
-// each assertion rests on.
 var arrowPaletteReds = []uint8{0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF}
 
-// arrowPalette returns the i-th distinct synthetic palette.
 func arrowPalette(t *testing.T, i int) theme.Theme {
 	t.Helper()
 	return themetest.SyntheticPalette(t, arrowPaletteReds[i%len(arrowPaletteReds)])
 }
 
-// arrowValidRow is one SELECTABLE union row carrying its own distinct palette, so
-// landing on it is observable as a whole-frame colour change.
 func arrowValidRow(t *testing.T, slug string, palette int) theme.Row {
 	t.Helper()
 	return theme.Row{Slug: slug, Source: theme.SourceBuiltin, Theme: arrowPalette(t, palette)}
 }
 
-// arrowInvalidRow is one UNSELECTABLE union row — a drop-in the loader rejected.
-// It carries no palette, exactly as the loader's Result does not.
 func arrowInvalidRow(slug string) theme.Row {
 	return theme.Row{
 		Slug:      slug,
@@ -97,7 +52,6 @@ func arrowInvalidRow(slug string) theme.Row {
 	}
 }
 
-// arrowValidRows returns n selectable rows, each with its own palette.
 func arrowValidRows(t *testing.T, n int) []theme.Row {
 	t.Helper()
 	rows := make([]theme.Row, 0, n)
@@ -107,13 +61,10 @@ func arrowValidRows(t *testing.T, n int) []theme.Row {
 	return rows
 }
 
-// arrowSlug names the i-th fixture row. Zero-padded so the fixture order is also
-// the alphabetical order a real union would arrive in.
 func arrowSlug(i int) string {
 	return "theme-" + string(rune('a'+i/10)) + string(rune('0'+i%10))
 }
 
-// arrowRowBySlug returns the fixture row with the given slug.
 func arrowRowBySlug(t *testing.T, rows []theme.Row, slug string) theme.Row {
 	t.Helper()
 	for _, row := range rows {
@@ -125,10 +76,6 @@ func arrowRowBySlug(t *testing.T, rows []theme.Row, slug string) theme.Row {
 	return theme.Row{}
 }
 
-// newArrowPanelDeps assembles the Build deps for an arrow fixture: a stub seam
-// answering with the given rows verbatim (so the fixture's ORDER is the panel's
-// order) and a resolution naming cursorSlug's row, which is where the picker idiom's open
-// lands the cursor.
 func newArrowPanelDeps(t *testing.T, rows []theme.Row, cursorSlug string) Deps {
 	t.Helper()
 	target := arrowRowBySlug(t, rows, cursorSlug)
@@ -139,7 +86,6 @@ func newArrowPanelDeps(t *testing.T, rows []theme.Row, cursorSlug string) Deps {
 	return stubPanelDeps(source, theme.ConstantNomination(target.Theme), theme.RawKeys{Theme: cursorSlug})
 }
 
-// arrowRejectedCount counts the unselectable fixture rows.
 func arrowRejectedCount(rows []theme.Row) int {
 	n := 0
 	for _, row := range rows {
@@ -150,20 +96,11 @@ func arrowRejectedCount(rows []theme.Row) int {
 	return n
 }
 
-// newArrowPanelModel builds a renderable Sessions model over the given rows and
-// OPENS the panel through the production `t` keypress, so every assertion below is
-// about the live dispatch rather than a hand-installed panel.
 func newArrowPanelModel(t *testing.T, rows []theme.Row, cursorSlug string) Model {
 	t.Helper()
 	return newArrowPanelModelAt(t, rows, cursorSlug, arrowTermH)
 }
 
-// newArrowPanelModelAt is newArrowPanelModel at a chosen terminal HEIGHT — the one
-// input the panel's page size is a function of.
-//
-// The height is set BEFORE the `t` keypress, so the panel's list is sized by
-// PRODUCTION (applyThemePanelListStyles) at exactly the height the fixture renders
-// at. Nothing here sizes the PANEL's list.
 func newArrowPanelModelAt(t *testing.T, rows []theme.Row, cursorSlug string, termH int) Model {
 	t.Helper()
 	m := Build(newArrowPanelDeps(t, rows, cursorSlug))
@@ -172,13 +109,6 @@ func newArrowPanelModelAt(t *testing.T, rows []theme.Row, cursorSlug string, ter
 	return m
 }
 
-// requireArrowPanelPageSize pins the page PRODUCTION gives the panel's list at this
-// fixture's terminal height.
-//
-// It is a PRECONDITION, never a setter. A one-row page makes `Ctrl+↑`/`Ctrl+↓`
-// behaviourally identical to `↑`/`↓` and makes every skip-across-a-page-boundary
-// fixture degenerate, so the paging cases state the page they expect and fail loudly
-// if the production arithmetic stops delivering it.
 func requireArrowPanelPageSize(t *testing.T, m Model, want int) {
 	t.Helper()
 	if got := m.themePanel.list.Paginator.PerPage; got != want {
@@ -186,21 +116,10 @@ func requireArrowPanelPageSize(t *testing.T, m Model, want int) {
 	}
 }
 
-// arrowPanelIndex is the panel cursor's index into the union.
 func arrowPanelIndex(m Model) int { return m.themePanel.list.Index() }
 
-// requireArrowUnskippedLandingAt pins where the panel's list lands the cursor with
-// NO skip applied — the fixture precondition every skip case needs, since a landing
-// on a selectable row leaves no skip to exercise at all.
-//
-// AFTER A SINGLE-ROW STEP a reversal also ends where it began (there is no
-// selectable row in the direction of travel, so the only place to turn back to is
-// the row the cursor was already on), which makes "the cursor did not move"
-// indistinguishable from "the arrow was never routed"; a PAGE move jumps over rows
-// without checking them, so it can settle elsewhere and carries no such blindness.
-// Driving the list directly says what the keypress would have done unskipped: land
-// on an unselectable row. `bubbles/list`'s Update has a value receiver, so this
-// observes without mutating the model.
+// `bubbles/list`'s Update has a value receiver, so driving it directly observes
+// without mutating the model.
 func requireArrowUnskippedLandingAt(t *testing.T, m Model, press tea.KeyPressMsg, want int) {
 	t.Helper()
 	raw, _ := m.themePanel.list.Update(press)
@@ -212,7 +131,6 @@ func requireArrowUnskippedLandingAt(t *testing.T, m Model, press tea.KeyPressMsg
 	}
 }
 
-// requireArrowCursorAt fails unless the cursor is on the row at index want.
 func requireArrowCursorAt(t *testing.T, m Model, want int) {
 	t.Helper()
 	if got := arrowPanelIndex(m); got != want {
@@ -220,17 +138,6 @@ func requireArrowCursorAt(t *testing.T, m Model, want int) {
 	}
 }
 
-// TestPanelArrow_NavigationBindings: it moves the cursor on arrows and pages on
-// ctrl-arrows.
-//
-// The picker idiom's first two rows, end to end: `↑`/`↓` step one row and `Ctrl+↑`/`Ctrl+↓`
-// move a whole page, driven through the live Update so what is proven is the
-// panel's own routing rather than a call into `bubbles/list`.
-//
-// THE PAGE IS THE PRODUCTION ONE (see arrowPagingTermH). `Ctrl+↓` moving MORE THAN
-// ONE ROW is the load-bearing assertion: a panel list left at a one-row page routes
-// the paging keys perfectly and still steps a single row, which is indistinguishable
-// from `↓` on the screen.
 func TestPanelArrow_NavigationBindings(t *testing.T) {
 	rows := arrowValidRows(t, 6)
 	m := newArrowPanelModelAt(t, rows, arrowSlug(0), arrowPagingTermH)
@@ -256,27 +163,12 @@ func TestPanelArrow_NavigationBindings(t *testing.T) {
 	requireArrowCursorAt(t, m, 0)
 
 	if !m.themePanel.open {
-		t.Error("navigating closed the panel; arrows leave it open (§9.2)")
+		t.Error("navigating closed the panel; arrows leave it open")
 	}
 }
 
-// TestPanelArrow_ArrowOnlyNavigation: it binds no vim alias or page-jump key.
-//
-// MV's arrow-only keymap revision applies to the panel's list exactly as
-// pinArrowOnlyNav applies it to the other two: the v2 DefaultKeyMap re-introduces
-// h/j/k/l, g/G and PgUp/PgDn/Home/End/b/u/f/d, and `l`/`d` additionally collide with
-// the panel's own commit keys. The binding table is asserted alongside the
-// behaviour, because a key that reaches the list at all is a key the panel has
-// already lost control of.
-//
-// `←`/`→`/`d` are in the banned set because the v2 default binds all three to a
-// PAGE (`left`/`h`/`pgup`/`b`/`u` and `right`/`l`/`pgdown`/`f`/`d`), and `d` is the
-// one the picker idiom hands to the dark slot — a `d` that reached the list would page the
-// panel instead of committing.
-//
-// The fixture runs at the PAGING terminal height so the page keys have a page to
-// move to: on a single-page list every banned page key is a no-op whatever it is
-// bound to, and the behavioural half would pass for the wrong reason.
+// `bubbles/list` v2's DefaultKeyMap binds `←`/`→`/`d` to pages, and `d` is the
+// dark-slot commit key — one reaching the list would page instead of committing.
 func TestPanelArrow_ArrowOnlyNavigation(t *testing.T) {
 	rows := arrowValidRows(t, 6)
 	m := newArrowPanelModelAt(t, rows, arrowSlug(2), arrowPagingTermH)
@@ -296,7 +188,7 @@ func TestPanelArrow_ArrowOnlyNavigation(t *testing.T) {
 		{name: "GoToEnd", binding: km.GoToEnd, want: nil},
 	} {
 		if got := tc.binding.Keys(); strings.Join(got, ",") != strings.Join(tc.want, ",") {
-			t.Errorf("the panel list's %s binds %v, want %v — the panel is arrow-only (§12.2)", tc.name, got, tc.want)
+			t.Errorf("the panel list's %s binds %v, want %v — the panel is arrow-only", tc.name, got, tc.want)
 		}
 	}
 
@@ -327,9 +219,6 @@ func TestPanelArrow_ArrowOnlyNavigation(t *testing.T) {
 	}
 }
 
-// arrowFrameCells returns the composed frame's per-cell background state, row by
-// row — the observation both halves of the re-theme assertion are made on. A
-// glyph-only comparison could not tell a re-themed canvas from an unchanged one.
 func arrowFrameCells(t *testing.T, m Model) [][]bgState {
 	t.Helper()
 	lines := strings.Split(m.View().Content, "\n")
@@ -340,14 +229,10 @@ func arrowFrameCells(t *testing.T, m Model) [][]bgState {
 	return cells
 }
 
-// arrowPanelColumn / arrowMainColumn are the composed frame's column indices
-// INSIDE the panel and to the LEFT of it, so "the main screen re-themed" and "the
-// panel re-themed" are two separate observations rather than one.
 func arrowPanelColumn(m Model) int {
 	left := (m.termWidth-m.contentWidth())/2 + m.contentWidth() - themePanelPreferredWidth
-	// +1 clears the one-cell left border, which is the `border` token rather than the
-	// canvas. The cell it lands on is the panel's inner gutter — canvas on every row,
-	// which is exactly what a canvas observation wants.
+	// +1 clears the one-cell left border (the border token, not the canvas); the
+	// cell it lands on is the panel's inner gutter — canvas on every row.
 	return left + 1
 }
 
@@ -355,14 +240,6 @@ func arrowMainColumn(m Model) int {
 	return (m.termWidth - m.contentWidth()) / 2
 }
 
-// TestPanelArrow_PreviewsThroughApplyTheme: it re-themes the main screen and the
-// panel together.
-//
-// The picker idiom ("the app re-themes live behind the panel") and the re-theme-everything
-// rule ("the slide-over's own chrome re-themes with the previewed theme, no exceptions") are
-// ONE keypress, so they are asserted as one diff of the composed frame across a single `↓`: a
-// cell inside the panel and a cell of the main screen both carry the newly-selected
-// row's canvas and neither carries the previous row's.
 func TestPanelArrow_PreviewsThroughApplyTheme(t *testing.T) {
 	rows := arrowValidRows(t, 4)
 	before, after := rows[0].Theme, rows[1].Theme
@@ -396,17 +273,11 @@ func TestPanelArrow_PreviewsThroughApplyTheme(t *testing.T) {
 			t.Fatalf("fixture: %s was painted %q before the arrow, want the pre-swap canvas %q", tc.name, got, beforeParams)
 		}
 		if got := afterCells[row][tc.col].params; got != afterParams {
-			t.Errorf("%s is painted %q after the arrow, want the previewed canvas %q — every surface re-themes (§9.11)", tc.name, got, afterParams)
+			t.Errorf("%s is painted %q after the arrow, want the previewed canvas %q — every surface re-themes", tc.name, got, afterParams)
 		}
 	}
 }
 
-// TestPanelArrow_SkipsConsecutiveInvalidRows: it skips a block of adjacent invalid
-// rows.
-//
-// The one deliberate difference from the group-header skip the mechanism is
-// modelled on: two headers are never adjacent, whereas several broken drop-ins in
-// one directory ARE — so a single step is not enough and the skip loops.
 func TestPanelArrow_SkipsConsecutiveInvalidRows(t *testing.T) {
 	rows := []theme.Row{
 		arrowValidRow(t, "aaa", 0),
@@ -429,22 +300,6 @@ func TestPanelArrow_SkipsConsecutiveInvalidRows(t *testing.T) {
 	}
 }
 
-// TestPanelArrow_SkipReversesAtTheBoundary: it reverses rather than falling off the
-// list.
-//
-// The second deliberate difference from skipHeaderRow, in both directions: with no
-// selectable row left in the direction of travel the loop turns round rather than
-// parking on an invalid row or running off the end. Built-ins are always valid,
-// so a selectable row always exists for it to turn back to.
-//
-// AFTER A SINGLE-ROW STEP — which is what both cases below take — A REVERSAL ENDS
-// WHERE IT BEGAN: everything between the boundary and the starting row was walked
-// and found unselectable, so the row it turns back to is the one the cursor was
-// already on. (A PAGE move jumps over rows without checking them, so its reversal
-// can settle on one of those instead.) "The cursor did not move" is therefore not
-// self-evidently a reversal, and each case pins it from both sides: the unskipped
-// landing (an unselectable row, so there IS a skip to run) and the opposite arrow
-// (which does move, so the arm is routed at all).
 func TestPanelArrow_SkipReversesAtTheBoundary(t *testing.T) {
 	t.Run("upward into a leading invalid block", func(t *testing.T) {
 		rows := []theme.Row{
@@ -487,9 +342,6 @@ func TestPanelArrow_SkipReversesAtTheBoundary(t *testing.T) {
 	})
 }
 
-// requireArrowMoves fails unless press moves the panel cursor to want — the
-// companion half of each reversal case's non-vacuity, proving the arrow arm is live
-// in this exact fixture and state.
 func requireArrowMoves(t *testing.T, m Model, press tea.KeyPressMsg, want int) {
 	t.Helper()
 	if got := arrowPanelIndex(pressPanelKey(t, m, press)); got != want {
@@ -497,15 +349,6 @@ func requireArrowMoves(t *testing.T, m Model, press tea.KeyPressMsg, want int) {
 	}
 }
 
-// TestPanelArrow_SkipComposesWithPaging: it composes the skip with paging.
-//
-// The row-rendering rule: "the skip composes with paging exactly as the group-header skip
-// already does". `Ctrl+↓` lands on a page whose FIRST row is invalid, and the skip must
-// resolve that within the page it just landed on rather than undoing the page move.
-//
-// The fixture is only a fixture at the PRODUCTION page size: on a one-row page
-// `Ctrl+↓` would land on index 1 — a valid row — and there would be no skip to
-// compose with anything, which is why the page is pinned rather than installed.
 func TestPanelArrow_SkipComposesWithPaging(t *testing.T) {
 	rows := []theme.Row{
 		arrowValidRow(t, "aaa", 0),
@@ -529,12 +372,6 @@ func TestPanelArrow_SkipComposesWithPaging(t *testing.T) {
 	}
 }
 
-// TestPanelArrow_NoFileReadPerKeystroke: it reads no file per keystroke.
-//
-// The re-read-on-open rule's retention made executable, in the only way that cannot be faked:
-// the themes directory is DELETED after the panel opened, and arrowing still previews
-// the drop-in's own palette. A preview reading the file per keystroke could not
-// produce that colour at all.
 func TestPanelArrow_NoFileReadPerKeystroke(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
@@ -557,8 +394,6 @@ func TestPanelArrow_NoFileReadPerKeystroke(t *testing.T) {
 		t.Fatalf("remove the themes directory: %v", err)
 	}
 
-	// Walk down until the cursor reaches the OTHER drop-in. Its palette exists
-	// nowhere but the retained parse now.
 	const maxPresses = 12
 	landed := false
 	for range maxPresses {
@@ -579,13 +414,8 @@ func TestPanelArrow_NoFileReadPerKeystroke(t *testing.T) {
 	}
 }
 
-// newArrowRebuildProbeModel builds a grouped-mode model whose lazy per-session
-// dir-resolution pass is ARMED — every session's Dir empty, the reader counting —
-// with the panel open over rows carrying distinct palettes.
-//
-// The pre-render and the re-arm mirror newSwapProbeModel's: applySessions caches
-// each derived dir back onto m.sessions, and a warm cache would make "zero reads" a
-// true statement about the wrong thing.
+// Every session's Dir is re-emptied after the pre-render: applySessions caches
+// derived dirs back, and a warm cache would make "zero reads" vacuous.
 func newArrowRebuildProbeModel(t *testing.T, rows []theme.Row, reader *fakeStamper) Model {
 	t.Helper()
 
@@ -615,15 +445,6 @@ func newArrowRebuildProbeModel(t *testing.T, rows []theme.Row, reader *fakeStamp
 	return pressThemeKey(t, m)
 }
 
-// TestPanelArrow_DoesNotRebuildSessionList: it does not rebuild the session list.
-//
-// The swap-speed finding's central prohibition on the surface it matters most: a rebuild
-// re-derives the item list and, in grouped modes, pays the lazy per-session tmux pane reads
-// (the known ~0.5s By-Project cost at ~38 sessions). Nothing that heavy may sit on
-// a path the user takes on every arrow keypress.
-//
-// The positive control is what makes the zero an absence of reads rather than an
-// absence of counting.
 func TestPanelArrow_DoesNotRebuildSessionList(t *testing.T) {
 	rows := arrowValidRows(t, 4)
 	reader := &fakeStamper{path: t.TempDir()}
@@ -639,7 +460,7 @@ func TestPanelArrow_DoesNotRebuildSessionList(t *testing.T) {
 	}
 
 	if len(reader.reads) != 0 {
-		t.Errorf("twenty arrow presses performed %d lazy pane read(s) %v — a preview is the O(1) restyle (§11.1), never the rebuild's dir-resolution pass", len(reader.reads), reader.reads)
+		t.Errorf("twenty arrow presses performed %d lazy pane read(s) %v — a preview is the O(1) restyle, never the rebuild's dir-resolution pass", len(reader.reads), reader.reads)
 	}
 	if got := m.View().Content; !strings.Contains(got, tokenBgSeq(t, m.themeState.active.Canvas)) {
 		t.Errorf("the post-arrow frame does not carry the previewed canvas, so the zero above is a swap that never happened")
@@ -654,14 +475,6 @@ func TestPanelArrow_DoesNotRebuildSessionList(t *testing.T) {
 	}
 }
 
-// TestPanelArrow_StartupCanvasHexUnmoved: it never moves the startup canvas hex.
-//
-// The exit-time restore rule's anchor: the exit-time canvas restore compares against the
-// canvas in force during the STARTUP window, and an uncommitted preview is precisely the state
-// that would otherwise poison it — the user quits with `Ctrl-C` and a colour they never
-// chose stays stuck in their terminal. Both counts are asserted because a swap that
-// WRITES the hex moves it once, while one that re-derives it drifts only under
-// repetition.
 func TestPanelArrow_StartupCanvasHexUnmoved(t *testing.T) {
 	rows := arrowValidRows(t, 6)
 	m := newArrowPanelModel(t, rows, rows[0].Slug)
@@ -676,7 +489,7 @@ func TestPanelArrow_StartupCanvasHexUnmoved(t *testing.T) {
 		t.Fatal("fixture: one arrow did not change the active theme, so the assertion below is vacuous")
 	}
 	if m.themeState.startupCanvasHex != startup {
-		t.Errorf("after one arrow startupCanvasHex = %q, want %q unchanged — it is frozen at gate resolution (§11.4)", m.themeState.startupCanvasHex, startup)
+		t.Errorf("after one arrow startupCanvasHex = %q, want %q unchanged — it is frozen at gate resolution", m.themeState.startupCanvasHex, startup)
 	}
 
 	for range 25 {
@@ -688,23 +501,6 @@ func TestPanelArrow_StartupCanvasHexUnmoved(t *testing.T) {
 	}
 }
 
-// TestPanelArrow_WritesNothing: it writes nothing on an arrow.
-//
-// The picker idiom states it as part of the keymap itself — "the app re-themes live behind the
-// panel. Nothing is written." Every write is an explicit commit keypress,
-// so an arrow must persist no preference and must not touch the themes directory it
-// previews from.
-//
-// THE WRITE IS OBSERVED AT THE SEAM, NOT ON DISK. internal/tui resolves no config
-// path and reads no PORTAL_* env var: every route from this package to prefs.json
-// runs through an injected persister, so watching a prefs file here would be
-// watching a file nothing in this package could write whatever the preview did. The
-// mode persister is the only such seam an arrow could reach in this phase — the picker idiom's
-// commit keys are dispatched elsewhere and the panel's default arm swallows them,
-// so the theme persister has no dispatch to reach it from.
-//
-// The themes directory IS watched on disk, because the enumeration seam really does
-// reach it (the re-read-on-open rule's retention is what keeps a keypress off it).
 func TestPanelArrow_WritesNothing(t *testing.T) {
 	t.Run("arrowing persists no preference", func(t *testing.T) {
 		persister := &countingModePersister{}
@@ -724,12 +520,9 @@ func TestPanelArrow_WritesNothing(t *testing.T) {
 		}
 
 		if persister.calls != 0 {
-			t.Errorf("sixteen arrows persisted %d preference(s); every write is an explicit commit keypress (§9.2)", persister.calls)
+			t.Errorf("sixteen arrows persisted %d preference(s); every write is an explicit commit keypress", persister.calls)
 		}
 
-		// Positive control: the seam is wired to THIS model and live, so the zero
-		// above is an absence of writes rather than an absence of wiring. `s` is
-		// swallowed while the panel is open, so it is closed first.
 		m = pressPanelKey(t, closeThemePanelForTest(t, m), tea.KeyPressMsg{Code: 's', Text: "s"})
 		if persister.calls != 1 {
 			t.Fatalf("positive control: `s` on the closed picker persisted %d time(s), want 1 — the counting persister proves nothing about the arrows", persister.calls)
@@ -760,15 +553,8 @@ func TestPanelArrow_WritesNothing(t *testing.T) {
 	})
 }
 
-// TestPanelArrow_PanelListStylesRepointed: it re-points the panel's own list
-// styles.
-//
-// The completeness risk names the panel's `bubbles/list` instance the WORST CASE of the
-// cached-style class: its styles are assigned once at open while its theme changes
-// on every arrow. The pagination dots are the class's exemplar — `bubbles/list`
-// reads its dot STRINGS out of the styles once at construction — so the union is
-// large enough to paginate and the RENDERED dot row is diffed, which is the only
-// observation a re-point of the styles alone cannot satisfy.
+// `bubbles/list` reads its pagination dot strings out of the styles once at
+// construction, so the rendered dot row is diffed, not just the styles.
 func TestPanelArrow_PanelListStylesRepointed(t *testing.T) {
 	before, after := probeThemeBefore(t), probeThemeAfter(t)
 	rows := make([]theme.Row, 0, 20)
@@ -808,30 +594,16 @@ func TestPanelArrow_PanelListStylesRepointed(t *testing.T) {
 		l.Styles.HelpStyle.Render("x"), tokenBgSeq(t, after.Canvas), tokenBgSeq(t, before.Canvas))
 	assertRepointed(t, "the panel list's Styles.TitleBar",
 		l.Styles.TitleBar.Render("x"), tokenBgSeq(t, after.Canvas), tokenBgSeq(t, before.Canvas))
-	// Styles.NoItems is the last bubbles/list-owned colour-bearing style on this
-	// instance, and it is re-pointed on the same terms as the two main lists' rather
-	// than justified as unreachable: the panel arm's coverage of the completeness risk's class is
-	// asserted per VALUE, which is the discipline applyCanvasMode's residue record
-	// adopted after a blanket "none of these renders" claim let this exact style sit
-	// unnoticed while reaching a real frame.
 	assertRepointed(t, "the panel list's Styles.NoItems",
 		l.Styles.NoItems.Render("x"), tokenFgSeq(t, after.TextMuted), tokenFgSeq(t, before.TextMuted))
 	if titleRun := l.Styles.Title.Render("x"); strings.ContainsRune(titleRun, '\x1b') {
 		t.Errorf("the panel list's Styles.Title emits colour %q — nothing paints the title box", escSeq(titleRun))
 	}
 
-	// The delegate is the other half of the completeness risk's rule: the cursor row's label is
-	// text.on-selection, which no other panel surface paints.
 	assertRepointed(t, "the panel's row delegate (cursor-row label)",
 		panel, tokenFgSeq(t, after.TextOnSelection), tokenFgSeq(t, before.TextOnSelection))
 }
 
-// TestPanelArrow_ColourlessStaysColourless: it keeps a colourless model colourless.
-//
-// The NO_COLOR carve-out across a preview swap: Portal imposes no hue under NO_COLOR, and
-// re-pointing three lists' worth of cached styles is exactly where one would leak
-// back in. The coloured twin is the positive control, so the two negatives are
-// absences rather than a frame that never had colour.
 func TestPanelArrow_ColourlessStaysColourless(t *testing.T) {
 	const (
 		fgTruecolor = "38;2;"
@@ -845,10 +617,6 @@ func TestPanelArrow_ColourlessStaysColourless(t *testing.T) {
 		m := Build(deps)
 		m.termWidth, m.termHeight = arrowTermW, arrowTermH
 		m.applySessions([]tmux.Session{{Name: "alpha", Windows: 1}, {Name: "bravo", Windows: 2}})
-		// The NO_COLOR panel block's entry gate BLOCKS `t` under NO_COLOR, so the colourless twin
-		// arms the panel directly (armPanelUnderNoColorForTest states why) while the coloured
-		// control still opens through the production keypress. The preview swap below is
-		// the same on both.
 		if colourless {
 			m = armPanelUnderNoColorForTest(t, m)
 		} else {
@@ -875,13 +643,6 @@ func TestPanelArrow_ColourlessStaysColourless(t *testing.T) {
 	}
 }
 
-// TestPanelArrow_SameRowIsANoOp: it treats an unchanged selection as a no-op.
-//
-// Two shapes of "nothing to do", both reachable on an ordinary keypress: an arrow
-// at the boundary that cannot move the cursor at all, and a round trip that lands
-// back on the row already active. Neither may leave a mark on the frame, and a
-// repeated swap must render exactly what the first one rendered — the restyle
-// carries no accumulating state.
 func TestPanelArrow_SameRowIsANoOp(t *testing.T) {
 	rows := arrowValidRows(t, 3)
 	m := newArrowPanelModel(t, rows, rows[0].Slug)

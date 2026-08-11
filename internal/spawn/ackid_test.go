@@ -8,8 +8,6 @@ import (
 	"github.com/leeovery/portal/internal/session"
 )
 
-// queuedGenerator returns each queued id in order, then empty strings once
-// exhausted. It never errors — the erroring case is modelled inline.
 func queuedGenerator(ids ...string) func() (string, error) {
 	i := 0
 	return func() (string, error) {
@@ -23,7 +21,6 @@ func queuedGenerator(ids ...string) func() (string, error) {
 }
 
 func TestNewSpawnID_GeneratesOptionSafeIDAndPropagatesError(t *testing.T) {
-	// "it generates a non-empty option-safe id and propagates a generator error to an empty id"
 	id, err := NewSpawnID(queuedGenerator("b1abcd"))
 	if err != nil {
 		t.Fatalf("NewSpawnID(ok) returned error %v, want nil", err)
@@ -46,7 +43,6 @@ func TestNewSpawnID_GeneratesOptionSafeIDAndPropagatesError(t *testing.T) {
 }
 
 func TestNewSpawnID_RejectsNonOptionSafeGeneratedID(t *testing.T) {
-	// "it rejects a generated id containing a hyphen, dot, colon or space"
 	for _, bad := range []string{"has-hyphen", "has.dot", "has:colon", "has space"} {
 		t.Run(bad, func(t *testing.T) {
 			id, err := NewSpawnID(queuedGenerator(bad))
@@ -59,8 +55,6 @@ func TestNewSpawnID_RejectsNonOptionSafeGeneratedID(t *testing.T) {
 		})
 	}
 
-	// A generator returning an empty (yet non-erroring) id is also rejected —
-	// the function never treats an empty id as valid.
 	t.Run("empty id from generator", func(t *testing.T) {
 		id, err := NewSpawnID(queuedGenerator(""))
 		if err == nil {
@@ -73,7 +67,6 @@ func TestNewSpawnID_RejectsNonOptionSafeGeneratedID(t *testing.T) {
 }
 
 func TestSpawnMarkerName_FormatsAndRoundTrips(t *testing.T) {
-	// "it formats and round-trips a marker name to (batch, token)"
 	name := SpawnMarkerName("b1abcd", "t2wxyz")
 	if want := "@portal-spawn-b1abcd-t2wxyz"; name != want {
 		t.Fatalf("SpawnMarkerName = %q, want %q", name, want)
@@ -89,7 +82,6 @@ func TestSpawnMarkerName_FormatsAndRoundTrips(t *testing.T) {
 }
 
 func TestParseSpawnMarkerName_RejectsForeignOrDelimiterless(t *testing.T) {
-	// "it rejects a foreign-prefixed or delimiter-less marker name on parse"
 	tests := []struct {
 		name  string
 		input string
@@ -115,7 +107,6 @@ func TestParseSpawnMarkerName_RejectsForeignOrDelimiterless(t *testing.T) {
 }
 
 func TestFormatSpawnAckFlag_FormatsAndRoundTrips(t *testing.T) {
-	// "it formats and round-trips the <batch>:<token> ack flag value"
 	value := FormatSpawnAckFlag("b1abcd", "t2wxyz")
 	if want := "b1abcd:t2wxyz"; value != want {
 		t.Fatalf("FormatSpawnAckFlag = %q, want %q", value, want)
@@ -131,7 +122,6 @@ func TestFormatSpawnAckFlag_FormatsAndRoundTrips(t *testing.T) {
 }
 
 func TestParseSpawnAckFlag_RejectsMissingColonOrEmptyPart(t *testing.T) {
-	// "it rejects a flag value with a missing colon or an empty batch or token"
 	for _, bad := range []string{"nocolon", ":t1", "b1:", ":", ""} {
 		t.Run(bad, func(t *testing.T) {
 			batch, token, ok := ParseSpawnAckFlag(bad)
@@ -146,9 +136,6 @@ func TestParseSpawnAckFlag_RejectsMissingColonOrEmptyPart(t *testing.T) {
 }
 
 func TestNewSpawnID_IndependentRealGeneratorIDs(t *testing.T) {
-	// Two independent NewSpawnID calls with the real generator produce two
-	// non-empty option-safe strings — no cached id reuse. Content is random,
-	// so only charset/non-empty are asserted (never the random value itself).
 	gen := session.NewNanoIDGenerator()
 
 	first, err := NewSpawnID(gen)
@@ -175,11 +162,6 @@ func TestNewSpawnID_IndependentRealGeneratorIDs(t *testing.T) {
 }
 
 func TestIsOptionSafeID_GovernedBySharedNanoIDAlphabet(t *testing.T) {
-	// The spawn ack-id option-safety check must be governed by exactly the one
-	// shared session.NanoIDAlphabet — no more, no less. The whole shared alphabet
-	// is option-safe; any char outside it (here the load-bearing "-") is rejected.
-	// This pins the ack-id vocabulary to the single shared constant and guards
-	// against a silent re-divergence of the charset.
 	if !isOptionSafeID(session.NanoIDAlphabet) {
 		t.Errorf("isOptionSafeID(NanoIDAlphabet) = false, want true (the whole shared alphabet must be option-safe)")
 	}

@@ -9,23 +9,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// Tests for top-level handling of previewAttachBailMsg. The bail handler
-// mirrors the previewDismissedMsg shape: transition to PageSessions, zero
-// m.preview, dispatch a sessions-list refresh keyed by the message's
-// Session name. Phase 2 (task 2-5) layers an inline flash emission + tick
-// onto that base — flash-specific assertions live in
-// preview_attach_bail_flash_test.go. Tests here cover transitions,
-// preview-zeroing, refresh-cmd dispatch, and Esc-dismiss regressions.
-//
-// The success terminal (previewAttachSelectedMsg) is covered by
-// preview_attach_selected_test.go; the prior previewAttachErrorMsg pinning
-// tests were retired in Phase 3 task 3-1 when the connector handoff moved
-// post-TUI.
-
-// pressSpaceThenBail opens the preview via Space, then feeds a
-// previewAttachBailMsg directly into Update, mirroring how the cmd produced
-// by previewAttachPipeline.Run resolves. The final Model and the tea.Cmd
-// returned from the bail handler are surfaced for assertions.
 func pressSpaceThenBail(t *testing.T, m Model, session string) (Model, tea.Cmd) {
 	t.Helper()
 	updated, _ := m.Update(keySpaceMsg())
@@ -87,8 +70,6 @@ func TestPreviewAttachBailDispatchesRefreshCmd(t *testing.T) {
 	if cmd == nil {
 		t.Fatalf("expected non-nil cmd from bail handler")
 	}
-	// Bail handler now returns tea.Batch(refresh, tick) (Phase 2). Drain
-	// the batch and locate the refresh msg.
 	cmds := drainBatchCmds(cmd)
 	if cmds == nil {
 		t.Fatalf("expected tea.BatchMsg from bail cmd, got non-batch")
@@ -106,9 +87,6 @@ func TestPreviewAttachBailDispatchesRefreshCmd(t *testing.T) {
 }
 
 func TestPreviewAttachBailPreservesSessionNameFromMessage(t *testing.T) {
-	// The bail handler must read from msg.Session, not m.preview.session — the
-	// preview is zeroed during the same Update call. Use a session name that
-	// is NOT the one preview was opened on to prove the source.
 	sessions := []tmux.Session{
 		{Name: "alpha", Windows: 1, Attached: false},
 		{Name: "bravo", Windows: 1, Attached: false},
@@ -137,15 +115,10 @@ func TestPreviewAttachBailPreservesSessionNameFromMessage(t *testing.T) {
 }
 
 func TestPreviewAttachBailNoListerStillEmitsTickCleanly(t *testing.T) {
-	// Phase 2: bail returns tea.Batch(refresh, tick). When no SessionLister
-	// is wired, refreshSessionsAfterPreviewCmd returns nil; bubbletea's
-	// Batch compacts a single-non-nil-cmd input down to that cmd directly
-	// (no BatchMsg wrapper). So the returned cmd produces a flashTickMsg
-	// directly. The page still transitions cleanly and the flash is set.
 	sessions := []tmux.Session{{Name: "alpha", Windows: 1, Attached: false}}
 	enum := newSinglePaneEnumerator()
 	reader := &recordingReader{bytes: []byte("hi")}
-	m := modelWithSeams(t, sessions, enum, reader) // no lister wired
+	m := modelWithSeams(t, sessions, enum, reader)
 
 	got, cmd := pressSpaceThenBail(t, m, "alpha")
 
@@ -165,8 +138,6 @@ func TestPreviewAttachBailNoListerStillEmitsTickCleanly(t *testing.T) {
 }
 
 func TestPreviewAttachBailToleratesListerErrorSilently(t *testing.T) {
-	// Refresh-after-bail must tolerate lister errors the same way the dismiss
-	// path does: drop the error silently, leave the existing list intact.
 	first := []tmux.Session{
 		{Name: "alpha", Windows: 1, Attached: false},
 		{Name: "bravo", Windows: 1, Attached: false},
@@ -180,8 +151,6 @@ func TestPreviewAttachBailToleratesListerErrorSilently(t *testing.T) {
 	if cmd == nil {
 		t.Fatalf("expected non-nil cmd from bail handler")
 	}
-	// Bail returns tea.Batch(refresh, tick); fish the refresh cmd's msg
-	// out of the batch and feed it through Update.
 	cmds := drainBatchCmds(cmd)
 	if cmds == nil {
 		t.Fatalf("expected tea.BatchMsg from bail cmd, got non-batch")
@@ -205,9 +174,6 @@ func TestPreviewAttachBailToleratesListerErrorSilently(t *testing.T) {
 }
 
 func TestPreviewAttachBailEmptySessionNameStillTransitions(t *testing.T) {
-	// Defensive: empty msg.Session (e.g., empty-session guard in pipeline)
-	// must still transition cleanly. PreserveName is forwarded empty;
-	// reanchorSessionCursor returns early on empty.
 	sessions := []tmux.Session{{Name: "alpha", Windows: 1, Attached: false}}
 	enum := newSinglePaneEnumerator()
 	reader := &recordingReader{bytes: []byte("hi")}
@@ -235,9 +201,6 @@ func TestPreviewAttachBailEmptySessionNameStillTransitions(t *testing.T) {
 	}
 }
 
-// Regression: adding the bail handler must not perturb the existing Esc
-// dismiss path. previewDismissedMsg must continue to flip to PageSessions
-// and dispatch the refresh.
 func TestEscDismissPathUnchangedAfterBailHandlerAdded(t *testing.T) {
 	sessions := []tmux.Session{{Name: "alpha", Windows: 1, Attached: false}}
 	enum := newSinglePaneEnumerator()

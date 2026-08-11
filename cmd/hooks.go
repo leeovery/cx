@@ -9,30 +9,19 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// HookKeyResolver resolves a tmux pane ID (e.g. "%3") to its hook key
-// (e.g. "<@portal-id or session_name>:window.pane") via HookKeyFormat — a
-// stamped session resolves off the immutable @portal-id (rename-immune), an
-// un-stamped session off the session name.
+// HookKeyResolver maps a tmux pane ID ("%3") to its rename-immune hook key.
 type HookKeyResolver interface {
 	ResolveHookKey(paneID string) (string, error)
 }
 
-// Compile-time assertion that the production tmux client satisfies the seam,
-// so a drift in ResolveHookKey's signature fails fast at build time rather
-// than only via the implicit assignment in resolveCurrentPaneKey.
 var _ HookKeyResolver = (*tmux.Client)(nil)
 
-// hooksDeps holds injectable dependencies for the hooks commands.
-// When nil, real implementations are used.
 var hooksDeps *HooksDeps
 
-// HooksDeps allows injecting dependencies for testing.
 type HooksDeps struct {
 	KeyResolver HookKeyResolver
 }
 
-// requireTmuxPane reads TMUX_PANE from the environment and returns an
-// error if empty. This is the single validation point for both set and rm.
 func requireTmuxPane() (string, error) {
 	paneID := os.Getenv("TMUX_PANE")
 	if paneID == "" {
@@ -41,15 +30,10 @@ func requireTmuxPane() (string, error) {
 	return paneID, nil
 }
 
-// buildHooksTmuxClient creates a real tmux.Client for hooks commands.
-// Only called when hooksDeps is nil (production path).
 func buildHooksTmuxClient() *tmux.Client {
 	return tmux.DefaultClient()
 }
 
-// resolveCurrentPaneKey reads TMUX_PANE from the environment, resolves
-// it to a hook key (e.g. "<@portal-id or session_name>:window.pane") via the
-// injected or default HookKeyResolver, and returns the result.
 func resolveCurrentPaneKey() (string, error) {
 	paneID, err := requireTmuxPane()
 	if err != nil {
@@ -71,11 +55,8 @@ func resolveCurrentPaneKey() (string, error) {
 	return hookKey, nil
 }
 
-// hookCmd is the canonical resume-hook namespace. `hooks` is retained as a
-// permanent, silent cobra alias (the one deliberate back-compat carve-out —
-// machine-written `portal hooks set …` from external SessionStart skills keeps
-// working). A plain Aliases entry is silent by design: cobra prints no
-// deprecation notice (do NOT use cmd.Deprecated, which would).
+// `hooks` is a permanent back-compat alias for machine-written invocations. It
+// must stay a plain Aliases entry — cmd.Deprecated would print a notice.
 var hookCmd = &cobra.Command{
 	Use:     "hook",
 	Aliases: []string{"hooks"},
@@ -131,7 +112,6 @@ var hooksSetCmd = &cobra.Command{
 	},
 }
 
-// loadHookStore creates a hook store from the configured file path.
 func loadHookStore() (*hooks.Store, error) {
 	path, err := hooksFilePath()
 	if err != nil {
@@ -141,9 +121,6 @@ func loadHookStore() (*hooks.Store, error) {
 	return hooks.NewStore(path), nil
 }
 
-// hooksFilePath returns the path to the hooks JSON file.
-// Uses PORTAL_HOOKS_FILE env var if set (for testing), otherwise
-// defaults to ~/.config/portal/hooks.json.
 func hooksFilePath() (string, error) {
 	return configFilePath("PORTAL_HOOKS_FILE", "hooks.json")
 }

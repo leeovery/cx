@@ -9,10 +9,6 @@ import (
 	"github.com/leeovery/portal/internal/statetest"
 )
 
-// TestRecordingFIFOSignaler_GlobalErrTakesPrecedence pins the priority order:
-// when Err is non-nil it is returned for every call regardless of any
-// per-path ErrOn entry. Recording is still unconditional so callers can count
-// attempted writes.
 func TestRecordingFIFOSignaler_GlobalErrTakesPrecedence(t *testing.T) {
 	sentinel := errors.New("global boom")
 	perPath := errors.New("per-path boom")
@@ -26,7 +22,6 @@ func TestRecordingFIFOSignaler_GlobalErrTakesPrecedence(t *testing.T) {
 		t.Errorf("SendSignal err = %v; want global sentinel %v (must dominate ErrOn)", err, sentinel)
 	}
 
-	// Calls a path that has no ErrOn entry — global Err still applies.
 	err = r.SendSignal("/state/beta.fifo")
 	if !errors.Is(err, sentinel) {
 		t.Errorf("SendSignal err = %v; want global sentinel %v", err, sentinel)
@@ -38,10 +33,6 @@ func TestRecordingFIFOSignaler_GlobalErrTakesPrecedence(t *testing.T) {
 	}
 }
 
-// TestRecordingFIFOSignaler_PerPathErrOnReturnsConfiguredError pins the
-// per-path branch: with global Err nil, an ErrOn[path] entry returns its
-// configured error while paths without entries return nil. The path is still
-// recorded either way.
 func TestRecordingFIFOSignaler_PerPathErrOnReturnsConfiguredError(t *testing.T) {
 	sentinel := errors.New("write fifo: i/o error")
 	failPath := "/state/broken.fifo"
@@ -62,9 +53,6 @@ func TestRecordingFIFOSignaler_PerPathErrOnReturnsConfiguredError(t *testing.T) 
 	}
 }
 
-// TestRecordingFIFOSignaler_DefaultRecordsAndReturnsNil pins the zero-error
-// happy path: with both Err nil and ErrOn nil/missing, every call records the
-// path and returns nil.
 func TestRecordingFIFOSignaler_DefaultRecordsAndReturnsNil(t *testing.T) {
 	r := &statetest.RecordingFIFOSignaler{}
 
@@ -80,10 +68,6 @@ func TestRecordingFIFOSignaler_DefaultRecordsAndReturnsNil(t *testing.T) {
 	}
 }
 
-// TestRecordingFIFOSignaler_SatisfiesFIFOSignaler is a runtime echo of the
-// compile-time assertion in fifo_signaler_recorder.go: the recording fake
-// must remain assignable to state.FIFOSignaler so callers can drop it into
-// the production seam without an adapter.
 func TestRecordingFIFOSignaler_SatisfiesFIFOSignaler(t *testing.T) {
 	var _ state.FIFOSignaler = (*statetest.RecordingFIFOSignaler)(nil)
 }

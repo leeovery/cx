@@ -1,16 +1,3 @@
-// Tests in this file mutate package-level state and MUST NOT use t.Parallel.
-//
-// Phase 5 Task 5-1: the daemon tick cycle summary. captureAndCommit emits
-// exactly ONE INFO "capture: tick complete" line per tick that does capture
-// work, under the capture-bound logger (component "capture", promoted out of
-// daemon), plus per-pane DEBUG breadcrumbs (steady) and the existing per-pane
-// WARN (anomaly). natural_churn classification (option a): a pane/session that
-// the user closed mid-tick — surfaced by tmux's "can't find {session,window,
-// pane}" capture-pane stderr — counts as natural_churn (DEBUG), not anomalous.
-//
-// Spec reference: § Cycle-level summary cadence and shape (daemon-tick row of
-// the concrete cycle catalog); § Subsystem prefix taxonomy (capture component).
-
 package cmd
 
 import (
@@ -27,15 +14,10 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// captureSummarySink is a thin wrapper over the shared logtest.Sink that adds
-// the capture-cycle's "tick complete" record filtering. The capture-cycle
-// summary tests assert on the structured record (component=capture, msg, int
-// attr values, took rendered as a duration) via the sink's shared accessors.
 type captureSummarySink struct {
 	*logtest.Sink
 }
 
-// summaries returns every record whose component=capture and msg="tick complete".
 func (s *captureSummarySink) summaries() []logtest.Record {
 	var out []logtest.Record
 	for _, r := range s.Records() {
@@ -48,8 +30,6 @@ func (s *captureSummarySink) summaries() []logtest.Record {
 	return out
 }
 
-// onlySummary asserts exactly one capture: tick complete record was emitted and
-// returns it.
 func (s *captureSummarySink) onlySummary(t *testing.T) logtest.Record {
 	t.Helper()
 	sums := s.summaries()
@@ -66,11 +46,9 @@ func installCaptureSummarySink(t *testing.T) *captureSummarySink {
 	return sink
 }
 
-// paneVanishedCommandErr returns a *tmux.CommandError whose stderr carries
-// tmux's canonical "can't find {session,window,pane}: <x>" phrasing — the shape
-// CapturePane surfaces (un-sentinel-wrapped) when a pane/session the index
-// still references vanished mid-tick. This is the natural-churn signal that
-// option (a) classifies as a clean close, not an anomalous capture failure.
+// paneVanishedCommandErr carries tmux's canonical "can't find
+// {session,window,pane}" phrasing, the un-sentinel-wrapped shape CapturePane
+// surfaces when a pane vanishes mid-tick.
 func paneVanishedCommandErr(kind, name string) error {
 	return &tmux.CommandError{
 		Stderr: "can't find " + kind + ": " + name,
@@ -78,9 +56,8 @@ func paneVanishedCommandErr(kind, name string) error {
 	}
 }
 
-// makeCaptureDeps assembles a tick-ready daemonDeps over the given fake
-// commander. deps.Logger is io.Discard-backed (the daemon-component WARNs are
-// asserted via the process-wide capture sink, not deps.Logger, in these tests).
+// makeCaptureDeps assembles a tick-ready daemonDeps. deps.Logger is discarded:
+// these tests read the daemon WARNs off the process-wide capture sink.
 func makeCaptureDeps(t *testing.T, dir string, fc *daemonFakeCommander) *daemonDeps {
 	t.Helper()
 	if _, err := state.EnsureDir(); err != nil {
@@ -97,10 +74,8 @@ func makeCaptureDeps(t *testing.T, dir string, fc *daemonFakeCommander) *daemonD
 	}
 }
 
-// breakScrollbackDir replaces the state dir's scrollback subdirectory with a
-// regular file so WriteScrollbackIfChanged's AtomicWrite0600 fails at the
-// MkdirAll/temp-create phase — a genuine (non-vanished) write failure that
-// must classify as anomalous.
+// breakScrollbackDir puts a regular file where the scrollback directory belongs
+// so the atomic write fails at temp-create - a genuine, non-vanished failure.
 func breakScrollbackDir(t *testing.T, dir string) {
 	t.Helper()
 	sbDir := state.ScrollbackDir(dir)
@@ -112,9 +87,8 @@ func breakScrollbackDir(t *testing.T, dir string) {
 	}
 }
 
-// breakCommitTarget creates a directory at the sessions.json path so
-// state.Commit's atomic rename fails — a phase-boundary error that must NOT
-// produce a tick-complete summary.
+// breakCommitTarget puts a directory at the sessions.json path so Commit's
+// rename fails, giving a phase-boundary error.
 func breakCommitTarget(t *testing.T, dir string) {
 	t.Helper()
 	if err := os.Mkdir(state.SessionsJSON(dir), 0o700); err != nil {
@@ -169,7 +143,6 @@ func TestCaptureAndCommit_NoSummaryWhenCtxCancelledAtObsPoint1(t *testing.T) {
 	fc := &daemonFakeCommander{sessionsOut: sess, panesOut: panes}
 	deps := makeCaptureDeps(t, dir, fc)
 
-	// Cancel before entry — obs point 1 (pre-enumeration) returns nil first.
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
@@ -190,9 +163,8 @@ func TestCaptureAndCommit_NoSummaryWhenCtxCancelledAtObsPoint2(t *testing.T) {
 	sink := installCaptureSummarySink(t)
 
 	sess, panes := oneSession()
-	// dispatchHook fires cancel() after CaptureStructure's show-environment
-	// subcall, so the obs-point-2 check (post-enumeration, pre-iteration)
-	// observes the cancellation and returns nil before any per-pane work.
+	// cancel() fires after CaptureStructure's show-environment subcall, so the
+	// post-enumeration check observes it before any per-pane work.
 	ctx, cancel := context.WithCancel(context.Background())
 	fc := &daemonFakeCommander{
 		sessionsOut: sess,
@@ -221,10 +193,8 @@ func TestCaptureAndCommit_NoSummaryWhenCtxCancelledAtObsPoint3(t *testing.T) {
 	t.Setenv("PORTAL_STATE_DIR", dir)
 	sink := installCaptureSummarySink(t)
 
-	// Two panes. dispatchHook fires cancel() on the FIRST capture-pane call, so
-	// the first iteration captures normally but the SECOND iteration's
-	// obs-point-3 (between per-pane iterations) observes the cancellation and
-	// returns nil before reaching Commit — no summary is emitted.
+	// cancel() fires on the FIRST capture-pane call, so the second iteration's
+	// between-panes check returns before Commit.
 	ctx, cancel := context.WithCancel(context.Background())
 	fc := &daemonFakeCommander{
 		sessionsOut: "work|1|0|",
@@ -251,8 +221,8 @@ func TestCaptureAndCommit_AnomalousCapturePaneFailureIncrementsAnomalousAndWarns
 	t.Setenv("PORTAL_STATE_DIR", dir)
 	sink := installCaptureSummarySink(t)
 
-	// A genuine (non-vanished) capture failure: a plain error whose chain is
-	// neither ErrNoSuchSession nor a "can't find" *tmux.CommandError.
+	// A genuine capture failure: neither ErrNoSuchSession nor a "can't find"
+	// *tmux.CommandError.
 	sentinel := errors.New("capture-pane transport boom")
 	fc := &daemonFakeCommander{
 		sessionsOut: "work|1|0|",
@@ -273,13 +243,10 @@ func TestCaptureAndCommit_AnomalousCapturePaneFailureIncrementsAnomalousAndWarns
 	if got := rec.IntAttr(t, "natural_churn"); got != 0 {
 		t.Errorf("natural_churn = %d, want 0 on a genuine failure", got)
 	}
-	// Both panes are processed (the failing one and its healthy peer): the loop
-	// continues past the failure.
 	if got := rec.IntAttr(t, "panes"); got != 2 {
 		t.Errorf("panes = %d, want 2 (loop continued past failure)", got)
 	}
 
-	// One per-pane WARN on component=daemon naming the failing pane + wrapped err.
 	var warns []logtest.Record
 	for _, r := range sink.Records() {
 		if r.Level == slog.LevelWarn && r.Msg == "capture pane failed" {
@@ -306,8 +273,6 @@ func TestCaptureAndCommit_AnomalousWriteScrollbackFailureIncrementsAnomalousAndW
 		captureByTarget: map[string]string{"work:0.0": "some scrollback bytes"},
 	}
 	deps := makeCaptureDeps(t, dir, fc)
-	// Force WriteScrollbackIfChanged to fail by removing the scrollback dir and
-	// replacing it with a regular file so AtomicWrite0600's temp-create fails.
 	breakScrollbackDir(t, dir)
 
 	if err := captureAndCommit(context.Background(), deps); err != nil {
@@ -344,9 +309,7 @@ func TestCaptureAndCommit_NoSummaryOnCommitPhaseError(t *testing.T) {
 	sess, panes := oneSession()
 	fc := &daemonFakeCommander{sessionsOut: sess, panesOut: panes}
 	deps := makeCaptureDeps(t, dir, fc)
-	// Break the state dir so state.Commit's atomic write fails: replace the
-	// sessions.json parent's writability. Commit writes via os.WriteFile into
-	// dir, so making dir read-only forces the phase-boundary error.
+	// Commit writes into dir, so a read-only dir forces the phase-boundary error.
 	breakCommitTarget(t, dir)
 
 	err := captureAndCommit(context.Background(), deps)
@@ -363,7 +326,6 @@ func TestCaptureAndCommit_CountsUserClosedPaneAsNaturalChurnNotAnomalous(t *test
 	t.Setenv("PORTAL_STATE_DIR", dir)
 	sink := installCaptureSummarySink(t)
 
-	// Two panes: one vanished mid-tick (tmux "can't find pane"), one healthy.
 	fc := &daemonFakeCommander{
 		sessionsOut: "work|1|0|",
 		panesOut: "work|||0|||main|||layout|||0|||1|||0|||/tmp|||1|||zsh|||\n" +
@@ -387,7 +349,6 @@ func TestCaptureAndCommit_CountsUserClosedPaneAsNaturalChurnNotAnomalous(t *test
 		t.Errorf("anomalous = %d, want 0 (a vanished pane is not anomalous)", got)
 	}
 
-	// A vanished pane emits a capture-bound DEBUG "pane vanished", NOT a WARN.
 	for _, r := range sink.Records() {
 		if r.Level == slog.LevelWarn && r.Msg == "capture pane failed" {
 			t.Errorf("vanished pane must not emit a WARN: %+v", r)
@@ -435,8 +396,7 @@ func TestCaptureAndCommit_EmitsPerPaneDebugBreadcrumbUnderCapture(t *testing.T) 
 	if comp := dbg[0].Attrs["component"]; comp.String() != "capture" {
 		t.Errorf("breadcrumb component = %q, want capture", comp.String())
 	}
-	// pane_key is the canonical persisted form (SanitizePaneKey), not the
-	// tmux -t target form: "work__0.0", not "work:0.0".
+	// The canonical persisted form, not the tmux -t target form.
 	if pk, ok := dbg[0].Attrs["pane_key"]; !ok || pk.String() != "work__0.0" {
 		t.Errorf("breadcrumb pane_key = %v, want work__0.0", dbg[0].Attrs["pane_key"])
 	}

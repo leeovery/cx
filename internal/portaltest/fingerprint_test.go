@@ -1,18 +1,6 @@
-// White-box tests for the fingerprint-diff backstop.
-//
-// These tests intentionally live in `package portaltest` (not
-// `_test`) so they can drive the unexported reportStateDirDelta
-// surface (alongside the exported SnapshotStateDir helper, which
-// is also exercised by out-of-package integration tests). The
-// diff logic is exercised against
-// a controlled t.TempDir() root — never the developer's real
-// state directory — so a bug in the backstop cannot itself corrupt
-// the host install.
-//
-// The errorReporter seam (a func type compatible with t.Errorf)
-// lets tests record violations without polluting the host
-// *testing.T with intentional failures. A real-world cleanup hands
-// t.Errorf to reportStateDirDelta; meta-tests hand it a recorder.
+// The diff logic is driven against a controlled t.TempDir() root — never the
+// developer's real state directory — so a bug in the backstop cannot itself
+// corrupt the host install.
 
 package portaltest
 
@@ -26,9 +14,6 @@ import (
 	"time"
 )
 
-// recorder collects all formatted reports produced by
-// reportStateDirDelta. Each Errorf-style call becomes one entry —
-// the count and content together pin the contract.
 type recorder struct {
 	msgs []string
 }
@@ -37,8 +22,6 @@ func (r *recorder) report(format string, args ...any) {
 	r.msgs = append(r.msgs, fmt.Sprintf(format, args...))
 }
 
-// writeFile is a tiny test helper that fails fast on errors so
-// individual cases stay readable.
 func writeFile(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
@@ -46,16 +29,11 @@ func writeFile(t *testing.T, path, content string) {
 	}
 }
 
-// hasDelta returns true if msgs contains an entry citing path and
-// deltaType. Tests prefer this over substring searches because the
-// canonical message format embeds both fields verbatim.
 func hasDelta(msgs []string, path, deltaType string) bool {
 	want := "portaltest backstop: developer state dir mutated at " + path + ": " + deltaType
 	return slices.Contains(msgs, want)
 }
 
-// containsAny is a debug helper used by failure messages to
-// summarise what the recorder actually saw.
 func containsAny(msgs []string, fragment string) bool {
 	for _, m := range msgs {
 		if strings.Contains(m, fragment) {
@@ -64,8 +42,6 @@ func containsAny(msgs []string, fragment string) bool {
 	}
 	return false
 }
-
-// --- SnapshotStateDir contract tests -----------------------------
 
 func TestSnapshotStateDir_NonexistentRoot_ReturnsEmptyMap(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "absent")
@@ -122,8 +98,7 @@ func TestSnapshotStateDir_RecordsSymlinkViaLstat(t *testing.T) {
 	if fp.SymlinkTarget != target {
 		t.Errorf("symlinkTarget = %q, want %q", fp.SymlinkTarget, target)
 	}
-	// hashed must remain false for symlinks — symlink hashing would
-	// follow the target via os.ReadFile, defeating lstat semantics.
+	// Hashing a symlink would read through to the target, defeating lstat semantics.
 	if fp.Hashed {
 		t.Errorf("symlink should not be hashed")
 	}
@@ -152,20 +127,6 @@ func TestSnapshotStateDir_LargeFile_SkipsHash(t *testing.T) {
 	}
 }
 
-// TestSnapshotStateDir_DetectsModifiedBinFile is the spec-mandated
-// meta-test guarding the snapshot-diff implementation: write a .bin
-// file, snapshot, mutate the file's content with size preserved and
-// mtime force-reset to the pre-snapshot value, snapshot again, and
-// assert the two Fingerprint maps differ on the .bin path. Without
-// this guard a regression where SnapshotStateDir silently returned
-// identical maps for divergent content would slip past the
-// kill-barrier-escalation no-final-flush integration test (which
-// compares two snapshots taken across SIGKILL and would silently
-// green-pass if the helper itself were a no-op).
-//
-// The test exercises the content-hash channel in isolation by
-// pinning size and mtime to the pre-snapshot values; the hash field
-// is the sole remaining delta signal and must catch it.
 func TestSnapshotStateDir_DetectsModifiedBinFile(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "scrollback", "pane__0.0.bin")
@@ -186,10 +147,8 @@ func TestSnapshotStateDir_DetectsModifiedBinFile(t *testing.T) {
 		t.Fatalf("expected pre to contain %s; keys=%v", prePath, keys(pre))
 	}
 
-	// Mutate content with size preserved. Then pin mtime back to the
-	// pre value so the test isolates the hash channel: any equality
-	// the snapshot still reports would have to come from a no-op
-	// content read.
+	// Size preserved and mtime pinned back, so the hash is the only channel
+	// left that can report the change.
 	if err := os.WriteFile(path, []byte("betaX"), 0o600); err != nil {
 		t.Fatalf("rewrite .bin: %v", err)
 	}
@@ -220,8 +179,6 @@ func TestSnapshotStateDir_DetectsModifiedBinFile(t *testing.T) {
 	}
 }
 
-// --- reportStateDirDelta contract tests --------------------------
-
 func TestReportStateDirDelta_NoChange_PassesCleanup(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, "sessions.json"), "alpha")
@@ -242,8 +199,6 @@ func TestReportStateDirDelta_FileCreated_FailsCleanup(t *testing.T) {
 	root := t.TempDir()
 	pre, _ := SnapshotStateDir(root)
 
-	// Mutate AFTER snapshot: simulate a stray test that bypassed
-	// the env override and wrote into the dev state dir.
 	writeFile(t, filepath.Join(root, "leaked.json"), "leak")
 
 	rec := &recorder{}
@@ -277,8 +232,6 @@ func TestReportStateDirDelta_SizeChanged_FailsCleanup(t *testing.T) {
 	writeFile(t, path, "alpha")
 	pre, _ := SnapshotStateDir(root)
 
-	// Rewrite with a larger payload; mtime will also bump but the
-	// size delta must be reported independently.
 	writeFile(t, path, "alpha-extended")
 
 	rec := &recorder{}
@@ -295,22 +248,18 @@ func TestReportStateDirDelta_ContentChanged_FailsCleanup(t *testing.T) {
 	writeFile(t, path, "alpha")
 	pre, _ := SnapshotStateDir(root)
 
-	// Same size, different content — only the hash catches this.
-	// We must also clamp mtime/ctime back to the pre-value so the
-	// only delta is content; otherwise mtime-changed dominates.
+	// Same size and a pinned mtime, so content is the only delta left to
+	// report; otherwise mtime-changed dominates.
 	writeFile(t, path, "betaX")
 	preMtime, preCtime := lookupMtimes(t, root, "sessions.json", pre)
 	resetTimes(t, path, preMtime)
-	// Re-snapshot pre so its mtime/ctime reflect the reset baseline
-	// (the test cares about the content channel in isolation).
 	pre2, _ := SnapshotStateDir(root)
-	// Now mutate content again with size + mtime preserved.
 	if err := os.WriteFile(path, []byte("gamma"), 0o600); err != nil {
 		t.Fatalf("rewrite: %v", err)
 	}
 	resetTimes(t, path, preMtime)
-	_ = preCtime // ctime cannot be force-set portably; size+mtime
-	// pinning is sufficient to surface the hash channel.
+	// ctime cannot be force-set portably; pinning size and mtime is enough.
+	_ = preCtime
 
 	rec := &recorder{}
 	reportStateDirDelta(rec.report, root, pre2)
@@ -326,7 +275,6 @@ func TestReportStateDirDelta_MtimeBumped_FailsCleanup(t *testing.T) {
 	writeFile(t, path, "alpha")
 	pre, _ := SnapshotStateDir(root)
 
-	// Bump mtime without changing size/content.
 	future := time.Now().Add(2 * time.Hour)
 	if err := os.Chtimes(path, future, future); err != nil {
 		t.Fatalf("chtimes: %v", err)
@@ -345,7 +293,6 @@ func TestReportStateDirDelta_BecameSymlink_FailsCleanup(t *testing.T) {
 	writeFile(t, path, "alpha")
 	pre, _ := SnapshotStateDir(root)
 
-	// Replace the regular file with a symlink pointing elsewhere.
 	target := filepath.Join(root, "other.txt")
 	writeFile(t, target, "x")
 	if err := os.Remove(path); err != nil {
@@ -400,8 +347,6 @@ func TestReportStateDirDelta_LargeFile_DetectsSizeWithoutHash(t *testing.T) {
 		t.Fatalf("large file should not be hashed in pre-snapshot")
 	}
 
-	// Grow the file by one byte — size channel catches it without
-	// any hash to consult.
 	bigger := make([]byte, hashSizeCap+2)
 	if err := os.WriteFile(path, bigger, 0o600); err != nil {
 		t.Fatalf("rewrite big: %v", err)
@@ -420,7 +365,6 @@ func TestReportStateDirDelta_ReportsAllDeltas_NotJustFirst(t *testing.T) {
 	writeFile(t, filepath.Join(root, "doomed.json"), "d")
 	pre, _ := SnapshotStateDir(root)
 
-	// Three independent deltas at three different paths.
 	if err := os.Remove(filepath.Join(root, "doomed.json")); err != nil {
 		t.Fatalf("remove doomed: %v", err)
 	}
@@ -450,12 +394,10 @@ func TestReportStateDirDelta_WalksOnlyRoot_NotSiblings(t *testing.T) {
 	if err := os.MkdirAll(root, 0o700); err != nil {
 		t.Fatalf("mkdir root: %v", err)
 	}
-	// Sibling file outside root — must be invisible to snapshot.
 	writeFile(t, filepath.Join(parent, "projects.json"), "p")
 
 	pre, _ := SnapshotStateDir(root)
 
-	// Mutate sibling AFTER snapshot. The backstop must not notice.
 	writeFile(t, filepath.Join(parent, "projects.json"), "p-changed-and-bigger")
 
 	rec := &recorder{}
@@ -477,8 +419,6 @@ func TestReportStateDirDelta_NonexistentRoot_EmptyPreSnapshot(t *testing.T) {
 		t.Fatalf("expected empty pre-snapshot; got %d entries", len(pre))
 	}
 
-	// Create the root post-snapshot with a file inside; this must
-	// surface as a "created" delta.
 	if err := os.MkdirAll(root, 0o700); err != nil {
 		t.Fatalf("mkdir root: %v", err)
 	}
@@ -491,8 +431,6 @@ func TestReportStateDirDelta_NonexistentRoot_EmptyPreSnapshot(t *testing.T) {
 		t.Errorf("expected 'created' for late.json; got: %v", rec.msgs)
 	}
 }
-
-// --- resolveDevStateDir contract tests ---------------------------
 
 func TestResolveDevStateDir_UsesXDGConfigHome(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "/tmp/xdg-fake")
@@ -516,12 +454,6 @@ func TestResolveDevStateDir_FallsBackToHomeConfig(t *testing.T) {
 	}
 }
 
-// --- installBackstopCleanup wiring meta-test ---------------------
-
-// fakeBackstopT implements backstopT for meta-testing. It captures
-// the cleanup func registered by installBackstopCleanup and the
-// Errorf calls that fire when the cleanup runs. The host *testing.T
-// stays clean — its assertions only inspect the captured state.
 type fakeBackstopT struct {
 	cleanups []func()
 	errorfs  []string
@@ -535,22 +467,15 @@ func (f *fakeBackstopT) Errorf(format string, args ...any) {
 	f.errorfs = append(f.errorfs, fmt.Sprintf(format, args...))
 }
 
-// runCleanups simulates the *testing.T post-test hook, executing
-// every registered cleanup in LIFO order (mirrors real testing.T).
+// runCleanups runs the registered cleanups LIFO, as testing.T does.
 func (f *fakeBackstopT) runCleanups() {
 	for _, v := range slices.Backward(f.cleanups) {
 		v()
 	}
 }
 
-// TestBackstopCleanupFiresOnExternalMutation is the spec-mandated
-// meta-test for the fingerprint backstop. It wires
-// installBackstopCleanup through a fake backstopT, simulates a
-// stray test writing to the dev state dir AFTER snapshot, runs the
-// cleanup, and asserts t.Errorf was called citing the leaked path
-// and "created" delta type.
 func TestBackstopCleanupFiresOnExternalMutation(t *testing.T) {
-	devStateDir := t.TempDir() // controlled stand-in for ~/.config/portal/state
+	devStateDir := t.TempDir()
 	pre, err := SnapshotStateDir(devStateDir)
 	if err != nil {
 		t.Fatalf("pre-snapshot: %v", err)
@@ -559,8 +484,6 @@ func TestBackstopCleanupFiresOnExternalMutation(t *testing.T) {
 	fake := &fakeBackstopT{}
 	installBackstopCleanup(fake, devStateDir, pre)
 
-	// Simulate the failure mode: a test that bypassed the env
-	// override and wrote directly to the dev state dir.
 	leakPath := filepath.Join(devStateDir, "leaked.json")
 	if err := os.WriteFile(leakPath, []byte("leak"), 0o600); err != nil {
 		t.Fatalf("write leak: %v", err)
@@ -573,9 +496,6 @@ func TestBackstopCleanupFiresOnExternalMutation(t *testing.T) {
 	}
 }
 
-// TestBackstopCleanupSilentOnClean asserts the wiring stays
-// silent when the dev state dir is unchanged — i.e., the cleanup
-// only escalates real deltas, never false positives.
 func TestBackstopCleanupSilentOnClean(t *testing.T) {
 	devStateDir := t.TempDir()
 	pre, _ := SnapshotStateDir(devStateDir)
@@ -590,8 +510,6 @@ func TestBackstopCleanupSilentOnClean(t *testing.T) {
 	}
 }
 
-// --- helpers -----------------------------------------------------
-
 func keys(m map[string]Fingerprint) []string {
 	out := make([]string, 0, len(m))
 	for k := range m {
@@ -600,7 +518,6 @@ func keys(m map[string]Fingerprint) []string {
 	return out
 }
 
-// lookupMtimes returns the pre-recorded mtime/ctime for rel.
 func lookupMtimes(t *testing.T, root, rel string, snap map[string]Fingerprint) (mtime int64, ctime int64) {
 	t.Helper()
 	fp, ok := snap[rel]
@@ -610,9 +527,6 @@ func lookupMtimes(t *testing.T, root, rel string, snap map[string]Fingerprint) (
 	return fp.MtimeNanos, fp.CtimeNanos
 }
 
-// resetTimes sets atime+mtime on path to the supplied nano value.
-// Used by the content-change test to pin mtime so the hash
-// channel is the sole reported delta.
 func resetTimes(t *testing.T, path string, nanos int64) {
 	t.Helper()
 	ts := time.Unix(0, nanos)

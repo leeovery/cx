@@ -9,18 +9,11 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// canvasSeq is the SGR background sequence for a given mode's canvas token. The
-// outer fill and the leaf styles must both paint THIS exact background, so the
-// rendered frame is searched for it.
 func canvasSeq(t *testing.T, th theme.Theme) string {
 	t.Helper()
 	return "\x1b[" + sgrParams(t, lipgloss.NewStyle().Background(th.Canvas.Color())) + "m"
 }
 
-// TestCanvasMode_DefaultsToDark pins the injectable-mode seam default. With no
-// option applied the resolved canvas mode is Dark (the §2.6 no-answer fallback
-// and the zero value of theme.Theme), so an unconfigured model paints the dark
-// canvas it was tuned for.
 func TestCanvasMode_DefaultsToDark(t *testing.T) {
 	m := New(fakeLister{})
 	if m.themeState.inForceMode() != theme.MemberDark {
@@ -28,8 +21,6 @@ func TestCanvasMode_DefaultsToDark(t *testing.T) {
 	}
 }
 
-// TestWithCanvasMode pins the injectable-mode option: 1-7 swaps the resolved
-// mode in here without touching the View() wrap point.
 func TestWithCanvasMode(t *testing.T) {
 	t.Run("injects Light", func(t *testing.T) {
 		m := New(fakeLister{}, WithCanvasMode(theme.MemberLight))
@@ -46,10 +37,6 @@ func TestWithCanvasMode(t *testing.T) {
 	})
 }
 
-// TestOuterFill_PaintsEveryCellTheCanvas asserts the outer fill is the LAST
-// layer over the assembled Sessions view: every rendered line is the full
-// terminal width and the frame is exactly the terminal height, with the canvas
-// background sequence present (no edge bleed, no unpainted rows).
 func TestOuterFill_PaintsEveryCellTheCanvas(t *testing.T) {
 	forEachCanvasMode(t, func(t *testing.T, mode theme.Member) {
 		const w, h = 90, 24
@@ -72,29 +59,18 @@ func TestOuterFill_PaintsEveryCellTheCanvas(t *testing.T) {
 	})
 }
 
-// TestOuterFill_OutsideListHeightBudget asserts the outer fill never
-// participates in the list's height budget: the list row count (the number of
-// session/header rows the paginator renders per page) is identical with and
-// without the outer fill applied. The fill is an outer wrap, not per-delegate
-// painting.
 func TestOuterFill_OutsideListHeightBudget(t *testing.T) {
 	const w, h = 90, 24
 	m := newCanvasTestModel(t, w, h, theme.MemberDark)
 
-	// The inner composed view (no outer fill) and the list's page item count
-	// are the budget the paginator computed. Applying the outer fill must not
-	// change either.
 	innerHeight := lipgloss.Height(m.viewSessionList())
 	wantPerPage := m.sessionList.Paginator.PerPage
 
 	full := m.View().Content
 
-	// The list's per-page budget is untouched by the fill.
 	if got := m.sessionList.Paginator.PerPage; got != wantPerPage {
 		t.Errorf("list PerPage = %d, want %d (fill must not perturb the list budget)", got, wantPerPage)
 	}
-	// The inner composed view is <= termH (it always was), and the outer fill
-	// pads UP to exactly termH — never by truncating or adding list rows.
 	if innerHeight > h {
 		t.Fatalf("inner view height %d already exceeds termH %d before the fill", innerHeight, h)
 	}
@@ -103,21 +79,12 @@ func TestOuterFill_OutsideListHeightBudget(t *testing.T) {
 	}
 }
 
-// TestOuterFill_RePadsToTermHOnVerticalChange asserts a dynamic vertical change
-// (a notice band appearing) drives the list-height recompute UNDERNEATH the
-// fill: the list reserves a row for the band so the composed view stays within
-// termH, and the outer fill simply re-pads to exactly termH. The frame height is
-// unchanged (always termH), the composed view never overflows, and the band's
-// text is present.
 func TestOuterFill_RePadsToTermHOnVerticalChange(t *testing.T) {
 	const w, h = 90, 24
 	m := newCanvasTestModel(t, w, h, theme.MemberDark)
 
 	baseFrame := lipgloss.Height(m.View().Content)
 
-	// A flash band is the §11.2 dynamic vertical change. setFlash inserts one
-	// row beneath the title AND re-syncs the list size so the composed view
-	// stays within termH (the list height recompute underneath the fill).
 	const flash = "session \"x\" no longer exists"
 	m.setFlash(flash)
 
@@ -133,14 +100,8 @@ func TestOuterFill_RePadsToTermHOnVerticalChange(t *testing.T) {
 	}
 }
 
-// TestOuterFill_PaginationInvariantPreserved asserts the one-row-per-delegate
-// pagination invariant holds under the fill: with more sessions than fit on a
-// page, the rendered frame is exactly termH, every line is exactly termW, and
-// the visible content never overflows the viewport (the original
-// cursor-invisible / missing-title / left-shift overflow class must not
-// regress).
 func TestOuterFill_PaginationInvariantPreserved(t *testing.T) {
-	const w, h = 90, 14 // deliberately short so pagination kicks in
+	const w, h = 90, 14
 
 	var sessions []tmux.Session
 	for i := range 40 {
@@ -155,7 +116,6 @@ func TestOuterFill_PaginationInvariantPreserved(t *testing.T) {
 	if got := lipgloss.Height(view); got != h {
 		t.Errorf("frame height = %d, want exactly %d (no overflow)", got, h)
 	}
-	// The title row must be visible within the bottom-h window a terminal shows.
 	lines := strings.Split(view, "\n")
 	if len(lines) > h {
 		lines = lines[:h]
@@ -165,9 +125,6 @@ func TestOuterFill_PaginationInvariantPreserved(t *testing.T) {
 	}
 }
 
-// TestOuterFill_ZeroSizeFallback asserts the pre-first-WindowSizeMsg zero-size
-// case falls back to exactly 80x24 (matching viewLoading) so the fill never
-// sizes to zero and blanks the screen.
 func TestOuterFill_ZeroSizeFallback(t *testing.T) {
 	m := newCanvasTestModel(t, 0, 0, theme.MemberDark)
 
@@ -184,10 +141,6 @@ func TestOuterFill_ZeroSizeFallback(t *testing.T) {
 	}
 }
 
-// newCanvasTestModel builds a production-shaped Sessions model with the given
-// terminal size and canvas answer, loaded with the deterministic flat session set
-// through the production applySessions path (SetItems → re-size) so pagination
-// is sized exactly as it is in production.
 func newCanvasTestModel(t *testing.T, w, h int, appearance theme.Member) Model {
 	t.Helper()
 	sessions := []tmux.Session{

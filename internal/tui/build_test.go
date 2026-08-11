@@ -12,8 +12,6 @@ import (
 	"github.com/leeovery/portal/internal/tui"
 )
 
-// stubKiller / stubRenamer / stubCreator are no-op seam implementations used
-// only to populate tui.Deps in the Build tests below.
 type stubKiller struct{}
 
 func (stubKiller) KillSession(string) error { return nil }
@@ -26,9 +24,6 @@ type stubCreator struct{}
 
 func (stubCreator) CreateFromDir(string, []string) (string, error) { return "", nil }
 
-// TestBuild verifies the shared tui.Build constructor wires the seam set onto
-// the model identically to the equivalent hand-written New(...) option list, so
-// production (cmd/open.go) and the capture tool produce the same model.
 func TestBuild(t *testing.T) {
 	t.Run("wires the seam set and applies the initial mode", func(t *testing.T) {
 		lister := &mockSessionLister{sessions: []tmux.Session{{Name: "dev", Windows: 2}}}
@@ -48,7 +43,6 @@ func TestBuild(t *testing.T) {
 		if m.CWD() != "/home/user" {
 			t.Errorf("CWD() = %q, want /home/user", m.CWD())
 		}
-		// InitialMode is reflected in the title once options apply.
 		if got, want := m.SessionListTitle(), "Sessions — by tag"; got != want {
 			t.Errorf("SessionListTitle() = %q, want %q", got, want)
 		}
@@ -146,8 +140,6 @@ func TestBuild(t *testing.T) {
 			t.Error("MultiSelectActive() = false, want true (survivors stay marked)")
 		}
 
-		// Size + ingest the sessions so the section-header row renders (a refresh does
-		// NOT clear the abort banner — only an actionable key / Esc does).
 		var model tea.Model = m
 		model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 		model, _ = model.Update(tui.SessionsMsg{Sessions: []tmux.Session{

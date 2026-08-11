@@ -7,9 +7,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// keymapParityKiller / keymapParityRenamer / keymapParityEnumerator are minimal
-// dispatch-routing stubs: the parity tests assert which handler a key reaches,
-// not the handler's downstream effect, so the stubs only need to be non-nil.
 type keymapParityKiller struct{}
 
 func (keymapParityKiller) KillSession(string) error { return nil }
@@ -28,8 +25,6 @@ type keymapParityReader struct{}
 
 func (keymapParityReader) Tail(string) ([]byte, error) { return nil, nil }
 
-// sessionsDispatchModel builds a Sessions-page Model seeded with three flat
-// session rows for exercising the updateSessionList rune/key dispatch directly.
 func sessionsDispatchModel(t *testing.T) Model {
 	t.Helper()
 	m := NewModelWithSessions([]tmux.Session{
@@ -46,12 +41,6 @@ func pressSession(t *testing.T, m Model, msg tea.KeyPressMsg) Model {
 	return updated.(Model)
 }
 
-// TestSessionsKeymapRevision locks the §12.2 keymap revision in the live
-// updateSessionList dispatch: the p→Projects alias is gone (x is the sole
-// Sessions↔Projects toggle), s stays the Sessions-only grouping cycle (and a
-// literal filter char while / is focused), nav is ↑/↓ with paging Ctrl+↑/↓ and
-// no vim/uppercase/page-jump aliases reach Sessions, and ? remains swallowed
-// (not bound to open help).
 func TestSessionsKeymapRevision(t *testing.T) {
 	t.Run("it no longer dispatches p to the Projects page", func(t *testing.T) {
 		m := sessionsDispatchModel(t)
@@ -60,7 +49,7 @@ func TestSessionsKeymapRevision(t *testing.T) {
 		}
 		m = pressSession(t, m, tea.KeyPressMsg{Code: 'p', Text: "p"})
 		if m.activePage != PageSessions {
-			t.Errorf("p must NOT navigate to Projects (§12.2 drops the p alias); active page = %d", m.activePage)
+			t.Errorf("p must NOT navigate to Projects (the p alias is dropped); active page = %d", m.activePage)
 		}
 	})
 
@@ -86,7 +75,6 @@ func TestSessionsKeymapRevision(t *testing.T) {
 
 	t.Run("it treats s as a literal filter character while the / input is focused", func(t *testing.T) {
 		m := sessionsDispatchModel(t)
-		// Focus the filter input (the / binding), then press s.
 		m = pressSession(t, m, tea.KeyPressMsg{Code: '/', Text: "/"})
 		if !m.sessionList.SettingFilter() {
 			t.Fatalf("precondition: filter input not focused after /")
@@ -102,9 +90,6 @@ func TestSessionsKeymapRevision(t *testing.T) {
 	})
 
 	t.Run("it binds ? to open the help modal (no list self-toggle)", func(t *testing.T) {
-		// §12.2 / §8.5: Phase 3 binds ? to OUR per-page help modal, replacing the
-		// prior swallow. The key is still consumed (no cmd, no page change) so
-		// bubbles/list never toggles its own help.
 		m := sessionsDispatchModel(t)
 		_, cmd := m.updateSessionList(tea.KeyPressMsg{Code: '?', Text: "?"})
 		if cmd != nil {
@@ -115,7 +100,7 @@ func TestSessionsKeymapRevision(t *testing.T) {
 			t.Errorf("? must not change the active page; got %d", after.activePage)
 		}
 		if after.modal != modalHelp {
-			t.Errorf("? must open the help modal (§8.5); modal = %v, want modalHelp", after.modal)
+			t.Errorf("? must open the help modal; modal = %v, want modalHelp", after.modal)
 		}
 	})
 
@@ -140,7 +125,7 @@ func TestSessionsKeymapRevision(t *testing.T) {
 			start := m.sessionList.Index()
 			m = pressSession(t, m, k)
 			if m.sessionList.Index() != start {
-				t.Errorf("key %+v must not move the Sessions cursor (§12.2: arrows only); index %d → %d", k, start, m.sessionList.Index())
+				t.Errorf("key %+v must not move the Sessions cursor (arrows only); index %d → %d", k, start, m.sessionList.Index())
 			}
 			if m.activePage != PageSessions {
 				t.Errorf("key %+v must not change the page; got %d", k, m.activePage)
@@ -162,10 +147,6 @@ func TestSessionsKeymapRevision(t *testing.T) {
 	})
 }
 
-// TestSessionsRetainedActionParity traces every retained action's dispatch
-// target after the §12.2 revision — the only behaviour change is p no longer
-// reaching Projects; k/r/n/Enter/Space/Esc/Ctrl+C/q must route exactly as
-// before.
 func TestSessionsRetainedActionParity(t *testing.T) {
 	t.Run("k routes to kill (opens the kill confirm modal)", func(t *testing.T) {
 		m := NewModelWithSessions([]tmux.Session{{Name: "alpha", Windows: 1}})
@@ -202,10 +183,6 @@ func TestSessionsRetainedActionParity(t *testing.T) {
 	})
 
 	t.Run("Enter routes to attach (handleSessionListEnter)", func(t *testing.T) {
-		// With no previewAttacher wired, handleSessionListEnter returns (m, nil)
-		// without changing page or modal — the same no-op path as before. The
-		// assertion is that Enter still routes to that handler (page unchanged,
-		// no modal opened), not to any other action.
 		m := NewModelWithSessions([]tmux.Session{{Name: "alpha", Windows: 1}})
 		m = pressSession(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 		if m.activePage != PageSessions {

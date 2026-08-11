@@ -6,12 +6,6 @@ import (
 	"testing"
 )
 
-// internalMockCommander is a minimal Commander implementation used by
-// same-package tests that need to address unexported symbols (e.g. the
-// optionAbsentStderrPatterns slice). The external package's MockCommander is
-// not reachable from here without an import cycle, so we duplicate the
-// pinhole shape locally — Run/RunRaw return the configured Output/Err and
-// nothing else.
 type internalMockCommander struct {
 	Output string
 	Err    error
@@ -25,17 +19,6 @@ func (m *internalMockCommander) RunRaw(args ...string) (string, error) {
 	return m.Output, m.Err
 }
 
-// TestGetServerOption_DiscriminatorSet exercises every entry in the
-// unexported optionAbsentStderrPatterns slice directly. Each pattern, when
-// it appears as a substring of a *CommandError.Stderr, must drive
-// GetServerOption to ErrOptionNotFound. The unrelated_stderr_does_not_match
-// negative subtest pins the contract that stderrs containing a colon but
-// none of the absence phrasings must propagate, not collapse to absence.
-//
-// This test lives in package tmux (internal) because it iterates the
-// unexported slice — that gives a one-line slice extension a corresponding
-// test-coverage extension automatically, so adding a future pattern cannot
-// silently drift away from its test surface.
 func TestGetServerOption_DiscriminatorSet(t *testing.T) {
 	for _, pat := range optionAbsentStderrPatterns {
 		t.Run(pat, func(t *testing.T) {
@@ -84,9 +67,6 @@ func TestGetServerOption_DiscriminatorSet(t *testing.T) {
 	})
 
 	t.Run("slice_contents_pinned", func(t *testing.T) {
-		// Pin the exact slice contents so future drift is loud. Order is
-		// not load-bearing for the discriminator (strings.Contains is
-		// checked against each entry independently), but membership is.
 		want := []string{"invalid option:", "unknown option:", "ambiguous option:"}
 		if len(optionAbsentStderrPatterns) != len(want) {
 			t.Fatalf("optionAbsentStderrPatterns has %d entries, want %d (got %v)",

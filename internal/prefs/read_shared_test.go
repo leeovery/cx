@@ -1,9 +1,4 @@
-// White-box (package prefs) because the step both decodes start from is
-// unexported and has no exported surface of its own: the file read and its
-// absent-is-not-an-error classification are shared, while the decode policy layered
-// on top of them deliberately is not. The seedPrefsFile helper this file uses is
-// declared in store_write_path_test.go and reused rather than redeclared: it is
-// the same package.
+// White-box: the read step both decodes start from is unexported.
 package prefs
 
 import (
@@ -14,15 +9,6 @@ import (
 	"testing"
 )
 
-// TestReadBytes_SharedReadPolicy pins the three outcomes of the read the tolerant
-// and strict decodes both start from: an absent file is not an error, a present one
-// hands back its exact bytes, and any other read failure is returned verbatim
-// alongside no bytes.
-//
-// It is asserted HERE, once, because both decode paths inherit it: a change to the
-// absent-file or permission policy must be reachable in one place, and a copy of it
-// on one path only is the shape in which a loader and a writer come to disagree
-// about what an unreadable prefs.json means.
 func TestReadBytes_SharedReadPolicy(t *testing.T) {
 	t.Run("an absent file reports absent with no error", func(t *testing.T) {
 		store := NewStore(filepath.Join(t.TempDir(), "nested", "prefs.json"))
@@ -72,15 +58,6 @@ func TestReadBytes_SharedReadPolicy(t *testing.T) {
 	})
 }
 
-// TestDecodePaths_ShareTheReadAndSplitOnTheDecode is the two-sided statement of the
-// split: the tolerant load decode and the strict write-path decode answer
-// IDENTICALLY for every outcome the read decides, and DIFFERENTLY for the one the
-// decode decides.
-//
-// The second half is the load-bearing one. A shared read must not become a shared
-// decode: routing a writer through the tolerant policy turns a stray comma into a
-// zero-valued record it then commits, erasing the mode, every theme key and the
-// retained raw appearance in one keypress.
 func TestDecodePaths_ShareTheReadAndSplitOnTheDecode(t *testing.T) {
 	t.Run("an absent file is absent to both", func(t *testing.T) {
 		store := NewStore(filepath.Join(t.TempDir(), "nested", "prefs.json"))
@@ -140,10 +117,7 @@ func TestDecodePaths_ShareTheReadAndSplitOnTheDecode(t *testing.T) {
 	})
 }
 
-// makeUnreadable chmods path to 0000 for the duration of the test, skipping when
-// the running user can read it anyway (root), which would make the permission
-// branch unreachable. The mode is restored on cleanup so the temp dir can be
-// removed.
+// Skips when the running user can read a 0000-mode file anyway (root).
 func makeUnreadable(t *testing.T, path string) {
 	t.Helper()
 

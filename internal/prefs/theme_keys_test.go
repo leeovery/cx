@@ -10,8 +10,6 @@ import (
 	"github.com/leeovery/portal/internal/prefs"
 )
 
-// writePrefsFile writes content to a prefs.json inside a fresh temp dir and
-// returns its path.
 func writePrefsFile(t *testing.T, content string) string {
 	t.Helper()
 
@@ -22,10 +20,8 @@ func writePrefsFile(t *testing.T, content string) string {
 	return path
 }
 
-// decodePrefsFile reads the on-disk prefs.json into a generic map so key
-// presence/absence is asserted structurally rather than by substring — a
-// `"theme"` substring also matches `"theme_light"`, which would make an
-// omitempty assertion silently vacuous.
+// Decoded to a map so key presence is asserted structurally: a `"theme"`
+// substring would also match `"theme_light"`.
 func decodePrefsFile(t *testing.T, path string) map[string]any {
 	t.Helper()
 
@@ -41,7 +37,6 @@ func decodePrefsFile(t *testing.T, path string) map[string]any {
 	return decoded
 }
 
-// assertPrefsValue asserts an on-disk key holds exactly want.
 func assertPrefsValue(t *testing.T, decoded map[string]any, key, want string) {
 	t.Helper()
 
@@ -127,8 +122,7 @@ func TestLoadThemeKeys_TolerantDecode(t *testing.T) {
 }
 
 func TestLoadThemeKeys_PropagatesReadError(t *testing.T) {
-	// A directory at the prefs path makes os.ReadFile fail with a non-ErrNotExist
-	// error (EISDIR), exercising the propagated-error branch.
+	// A directory at the prefs path makes os.ReadFile fail with EISDIR.
 	path := filepath.Join(t.TempDir(), "prefs.json")
 	if err := os.Mkdir(path, 0o755); err != nil {
 		t.Fatalf("failed to create dir at prefs path: %v", err)
@@ -145,9 +139,6 @@ func TestLoadThemeKeys_PropagatesReadError(t *testing.T) {
 }
 
 func TestLoadThemeKeys_NoValidationOrNormalisation(t *testing.T) {
-	// Decode never validates, trims or lowercases: an unrecognised value is a
-	// resolution problem, not a decode one, and trimming would turn a stray-space
-	// value into a silently-different slug instead of an honest `bad name`.
 	cases := []struct {
 		name string
 		raw  string
@@ -262,11 +253,3 @@ func TestSave_OmitsEmptyThemeKeysAndAppearance(t *testing.T) {
 	}
 	assertPrefsValue(t, decoded, "session_list_mode", "by-tag")
 }
-
-// The Phase 5 guard that pinned theme_migrated as UNDECLARED is retired here:
-// this task declares the field, so its absence is no longer the property to
-// hold. What replaces it is stronger and lives in migration_marker_test.go —
-// TestMigrationMarker_FalseIsAbsentOnDisk covers this exact case (no writer
-// invents the key on a markerless file, over the same seed) plus the two the old
-// guard could not state: that a TRUE marker round-trips through every writer,
-// and that only a true one is ever encoded.

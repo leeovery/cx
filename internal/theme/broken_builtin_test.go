@@ -16,18 +16,6 @@ import (
 	"github.com/leeovery/portal/internal/themetest"
 )
 
-// TestBrokenBuiltinError_CopyIsPinned pins the pinned copy's fatal startup sentence
-// verbatim, em dash included.
-//
-// The `want` strings below are TRANSCRIBED FROM THE SPECIFICATION and are
-// deliberately not composed from the package's own format string — a test that
-// built its expectation out of the thing under test would pass whatever the copy
-// drifted to. That is the whole of the assertion: two independent statements of
-// one sentence, so an edit to either side fails.
-//
-// Terse is right for a path the build-time guarantee makes unreachable,
-// but it is still new user-facing copy, so it is pinned rather than left
-// implicit — the one line a user gets instead of a Go panic trace.
 func TestBrokenBuiltinError_CopyIsPinned(t *testing.T) {
 	tests := []struct {
 		name string
@@ -50,7 +38,7 @@ func TestBrokenBuiltinError_CopyIsPinned(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := theme.BrokenBuiltinError(tt.slug)
 			if err == nil {
-				t.Fatalf("BrokenBuiltinError(%q) = nil, want §14A's pinned sentence", tt.slug)
+				t.Fatalf("BrokenBuiltinError(%q) = nil, want the pinned sentence", tt.slug)
 			}
 			if got := err.Error(); got != tt.want {
 				t.Errorf("BrokenBuiltinError(%q) =\n %q\nwant %q", tt.slug, got, tt.want)
@@ -59,25 +47,6 @@ func TestBrokenBuiltinError_CopyIsPinned(t *testing.T) {
 	}
 }
 
-// TestFallback_MissingBuiltinIsFatal pins the build-time guarantee's one genuinely fatal state
-// at the level the per-slot fallback rule leaves open: the MESSAGE.
-//
-// The theme a slot falls back to cannot be loaded from the embedded set, so
-// there is nothing honest left to paint — the build-time guarantee removed the safety net
-// beneath this point on purpose, rejecting "a compiled-in last-resort palette equal to
-// Tokyo Night Dark" in favour of a build-time guarantee. What the user gets is
-// therefore one printed line, and this is that line.
-//
-// Each row asserts BOTH halves the criterion asks for: the literal pinned sentence
-// naming the fallback slug, and that the same text comes out of the exported
-// single source. Either drifting fails — a reworded format string fails the
-// literal, and an ad-hoc fmt.Errorf at the return site fails the single-source
-// cross-check.
-//
-// The failure is fatal ONLY BECAUSE A FALLBACK IS WHAT IS MISSING. A nomination
-// failing is ordinary and absorbed silently — see
-// TestFallback_NominationFailureIsNotFatal, which drives the identical broken
-// nomination against a healthy embedded set and gets a Resolution back.
 func TestFallback_MissingBuiltinIsFatal(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -113,7 +82,7 @@ func TestFallback_MissingBuiltinIsFatal(t *testing.T) {
 			got, err := loader.ResolveNomination(tt.setting, t.TempDir())
 
 			if err == nil {
-				t.Fatalf("ResolveNomination(%+v) = %+v, want §14A's fatal — the fallback itself did not resolve", tt.setting, got)
+				t.Fatalf("ResolveNomination(%+v) = %+v, want the pinned fatal — the fallback itself did not resolve", tt.setting, got)
 			}
 			if err.Error() != tt.want {
 				t.Errorf("message =\n %q\nwant %q", err.Error(), tt.want)
@@ -126,14 +95,6 @@ func TestFallback_MissingBuiltinIsFatal(t *testing.T) {
 	}
 }
 
-// TestFallback_CorruptBuiltinIsFatal asserts the message DOES NOT VARY BY
-// REASON: a fallback file that is present and unparseable produces the same
-// sentence an absent one does.
-//
-// The per-slot fallback rule's "one not-loadable path serves every cause" applies to the
-// fallback as much as to the nomination. The user cannot act on the distinction either way —
-// the binary is broken, and which of the two ways it is broken changes nothing
-// they can do — so a second sentence would be copy with no reader.
 func TestFallback_CorruptBuiltinIsFatal(t *testing.T) {
 	const want = "built-in theme tokyo-night is missing or invalid — this binary is broken"
 
@@ -144,7 +105,7 @@ func TestFallback_CorruptBuiltinIsFatal(t *testing.T) {
 	got, err := loader.ResolveNomination(setting, t.TempDir())
 
 	if err == nil {
-		t.Fatalf("ResolveNomination(%+v) = %+v, want §14A's fatal — the fallback parsed as invalid", setting, got)
+		t.Fatalf("ResolveNomination(%+v) = %+v, want the pinned fatal — the fallback parsed as invalid", setting, got)
 	}
 	if err.Error() != want {
 		t.Errorf("message =\n %q\nwant %q — the sentence does not vary by reason", err.Error(), want)
@@ -152,19 +113,6 @@ func TestFallback_CorruptBuiltinIsFatal(t *testing.T) {
 	requireZeroResolution(t, got)
 }
 
-// TestFallback_NeverPanics asserts the escalation is an ORDINARY ERROR RETURNED
-// UP THE NORMAL PATH rather than a panic.
-//
-// It RECOVERS NOTHING, deliberately: there is no deferred recover here, so a
-// panic on this path takes the test binary down and reports as a failure with
-// the trace attached. A recover would turn the very outcome under test into a
-// passing assertion.
-//
-// main.go's panic-recovering exit and its `process: panic` lifecycle marker stay
-// the backstop for a GENUINE PROGRAMMING FAULT, not the designed route for a
-// binary whose embedded set is broken. The source half of the claim — that
-// nothing in the package panics, exits or calls log.Fatal — is
-// TestEmbeddedRejection_HasNoFatalPathInThePackage.
 func TestFallback_NeverPanics(t *testing.T) {
 	loader := nominationLoader()
 	loader.BuiltinSource = withoutBuiltin(theme.DefaultDarkSlug)
@@ -176,15 +124,6 @@ func TestFallback_NeverPanics(t *testing.T) {
 	}
 }
 
-// TestFallback_NominationFailureIsNotFatal draws the line the fatal depends on:
-// a NOMINATION that will not load is ordinary and is absorbed silently by the
-// fallback; only a FALLBACK that will not load is fatal.
-//
-// The same broken setting drives both, and the only difference is whether the
-// embedded set can still supply the fallback. Without this pairing, "the
-// resolution returned an error" would be evidence for nothing in particular —
-// the two states are one `if` apart in resolveSlot, and confusing them would
-// make every typo in prefs.json a fatal.
 func TestFallback_NominationFailureIsNotFatal(t *testing.T) {
 	setting := theme.Setting{IsConstant: true, Constant: "gone"}
 
@@ -214,27 +153,6 @@ func TestFallback_NominationFailureIsNotFatal(t *testing.T) {
 	}
 }
 
-// TestResolution_NoStartupEagerValidation is the build-time guarantee's NEGATIVE assertion:
-// nothing walks the embedded set.
-//
-// Validation is not startup-eager by decision — the build-time guarantee's test
-// already proves the set, and re-proving it on every launch would put a parse of every
-// built-in on the one cold path this feature otherwise adds no cost to. The
-// checkable form is a counting byte source: a resolution reads EXACTLY the
-// built-ins it was asked about, one under a constant and two under a pair, and
-// never the set.
-//
-// The count is of BYTE READS — parses — and not of name enumerations. NewLoader
-// derives the reserved-slug rule's reserved-slug set from the embedded FILENAMES, which reads
-// no file's contents and is what the counting source therefore cannot see.
-//
-// The third case is the sharp one: a nomination that is NOT a built-in still
-// costs exactly one built-in read (the miss that sends it to the themes
-// directory), never a sweep of the set looking for it.
-//
-// The remaining half of the claim — zero reads on the exec path — is
-// cmd's TestOpenExecPath_DoesNoThemeWork, which guards that `portal open
-// <target>` constructs no TUI and reaches no theme call site at all.
 func TestResolution_NoStartupEagerValidation(t *testing.T) {
 	dir := t.TempDir()
 	themetest.Write(t, dir, "mine.theme", themetest.Lines())
@@ -281,24 +199,6 @@ func TestResolution_NoStartupEagerValidation(t *testing.T) {
 	}
 }
 
-// TestTheme_NoCompiledInFallbackPalette asserts no production file in
-// internal/theme declares a populated Theme.
-//
-// The build-time guarantee rejected "a compiled-in last-resort palette equal to Tokyo Night
-// Dark" in those words — a build-time guarantee beats a runtime crutch — so the fatal
-// path above must never grow one later. The temptation sits exactly where the
-// error is returned: the one place that discovers the embedded set cannot supply
-// a fallback is also the one place a hardcoded palette would look like mercy
-// rather than a second, unspecified source of colour values.
-//
-// It pairs with TestThemePackage_DeclaresNoHexLiterals, and neither subsumes the
-// other: that one forbids the VALUES, this one forbids the STRUCTURE. A palette
-// assembled from constants declared elsewhere would clear the hex guard and be
-// caught here.
-//
-// A ZERO Theme{} is not a palette and is allowed — it is what every rejection
-// returns alongside its reason, and returning one is how the package says "there
-// is nothing to paint".
 func TestTheme_NoCompiledInFallbackPalette(t *testing.T) {
 	for _, source := range parseThemeSources(t) {
 		ast.Inspect(source.File, func(n ast.Node) bool {
@@ -309,32 +209,17 @@ func TestTheme_NoCompiledInFallbackPalette(t *testing.T) {
 			if !isThemeTypeExpr(lit.Type) {
 				return true
 			}
-			t.Errorf("%s:%d declares a populated Theme literal — there is no runtime last-resort palette beneath the built-in fallback; §7.6 replaced that crutch with a build-time guarantee", source.Name, source.Fset.Position(lit.Pos()).Line)
+			t.Errorf("%s:%d declares a populated Theme literal — there is no runtime last-resort palette beneath the built-in fallback; a build-time guarantee replaced that crutch", source.Name, source.Fset.Position(lit.Pos()).Line)
 			return true
 		})
 	}
 }
 
-// isThemeTypeExpr reports whether the composite literal's type is Theme, in
-// either of the two spellings a package-local literal can take: `Theme{…}` and
-// `&Theme{…}` (whose inner literal carries the same Ident type).
 func isThemeTypeExpr(expr ast.Expr) bool {
 	ident, ok := expr.(*ast.Ident)
 	return ok && ident.Name == "Theme"
 }
 
-// TestBuiltinSource_DefaultsToTheEmbeddedSet asserts the nil field — the shape
-// every production caller carries — reads the embedded set.
-//
-// It is the half TestBuiltinSource_HasNoProductionCallSite depends on and
-// cannot state: that guard proves nothing in production ever SETS the field,
-// which is only safe because the unset field already means "the embedded set".
-// Together they are the criterion in full — the seam costs a call site nothing,
-// because there is no call site.
-//
-// The bytes are compared, not just the palette: LoadBuiltin's Source is what
-// `portal theme export` writes, so a default that parsed the right values from
-// somewhere else would still be the wrong default.
 func TestBuiltinSource_DefaultsToTheEmbeddedSet(t *testing.T) {
 	slugs := theme.BuiltinSlugs()
 	if len(slugs) == 0 {
@@ -361,29 +246,11 @@ func TestBuiltinSource_DefaultsToTheEmbeddedSet(t *testing.T) {
 	}
 }
 
-// builtinSourceOwners are the only two production files allowed to name
-// Loader.BuiltinSource: the one that declares the field and the one that reads
-// it.
 var builtinSourceOwners = map[string]bool{
 	filepath.Join("internal", "theme", "load.go"):     true,
 	filepath.Join("internal", "theme", "builtins.go"): true,
 }
 
-// TestBuiltinSource_HasNoProductionCallSite asserts the injectable built-in byte
-// source is reached by TESTS ONLY.
-//
-// The seam exists BECAUSE the path it stages is unreachable: a correctly built
-// binary cannot reach the build-time guarantee's broken-fallback state, and an unreachable
-// fatal with no test is a path nobody has ever run. It costs production one nil check
-// per built-in read and nothing else.
-//
-// What it must never become is a production knob. The build-time guarantee's whole guarantee
-// is that "built-in" means the embedded set — the files the build-time test parses and
-// validates — so a production call site wiring this field would redefine the
-// term on the exact path the guarantee is about, and every assertion resting on
-// it would still pass. The scan is repo-wide rather than package-local because
-// the field is exported: a `loader.BuiltinSource = …` in cmd is the shape this
-// forbids, and it is invisible from inside internal/theme.
 func TestBuiltinSource_HasNoProductionCallSite(t *testing.T) {
 	root, err := portalbintest.ProjectRoot()
 	if err != nil {
@@ -419,7 +286,7 @@ func TestBuiltinSource_HasNoProductionCallSite(t *testing.T) {
 			if !ok || sel.Sel.Name != "BuiltinSource" {
 				return true
 			}
-			t.Errorf("%s:%d references Loader.BuiltinSource — the seam is test-only; a production call site would redefine what \"built-in\" means on the very path §7.6's build-time guarantee covers", rel, fset.Position(sel.Pos()).Line)
+			t.Errorf("%s:%d references Loader.BuiltinSource — the seam is test-only; a production call site would redefine what \"built-in\" means on the very path the build-time guarantee covers", rel, fset.Position(sel.Pos()).Line)
 			return true
 		})
 	}

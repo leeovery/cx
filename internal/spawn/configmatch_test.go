@@ -103,8 +103,6 @@ func TestMatchConfig(t *testing.T) {
 }
 
 func TestMatchConfig_ReturnsWinningEntry(t *testing.T) {
-	// The winning key's entry must be the one returned — prove the entry travels
-	// with the key, not just the key string.
 	want := TerminalEntry{Commands: Capabilities{Open: &Recipe{Argv: []string{"ghostty", "{command}"}}}}
 	cfg := TerminalsConfig{
 		"com.mitchellh.ghostty": want,
@@ -128,13 +126,6 @@ func TestMatchConfig_ReturnsWinningEntry(t *testing.T) {
 }
 
 func TestMatchConfig_DeterministicTieBreak(t *testing.T) {
-	// Two distinct globs that score EXACTLY equal (same tier, same literal
-	// count) and both match the SAME identity. The winner must be the
-	// lexicographically-smaller key, reproducibly, regardless of Go's
-	// randomised map iteration order.
-	//
-	// bundle id "a.b.c" matches both "a.b.*" (literals ".a.b." → 4) and
-	// "*.b.c" (literals ".b.c" → 4); "*.b.c" < "a.b.*" ('*' 0x2A < 'a' 0x61).
 	cfg := TerminalsConfig{
 		"a.b.*": {},
 		"*.b.c": {},

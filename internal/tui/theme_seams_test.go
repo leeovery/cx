@@ -9,17 +9,8 @@ import (
 	"github.com/leeovery/portal/internal/tui"
 )
 
-// fixtureThemeSource is the harness contract fixture shape: a ThemeSource that
-// answers with a HAND-BUILT union, holding no loader, naming no directory and
-// touching no filesystem.
-//
-// It is what lets internal/capture render a panel — including the invalid rows
-// and the unusable-directory chrome — under the no-real-config import guard that
-// forbids it reaching a real themes directory at all.
-//
-// Its Resolve is declared the same way: a hand-built theme.Resolution, which is
-// where a fixture states its `●` slots and the palette the panel opens on now that
-// the injected slot record is retired.
+// Answers from hand-built values, holding no loader and touching no filesystem
+// — the shape internal/capture needs under its no-real-config import guard.
 type fixtureThemeSource struct {
 	union      theme.Union
 	resolution theme.Resolution
@@ -44,29 +35,14 @@ func (f fixtureThemeSource) ResolveSlot(_ theme.Enumeration, slot theme.Slot, ke
 }
 
 func TestThemeSourceIsSatisfiedByAFixtureFakeAndByTheExportedAdapter(t *testing.T) {
-	// Compile-time assertions: the seam is satisfiable BOTH wholesale by a
-	// fixture holding nothing and by theme.DirThemeSource, the exported
-	// adapter production wires (cmd's newThemeSource returns it). A drift in
-	// either signature stops compiling here rather than at the wiring site — and
-	// because the adapter asserted is production's own rather than a
-	// re-implementation of it, this cannot pass while production fails.
+	// Compile-time assertions: a signature drift stops compiling here rather than
+	// at the wiring site.
 	var _ tui.ThemeSource = fixtureThemeSource{}
 	var _ tui.ThemeSource = theme.DirThemeSource{}
 }
 
-// TestThemeSourceReturnsTheFinishedUnion pins the harness contract's central claim about
-// this seam: it returns the FINISHED union, not a directory listing.
-//
-// The directory here does not exist, and the seam still answers with rows —
-// every built-in, plus a row for the persisted slug that resolves to none of
-// them, each already carrying its reason. Nothing in internal/tui merges,
-// resolves, counts or SORTS anything, which is what keeps this package from
-// becoming a fourth emitter of the `theme` component (the concurrent-write rule closes that
-// set at three).
-//
-// The persisted row is found by identity rather than by position: it arrives in
-// the row-rendering rule's order like every other row, which for `ghost` is among the
-// built-ins rather than after them.
+// The directory deliberately does not exist: the seam still answers with the
+// finished union rather than a directory listing.
 func TestThemeSourceReturnsTheFinishedUnion(t *testing.T) {
 	var enumerator tui.ThemeSource = theme.DirThemeSource{
 		Loader: theme.NewSilentLoader(),
@@ -97,14 +73,7 @@ func TestThemeSourceReturnsTheFinishedUnion(t *testing.T) {
 	}
 }
 
-// TestThemeSourceResolvesFromTheRawKeys pins the collapse as the SEAM's, not the
-// caller's: the adapter is handed prefs.json's keys exactly as they are persisted
-// — all three at once, which a hand-edited file may legally carry — and applies
-// the tiebreak itself.
-//
-// The keys rather than a collapsed setting is what keeps the rule behind the
-// seam. A caller collapsing first is free to answer from a setting derived
-// differently from the one it lists and marks.
+// All three keys at once, which a hand-edited prefs.json may legally carry.
 func TestThemeSourceResolvesFromTheRawKeys(t *testing.T) {
 	var source tui.ThemeSource = theme.DirThemeSource{
 		Loader: theme.NewSilentLoader(),
@@ -128,12 +97,6 @@ func TestThemeSourceResolvesFromTheRawKeys(t *testing.T) {
 	}
 }
 
-// TestThemeSourceResolvesASlotFromTheRawKeys pins the OTHER rule the seam now
-// owns: the shipped-default substitution for a slot the user never set.
-//
-// The unset slot resolves the shipped default and reports no fallback, which is
-// the distinction that would be lost if a caller handed over a raw empty slug: an
-// untouched slot would be reported as a fallback of a slug nobody set.
 func TestThemeSourceResolvesASlotFromTheRawKeys(t *testing.T) {
 	var source tui.ThemeSource = theme.DirThemeSource{
 		Loader: theme.NewSilentLoader(),
@@ -154,10 +117,6 @@ func TestThemeSourceResolvesASlotFromTheRawKeys(t *testing.T) {
 	}
 }
 
-// TestThemeSourceReassemblesFromAFixtureUnion pins the seam's second method
-// through the fixture route: the picker idiom's post-commit recompute and the re-read-on-open
-// rule's `Esc` re-resolution both re-derive from a RETAINED enumeration, so a fake must be
-// able to answer that call with no directory of any kind.
 func TestThemeSourceReassemblesFromAFixtureUnion(t *testing.T) {
 	faked := theme.Union{
 		Rows: []theme.Row{

@@ -12,15 +12,6 @@ import (
 	"github.com/leeovery/portal/internal/sourceguard"
 )
 
-// centralisedColourSites enumerates every NON-test production .go file in the
-// internal/tui package (the package directory only, not recursing). It is the
-// "closed vocabulary, no literal hex at call sites" rule made executable: none of
-// these render files may construct a colour from a raw hex / ANSI-index literal —
-// every colour must flow from a token on the model's active theme.
-//
-// It is the whole package directory (not a hand-maintained list) so no render
-// file can be silently omitted from coverage as renderers are added — the guard's
-// coverage grows with the package automatically.
 func centralisedColourSites(t *testing.T) []string {
 	t.Helper()
 	paths, err := sourceguard.PackageGoFiles(".", false)
@@ -34,11 +25,6 @@ func centralisedColourSites(t *testing.T) []string {
 	return files
 }
 
-// TestNoRawColourLiteralAtCentralisedSites parses every production render file in
-// internal/tui (via centralisedColourSites) and fails if any
-// lipgloss.Color(...) call is passed a raw string/int literal (a hex like "#777777"
-// or an ANSI index like "212"/76). Raw colour values live in the embedded .theme
-// FILES and nowhere in Go at all — every call site must reference a token.
 func TestNoRawColourLiteralAtCentralisedSites(t *testing.T) {
 	for _, name := range centralisedColourSites(t) {
 		t.Run(name, func(t *testing.T) {
@@ -62,7 +48,6 @@ func TestNoRawColourLiteralAtCentralisedSites(t *testing.T) {
 				}
 				lit, ok := call.Args[0].(*ast.BasicLit)
 				if !ok {
-					// Non-literal argument (a token reference, a variable) is fine.
 					return true
 				}
 				if lit.Kind == token.STRING || lit.Kind == token.INT {
@@ -81,7 +66,6 @@ func TestNoRawColourLiteralAtCentralisedSites(t *testing.T) {
 	}
 }
 
-// isLipglossColorCall reports whether call is `lipgloss.Color(...)`.
 func isLipglossColorCall(call *ast.CallExpr) bool {
 	sel, ok := call.Fun.(*ast.SelectorExpr)
 	if !ok {

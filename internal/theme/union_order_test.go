@@ -9,18 +9,6 @@ import (
 	"github.com/leeovery/portal/internal/themetest"
 )
 
-// TestRowOrder_ReservedNameSortsBySlugLabelsByFilename pins the row the row-rendering rule
-// built the sort-key/label split around: a `nord.theme` drop-in beside the `nord`
-// built-in sorts by its SLUG and is labelled by its FILENAME — on the same row,
-// at the same time.
-//
-// Neither value is a reading of the other, and this row is the proof: its slug
-// is perfectly valid and would be a fine label if it were not IDENTICAL to the
-// built-in's, which is the definition of `reserved name`. Labelling by
-// slug would put two rows reading `nord` in a list where the row-rendering rule deliberately
-// makes built-in and drop-in rows indistinguishable; sorting by filename would move it
-// away from the built-in it collides with, which is exactly where the
-// explanation is useful.
 func TestRowOrder_ReservedNameSortsBySlugLabelsByFilename(t *testing.T) {
 	dir := t.TempDir()
 	themetest.Write(t, dir, "nord.theme", themetest.Lines())
@@ -40,19 +28,6 @@ func TestRowOrder_ReservedNameSortsBySlugLabelsByFilename(t *testing.T) {
 	}
 }
 
-// TestRowOrder_BuiltinFirstOnTheGuaranteedTie pins the one tie the row-rendering rule says is
-// guaranteed by construction and cannot be settled byte-wise: a `reserved name`
-// row and the built-in it collides with hold an IDENTICAL sort key, because that
-// identity is the definition of the reason.
-//
-// The built-in wins — the valid, selectable thing the user can act on,
-// immediately followed by the row explaining why their file is not it.
-//
-// `nord-lee` is staged as the nearest possible neighbour: its key is the closest
-// any other row can sort to `nord` without being it. Asserting it does not fall
-// between the pair is what makes the adjacency argument concrete rather than
-// incidental — the two rows are adjacent because the ordering says so, not
-// because nothing happened to sort between them.
 func TestRowOrder_BuiltinFirstOnTheGuaranteedTie(t *testing.T) {
 	dir := t.TempDir()
 	themetest.Write(t, dir, "nord.theme", themetest.Lines())
@@ -82,18 +57,6 @@ func TestRowOrder_BuiltinFirstOnTheGuaranteedTie(t *testing.T) {
 	}
 }
 
-// TestRowOrder_BadNameSortsByFilename pins the one row shape with no slug at
-// all: a file the slug charset rule rejects rather than normalises sorts — and is labelled —
-// by its FILENAME.
-//
-// It is the fallback arm of the sort key, and it is what makes the key fully
-// determined: `Bad_Name.theme` yields no identity whatsoever, so a slug-only key
-// would leave it with an empty one and every such row would clump at the head of
-// the list in whatever order the directory happened to be read in.
-//
-// The whole sequence is asserted, not just the row's key, because the failure
-// this guards against is positional: a row sorting by a value nothing else can
-// tie with still has to land in the right place among the built-ins.
 func TestRowOrder_BadNameSortsByFilename(t *testing.T) {
 	dir := t.TempDir()
 	themetest.Write(t, dir, "Bad_Name.theme", themetest.Lines())
@@ -103,7 +66,7 @@ func TestRowOrder_BadNameSortsByFilename(t *testing.T) {
 
 	row := onlyRejectedRow(t, union, theme.ReasonBadName)
 	if row.Slug != "" {
-		t.Errorf("bad-name row slug = %q, want none — §5.2 rejects rather than normalises, so the name yields no identity", row.Slug)
+		t.Errorf("bad-name row slug = %q, want none — a bad name is rejected rather than normalised, so it yields no identity", row.Slug)
 	}
 	if got, want := row.SortKey(), "Bad_Name.theme"; got != want {
 		t.Errorf("bad-name row SortKey() = %q, want the filename %q — it is the only thing the row has", got, want)
@@ -118,15 +81,6 @@ func TestRowOrder_BadNameSortsByFilename(t *testing.T) {
 	}
 }
 
-// TestRowOrder_CharsetRejectedSortsByItself pins the third arm of the sort key,
-// which exists so the ordering stays TOTAL: a persisted string the validate-before-use rule's
-// charset check rejected has neither a slug nor a file, and sorts by the string itself.
-//
-// There is exactly one thing to sort such a row by, and using it is the whole
-// argument — the alternative is a union member the comparator cannot place,
-// which is precisely what a total order is not. The value arrives already
-// control-stripped (the row-rendering rule strips at the point it is read, not at the point it
-// is drawn), so the key is the ordinary one-line text the row also displays.
 func TestRowOrder_CharsetRejectedSortsByItself(t *testing.T) {
 	const illegal = "../evil"
 	assembler := theme.Assembler{Loader: theme.NewSilentLoader()}
@@ -150,19 +104,6 @@ func TestRowOrder_CharsetRejectedSortsByItself(t *testing.T) {
 	}
 }
 
-// TestRowOrder_CaseInsensitiveThenByteWise pins the row-rendering rule's comparison as the two
-// legs it is, in order.
-//
-// Slugs are lowercase by construction but FILENAMES ARE NOT, and every uppercase
-// byte sorts below every lowercase one — so a byte-wise-only comparison files
-// `Zed.theme` ahead of every valid theme, at the head of the list, which is the
-// failure the first case is written against. The second case is why the
-// byte-wise leg survives underneath it: two keys equal but for case tie
-// case-insensitively, and without a second leg which one came first would depend
-// on how the union happened to be assembled.
-//
-// Each case is re-derived several times to pin the result as identical across
-// runs rather than merely correct once.
 func TestRowOrder_CaseInsensitiveThenByteWise(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -205,19 +146,6 @@ func TestRowOrder_CaseInsensitiveThenByteWise(t *testing.T) {
 	}
 }
 
-// TestRowOrder_TotalAndDeterministic pins the property the whole ordering exists
-// for: the union comes back in ONE sequence, whatever order it was assembled in.
-//
-// The pre-sort input is enumeration order — the built-ins, then os.ReadDir's,
-// then the persisted leftovers — which is neither alphabetical nor stable across
-// filesystems. So the retained entries are permuted and re-derived, and every
-// permutation must produce the identical union, down to each row's label and
-// source and not merely its key. Without that, the harness contract's panel fixtures are not
-// reproducible and the row-rendering rule's adjacency argument holds only by accident.
-//
-// The fixture is deliberately every row shape at once: a valid drop-in, a broken
-// one, a `reserved name` collision, a `bad name` file, a dead persisted slug and
-// a charset-rejected persisted string.
 func TestRowOrder_TotalAndDeterministic(t *testing.T) {
 	if got, want := theme.BuiltinSlugs(), []string{"nord", "tokyo-night", "tokyo-night-day"}; !slices.Equal(got, want) {
 		t.Fatalf("the shipped built-ins are %v, want %v — the canonical sequence below states the WHOLE ordered union, so a new built-in belongs in it", got, want)
@@ -266,20 +194,6 @@ func TestRowOrder_TotalAndDeterministic(t *testing.T) {
 	}
 }
 
-// TestRowOrder_SortKeyAndLabelAreSeparateValues pins the independence of the two
-// derived values directly, on the row where they disagree: renaming a `reserved
-// name` file moves its LABEL and does not move its POSITION.
-//
-// Either value re-derived from the other collapses here. A label read off the
-// sort key would show `nord` whatever the file is called, losing the one thing
-// the label is for — saying which of the two rows is the user's file. A sort key
-// read off the label would send the row wherever the filename sorts, which is
-// away from the built-in whose collision is the row's entire content.
-//
-// The rows are built by hand because no directory can stage this: a reserved
-// name is reserved BY its filename, so the real enumerator cannot vary one
-// without varying the other. A Row is an ordinary value, which is what
-// makes the pair separable at all.
 func TestRowOrder_SortKeyAndLabelAreSeparateValues(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -317,14 +231,6 @@ func TestRowOrder_SortKeyAndLabelAreSeparateValues(t *testing.T) {
 	}
 }
 
-// TestRowOrder_UnionIsOrderedOnReturn pins WHERE the ordering lives: inside the
-// assembler, so both entry points hand back an ordered union and no consumer
-// sorts.
-//
-// The picker idiom's post-commit recompute and the re-read-on-open rule's `Esc` re-resolution
-// both go through Reassemble rather than Open, and a sort applied by the panel on open alone
-// would leave every one of those re-derivations in raw assembly order — a list
-// that reshuffles itself the moment the user presses `Enter`.
 func TestRowOrder_UnionIsOrderedOnReturn(t *testing.T) {
 	dir := t.TempDir()
 	themetest.Write(t, dir, "zz-late.theme", themetest.Lines())
@@ -346,15 +252,6 @@ func TestRowOrder_UnionIsOrderedOnReturn(t *testing.T) {
 	}
 }
 
-// TestRowOrder_NoVariantConcept pins what the ordering must NOT read: a row's
-// palette.
-//
-// Ordering same-mode themes first was proposed as a mitigation for the picker idiom's
-// mixed-mode flash and REJECTED — list order is alphabetical by slug and nothing
-// else. So the identical row set is ordered three times with the palettes swapped
-// underneath it, including the light/dark canvases a mode-aware sort would have
-// to read, and the sequence may not move. The middle case interleaves modes
-// against the alphabet, so any grouping at all would show.
 func TestRowOrder_NoVariantConcept(t *testing.T) {
 	light := theme.Theme{Canvas: theme.Token{Name: "canvas", Value: "#E1E2E7"}}
 	dark := theme.Theme{Canvas: theme.Token{Name: "canvas", Value: "#0B0C14"}}
@@ -387,8 +284,6 @@ func TestRowOrder_NoVariantConcept(t *testing.T) {
 	}
 }
 
-// rowSortKeys lists the union's rows by the row-rendering rule's sort key, in the order the
-// union hands them back.
 func rowSortKeys(union theme.Union) []string {
 	keys := make([]string, 0, len(union.Rows))
 	for _, row := range union.Rows {
@@ -397,8 +292,6 @@ func rowSortKeys(union theme.Union) []string {
 	return keys
 }
 
-// rowLabels lists the union's rows by the row-rendering rule's display label, in the order the
-// union hands them back.
 func rowLabels(union theme.Union) []string {
 	labels := make([]string, 0, len(union.Rows))
 	for _, row := range union.Rows {
@@ -407,10 +300,6 @@ func rowLabels(union theme.Union) []string {
 	return labels
 }
 
-// rowIdentities renders every row as the three values the row-rendering rule's ordering has to
-// place it by and present it as — its sort key, its label and its source — so a
-// comparison of two derivations catches a row that moved, a row that changed and
-// a row that was substituted for its twin alike.
 func rowIdentities(union theme.Union) []string {
 	identities := make([]string, 0, len(union.Rows))
 	for _, row := range union.Rows {
@@ -419,8 +308,6 @@ func rowIdentities(union theme.Union) []string {
 	return identities
 }
 
-// onlyRejectedRow fails the test unless exactly one row carries the given terse reason
-// reason, and returns it.
 func onlyRejectedRow(t *testing.T, union theme.Union, reason theme.Reason) theme.Row {
 	t.Helper()
 
@@ -436,9 +323,6 @@ func onlyRejectedRow(t *testing.T, union theme.Union, reason theme.Reason) theme
 	return rows[0]
 }
 
-// builtinIndex returns where the named built-in sits in BuiltinSlugs' sorted
-// order, so an expectation states an interleaving rather than restating the
-// shipped set.
 func builtinIndex(t *testing.T, slug string) int {
 	t.Helper()
 
@@ -450,8 +334,6 @@ func builtinIndex(t *testing.T, slug string) int {
 	return at
 }
 
-// permuted returns the entries in the given order, which is how a test stages a
-// directory read that arrived in some order other than the one it really did.
 func permuted(t *testing.T, entries []theme.Entry, order []int) []theme.Entry {
 	t.Helper()
 

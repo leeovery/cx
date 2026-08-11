@@ -81,24 +81,8 @@ func TestMatchGlob(t *testing.T) {
 	}
 }
 
-// TestQueryResolver_Resolve_GlobFallsThroughToMiss pins the NON-glob-only contract
-// of the single-target Resolve chain. Glob expansion is EXCLUSIVELY the burst's job
-// (ResolveBareAll → expandSessionGlobAll, all-match — see query_all_test.go): the
-// single glob-expansion primitive fans a pattern out to EVERY matching session.
-// Resolve itself no longer pre-checks or expands globs. A glob value reaching
-// Resolve is never a literal session name, never a path argument (session-style
-// globs carry no '/', '.', '~'), never an alias key, and never a zoxide hit, so it
-// falls through the whole session→path→alias→zoxide chain to a *MissResult — a LOUD
-// hard-fail via the caller, NEVER a silent first-match. This is the safety net for
-// the routing assumption: if a glob ever slips past the multi-target gate into
-// Resolve, it fails loudly instead of degrading "burst every match" to "attach the
-// first". (The all-match burst behaviour lives in TestQueryResolver_ResolveBareAll /
-// TestQueryResolver_ResolveSessionPinAll and stays unchanged.)
 func TestQueryResolver_Resolve_GlobFallsThroughToMiss(t *testing.T) {
 	t.Run("multi-match session glob does NOT collapse to the first match", func(t *testing.T) {
-		// The regression this task removes: the old glob pre-check returned
-		// matches[0] (api-1) as a SessionResult{Domain:"glob"}. With the branch
-		// gone the glob falls through to a miss — glob fan-out is the burst's job.
 		sessions := &mockSessionLister{names: []string{"api-1", "api-2", "web-3"}}
 		aliasLookup := &mockAliasLookup{aliases: map[string]string{}}
 		zoxide := &mockZoxideQuerier{err: resolver.ErrNoMatch}
@@ -144,8 +128,6 @@ func TestQueryResolver_Resolve_GlobFallsThroughToMiss(t *testing.T) {
 	})
 
 	t.Run("session glob matching only internal sessions falls through to miss", func(t *testing.T) {
-		// The lister returns the leading-underscore-filtered view, so a glob
-		// that would match only internal _portal-* sessions sees an empty set.
 		sessions := &mockSessionLister{names: []string{"api-1"}}
 		aliasLookup := &mockAliasLookup{aliases: map[string]string{}}
 		zoxide := &mockZoxideQuerier{err: resolver.ErrNoMatch}

@@ -120,7 +120,6 @@ func TestSessionListTitleModeAware(t *testing.T) {
 			t.Errorf("SessionListTitle() = %q, want %q", got, "Sessions — by tag (current: foo)")
 		}
 
-		// A refresh inside tmux must keep both pieces.
 		updated, _ := m.Update(SessionsMsg{Sessions: []tmux.Session{{Name: "alpha"}}})
 		if got := updated.(Model).SessionListTitle(); got != "Sessions — by tag (current: foo)" {
 			t.Errorf("post-refresh SessionListTitle() = %q, want %q", got, "Sessions — by tag (current: foo)")

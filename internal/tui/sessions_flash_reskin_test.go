@@ -10,15 +10,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// Tests for the inline-flash band reskin: the full MV warning / success styling
-// routed through the notice-band primitive + single-slot arbiter. The warning
-// flash is an accent.attention left-bar + ⚠ glyph + message on a bg.attention
-// tint in text.on-attention; the success flash swaps to a state.positive
-// left-bar + ✓ glyph (glyph-distinct from ⚠, never colour-only). The reskin
-// must not perturb the auto-clear lifecycle or the F10 height recompute.
-
-// reskinFlashModel builds a Sessions-page model seeded with the given session
-// names at 80x24 so the rendered band carries predictable substrings.
 func reskinFlashModel(names ...string) Model {
 	sessions := make([]tmux.Session, 0, len(names))
 	for _, n := range names {
@@ -30,7 +21,6 @@ func reskinFlashModel(names ...string) Model {
 	return m
 }
 
-// flashBandLine returns the single rendered band line carrying substr, or fails.
 func flashBandLine(t *testing.T, m Model, substr string) string {
 	t.Helper()
 	lines := strings.Split(m.View().Content, "\n")
@@ -41,9 +31,6 @@ func flashBandLine(t *testing.T, m Model, substr string) string {
 	return lines[idx]
 }
 
-// TestWarningFlash_OrangeBarWarningGlyphOnWarningTint asserts the §11.2 warning
-// flash: an accent.attention ▌ left-bar, a ⚠ warning glyph, and the message in
-// text.on-attention on a bg.attention tint.
 func TestWarningFlash_OrangeBarWarningGlyphOnWarningTint(t *testing.T) {
 	m := reskinFlashModel("alpha-row")
 	const msg = "folio-Jiz4el closed externally — list updated"
@@ -52,7 +39,6 @@ func TestWarningFlash_OrangeBarWarningGlyphOnWarningTint(t *testing.T) {
 	line := flashBandLine(t, m, msg)
 	stripped := ansi.Strip(line)
 
-	// Left-bar present at the far left, then the warning glyph, then the message.
 	if !strings.HasPrefix(strings.TrimLeft(stripped, " "), noticeBarGlyph) {
 		t.Errorf("warning flash must start with the %q left-bar: %q", noticeBarGlyph, stripped)
 	}
@@ -63,22 +49,17 @@ func TestWarningFlash_OrangeBarWarningGlyphOnWarningTint(t *testing.T) {
 		t.Errorf("warning flash must carry the message %q: %q", msg, stripped)
 	}
 
-	// accent.attention left-bar foreground.
 	if barSeq := tokenFgSeq(t, testDarkTheme(t).AccentAttention); !strings.Contains(line, barSeq) {
 		t.Errorf("warning flash missing accent.orange bar foreground %q:\n%s", barSeq, line)
 	}
-	// text.on-attention message foreground.
 	if msgSeq := tokenFgSeq(t, testDarkTheme(t).TextOnAttention); !strings.Contains(line, msgSeq) {
 		t.Errorf("warning flash missing text.on-warning message foreground %q:\n%s", msgSeq, line)
 	}
-	// bg.attention tint behind the band.
 	if tintSeq := tokenBgSeq(t, testDarkTheme(t).BgAttention); !strings.Contains(line, tintSeq) {
 		t.Errorf("warning flash missing bg.warning tint background %q:\n%s", tintSeq, line)
 	}
 }
 
-// TestSuccessFlash_GreenBarSuccessGlyph asserts the §11.2 success variant: a
-// state.positive ▌ left-bar and a ✓ success glyph with the message.
 func TestSuccessFlash_GreenBarSuccessGlyph(t *testing.T) {
 	m := reskinFlashModel("alpha-row")
 	const msg = "session restored"
@@ -97,15 +78,11 @@ func TestSuccessFlash_GreenBarSuccessGlyph(t *testing.T) {
 		t.Errorf("success flash must carry the message %q: %q", msg, stripped)
 	}
 
-	// state.positive left-bar foreground.
 	if barSeq := tokenFgSeq(t, testDarkTheme(t).StatePositive); !strings.Contains(line, barSeq) {
 		t.Errorf("success flash missing state.green bar foreground %q:\n%s", barSeq, line)
 	}
 }
 
-// TestFlash_WarningVsSuccessGlyphDistinct asserts the two variants are
-// distinguishable by GLYPH alone (§2.2 — never colour-only): the warning band
-// carries ⚠ and not ✓, the success band carries ✓ and not ⚠.
 func TestFlash_WarningVsSuccessGlyphDistinct(t *testing.T) {
 	if flashWarningGlyph == flashSuccessGlyph {
 		t.Fatalf("warning and success glyphs must differ: both = %q", flashWarningGlyph)
@@ -126,15 +103,12 @@ func TestFlash_WarningVsSuccessGlyphDistinct(t *testing.T) {
 	}
 }
 
-// TestFlashKind_DefaultsToWarning asserts setFlash defaults the kind to warning so
-// the externally-killed bail (which calls setFlash) stays a warning band.
 func TestFlashKind_DefaultsToWarning(t *testing.T) {
 	var m Model
 	m.setFlash("default kind")
 	if m.flashKind != flashWarning {
 		t.Errorf("setFlash kind = %v, want flashWarning (default)", m.flashKind)
 	}
-	// A success flash followed by a plain setFlash must revert to warning.
 	m.setSuccessFlash("ok")
 	if m.flashKind != flashSuccess {
 		t.Fatalf("setup invariant: setSuccessFlash kind = %v, want flashSuccess", m.flashKind)
@@ -145,8 +119,6 @@ func TestFlashKind_DefaultsToWarning(t *testing.T) {
 	}
 }
 
-// TestActiveNoticeBand_FlashKindSelectsRole asserts the arbiter maps the flash
-// kind to the band role: warning → bandWarning, success → bandSuccess.
 func TestActiveNoticeBand_FlashKindSelectsRole(t *testing.T) {
 	var m Model
 	m.setFlash("warn")
@@ -159,9 +131,6 @@ func TestActiveNoticeBand_FlashKindSelectsRole(t *testing.T) {
 	}
 }
 
-// TestFlashReskin_NoColor asserts the NO_COLOR carve-out (§2.5 / §2.2): the band
-// drops the tint + bar colour but keeps the ▌ bar, its position, the warning/
-// success glyph, and the message — state survives colourlessly through the glyph.
 func TestFlashReskin_NoColor(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
@@ -182,14 +151,12 @@ func TestFlashReskin_NoColor(t *testing.T) {
 
 			band := m.renderActiveNoticeBand()
 			stripped := ansi.Strip(band)
-			// Bar + glyph survive.
 			if !strings.HasPrefix(strings.TrimLeft(stripped, " "), noticeBarGlyph) {
 				t.Errorf("NO_COLOR %s flash must keep the %q bar: %q", tc.name, noticeBarGlyph, stripped)
 			}
 			if !strings.Contains(stripped, tc.glyph) {
 				t.Errorf("NO_COLOR %s flash must keep the %q glyph: %q", tc.name, tc.glyph, stripped)
 			}
-			// No SGR colour sequences at all — tint + bar colour dropped.
 			if band != stripped {
 				t.Errorf("NO_COLOR %s flash must carry no SGR colour sequences; got raw %q", tc.name, band)
 			}
@@ -197,10 +164,6 @@ func TestFlashReskin_NoColor(t *testing.T) {
 	}
 }
 
-// TestFlashReskin_RecomputesListHeight asserts the F10 height recompute still
-// fires through the reskin: a flash appearing reserves TWO fewer list rows (the
-// band PLUS its blank breathing row), a clear releases both (warning and success
-// alike).
 func TestFlashReskin_RecomputesListHeight(t *testing.T) {
 	m := reskinFlashModel("alpha-row")
 	_, base := m.SessionListSize()
@@ -218,10 +181,6 @@ func TestFlashReskin_RecomputesListHeight(t *testing.T) {
 	}
 }
 
-// TestFlashReskin_AutoClearLifecyclePreserved asserts the reskin does not perturb
-// the auto-clear lifecycle: an actionable keypress clears the band, a matching
-// flashTickMsg (the short timeout) clears it, and a superseded tick is dropped by
-// the generation guard — for the success kind too.
 func TestFlashReskin_AutoClearLifecyclePreserved(t *testing.T) {
 	t.Run("actionable key clears success flash", func(t *testing.T) {
 		m := reskinFlashModel("alpha-row")
@@ -233,7 +192,7 @@ func TestFlashReskin_AutoClearLifecyclePreserved(t *testing.T) {
 	})
 	t.Run("matching tick clears success flash", func(t *testing.T) {
 		m := reskinFlashModel("alpha-row")
-		m.setSuccessFlash("timeout-me") // gen 1
+		m.setSuccessFlash("timeout-me")
 		updated, _ := m.Update(flashTickMsg{Gen: 1})
 		if mm := updated.(Model); mm.flashText != "" {
 			t.Errorf("matching tick must clear the success flash: flashText = %q", mm.flashText)
@@ -241,8 +200,8 @@ func TestFlashReskin_AutoClearLifecyclePreserved(t *testing.T) {
 	})
 	t.Run("generation guard drops superseded tick", func(t *testing.T) {
 		m := reskinFlashModel("alpha-row")
-		m.setFlash("first")         // gen 1
-		m.setSuccessFlash("second") // gen 2 supersedes
+		m.setFlash("first")
+		m.setSuccessFlash("second")
 		updated, _ := m.Update(flashTickMsg{Gen: 1})
 		mm := updated.(Model)
 		if mm.flashText != "second" {
@@ -254,14 +213,10 @@ func TestFlashReskin_AutoClearLifecyclePreserved(t *testing.T) {
 	})
 }
 
-// reskinStubLister is a minimal internal-package SessionLister for the Build test.
 type reskinStubLister struct{ sessions []tmux.Session }
 
 func (l reskinStubLister) ListSessions() ([]tmux.Session, error) { return l.sessions, nil }
 
-// TestBuild_InitialFlashSeedsWarningFlash asserts the Build seam seeds a warning
-// inline flash from Deps.InitialFlash (the capture-fixture entry point) — the
-// flash renders as a warning band on the first frame with no key sequence.
 func TestBuild_InitialFlashSeedsWarningFlash(t *testing.T) {
 	lister := reskinStubLister{sessions: []tmux.Session{{Name: "dev", Windows: 2}}}
 	const msg = "folio-Jiz4el closed externally — list updated"
@@ -275,18 +230,12 @@ func TestBuild_InitialFlashSeedsWarningFlash(t *testing.T) {
 	if m.flashKind != flashWarning {
 		t.Errorf("Build InitialFlash flashKind = %v, want flashWarning", m.flashKind)
 	}
-	// An empty InitialFlash leaves no flash (the no-op path for every other fixture).
 	none := Build(Deps{Lister: lister})
 	if none.flashText != "" {
 		t.Errorf("empty InitialFlash must leave flashText empty, got %q", none.flashText)
 	}
 }
 
-// TestBuild_InitialFlash_RendersWarningBand mirrors the capture-harness path
-// end-to-end: Build with a pinned dark appearance + Deps.InitialFlash, then drive
-// a WindowSizeMsg + SessionsMsg the way the live program does. The seeded warning
-// band must render with its ⚠ glyph and message above the `Sessions` section
-// header — the exact frame the sessions-inline-flash fixture screenshots.
 func TestBuild_InitialFlash_RendersWarningBand(t *testing.T) {
 	const msg = "folio-Jiz4el closed externally — list updated"
 	sessions := []tmux.Session{
@@ -297,7 +246,6 @@ func TestBuild_InitialFlash_RendersWarningBand(t *testing.T) {
 		Lister:  reskinStubLister{sessions: sessions},
 		Capture: CaptureSeeds{Flash: msg},
 	})
-	// Drive the live program's first messages: size, then the session ingestion.
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 	m = updated.(Model)
 	updated, _ = m.Update(SessionsMsg{Sessions: sessions})
@@ -321,8 +269,6 @@ func TestBuild_InitialFlash_RendersWarningBand(t *testing.T) {
 	}
 }
 
-// TestFlashReskin_BandFullWidthSingleLine asserts the reskinned band is one
-// full-width line (the tint fills the whole row like the section header above it).
 func TestFlashReskin_BandFullWidthSingleLine(t *testing.T) {
 	m := reskinFlashModel("alpha-row")
 	m.setFlash("width probe")

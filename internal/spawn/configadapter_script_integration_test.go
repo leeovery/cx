@@ -8,14 +8,6 @@ import (
 	"testing"
 )
 
-// TestScriptRecipeAdapterOpenWindow_RealExec is the real-exec inch off the unit
-// lane: it drives the script recipe adapter through the production
-// execRecipeRunner against REAL shebang scripts in t.TempDir() — no tmux, no
-// daemon, no built portal binary. It confirms the exit status maps to
-// Success / SpawnFailed AND that the script observed the composed command as its
-// positional arg $1 (the ok script records $1 to a sibling file the test reads
-// back). Constructed via newScriptRecipeAdapter so the real stat / exec-bit gate
-// is exercised end-to-end against a real 0o755 file.
 func TestScriptRecipeAdapterOpenWindow_RealExec(t *testing.T) {
 	const key = "com.example.MyTerm"
 	command := []string{"/abs/portal", "attach", "proj-abc123"}

@@ -15,8 +15,6 @@ import (
 	"github.com/leeovery/portal/internal/state"
 )
 
-// writeTailFixture writes data to a fresh .bin path inside a fresh temp dir
-// and returns the path. Centralises the boilerplate used by the tail tests.
 func writeTailFixture(t *testing.T, data []byte) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -27,9 +25,6 @@ func writeTailFixture(t *testing.T, data []byte) string {
 	return path
 }
 
-// buildLines returns the bytes for `count` newline-terminated lines whose
-// content is "line-<i>\n" for i in [0, count). The exact line text matters
-// for byte-identity assertions against a naive whole-file tail.
 func buildLines(count int) []byte {
 	var buf bytes.Buffer
 	for i := range count {
@@ -38,33 +33,26 @@ func buildLines(count int) []byte {
 	return buf.Bytes()
 }
 
-// naiveTail returns the last n newline-terminated lines from data using the
-// straightforward whole-file approach. Used as the byte-identity oracle for
-// the chunked reverse-scan implementation under test.
+// The whole-file oracle the chunked reverse-scan is checked byte-for-byte
+// against.
 func naiveTail(data []byte, n int) []byte {
 	if len(data) == 0 {
 		return nil
 	}
-	// Count newlines walking backwards; track the cut point.
 	seen := 0
 	for i, v := range slices.Backward(data) {
 		if v != '\n' {
 			continue
 		}
-		// Skip the trailing newline of the file itself first.
 		if i == len(data)-1 && seen == 0 {
 			seen++
 			continue
 		}
 		seen++
 		if seen == n+1 {
-			// data[i] is the newline before the (n+1)th-from-last line; the
-			// returned slice starts at the byte after it.
 			return data[i+1:]
 		}
 	}
-	// Fewer than n lines available: return everything up to and including the
-	// last \n, which (for fully-terminated input) is the whole buffer.
 	return data
 }
 
@@ -119,16 +107,15 @@ func TestTailScrollback(t *testing.T) {
 	})
 
 	t.Run("assembles the tail correctly when N lines span multiple chunk boundaries", func(t *testing.T) {
-		// Lines wider than the chunk stride: 2 KiB per line × 200 lines >>
-		// any sane chunk constant (8/64 KiB). Asking for the last 50 forces
-		// the (51)th-from-last \n to live many chunks back from EOF.
+		// Lines far wider than the chunk stride put the cut point many chunks
+		// back from EOF.
 		const lineCount = 200
 		const tailN = 50
 		const lineWidth = 2048
 		var buf bytes.Buffer
-		filler := strings.Repeat("x", lineWidth-1) // -1 leaves room for \n
+		filler := strings.Repeat("x", lineWidth-1)
 		for i := range lineCount {
-			fmt.Fprintf(&buf, "%05d-%s\n", i, filler[6:]) // keep total = lineWidth
+			fmt.Fprintf(&buf, "%05d-%s\n", i, filler[6:])
 		}
 		data := buf.Bytes()
 		path := writeTailFixture(t, data)
@@ -275,9 +262,6 @@ func TestTailScrollback(t *testing.T) {
 		if !errors.Is(err, fs.ErrPermission) {
 			t.Fatalf("expected errors.Is(err, fs.ErrPermission), got err=%v", err)
 		}
-		// Wrap prefix is part of the spec contract: all OS-error returns
-		// share the "tail scrollback <path>: ..." shape so callers see one
-		// consistent error surface regardless of which step failed.
 		if !strings.Contains(err.Error(), "tail scrollback") {
 			t.Errorf("expected wrap prefix \"tail scrollback\" in error, got %q", err.Error())
 		}
@@ -300,10 +284,8 @@ func TestTailScrollback(t *testing.T) {
 	})
 
 	t.Run("returns an error from a mid-scan seek failure", func(t *testing.T) {
-		// Inject via the openFunc seam: open the file, immediately close it,
-		// then return the closed *os.File. The first Seek call inside
-		// TailScrollback will fail with "file already closed", exercising the
-		// mid-scan error path.
+		// Handing back an already-closed file makes the first Seek fail, which
+		// exercises the mid-scan error path.
 		path := writeTailFixture(t, buildLines(10))
 		restore := state.SetOpenFileForTest(func(name string) (*os.File, error) {
 			f, err := os.Open(name)
@@ -325,13 +307,6 @@ func TestTailScrollback(t *testing.T) {
 	})
 
 	t.Run("closes the file descriptor on the error path", func(t *testing.T) {
-		// Hand a real *os.File to TailScrollback via the seam. Inside the
-		// function body, force an error path by truncating the file to zero
-		// after Seek-end resolves... actually the cleanest signal is: keep
-		// our own reference to the file the seam returned, and after
-		// TailScrollback returns assert that f.Close() now reports
-		// os.ErrClosed (the deferred Close inside TailScrollback already
-		// closed it).
 		path := writeTailFixture(t, buildLines(10))
 
 		var capturedFile *os.File
@@ -341,10 +316,6 @@ func TestTailScrollback(t *testing.T) {
 				return nil, err
 			}
 			capturedFile = f
-			// Close immediately so the function takes the error path on its
-			// first Seek; we still expect the deferred Close in TailScrollback
-			// to run (a redundant Close on an already-closed *os.File returns
-			// os.ErrClosed but does not panic).
 			_ = f.Close()
 			return f, nil
 		})
@@ -357,20 +328,16 @@ func TestTailScrollback(t *testing.T) {
 		if capturedFile == nil {
 			t.Fatalf("seam was not invoked; capturedFile is nil")
 		}
-		// Calling Close again on an already-closed *os.File yields
-		// os.ErrClosed. This confirms the file is in the closed state by the
-		// time TailScrollback returns — i.e. the deferred Close ran on the
-		// error path (closing an already-closed file is a no-op error, not a
-		// panic, so the deferred path is exercised safely).
+		// A second Close reporting os.ErrClosed is the evidence that the
+		// deferred Close ran on the error path.
 		if err := capturedFile.Close(); err == nil || !errors.Is(err, os.ErrClosed) {
 			t.Fatalf("expected captured file to be closed, got Close()=%v", err)
 		}
 	})
 
 	t.Run("holds a single file descriptor across the reverse scan", func(t *testing.T) {
-		// Force a wide span so the reverse-scan must call Read multiple
-		// times. Any close-and-reopen between chunk reads would show up as
-		// > 1 open against the seam.
+		// A span wide enough to need several chunk reads: a close-and-reopen
+		// between them would show up as more than one open against the seam.
 		const lineCount = 4000
 		data := buildLines(lineCount)
 		path := writeTailFixture(t, data)

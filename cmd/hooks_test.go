@@ -1,4 +1,3 @@
-// Tests in this file mutate package-level state (hooksDeps) and MUST NOT use t.Parallel.
 package cmd
 
 import (
@@ -16,9 +15,8 @@ func TestHooksListCommand(t *testing.T) {
 		hooksFile := filepath.Join(dir, "hooks.json")
 		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
 
-		// Stub bootstrap so the real orchestrator does not run against
-		// the test's tmux server while the hand-seeded hook entry is
-		// under assertion.
+		// Stub bootstrap so the real orchestrator never runs against the test's
+		// tmux server.
 		bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 		t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -70,8 +68,6 @@ func TestHooksListCommand(t *testing.T) {
 		hooksFile := filepath.Join(dir, "hooks.json")
 		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
 
-		// Do not create the file
-
 		buf := new(bytes.Buffer)
 		resetRootCmd()
 		rootCmd.SetOut(buf)
@@ -92,8 +88,8 @@ func TestHooksListCommand(t *testing.T) {
 		hooksFile := filepath.Join(dir, "hooks.json")
 		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
 
-		// Stub bootstrap so the real orchestrator does not run against
-		// the test's tmux server while the seeded entries are asserted.
+		// Stub bootstrap so the real orchestrator never runs against the test's
+		// tmux server.
 		bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
 		t.Cleanup(func() { bootstrapDeps = nil })
 
@@ -135,7 +131,6 @@ func TestHooksListCommand(t *testing.T) {
 	})
 }
 
-// mockKeyResolver implements HookKeyResolver for testing.
 type mockKeyResolver struct {
 	key string
 	err error
@@ -164,7 +159,6 @@ func TestHooksSetCommand(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		// Verify hook was written under hook key
 		data := readHooksJSON(t, hooksFile)
 		if data["my-session:0.0"]["on-resume"] != "claude --resume abc123" {
 			t.Errorf("hook command = %q, want %q", data["my-session:0.0"]["on-resume"], "claude --resume abc123")
@@ -189,7 +183,6 @@ func TestHooksSetCommand(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		// Verify hook key was used in the store (not raw pane ID)
 		data := readHooksJSON(t, hooksFile)
 		if _, ok := data["proj-xyz:1.2"]; !ok {
 			t.Error("expected hook entry for hook key proj-xyz:1.2, not found")
@@ -221,7 +214,6 @@ func TestHooksSetCommand(t *testing.T) {
 			t.Errorf("error = %q, want it to contain %q", err.Error(), "must be run from inside a tmux pane")
 		}
 
-		// Verify no side effects: no file written
 		if _, statErr := os.Stat(hooksFile); statErr == nil {
 			t.Error("hooks file should not have been created")
 		}
@@ -260,7 +252,6 @@ func TestHooksSetCommand(t *testing.T) {
 		hooksDeps = &HooksDeps{KeyResolver: resolver}
 		t.Cleanup(func() { hooksDeps = nil })
 
-		// First set
 		resetRootCmd()
 		rootCmd.SetOut(new(bytes.Buffer))
 		rootCmd.SetArgs([]string{"hooks", "set", "--on-resume", "old-cmd"})
@@ -268,7 +259,6 @@ func TestHooksSetCommand(t *testing.T) {
 			t.Fatalf("first set: unexpected error: %v", err)
 		}
 
-		// Second set overwrites
 		resetRootCmd()
 		rootCmd.SetOut(new(bytes.Buffer))
 		rootCmd.SetArgs([]string{"hooks", "set", "--on-resume", "new-cmd"})
@@ -299,15 +289,12 @@ func TestHooksSetCommand(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		// Read the raw JSON and verify the structure
 		data := readHooksJSON(t, hooksFile)
 
-		// Should have exactly one entry under hook key
 		if len(data) != 1 {
 			t.Fatalf("expected 1 entry, got %d", len(data))
 		}
 
-		// The entry should be keyed by hook key, not raw pane ID
 		events, ok := data["my-session:0.0"]
 		if !ok {
 			t.Fatal("expected entry for hook key my-session:0.0")
@@ -342,7 +329,6 @@ func TestHooksSetCommand(t *testing.T) {
 			t.Errorf("error = %q, want it to contain %q", err.Error(), "resolve")
 		}
 
-		// Verify no side effects: no file written
 		if _, statErr := os.Stat(hooksFile); statErr == nil {
 			t.Error("hooks file should not have been created")
 		}
@@ -365,7 +351,6 @@ func TestHooksSetCommand(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		// Verify hook was written under the resolved hook key
 		data := readHooksJSON(t, hooksFile)
 		if data["tok123:0.0"]["on-resume"] != "claude --resume abc123" {
 			t.Errorf("hook command = %q, want %q", data["tok123:0.0"]["on-resume"], "claude --resume abc123")
@@ -404,7 +389,6 @@ func TestHooksRmCommand(t *testing.T) {
 		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
 		t.Setenv("TMUX_PANE", "%3")
 
-		// Seed with an existing hook keyed by its hook key
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{
 			"my-session:0.0": {"on-resume": "claude --resume abc123"},
 		})
@@ -421,7 +405,6 @@ func TestHooksRmCommand(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		// Verify hook was removed from file using hook key
 		data := readHooksJSON(t, hooksFile)
 		if _, ok := data["my-session:0.0"]; ok {
 			t.Error("expected hook key my-session:0.0 entry to be removed from hooks file")
@@ -450,7 +433,6 @@ func TestHooksRmCommand(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		// Verify hook key was used in the store removal (not raw pane ID)
 		data := readHooksJSON(t, hooksFile)
 		if _, ok := data["proj-xyz:1.2"]; ok {
 			t.Error("expected hook key proj-xyz:1.2 entry to be removed")
@@ -512,7 +494,6 @@ func TestHooksRmCommand(t *testing.T) {
 		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
 		t.Setenv("TMUX_PANE", "%99")
 
-		// Empty hooks file
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{})
 
 		resolver := &mockKeyResolver{key: "some-session:0.0"}
@@ -528,7 +509,6 @@ func TestHooksRmCommand(t *testing.T) {
 			t.Fatalf("expected no error for non-existent hook, got: %v", err)
 		}
 
-		// Should produce no output
 		if buf.String() != "" {
 			t.Errorf("output = %q, want empty string", buf.String())
 		}
@@ -540,7 +520,6 @@ func TestHooksRmCommand(t *testing.T) {
 		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
 		t.Setenv("TMUX_PANE", "%3")
 
-		// Seed with multiple keys — only the resolved one should be removed
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{
 			"my-session:0.0": {"on-resume": "claude --resume abc123"},
 			"other-proj:0.0": {"on-resume": "npm start"},
@@ -560,12 +539,10 @@ func TestHooksRmCommand(t *testing.T) {
 
 		data := readHooksJSON(t, hooksFile)
 
-		// my-session:0.0 should be gone
 		if _, ok := data["my-session:0.0"]; ok {
 			t.Error("expected hook key my-session:0.0 to be removed")
 		}
 
-		// other-proj:0.0 should remain
 		if data["other-proj:0.0"]["on-resume"] != "npm start" {
 			t.Errorf("other-proj:0.0 on-resume = %q, want %q", data["other-proj:0.0"]["on-resume"], "npm start")
 		}
@@ -577,7 +554,6 @@ func TestHooksRmCommand(t *testing.T) {
 		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
 		t.Setenv("TMUX_PANE", "%5")
 
-		// Structural key has only one event — removing it should remove the key entirely
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{
 			"my-session:0.0": {"on-resume": "some-cmd"},
 		})
@@ -629,7 +605,6 @@ func TestHooksRmCommand(t *testing.T) {
 			t.Errorf("error = %q, want it to contain %q", err.Error(), "resolve")
 		}
 
-		// Verify no side effects: hook still in file
 		data := readHooksJSON(t, hooksFile)
 		if _, ok := data["my-session:0.0"]; !ok {
 			t.Error("hook should not have been removed on resolver failure")
@@ -642,14 +617,13 @@ func TestHooksRmCommand(t *testing.T) {
 		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
 		t.Setenv("TMUX_PANE", "")
 
-		// Seed two entries; only the one passed via --pane-key should be removed.
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{
 			"sess:0.1":       {"on-resume": "claude --resume xyz"},
 			"other-proj:0.0": {"on-resume": "npm start"},
 		})
 
-		// Resolver should NOT be consulted on the flag-set branch. Use one that
-		// would fail loudly if called, so an accidental fallback is caught.
+		// A resolver that fails loudly if consulted, so an accidental fallback on
+		// the flag-set branch cannot pass silently.
 		resolver := &mockKeyResolver{err: fmt.Errorf("resolver must not be called when --pane-key is set")}
 		hooksDeps = &HooksDeps{KeyResolver: resolver}
 		t.Cleanup(func() { hooksDeps = nil })
@@ -706,14 +680,13 @@ func TestHooksRmCommand(t *testing.T) {
 		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
 		t.Setenv("TMUX_PANE", "")
 
-		// Seed two entries; only the one passed via --pane-key should be removed.
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{
 			"sess:0.1":       {"on-resume": "claude --resume xyz"},
 			"other-proj:0.0": {"on-resume": "npm start"},
 		})
 
-		// Resolver must NOT be consulted on the --pane-key branch; use one that
-		// would fail loudly if called, so an accidental fallback is caught.
+		// A resolver that fails loudly if consulted, so an accidental fallback on
+		// the --pane-key branch cannot pass silently.
 		resolver := &mockKeyResolver{err: fmt.Errorf("resolver must not be called when --pane-key is set")}
 		hooksDeps = &HooksDeps{KeyResolver: resolver}
 		t.Cleanup(func() { hooksDeps = nil })
@@ -759,10 +732,6 @@ func TestHooksRmCommand(t *testing.T) {
 	})
 }
 
-// TestHookCommandRename covers the `hooks` → `hook` rename: `hook` is the
-// canonical command and `hooks` is retained as a permanent, silent cobra
-// alias (the one deliberate back-compat carve-out — no deprecation notice,
-// no timer). See spec §§ "Remaining Verbs" and "Back-Compat & Deprecation".
 func TestHookCommandRename(t *testing.T) {
 	t.Run("exposes hook as the canonical command name", func(t *testing.T) {
 		if hookCmd.Name() != "hook" {

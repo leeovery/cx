@@ -10,14 +10,6 @@ import (
 	"github.com/leeovery/portal/internal/sourceguard"
 )
 
-// retiredTokenNames maps every token name the vocabulary retired to the name that
-// now carries that role. It is one declared table so the rename has a single
-// statement in the render layer, and it is what the guard below reads.
-//
-// These names are dead: no Theme field, no .theme key and no loader case answers
-// to them. A comment that still uses one teaches a vocabulary a drop-in theme
-// cannot be written against, and nothing else catches that — the compiler sees a
-// comment.
 var retiredTokenNames = map[string]string{
 	"accent.violet":     "accent.primary",
 	"accent.blue":       "accent.key",
@@ -36,18 +28,12 @@ var retiredTokenNames = map[string]string{
 	"border.footer":     "border",
 }
 
-// retiredNameExemption is one file allowed to name one retired token, with the
-// reason that reference is correct in place.
 type retiredNameExemption struct {
 	file   string
 	name   string
 	reason string
 }
 
-// retiredNameExemptions is the closed set of comments that name a retired token
-// deliberately: guards whose whole subject is that the name — and the shade it
-// used to carry — no longer renders. Naming it is the point, so substituting the
-// current name would destroy the claim. Every other occurrence is stale prose.
 var retiredNameExemptions = []retiredNameExemption{
 	{
 		file:   "retired_token_guard_test.go",
@@ -70,7 +56,6 @@ var retiredNameExemptions = []retiredNameExemption{
 	},
 }
 
-// exemptRetiredName reports whether file may name the retired token.
 func exemptRetiredName(file, name string) bool {
 	for _, e := range retiredNameExemptions {
 		if e.file == file && (e.name == "" || e.name == name) {
@@ -80,18 +65,8 @@ func exemptRetiredName(file, name string) bool {
 	return false
 }
 
-// renderLayerPackageDirs are the package directories the guard covers: the render
-// layer and the fixture harness that renders through it. Both describe the same
-// surfaces in the same vocabulary, so a retired name is equally misleading in
-// either.
 var renderLayerPackageDirs = []string{".", filepath.Join("..", "capture")}
 
-// TestNoRetiredTokenNameInComments fails when a comment in the render layer names
-// a token the vocabulary retired, reporting the file, the line, the dead name and
-// the name that carries the role now.
-//
-// It reads the parsed comments rather than the raw file text, so it judges only
-// the prose a maintainer learns the vocabulary from.
 func TestNoRetiredTokenNameInComments(t *testing.T) {
 	for _, dir := range renderLayerPackageDirs {
 		matches, err := sourceguard.PackageGoFiles(dir, true)

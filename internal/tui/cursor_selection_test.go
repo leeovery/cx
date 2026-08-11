@@ -9,10 +9,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// newCursorTestModel builds a Model with a real, production-sized session list
-// loaded with the supplied grouped slice (HeaderItems interleaved with session
-// rows), then nudges the selection off the leading header exactly as
-// rebuildSessionList does in production.
 func newCursorTestModel(t *testing.T, items []list.Item) Model {
 	t.Helper()
 	m := Model{
@@ -26,26 +22,16 @@ func newCursorTestModel(t *testing.T, items []list.Item) Model {
 	return m
 }
 
-// keyUp/keyDown drive single-row navigation. Per §12.2 the g/G (GoToStart /
-// GoToEnd) and Home/End jump bindings are dropped — navigation is arrows only —
-// so the cursor-skip contract is exercised purely with up/down here.
 var (
 	keyUp   = tea.KeyPressMsg{Code: tea.KeyUp}
 	keyDown = tea.KeyPressMsg{Code: tea.KeyDown}
 )
 
-// selectedHeader reports whether the cursor currently rests on a HeaderItem.
 func selectedHeader(m Model) bool {
 	_, ok := m.sessionList.SelectedItem().(HeaderItem)
 	return ok
 }
 
-// TestCursorLandsOnlyOnSessionInstances locks the post-overflow-fix
-// selection/cursor contract: group headers are now REAL non-selectable list
-// rows, and the cursor skips them so it only ever rests on a session instance —
-// on initial load, on g/G, and on ordinary up/down navigation across group
-// boundaries. selectedSessionItem resolves whichever instance the cursor sits
-// on to its underlying tmux.Session.
 func TestCursorLandsOnlyOnSessionInstances(t *testing.T) {
 	t.Run("it places the initial cursor on the first session row, skipping the leading header", func(t *testing.T) {
 		dirA := t.TempDir()
@@ -82,7 +68,6 @@ func TestCursorLandsOnlyOnSessionInstances(t *testing.T) {
 			{Path: dirA, Name: "Alpha"},
 			{Path: dirB, Name: "Bravo"},
 		}
-		// One session per project => slice is [H(Alpha), alpha-1, H(Bravo), bravo-1].
 		sessions := []tmux.Session{
 			{Name: "alpha-1", Dir: dirA},
 			{Name: "bravo-1", Dir: dirB},
@@ -90,8 +75,6 @@ func TestCursorLandsOnlyOnSessionInstances(t *testing.T) {
 		items := buildByProject(sessions, project.NewIndex(projects))
 		m := newCursorTestModel(t, items)
 
-		// From alpha-1, one Down would land on H(Bravo); the skip must carry it
-		// through to bravo-1.
 		updated, _ := m.Update(keyDown)
 		m = updated.(Model)
 
@@ -118,10 +101,6 @@ func TestCursorLandsOnlyOnSessionInstances(t *testing.T) {
 		items := buildByProject(sessions, project.NewIndex(projects))
 		m := newCursorTestModel(t, items)
 
-		// Move to the last row (bravo-1) via Down — the slice is
-		// [H(Alpha), alpha-1, H(Bravo), bravo-1] and the cursor starts on
-		// alpha-1, so one Down skips H(Bravo) to bravo-1. Then Up must skip
-		// H(Bravo) back to alpha-1.
 		updated, _ := m.Update(keyDown)
 		m = updated.(Model)
 		updated, _ = m.Update(keyUp)
@@ -137,10 +116,6 @@ func TestCursorLandsOnlyOnSessionInstances(t *testing.T) {
 	})
 
 	t.Run("it lands on the first and last session row via arrow nav, never a header", func(t *testing.T) {
-		// §12.2 dropped g/G/Home/End, so the extremes are reached with arrows.
-		// The skip contract must still hold at both ends: stepping Down to the
-		// last row and Up to the first must each land on a session row, never a
-		// header (here the leading H(Alpha) and the interior H(Bravo)).
 		dirA := t.TempDir()
 		dirB := t.TempDir()
 		projects := []project.Project{
@@ -157,8 +132,6 @@ func TestCursorLandsOnlyOnSessionInstances(t *testing.T) {
 
 		m := newCursorTestModel(t, items)
 
-		// Step Down to the last row (more presses than there are rows so we
-		// settle on the end; InfiniteScrolling is off for grouped nav here).
 		for range len(items) {
 			updated, _ := m.Update(keyDown)
 			m = updated.(Model)
@@ -174,7 +147,6 @@ func TestCursorLandsOnlyOnSessionInstances(t *testing.T) {
 			t.Errorf("at the end, selected = %q, want %q (last session row)", last.Session.Name, rows[len(rows)-1].Session.Name)
 		}
 
-		// Step Up to the first row; the skip must carry past the leading header.
 		for range len(items) {
 			updated, _ := m.Update(keyUp)
 			m = updated.(Model)
@@ -203,15 +175,12 @@ func TestCursorLandsOnlyOnSessionInstances(t *testing.T) {
 			t.Fatalf("expected 2 instances (one per tag), got %d", len(rows))
 		}
 
-		// The two instances must be distinct list views (different GroupKey,
-		// i.e. distinct canonical tags) of the same underlying session.
 		if rows[0].GroupKey == rows[1].GroupKey {
 			t.Fatalf("expected distinct tags on the two instances, got %q and %q", rows[0].GroupKey, rows[1].GroupKey)
 		}
 
 		m := newCursorTestModel(t, items)
 
-		// Select each session row directly (skip the header indices).
 		var resolved []string
 		for idx, it := range items {
 			if _, ok := it.(SessionItem); !ok {
@@ -237,7 +206,7 @@ func TestCursorLandsOnlyOnSessionInstances(t *testing.T) {
 		items := buildByProject(sessions, project.NewIndex(projects))
 
 		m := newCursorTestModel(t, items)
-		m.sessionList.Select(0) // force onto the leading header
+		m.sessionList.Select(0)
 
 		if _, ok := m.selectedSessionItem(); ok {
 			t.Errorf("selectedSessionItem ok=true on a header row, want false")

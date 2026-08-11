@@ -8,10 +8,6 @@ import (
 	"github.com/leeovery/portal/internal/state"
 )
 
-// assertSanitizedStem asserts that got has the shape
-// "<wantStem>-<8 lowercase hex chars>__<w>.<p>". Centralises the
-// suffix-strip + prefix-check + 8-char-lowercase-hex invariant for the
-// collision-bearing sub-tests in TestSanitizePaneKey.
 func assertSanitizedStem(t *testing.T, got, wantStem string, w, p int) {
 	t.Helper()
 	suffix := fmt.Sprintf("__%d.%d", w, p)
@@ -45,7 +41,6 @@ func TestSanitizePaneKey(t *testing.T) {
 
 	t.Run("replaces forward slashes in session names", func(t *testing.T) {
 		got := state.SanitizePaneKey("foo/bar", 0, 0)
-		// Sanitization changes "foo/bar" → "foo_bar"; hash suffix appended.
 		if !strings.HasPrefix(got, "foo_bar-") {
 			t.Errorf("expected sanitized stem 'foo_bar-' prefix; got %q", got)
 		}
@@ -87,18 +82,15 @@ func TestSanitizePaneKey(t *testing.T) {
 		}
 
 		unsafe := state.SanitizePaneKey("foo/bar", 0, 0)
-		// Stem: "foo_bar-XXXXXXXX" (8 hex chars), then "__0.0".
 		assertSanitizedStem(t, unsafe, "foo_bar", 0, 0)
 	})
 
 	t.Run("distinguishes two sessions that sanitize to the same stem via the hash", func(t *testing.T) {
-		// Both sanitize to "foo_bar" but originate from different raw inputs.
 		a := state.SanitizePaneKey("foo/bar", 0, 0)
 		b := state.SanitizePaneKey("foo\x00bar", 0, 0)
 		if a == b {
 			t.Errorf("expected distinct paneKeys for distinct inputs; both = %q", a)
 		}
-		// Both sanitized stems should start with "foo_bar-".
 		if !strings.HasPrefix(a, "foo_bar-") || !strings.HasPrefix(b, "foo_bar-") {
 			t.Errorf("expected both to share sanitized stem; got %q and %q", a, b)
 		}
@@ -129,9 +121,6 @@ func TestSanitizePaneKey(t *testing.T) {
 	})
 
 	t.Run("replaces shell-meta bytes under the allowlist", func(t *testing.T) {
-		// Each input contains exactly one non-allowlist byte, embedded
-		// between allowlist bytes so the only sanitization difference is
-		// that byte → '_'.
 		cases := []struct {
 			name string
 			in   string
@@ -156,7 +145,6 @@ func TestSanitizePaneKey(t *testing.T) {
 	})
 
 	t.Run("collapses an all-non-allowlist input to underscores with collision suffix", func(t *testing.T) {
-		// Three spaces: every byte fails the allowlist and becomes '_'.
 		got := state.SanitizePaneKey("   ", 0, 0)
 		assertSanitizedStem(t, got, "___", 0, 0)
 	})

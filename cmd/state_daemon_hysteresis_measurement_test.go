@@ -1,49 +1,11 @@
 //go:build integration
 
-// Measurement harness for Component D's self-supervision hysteresis (N).
-//
-// Component D adds a per-tick saver-membership self-check to the daemon:
-// each tick the daemon asks "am I the pane process of the live
-// _portal-saver session?" — and if the answer is "no" for N consecutive
-// ticks the daemon self-ejects. N is the only tuning knob in this
-// bugfix and the spec's Risk Summary marks empirical measurement of N
-// as a REQUIRED mitigation, not optional.
-//
-// This harness measures, against real tmux and a real portal state
-// daemon subprocess, the worst-case number of consecutive ticks across
-// the four scenarios where a healthy legitimate daemon could
-// legitimately observe a saver-membership probe failure:
-//
-//  1. Steady-state (≥30s, no interaction)            → expected ≈0
-//  2. Attach/detach cycles                            → expected ≈0
-//  3. client-attached hook fires                      → bounded by hook duration
-//  4. BootstrapPortalSaver unhealthy-saver recreate   → bounded by respawn settle
-//
-// N is then chosen as clamp(ceil(max_observed × 2), 3, 9). If
-// max_observed × 2 exceeds 5 this file's flag log line declares
-// "evidence of upstream defect" per spec § Risk Summary; N is still
-// clamped to the [3, 9] window.
-//
-// The actual saverMembershipProbe seam ships in Task 5-2. For this
-// measurement harness we implement the probe inline with the exact
-// shape Task 5-2 will use:
-//
-//   has-session -t _portal-saver        (transport-level existence)
-//   list-panes  -t _portal-saver        (pane-pid enumeration)
-//   compare pane pid to daemon's pid    (membership check)
-//
-// false means "the running daemon process is NOT the pane PID of the
-// live _portal-saver session". This is precisely the condition the
-// production self-supervisor will count consecutive ticks of.
-//
-// Skip behaviour mirrors the sibling real-tmux integration tests in
-// this package:
-//   - tmuxtest.SkipIfNoTmux — no tmux, no measurement.
-//   - portalbintest.StagePortalBinary — broken build → clean skip.
-//
-// No t.Parallel: the cmd-package convention forbids it (CLAUDE.md).
-// Integration-tagged so the default `go test ./...` lane never pays
-// the multi-minute cost of running this harness.
+// Measurement harness for the daemon's self-supervision hysteresis: against
+// real tmux and a real daemon subprocess, it measures the worst-case run of
+// consecutive saver-membership probe failures a healthy daemon can observe,
+// and re-derives N as clamp(ceil(max × 2), 3, 9). The probe is implemented
+// inline here rather than reusing the production seam, so the harness measures
+// the condition independently of the code it validates.
 
 package cmd
 
@@ -68,54 +30,32 @@ import (
 	"github.com/leeovery/portal/internal/tmuxtest"
 )
 
-// hysteresisTickerPeriod mirrors cmd/state_daemon.go's TickerPeriod
-// (1s). The harness samples at exactly this cadence so the measured
-// counts are directly interpretable as "how many production daemon
-// ticks the membership probe would have failed for".
+// Mirrors the production TickerPeriod, so a measured count reads directly as
+// "how many production ticks the probe would have failed for".
 const hysteresisTickerPeriod = 1 * time.Second
 
-// hysteresisRunsPerScenario is the number of independent runs per
-// scenario logged at INFO level by this harness. ≥5 per spec.
 const hysteresisRunsPerScenario = 5
 
-// hysteresisSteadyStateDuration is the observation window for the
-// steady-state scenario. Spec calls for ≥30s.
 const hysteresisSteadyStateDuration = 30 * time.Second
 
-// hysteresisAttachDetachDuration is the observation window for the
-// attach/detach scenario. Long enough to fire several cycles.
 const hysteresisAttachDetachDuration = 15 * time.Second
 
-// hysteresisClientAttachedDuration is the observation window for the
-// client-attached hook scenario. Long enough to fire the hook several
-// times across the window.
 const hysteresisClientAttachedDuration = 15 * time.Second
 
-// hysteresisBootstrapRecreateDuration is the observation window for
-// the bootstrap kill-and-recreate scenario. Captures the recreate
-// transient at the end of the window.
 const hysteresisBootstrapRecreateDuration = 10 * time.Second
 
-// daemonStartupBudget is the upper bound on how long the harness waits
-// for a freshly-spawned daemon subprocess to write daemon.pid.
 const daemonStartupBudget = 5 * time.Second
 
-// daemonStartupPollInterval is the cadence at which the harness polls
-// for daemon.pid after spawning the subprocess.
 const daemonStartupPollInterval = 50 * time.Millisecond
 
-// scenarioResult is the raw observation set for a single scenario
-// across hysteresisRunsPerScenario runs.
 type scenarioResult struct {
 	name   string
-	runs   []int // each entry is the worst-case consecutive-failure count for one run
+	runs   []int
 	minObs int
 	maxObs int
 	median int
 }
 
-// summarise computes min / max / median over runs and stores them on
-// the receiver. Median is the lower-middle for even-length runs.
 func (s *scenarioResult) summarise() {
 	if len(s.runs) == 0 {
 		return
@@ -127,15 +67,6 @@ func (s *scenarioResult) summarise() {
 	s.median = sorted[len(sorted)/2]
 }
 
-// TestSelfSupervisionHysteresisMeasurement is the gated measurement
-// harness. It runs each scenario hysteresisRunsPerScenario times,
-// records per-scenario min/max/median, and asserts the chosen N
-// (selfSupervisionHysteresisTicks, locked in cmd/state_daemon.go) is
-// at least 2× the worst observed transient — the safety-factor
-// invariant from spec § Component D acceptance criteria. Re-running
-// the harness against a future regression that lengthens the
-// transient fails loudly here before it can manifest as a
-// production false-positive self-eject.
 func TestSelfSupervisionHysteresisMeasurement(t *testing.T) {
 	tmuxtest.SkipIfNoTmux(t)
 	_ = portalbintest.StagePortalBinary(t)
@@ -167,7 +98,6 @@ func TestSelfSupervisionHysteresisMeasurement(t *testing.T) {
 		t.Logf("scenario=%s min=%d max=%d median=%d", r.name, r.minObs, r.maxObs, r.median)
 	}
 
-	// Compute the global max-observed across all scenarios.
 	maxObserved := 0
 	for _, r := range results {
 		if r.maxObs > maxObserved {
@@ -187,12 +117,9 @@ func TestSelfSupervisionHysteresisMeasurement(t *testing.T) {
 	t.Logf("aggregate: max-observed=%d, 2x=%d, chosen-N=%d, upstream-defect-flag=%v",
 		maxObserved, doubled, chosen, upstreamDefect)
 
-	// Safety-factor invariant: the locked-in constant MUST be at
-	// least 2× the worst observed transient across all four scenarios.
-	// Pinning the assertion against the source constant means any
-	// future regression that lengthens the transient (slower tmux,
-	// slower hook command, new bootstrap step) fails here before
-	// reaching production false-positives.
+	// The locked-in constant must stay at least 2x the worst observed
+	// transient, so anything that lengthens it (slower tmux, a slower hook, a
+	// new bootstrap step) fails here rather than as a production false eject.
 	if selfSupervisionHysteresisTicks < doubled {
 		t.Errorf("safety-factor invariant violated: "+
 			"selfSupervisionHysteresisTicks=%d but max-observed×2=%d "+
@@ -205,9 +132,6 @@ func TestSelfSupervisionHysteresisMeasurement(t *testing.T) {
 	}
 }
 
-// measureSteadyState spawns a saver-pane daemon, lets it tick
-// undisturbed for hysteresisSteadyStateDuration, and returns the
-// worst-case consecutive-failure run observed by the probe.
 func measureSteadyState(t *testing.T, binary string) int {
 	t.Helper()
 	h := newHarness(t, binary)
@@ -215,20 +139,10 @@ func measureSteadyState(t *testing.T, binary string) int {
 	return h.sampleWorstCaseConsecutive(t, hysteresisSteadyStateDuration, nil)
 }
 
-// measureAttachDetach uses tmux switch-client / refresh-client from a
-// parallel goroutine as the closest available approximation of a real
-// attach/detach cycle without an interactive terminal.
-//
-// Substitution rationale: the spec describes `tmux attach -d` from a
-// parallel goroutine OR `switch-client`/`refresh-client`. Without an
-// interactive PTY in `go test`, `tmux attach` exits immediately and
-// would not exercise the attach/detach lifecycle meaningfully. We
-// substitute `refresh-client` — the closest available approximation
-// that touches client state without requiring a PTY. Neither
-// switch-client nor refresh-client changes the saver pane's pid, so
-// the membership probe should still be true — the test expects ≈0
-// consecutive failures and any non-zero result is a genuine
-// measurement of transient tmux-command flakiness during the cycle.
+// `tmux attach` exits immediately without an interactive PTY, so
+// refresh-client stands in as the closest thing that touches client state.
+// Neither changes the saver pane pid, so any non-zero count here is genuine
+// tmux-command flakiness rather than a real membership loss.
 func measureAttachDetach(t *testing.T, binary string) int {
 	t.Helper()
 	h := newHarness(t, binary)
@@ -236,10 +150,6 @@ func measureAttachDetach(t *testing.T, binary string) int {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go func() {
-		// Create a probe session to attach a client against. The saver
-		// is detached and has no client; attaching to a separate
-		// session and switch-client'ing between them mimics the
-		// attach/detach lifecycle without an interactive terminal.
 		_, _ = h.sock.TryRun("new-session", "-d", "-s", "probe-ad",
 			"sh", "-c", "sleep infinity")
 		for {
@@ -248,10 +158,6 @@ func measureAttachDetach(t *testing.T, binary string) int {
 				return
 			default:
 			}
-			// switch-client requires a target client. With no
-			// attached client these calls are no-ops at the tmux
-			// level but exercise the same code paths as a real
-			// attach/detach (refresh-client touches client state).
 			_, _ = h.sock.TryRun("refresh-client")
 			time.Sleep(200 * time.Millisecond)
 		}
@@ -259,37 +165,19 @@ func measureAttachDetach(t *testing.T, binary string) int {
 	return h.sampleWorstCaseConsecutive(t, hysteresisAttachDetachDuration, nil)
 }
 
-// measureClientAttached fires the client-attached hook by repeatedly
-// attaching a detached client via the production hook surface: register
-// portal hooks then drive attach via the tmux command. Without an
-// interactive terminal we substitute `tmux attach -d` (which would
-// block on a real PTY) by triggering attach via run-shell + client
-// state changes. The probe pid identity is unaffected by client
-// attach, so any non-zero count reflects transient tmux flakiness
-// during the hook fire.
+// Client attach does not change the pane pid, so any non-zero count reflects
+// transient tmux flakiness while the hook fires. Without a PTY the run-shell
+// payload stands in for a real `tmux attach -d`.
 func measureClientAttached(t *testing.T, binary string) int {
 	t.Helper()
 	h := newHarness(t, binary)
 	defer h.shutdown()
-	// Register the production hook table on the test server so the
-	// client-attached event fires the production payload, including
-	// signal-hydrate. This mirrors the production environment as
-	// closely as possible without an interactive terminal.
 	if err := tmux.RegisterPortalHooks(h.client, nil); err != nil {
 		t.Fatalf("RegisterPortalHooks: %v", err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	// Drive client-attached fires by repeatedly issuing run-shell
-	// statements that exercise the hook subprocess invocation path.
-	// In production the hook fires on every `tmux attach` against the
-	// server; the closest available substitute here is to fire the
-	// equivalent run-shell payload directly.
 	go func() {
-		// Create a target session and attach via tmux attach -d in a
-		// background process group. attach -d would normally block;
-		// here it exits immediately because there is no PTY, but the
-		// underlying client-attached hook still dispatches.
 		_, _ = h.sock.TryRun("new-session", "-d", "-s", "probe-ca",
 			"sh", "-c", "sleep infinity")
 		for {
@@ -298,13 +186,6 @@ func measureClientAttached(t *testing.T, binary string) int {
 				return
 			default:
 			}
-			// `tmux attach -d -t probe-ca` would block on a PTY;
-			// without one it returns immediately with "not a
-			// terminal" but the server-side client-attached hook
-			// machinery still observes the connection attempt. We
-			// also fire run-shell directly as a belt-and-braces
-			// approximation that exercises the hook subprocess
-			// invocation path.
 			_, _ = h.sock.TryRun("run-shell", "-b", "true")
 			time.Sleep(500 * time.Millisecond)
 		}
@@ -312,35 +193,17 @@ func measureClientAttached(t *testing.T, binary string) int {
 	return h.sampleWorstCaseConsecutive(t, hysteresisClientAttachedDuration, nil)
 }
 
-// measureBootstrapRecreate uses the real BootstrapPortalSaver kill-
-// and-recreate path. The harness spawns an initial saver+daemon, then
-// mid-window kills the saver session via tmux kill-session and re-
-// invokes BootstrapPortalSaver. The probe is taken against the
-// daemon.pid as it currently exists (which transitions across the
-// kill); we measure the worst consecutive count.
-//
-// Per spec § Risk Summary, this is the scenario most likely to
-// produce a non-zero transient — the recreate has a ~2s readiness
-// barrier plus tmux respawn settle time. The chosen N must absorb it.
+// The scenario most likely to produce a non-zero transient: the recreate
+// carries a ~2s readiness barrier plus tmux respawn settle time, and the
+// chosen N must absorb it.
 func measureBootstrapRecreate(t *testing.T, binary string) int {
 	t.Helper()
 	h := newHarness(t, binary)
 	defer h.shutdown()
-	// Fire the kill+recreate ~2s into the window so the harness has
-	// some pre-disturbance ticks recorded too. The kill-recreate is
-	// driven via the real BootstrapPortalSaver path which composes
-	// kill-session → createPortalSaverWithRetry (placeholder) →
-	// set-option destroy-unattached=off → respawn-pane (real daemon)
-	// → waitForSaverDaemonReady.
 	disturb := func() {
-		// killSaverAndWaitForDaemonFn is not directly exported; the
-		// public entry point is BootstrapPortalSaver itself, which
-		// runs the unhealthy-saver kill-and-recreate path when the
-		// daemon is observably alive but the session needs recycling.
-		// To force the recreate path we explicitly kill the session
-		// first (which kills the daemon as the saver pane process),
-		// then call BootstrapPortalSaver — which sees no session and
-		// runs the create branch.
+		// The session is killed first so BootstrapPortalSaver sees no session
+		// and takes the create branch; there is no exported entry point for
+		// the kill-and-recreate path itself.
 		_, _ = h.sock.TryRun("kill-session", "-t", tmux.PortalSaverName)
 		if err := tmux.BootstrapPortalSaver(h.client, h.stateDir); err != nil {
 			t.Logf("BootstrapPortalSaver re-invoke: %v", err)
@@ -349,9 +212,6 @@ func measureBootstrapRecreate(t *testing.T, binary string) int {
 	return h.sampleWorstCaseConsecutive(t, hysteresisBootstrapRecreateDuration, disturb)
 }
 
-// harness wraps an isolated tmux socket + state dir + a real
-// `portal state daemon` subprocess running as the _portal-saver pane
-// process. Constructed via newHarness, torn down via shutdown.
 type harness struct {
 	t        *testing.T
 	sock     *tmuxtest.Socket
@@ -360,26 +220,13 @@ type harness struct {
 	binary   string
 }
 
-// newHarness brings up a fresh isolated tmux server and bootstraps
-// _portal-saver using the production BootstrapPortalSaver path with
-// the freshly built portal binary on PATH. The daemon takes over as
-// the saver pane process via the placeholder → set-option →
-// respawn-pane sequence.
-//
-// Returns once the daemon's daemon.pid is observable AND the saver
-// pane pid matches it — i.e. the legitimate steady state from which
-// the measurement scenarios start.
 func newHarness(t *testing.T, binary string) *harness {
 	t.Helper()
 	env, stateDir := portaltest.IsolateStateForTest(t)
-	// Mirror the isolated env into the test process before forking
-	// the tmux server. tmux inherits its environment from the test
-	// process at server-start time, and the saver pane process inherits
-	// it from tmux. Without this mirror, the daemon subprocess would
-	// resolve state.EnsureDir against the developer's real
-	// XDG_CONFIG_HOME and the portaltest backstop would fire on test
-	// exit. portaltest.IsolateStateForTest's t.Cleanup still verifies
-	// no writes leaked to the developer's real state dir.
+	// The isolated env must reach the test process before the tmux server
+	// forks: tmux inherits it at server start and the saver pane inherits it
+	// from tmux. Without the mirror the daemon subprocess resolves its state
+	// dir against the developer's real XDG_CONFIG_HOME.
 	for _, e := range env {
 		idx := strings.IndexByte(e, '=')
 		if idx < 0 {
@@ -391,14 +238,11 @@ func newHarness(t *testing.T, binary string) *harness {
 		}
 	}
 	t.Setenv("PORTAL_STATE_DIR", stateDir)
-	// Also PATH-prepend the staged binary dir so any in-process
-	// invocations that exec the portal binary find the test build.
 	t.Setenv("PATH", stagedBinDir(binary)+string(os.PathListSeparator)+os.Getenv("PATH"))
 	sock := tmuxtest.New(t, "ptl-hyst-")
-	// Bring the tmux server up by creating a throwaway anchor; tmux
-	// requires a live session before set-option / set-hook can run.
-	// _anchor is filtered out of CaptureStructure the same way
-	// _portal-saver is, so it does not perturb daemon state.
+	// tmux needs a live session before set-option / set-hook can run. The
+	// leading underscore keeps _anchor out of CaptureStructure, so it does not
+	// perturb daemon state.
 	if _, err := sock.TryRun("new-session", "-d", "-s", "_anchor",
 		"sh", "-c", "sleep infinity"); err != nil {
 		t.Fatalf("new-session _anchor: %v", err)
@@ -419,8 +263,6 @@ func newHarness(t *testing.T, binary string) *harness {
 	return h
 }
 
-// stagedBinDir extracts the directory portion of an absolute portal
-// binary path so the env can be composed with PATH-prepend semantics.
 func stagedBinDir(binary string) string {
 	idx := strings.LastIndexByte(binary, '/')
 	if idx < 0 {
@@ -429,11 +271,6 @@ func stagedBinDir(binary string) string {
 	return binary[:idx]
 }
 
-// waitForLegitimateState polls until daemon.pid exists AND the saver
-// pane's pid matches the recorded daemon.pid. This is the baseline
-// from which every scenario's "consecutive failures" count is
-// measured: if the harness can't reach this state the scenario is
-// untestable.
 func (h *harness) waitForLegitimateState(t *testing.T) {
 	t.Helper()
 	deadline := time.Now().Add(daemonStartupBudget + 3*time.Second)
@@ -448,11 +285,6 @@ func (h *harness) waitForLegitimateState(t *testing.T) {
 		daemonStartupBudget+3*time.Second)
 }
 
-// shutdown kills the daemon subprocess if still alive and tears down
-// the tmux server. Socket teardown is registered by tmuxtest.New as
-// a t.Cleanup, so we only need to handle the daemon here. The daemon
-// is the saver pane process, which dies when we kill the tmux server
-// — so this is mostly belt-and-braces.
 func (h *harness) shutdown() {
 	pid, err := state.ReadPIDFile(h.stateDir)
 	if err == nil && pid > 0 {
@@ -461,16 +293,8 @@ func (h *harness) shutdown() {
 	_, _ = h.sock.TryRun("kill-server")
 }
 
-// probeSaverMembership implements the inline measurement-harness
-// version of Task 5-2's saverMembershipProbe seam. It returns
-// (member, err) where member=true means "the daemon recorded in
-// daemon.pid IS the pane pid of the live _portal-saver session".
-//
-// err is non-nil only for harness-level transport failures (e.g.
-// state dir gone). tmux command failures and "session not found"
-// conditions are reported as member=false with a nil err, matching
-// the contract Task 5-2's probe will adopt: any tmux uncertainty
-// counts toward the consecutive-failure tally.
+// tmux failures and a missing session report false with a nil error, so any
+// tmux uncertainty counts toward the consecutive-failure tally.
 func (h *harness) probeSaverMembership() (bool, error) {
 	pid, err := state.ReadPIDFile(h.stateDir)
 	if err != nil {
@@ -479,7 +303,6 @@ func (h *harness) probeSaverMembership() (bool, error) {
 		}
 		return false, fmt.Errorf("read daemon.pid: %w", err)
 	}
-	// has-session: any error = absent.
 	if _, herr := h.sock.TryRun("has-session", "-t", tmux.PortalSaverName); herr != nil {
 		return false, nil
 	}
@@ -492,7 +315,6 @@ func (h *harness) probeSaverMembership() (bool, error) {
 	if paneLine == "" {
 		return false, nil
 	}
-	// _portal-saver has exactly one pane; take the first line.
 	first := paneLine
 	if i := strings.IndexByte(first, '\n'); i >= 0 {
 		first = first[:i]
@@ -504,11 +326,8 @@ func (h *harness) probeSaverMembership() (bool, error) {
 	return panePID == pid, nil
 }
 
-// sampleWorstCaseConsecutive ticks at hysteresisTickerPeriod for
-// duration, recording the probe state each tick. Returns the longest
-// consecutive run of false probes observed. If disturb is non-nil it
-// is invoked exactly once approximately 2s into the window so the
-// scenario fires its disturbance inside the observation period.
+// Returns the longest consecutive run of false probes over duration. A non-nil
+// disturb fires exactly once, ~2s in, so its effect lands inside the window.
 func (h *harness) sampleWorstCaseConsecutive(t *testing.T, duration time.Duration, disturb func()) int {
 	t.Helper()
 	ticker := time.NewTicker(hysteresisTickerPeriod)
@@ -527,8 +346,6 @@ func (h *harness) sampleWorstCaseConsecutive(t *testing.T, duration time.Duratio
 		}
 		ok, err := h.probeSaverMembership()
 		if err != nil {
-			// Treat transport-level harness errors as failures —
-			// this is exactly what Task 5-2's probe will do.
 			ok = false
 			t.Logf("probe error (counted as failure): %v", err)
 		}

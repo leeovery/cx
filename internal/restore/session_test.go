@@ -15,8 +15,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// mockCommander dispatches Run via an optional RunFunc. Tests configure the
-// dispatcher to drive specific tmux call paths.
 type mockCommander struct {
 	Calls   [][]string
 	RunFunc func(args ...string) (string, error)
@@ -38,18 +36,10 @@ func (m *mockCommander) RunRaw(args ...string) (string, error) {
 	return "", nil
 }
 
-// defaultRunFunc returns empty-success for every tmux call. Tests that
-// exercise the create-then-arm Restore path should use restoreRunFunc to
-// provide a list-panes oracle reflecting their topology.
 func defaultRunFunc(args ...string) (string, error) {
 	return "", nil
 }
 
-// restoreRunFunc returns a RunFunc that responds to list-panes queries with
-// `livePanesOutput` (newline-separated `<window>:<pane>` lines) and returns
-// empty-success for every other call. Used by Restore tests where the arm
-// phase re-queries list-panes to discover live indices for FIFO creation and
-// send-keys targeting.
 func restoreRunFunc(livePanesOutput string) func(args ...string) (string, error) {
 	return func(args ...string) (string, error) {
 		if len(args) > 0 && args[0] == "list-panes" {
@@ -59,8 +49,6 @@ func restoreRunFunc(livePanesOutput string) func(args ...string) (string, error)
 	}
 }
 
-// callsAt returns the index of the first call matching cmd (subcommand at
-// args[0]). Returns -1 if not present.
 func callsAt(calls [][]string, cmd string) int {
 	for i, c := range calls {
 		if len(c) > 0 && c[0] == cmd {
@@ -70,7 +58,6 @@ func callsAt(calls [][]string, cmd string) int {
 	return -1
 }
 
-// findAllCalls returns the indices of every call whose args[0] equals cmd.
 func findAllCalls(calls [][]string, cmd string) []int {
 	var out []int
 	for i, c := range calls {
@@ -109,7 +96,6 @@ func TestSessionRestorer_SinglePaneNoEnvironment(t *testing.T) {
 		t.Fatalf("Restore returned error: %v", err)
 	}
 
-	// Expect: 1 new-session, no set-environment, no new-window, no split-window.
 	if got := len(findAllCalls(mock.Calls, "new-session")); got != 1 {
 		t.Errorf("new-session calls = %d, want 1", got)
 	}
@@ -123,7 +109,6 @@ func TestSessionRestorer_SinglePaneNoEnvironment(t *testing.T) {
 		t.Errorf("split-window calls = %d, want 0", got)
 	}
 
-	// FIFO must exist at live paneKey (base 0/0 default).
 	wantKey := state.SanitizePaneKey("work", 0, 0)
 	wantFIFO := state.FIFOPath(dir, wantKey)
 	if info, err := os.Stat(wantFIFO); err != nil {
@@ -244,7 +229,6 @@ func TestSessionRestorer_EnvironmentAppliedInSortedOrder(t *testing.T) {
 	wantKeys := []string{"ALPHA", "MIKE", "ZULU"}
 	for i, idx := range envIdxs {
 		c := mock.Calls[idx]
-		// args = [set-environment, -t, work, KEY, VALUE]
 		if len(c) != 5 {
 			t.Fatalf("set-environment[%d] args = %v, want 5", i, c)
 		}
@@ -302,8 +286,6 @@ func TestSessionRestorer_HydrateCommandBakesStableHookKey(t *testing.T) {
 		dir := t.TempDir()
 		r := &restore.SessionRestorer{Client: client, StateDir: dir}
 
-		// Saved indices are 3, 7 — exercise the raw form rather than 0.0. The
-		// baked key must prefer the saved @portal-id over the saved name.
 		sess := newSession("work", nil,
 			newWindow(3, "main",
 				newPane(7, "/work", "scrollback/work__3.7.bin"),
@@ -328,8 +310,6 @@ func TestSessionRestorer_HydrateCommandBakesStableHookKey(t *testing.T) {
 		dir := t.TempDir()
 		r := &restore.SessionRestorer{Client: client, StateDir: dir}
 
-		// Legacy / un-stamped saved session (PortalID empty) — the baked key
-		// must fall back to the saved name.
 		sess := newSession("work", nil,
 			newWindow(3, "main",
 				newPane(7, "/work", "scrollback/work__3.7.bin"),
@@ -401,12 +381,6 @@ func TestSessionRestorer_HydrateBakesKeyFromSavedStateIndependentOfLiveReStamp(t
 			t.Fatalf("Restore: %v", err)
 		}
 
-		// The baked --hook-key is a pure function of the SAVED struct — it must
-		// equal HookKey computed directly from sess.PortalID and the saved
-		// (name, window, pane), never a value read back from the live tmux
-		// re-stamp. This guards the ordering trap: firing resolves hooks.json by
-		// this baked key and must not depend on when (or whether) the live
-		// @portal-id was re-stamped.
 		hydrate := respawnPaneHydrateCommand(t, mock.Calls)
 		wantHookKey := tmux.HookKey(sess.PortalID, sess.Name, 3, 7)
 		if !strings.Contains(hydrate, "--hook-key '"+wantHookKey+"'") {
@@ -415,10 +389,6 @@ func TestSessionRestorer_HydrateBakesKeyFromSavedStateIndependentOfLiveReStamp(t
 	})
 }
 
-// respawnPaneHydrateCommand returns the hydrate command argument from the
-// first respawn-pane call in calls. Fails the test if no respawn-pane call is
-// present or if its argv shape does not match
-// [respawn-pane, -k, -t, <target>, <cmd>].
 func respawnPaneHydrateCommand(t *testing.T, calls [][]string) string {
 	t.Helper()
 	idx := callsAt(calls, "respawn-pane")
@@ -432,9 +402,6 @@ func respawnPaneHydrateCommand(t *testing.T, calls [][]string) string {
 	return args[4]
 }
 
-// respawnPaneHookKeys returns the baked --hook-key value from every
-// respawn-pane hydrate command in calls, in call order. Fails the test if any
-// respawn-pane command does not carry a single-quoted --hook-key token.
 func respawnPaneHookKeys(t *testing.T, calls [][]string) []string {
 	t.Helper()
 	var keys []string
@@ -448,9 +415,6 @@ func respawnPaneHookKeys(t *testing.T, calls [][]string) []string {
 	return keys
 }
 
-// extractHookKey pulls the single-quoted value following the --hook-key flag
-// out of a hydrate command string. Fails the test if the flag or its
-// single-quoted argument is absent.
 func extractHookKey(t *testing.T, hydrate string) string {
 	t.Helper()
 	const marker = "--hook-key '"
@@ -466,10 +430,6 @@ func extractHookKey(t *testing.T, hydrate string) string {
 }
 
 func TestSessionRestorer_FIFOUsesLivePaneKeyFromListPanesReQuery(t *testing.T) {
-	// Saved structure has indices 0/0, but live tmux reports 5:5 — full drift
-	// scenario where neither the saved indices nor any prediction match what
-	// list-panes returns. Restore must source FIFO paths and send-keys targets
-	// from the re-queried live (window, pane).
 	mock := &mockCommander{
 		RunFunc: func(args ...string) (string, error) {
 			if len(args) > 0 && args[0] == "list-panes" {
@@ -492,32 +452,22 @@ func TestSessionRestorer_FIFOUsesLivePaneKeyFromListPanesReQuery(t *testing.T) {
 		t.Fatalf("Restore: %v", err)
 	}
 
-	// FIFO must be at the LIVE paneKey (5,5), not the saved (0,0).
 	wantLiveKey := state.SanitizePaneKey("work", 5, 5)
 	liveFIFO := state.FIFOPath(dir, wantLiveKey)
 	if _, err := os.Stat(liveFIFO); err != nil {
 		t.Errorf("expected live-key FIFO %s, missing: %v", liveFIFO, err)
 	}
-	// And NO FIFO at the saved (0,0) key.
 	savedKey := state.SanitizePaneKey("work", 0, 0)
 	savedFIFO := state.FIFOPath(dir, savedKey)
 	if _, err := os.Stat(savedFIFO); err == nil {
 		t.Errorf("did not expect FIFO at saved-key path %s; should only exist at live key", savedFIFO)
 	}
 
-	// The hydrate command is dispatched via respawn-pane to the LIVE pane
-	// target, not embedded in the new-session call. respawn-pane atomically
-	// kills the default shell created by new-session and replaces it with the
-	// helper, which is closer to the spec's "helper as initial process"
-	// invariant than send-keys (which would let the default shell briefly run
-	// before the helper takes over and could leave rc-file output / prompts in
-	// scrollback above the dumped saved scrollback).
 	respIdx := callsAt(mock.Calls, "respawn-pane")
 	if respIdx < 0 {
 		t.Fatalf("expected respawn-pane call to deliver hydrate command; calls: %v", mock.Calls)
 	}
 	args := mock.Calls[respIdx]
-	// args = [respawn-pane, -k, -t, <target>, <command>]
 	if len(args) != 5 {
 		t.Fatalf("respawn-pane args = %v, want length 5", args)
 	}
@@ -529,19 +479,14 @@ func TestSessionRestorer_FIFOUsesLivePaneKeyFromListPanesReQuery(t *testing.T) {
 	if !strings.Contains(hydrate, "--fifo '"+liveFIFO+"'") {
 		t.Errorf("hydrate cmd %q does not reference live FIFO %s", hydrate, liveFIFO)
 	}
-	// hook-key must remain saved (raw) form regardless of live drift.
 	if !strings.Contains(hydrate, "--hook-key 'work:0.0'") {
 		t.Errorf("hydrate cmd %q does not contain raw saved hook-key 'work:0.0'", hydrate)
 	}
-	// Scrollback --file uses the SAVED path (sessions.json was written under
-	// saved indices) — verify it's the saved path, not the live one.
 	wantFile := filepath.Join(dir, "scrollback/work__0.0.bin")
 	if !strings.Contains(hydrate, "--file '"+wantFile+"'") {
 		t.Errorf("hydrate cmd %q does not reference saved scrollback %s", hydrate, wantFile)
 	}
 
-	// new-session must NOT carry the hydrate command (separation of create
-	// from arm).
 	nsIdx := callsAt(mock.Calls, "new-session")
 	if nsIdx < 0 {
 		t.Fatalf("expected new-session; calls: %v", mock.Calls)
@@ -571,7 +516,6 @@ func TestSessionRestorer_MultibyteSessionNamePassesUnchangedToNewSession(t *test
 	if idx < 0 {
 		t.Fatalf("no new-session call")
 	}
-	// args: [new-session, -d, -s, <name>, -c, <cwd>, <hydrate-cmd>]
 	got := mock.Calls[idx][3]
 	if got != name {
 		t.Errorf("new-session -s arg = %q, want %q", got, name)
@@ -584,7 +528,6 @@ func TestSessionRestorer_HashSuffixedPaneKeyOnSanitizationCollision(t *testing.T
 	dir := t.TempDir()
 	r := &restore.SessionRestorer{Client: client, StateDir: dir}
 
-	// "foo/bar" sanitizes to "foo_bar" with hash suffix.
 	name := "foo/bar"
 	sess := newSession(name, nil,
 		newWindow(0, "main", newPane(0, "/work", "scrollback/x.bin")),
@@ -630,11 +573,9 @@ func TestSessionRestorer_LogsAndContinuesOnSetEnvironmentFailure(t *testing.T) {
 	if _, err := r.Restore(sess); err != nil {
 		t.Fatalf("Restore returned error %v, expected nil (failure should be logged + continue)", err)
 	}
-	// All three set-environment calls should still be attempted.
 	if got := len(findAllCalls(mock.Calls, "set-environment")); got != 3 {
 		t.Errorf("set-environment calls = %d, want 3 (each attempted)", got)
 	}
-	// new-window must still have run.
 	if got := len(findAllCalls(mock.Calls, "new-window")); got != 1 {
 		t.Errorf("new-window calls = %d, want 1", got)
 	}
@@ -675,7 +616,6 @@ func TestSessionRestorer_WrappedErrorOnCreateFIFOFailure(t *testing.T) {
 	mock := &mockCommander{RunFunc: restoreRunFunc("0:0")}
 	client := tmux.NewClient(mock)
 
-	// Use a non-existent state dir → mkfifo fails with ENOENT (no parent).
 	dir := filepath.Join(t.TempDir(), "missing-parent", "state")
 	r := &restore.SessionRestorer{Client: client, StateDir: dir}
 
@@ -721,11 +661,6 @@ func TestSessionRestorer_HydrateCommandFormat(t *testing.T) {
 }
 
 func TestSessionRestorer_ArmPanesWarnsAndArmsOnlyPairedPanesWhenLiveCountExceedsSaved(t *testing.T) {
-	// Saved 1 pane, live tmux reports 2 (extra pane appeared between create
-	// and arm — pathological but defensively handled). armPanes should log a
-	// warning, arm the single saved pane against the first live pane, and
-	// leave the second live pane untouched (still running its default shell,
-	// no respawn-pane / FIFO for it).
 	mock := &mockCommander{RunFunc: restoreRunFunc("0:0\n0:1")}
 	client := tmux.NewClient(mock)
 	dir := t.TempDir()
@@ -742,8 +677,6 @@ func TestSessionRestorer_ArmPanesWarnsAndArmsOnlyPairedPanesWhenLiveCountExceeds
 		t.Fatalf("Restore: %v", err)
 	}
 
-	// Exactly one respawn-pane call — the saved pane gets armed, the extra
-	// live pane is left running its default shell.
 	respawnIdxs := findAllCalls(mock.Calls, "respawn-pane")
 	if len(respawnIdxs) != 1 {
 		t.Errorf("respawn-pane calls = %d, want 1 (only paired pane armed); calls: %v", len(respawnIdxs), mock.Calls)
@@ -755,7 +688,6 @@ func TestSessionRestorer_ArmPanesWarnsAndArmsOnlyPairedPanesWhenLiveCountExceeds
 		}
 	}
 
-	// FIFO created for the paired pane only — none for the extra.
 	pairedFIFO := state.FIFOPath(dir, state.SanitizePaneKey("work", 0, 0))
 	if _, statErr := os.Stat(pairedFIFO); statErr != nil {
 		t.Errorf("expected FIFO at paired key %s, missing: %v", pairedFIFO, statErr)
@@ -765,7 +697,6 @@ func TestSessionRestorer_ArmPanesWarnsAndArmsOnlyPairedPanesWhenLiveCountExceeds
 		t.Errorf("did not expect FIFO at extra-pane key %s; only paired panes should get FIFOs", extraFIFO)
 	}
 
-	// Warning logged.
 	body := sink.Body()
 	if !strings.Contains(body, "live pane count") {
 		t.Errorf("log body lacks 'live pane count' mismatch warning: %q", body)
@@ -773,10 +704,6 @@ func TestSessionRestorer_ArmPanesWarnsAndArmsOnlyPairedPanesWhenLiveCountExceeds
 }
 
 func TestSessionRestorer_ArmPanesWarnsAndArmsOnlyFirstWhenLiveCountIsLessThanSaved(t *testing.T) {
-	// Saved 2 panes, live tmux reports 1 (split-window failed to land or a
-	// pane was killed between create and arm — also defensive). armPanes
-	// should log a warning, arm the first paired pane, and return nil (no
-	// error — partial restoration is preferable to abort per spec).
 	mock := &mockCommander{RunFunc: restoreRunFunc("0:0")}
 	client := tmux.NewClient(mock)
 	dir := t.TempDir()
@@ -798,19 +725,16 @@ func TestSessionRestorer_ArmPanesWarnsAndArmsOnlyFirstWhenLiveCountIsLessThanSav
 		t.Errorf("livePanes length = %d, want 1 (the actual live count)", len(livePanes))
 	}
 
-	// Exactly one respawn-pane call — only the first saved pane is paired.
 	respawnIdxs := findAllCalls(mock.Calls, "respawn-pane")
 	if len(respawnIdxs) != 1 {
 		t.Errorf("respawn-pane calls = %d, want 1 (only first paired pane armed); calls: %v", len(respawnIdxs), mock.Calls)
 	}
 
-	// FIFO created for the first saved pane only — none for the second.
 	firstFIFO := state.FIFOPath(dir, state.SanitizePaneKey("work", 0, 0))
 	if _, statErr := os.Stat(firstFIFO); statErr != nil {
 		t.Errorf("expected FIFO at first-pane key %s, missing: %v", firstFIFO, statErr)
 	}
 
-	// Warning logged.
 	body := sink.Body()
 	if !strings.Contains(body, "live pane count") {
 		t.Errorf("log body lacks 'live pane count' mismatch warning: %q", body)
@@ -818,11 +742,6 @@ func TestSessionRestorer_ArmPanesWarnsAndArmsOnlyFirstWhenLiveCountIsLessThanSav
 }
 
 func TestSessionRestorer_ArmPanesReturnsWrappedErrorOnRespawnPaneFailure(t *testing.T) {
-	// Three saved panes, three live panes. Fail respawn-pane on the second
-	// pane (target work:0.1) — armPanes should return a wrapped error
-	// referencing the failing target so operators can locate the offending
-	// pane. Subsequent panes are NOT armed (fail-fast — a missing helper
-	// means scrollback never replays for that pane).
 	mock := &mockCommander{
 		RunFunc: func(args ...string) (string, error) {
 			if len(args) > 0 && args[0] == "list-panes" {
@@ -861,17 +780,12 @@ func TestSessionRestorer_ArmPanesReturnsWrappedErrorOnRespawnPaneFailure(t *test
 		t.Errorf("error %q lacks session name context", restoreErr)
 	}
 
-	// First pane armed, second failed, third not attempted (fail-fast).
 	respawnIdxs := findAllCalls(mock.Calls, "respawn-pane")
 	if len(respawnIdxs) != 2 {
 		t.Errorf("respawn-pane calls = %d, want 2 (pane 0 armed, pane 1 failed, pane 2 skipped); calls: %v", len(respawnIdxs), mock.Calls)
 	}
 }
 
-// portalIDSetOptionCall returns the args of the first set-option call that
-// stamps session.PortalIDOption (@portal-id) on the named session, and true if
-// one exists. The @portal-id set-option shape is
-// [set-option, -t, <session>, @portal-id, <value>].
 func portalIDSetOptionCall(calls [][]string, name string) ([]string, bool) {
 	for _, c := range calls {
 		if len(c) == 5 && c[0] == "set-option" && c[1] == "-t" && c[2] == name && c[3] == session.PortalIDOption {
@@ -881,8 +795,6 @@ func portalIDSetOptionCall(calls [][]string, name string) ([]string, bool) {
 	return nil, false
 }
 
-// setOptionCallIndex returns the index of the first set-option call stamping
-// session.PortalIDOption on name, or -1 if absent.
 func setOptionCallIndex(calls [][]string, name string) int {
 	for i, c := range calls {
 		if len(c) == 5 && c[0] == "set-option" && c[1] == "-t" && c[2] == name && c[3] == session.PortalIDOption {
@@ -915,9 +827,6 @@ func TestSessionRestorer_ReStampsPortalIDFromSavedValue(t *testing.T) {
 		t.Errorf("re-stamped @portal-id value = %q, want %q", call[4], "aB3xY9kZ")
 	}
 
-	// Re-stamp must land after new-session and before the first set-environment
-	// (applyEnvironment). No environment here, so assert ordering against
-	// new-session only.
 	newSessionAt := callsAt(mock.Calls, "new-session")
 	stampAt := setOptionCallIndex(mock.Calls, "work")
 	if newSessionAt < 0 || stampAt < 0 {
@@ -934,7 +843,6 @@ func TestSessionRestorer_SkipsReStampWhenSavedPortalIDEmpty(t *testing.T) {
 	dir := t.TempDir()
 	r := &restore.SessionRestorer{Client: client, StateDir: dir}
 
-	// PortalID left empty (legacy / un-stamped saved session).
 	sess := newSession("work", nil,
 		newWindow(0, "main", newPane(0, "/work", "scrollback/work__0.0.bin")),
 	)
@@ -973,11 +881,9 @@ func TestSessionRestorer_SucceedsWhenPortalIDReStampFails(t *testing.T) {
 		t.Fatalf("Restore returned error %v, expected nil (@portal-id re-stamp failure must be swallowed)", err)
 	}
 
-	// The stamp was attempted (and failed, swallowed).
 	if _, ok := portalIDSetOptionCall(mock.Calls, "work"); !ok {
 		t.Errorf("expected the @portal-id set-option to be attempted; calls: %v", mock.Calls)
 	}
-	// Arm phase still ran despite the swallowed stamp failure.
 	if got := len(findAllCalls(mock.Calls, "respawn-pane")); got != 1 {
 		t.Errorf("respawn-pane calls = %d, want 1 (arm phase must still run); calls: %v", got, mock.Calls)
 	}

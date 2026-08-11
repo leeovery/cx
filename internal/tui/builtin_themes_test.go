@@ -10,17 +10,6 @@ import (
 	"github.com/leeovery/portal/internal/themetest"
 )
 
-// TestDefaultDarkTheme_SeedsTheShippedPaletteSilently pins both halves of the
-// seed: it resolves the shipped dark built-in's palette, and it writes not one
-// `theme` record while doing so.
-//
-// The silence is the point of the seed being a SEED: the component records where
-// a theme is used, and a model priming itself with the shipped palette before any
-// nomination is applied has used nothing the user chose.
-//
-// The emitting run over a staged directory is the non-vacuity control — the sink
-// is the process handler, so it proves this component's records reach it and that
-// the silence above is a genuine absence rather than an unwired sink.
 func TestDefaultDarkTheme_SeedsTheShippedPaletteSilently(t *testing.T) {
 	sink := &logtest.Sink{}
 	log.SetTestHandler(t, sink)

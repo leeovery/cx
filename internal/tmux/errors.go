@@ -8,79 +8,29 @@ import (
 	"github.com/leeovery/portal/internal/tmuxerr"
 )
 
-// ErrNoSuchSession is the typed sentinel returned (wrapped) by per-session
-// tmux operations when the underlying tmux invocation reports that the
-// addressed session does not exist. It fires when the *CommandError stderr
-// captured from the failing tmux call contains the case-sensitive substring
-// "no such session" — the canonical lowercase phrasing emitted by tmux.
-//
-// Callers consume this sentinel exclusively via errors.Is(err, ErrNoSuchSession).
-// The wrap is multi-%w so the original *CommandError remains recoverable on
-// the same chain via errors.As(err, &cmdErr); discrimination and recovery are
-// independent.
-//
-// Daemon-layer and other downstream callers MUST NOT perform substring
-// matching against tmux stderr to detect this condition. Substring matching
-// at the boundary above internal/tmux couples those layers to tmux's exact
-// error-string surface — a surface that is not a stable contract. All such
-// classification belongs here, behind a single sentinel, so a future tmux
-// rephrasing requires a one-line change to the boundary discriminator and
-// nothing else.
-//
-// This is a re-export of tmuxerr.ErrNoSuchSession — the two symbols are
-// identity-equal. The underlying value lives in the dependency-free leaf
-// package internal/tmuxerr so that internal/state (which cannot import
-// internal/tmux without closing an import cycle) can perform errors.Is
-// classification against the same sentinel.
+// ErrNoSuchSession is wrapped into the error of a per-session tmux operation
+// whose stderr reports the addressed session does not exist; discriminate with
+// errors.Is. Layers above internal/tmux must not substring-match tmux stderr
+// themselves — tmux's phrasing is not a stable contract. It is identity-equal to
+// tmuxerr.ErrNoSuchSession, which lives in a leaf package so internal/state can
+// classify against it without an import cycle.
 var ErrNoSuchSession = tmuxerr.ErrNoSuchSession
 
-// ErrEmptyPaneList is the typed sentinel returned (wrapped) by saverPanePID
-// when the underlying `tmux list-panes -t =<session> -F '#{pane_pid}'`
-// invocation succeeds (no exec error, no "no such session" stderr) but
-// produces stdout with no non-empty lines. The shape is observably distinct
-// from ErrNoSuchSession: the session exists, but tmux reported zero panes —
-// an unusual but possible transient (e.g., a pane mid-respawn).
-//
-// Callers consume this sentinel via errors.Is(err, ErrEmptyPaneList).
-// Component D's saverMembershipProbe collapses this — like every other
-// saverPanePID failure mode — to "absent" so the daemon's self-supervision
-// counter increments without coupling to the underlying classification.
+// ErrEmptyPaneList reports that a pane enumeration succeeded against a session
+// that exists but listed no panes — an unusual transient (e.g. a pane
+// mid-respawn), observably distinct from ErrNoSuchSession.
 var ErrEmptyPaneList = errors.New("empty pane list")
 
-// ErrPanePIDParse is the typed sentinel returned (wrapped) by saverPanePID
-// when the underlying tmux invocation succeeds with a non-empty first line
-// that cannot be parsed as a base-10 integer via strconv.Atoi. Observed in
-// practice when tmux's format expansion emits an unexpected token (e.g., a
-// future format-string regression upstream) rather than a numeric pane_pid.
-//
-// Callers consume this sentinel via errors.Is(err, ErrPanePIDParse).
-// Like ErrEmptyPaneList, Component D's saverMembershipProbe collapses this
-// to "absent" — the daemon cannot prove membership without a valid pid, and
-// any classification it cannot interpret is, by the spec's "treat any error
-// as absent" rule, equivalent to the saver being gone.
+// ErrPanePIDParse reports a pane enumeration whose first line is not a base-10
+// pane pid.
 var ErrPanePIDParse = errors.New("pane pid parse")
 
-// noSuchSessionStderrSubstr is the case-sensitive substring used to detect
-// tmux's "no such session" stderr phrasing. tmux emits the lowercase form;
-// matching is intentionally case-sensitive so we never absorb unrelated
-// phrasings (e.g. a future tool layered on top that capitalises differently)
-// into the natural-churn classification.
+// Case-sensitive on purpose: tmux emits the lowercase form, and a loose match
+// would absorb unrelated phrasings from tools layered on top.
 const noSuchSessionStderrSubstr = "no such session"
 
-// wrapNoSuchSession inspects err for the tmux "no such session" signature and,
-// when present, wraps it so callers can discriminate via errors.Is against
-// ErrNoSuchSession while still recovering the original *CommandError via
-// errors.As. Returns:
-//
-//   - nil if err is nil.
-//   - A multi-%w wrap "ErrNoSuchSession: <err>" if err unwraps to
-//     *CommandError AND that CommandError.Stderr contains the lowercase
-//     substring "no such session".
-//   - The original err otherwise (non-*CommandError chains, empty stderr,
-//     mixed-case stderr, unrelated stderr).
-//
-// The Go 1.20+ multi-%w form is required so both the sentinel and the
-// underlying chain remain reachable on the same error value.
+// The multi-%w wrap is required: it keeps both the sentinel and the original
+// *CommandError reachable on the same error value.
 func wrapNoSuchSession(err error) error {
 	if err == nil {
 		return nil

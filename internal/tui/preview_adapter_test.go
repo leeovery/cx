@@ -12,19 +12,11 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// Compile-time assertions that the production seams remain satisfied. These
-// are duplicated here (alongside the package-level assertions in
-// preview_adapter.go) so a regression in either direction trips the test
-// build immediately.
 var (
 	_ TmuxEnumerator   = (*tmux.Client)(nil)
 	_ ScrollbackReader = scrollbackReaderAdapter{}
 )
 
-// writeBinFile is a small helper that writes a known scrollback `.bin` file
-// for paneKey under stateDir's scrollback subdirectory, creating intermediate
-// dirs as needed. It uses 0o644 so the default-readable file shape mirrors
-// production.
 func writeBinFile(t *testing.T, stateDir, paneKey string, content []byte) string {
 	t.Helper()
 	dir := filepath.Join(stateDir, "scrollback")
@@ -41,9 +33,6 @@ func writeBinFile(t *testing.T, stateDir, paneKey string, content []byte) string
 func TestScrollbackReaderAdapter_TailReturnsBytesForValidPaneKey(t *testing.T) {
 	stateDir := t.TempDir()
 	paneKey := state.SanitizePaneKey("work", 0, 1)
-	// Two complete lines plus a trailing line — TailScrollback returns
-	// every terminated line when fewer than n exist, so the entire content
-	// (through the final '\n') is the expected output.
 	content := []byte("line-one\nline-two\nline-three\n")
 	writeBinFile(t, stateDir, paneKey, content)
 
@@ -86,7 +75,6 @@ func TestScrollbackReaderAdapter_TailReturnsErrForPermissionDenied(t *testing.T)
 		t.Fatalf("chmod 0o000: %v", err)
 	}
 	t.Cleanup(func() {
-		// Restore mode so TempDir cleanup can remove the file.
 		_ = os.Chmod(path, 0o600)
 	})
 

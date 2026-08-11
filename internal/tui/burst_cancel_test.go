@@ -1,36 +1,5 @@
 package tui
 
-// restore-host-terminal-windows-6-8 — Ctrl-C / Esc cancellation mid-burst.
-//
-// White-box (package tui) tests of cancelBurst + the post-cancel terminal arm.
-// They cover the two contracts:
-//
-//  1. The FIX for the concurrency defect found in review: the burst's TERMINAL
-//     event must be delivered RELIABLY after a cancel (the naked terminal send in
-//     burstProgressPipe.send), so burstPending is ALWAYS cleared and the picker
-//     never permanently input-locks. Under the previous ctx-guarded terminal send a
-//     cancelled ctx raced the terminal send and dropped it ~50% of the time,
-//     wedging the picker. driveCancelToTerminal's burstChannelClosedMsg guard is the
-//     regression tripwire — a dropped terminal closes the channel before any
-//     spawnCompleteMsg and fails the test.
-//
-//  2. The cancellation behaviour: Ctrl-C/Esc mid-burst cancels the goroutine's ctx
-//     (no tea.Quit — returns to multi-select), keeps burstPending true until the
-//     goroutine's terminal event lands, and the completion handler applies the same
-//     leave-what-opened selection mutation as a partial failure — SILENTLY (no
-//     flash). Cancel before the first spawn keeps every marked session marked; cancel
-//     after some opened unmarks only the confirmed sessions.
-//
-// The mutation/suppression assertions inject a crafted terminal spawnCompleteMsg into
-// a directly-constructed pending-burst model (newPendingBurstModel, in
-// burst_partial_failure_test.go) for determinism; the delivery/self-clean assertions
-// drive a REAL burst goroutine and cancel it, exercising the send path under -race.
-//
-// Shared seam helpers (wireBurstSeams, allPresent, resolveDetection, markRow,
-// ghosttyIdentity, newPendingBurstModel, injectComplete, isQuitCmd, sessionsFromNames)
-// live in the sibling burst test files. No t.Parallel: consistent with the rest of the
-// tui test surface.
-
 import (
 	"testing"
 
@@ -39,14 +8,6 @@ import (
 	"github.com/leeovery/portal/internal/spawntest"
 )
 
-// cancellablePendingModel builds a marked multi-select model forced into
-// burst-pending with a live pipe + a recording cancel func, WITHOUT a real
-// goroutine, so cancelBurst's wiring (invoke cancel, set burstCancelled, re-issue the
-// receiver, no quit) can be exercised in isolation. The returned *bool flips true
-// when the recorded cancel func fires. The pipe is pre-loaded with a benign terminal
-// event so the re-issued receiver resolves immediately (there is no goroutine here) —
-// letting isQuitCmd probe the returned cmd without blocking, proving it is the
-// receiver and never tea.Quit.
 func cancellablePendingModel(t *testing.T, names ...string) (Model, *bool) {
 	t.Helper()
 	m := newPendingBurstModel(t, names)
@@ -60,11 +21,6 @@ func cancellablePendingModel(t *testing.T, names ...string) (Model, *bool) {
 	return m, &cancelled
 }
 
-// driveCancelToTerminal runs the burst receiver chain from cmd, feeding each
-// spawnProgressMsg back through Update to re-issue the receiver, and APPLIES the
-// terminal event, returning the resulting model. A burstChannelClosedMsg observed
-// BEFORE any terminal event means the terminal send was dropped — the exact
-// concurrency defect the naked terminal send fixes — so it fails loudly.
 func driveCancelToTerminal(t *testing.T, m Model, cmd tea.Cmd) Model {
 	t.Helper()
 	for range 200 {
@@ -89,14 +45,10 @@ func driveCancelToTerminal(t *testing.T, m Model, cmd tea.Cmd) Model {
 	return m
 }
 
-// realCancellableBurst wires a resolved-supported model whose windows OPEN but never
-// confirm their token (Confirm all false) — so the burst would poll to timeout, and
-// only a cancel makes it stop fast — and dispatches it, returning the pending model,
-// the receiver cmd, and the ack channel.
 func realCancellableBurst(t *testing.T, names ...string) (Model, tea.Cmd, *spawntest.FakeAckChannel) {
 	t.Helper()
 	ack := &spawntest.FakeAckChannel{}
-	confirm := make([]bool, len(names)) // all false → no window ever confirms
+	confirm := make([]bool, len(names))
 	adapter := &spawntest.FakeAdapter{Ack: ack, Confirm: confirm}
 	m := NewModelWithSessions(sessionsFromNames(names))
 	m.termWidth = 80
@@ -114,8 +66,6 @@ func realCancellableBurst(t *testing.T, names ...string) (Model, tea.Cmd, *spawn
 	return m, cmd, ack
 }
 
-// TestBurstCancel_CtrlCReturnsToMultiSelectNotQuit — "it cancels the burst and
-// returns to multi-select mode (not quit) on Ctrl-C mid-burst".
 func TestBurstCancel_CtrlCReturnsToMultiSelectNotQuit(t *testing.T) {
 	m, cancelled := cancellablePendingModel(t, "alpha", "bravo", "charlie")
 
@@ -142,8 +92,6 @@ func TestBurstCancel_CtrlCReturnsToMultiSelectNotQuit(t *testing.T) {
 	}
 }
 
-// TestBurstCancel_EscReturnsToMultiSelectNotQuit — "it cancels the burst and returns
-// to multi-select mode on Esc mid-burst".
 func TestBurstCancel_EscReturnsToMultiSelectNotQuit(t *testing.T) {
 	m, cancelled := cancellablePendingModel(t, "alpha", "bravo")
 
@@ -170,10 +118,6 @@ func TestBurstCancel_EscReturnsToMultiSelectNotQuit(t *testing.T) {
 	}
 }
 
-// TestBurstCancel_BeforeFirstSpawnKeepsAllMarkedSilent — "it opens nothing and keeps
-// all marked when cancelled before the first spawn". The goroutine breaks on the
-// between-windows ctx check before opening anything → an empty-Results terminal event;
-// the completion handler unmarks nothing and stays silent.
 func TestBurstCancel_BeforeFirstSpawnKeepsAllMarkedSilent(t *testing.T) {
 	m := newPendingBurstModel(t, []string{"alpha", "bravo", "charlie"})
 	m.burstCancelled = true
@@ -209,15 +153,8 @@ func TestBurstCancel_BeforeFirstSpawnKeepsAllMarkedSilent(t *testing.T) {
 	}
 }
 
-// TestBurstCancel_AfterSomeOpenedUnmarksConfirmedKeepsRest — "it leaves opened
-// windows and unmarks only the opened sessions when cancelled after some opened".
-// The confirmed windows are unmarked (a retry must not re-open them); the ack-abandoned
-// and un-attempted windows plus the trigger stay marked — silently.
 func TestBurstCancel_AfterSomeOpenedUnmarksConfirmedKeepsRest(t *testing.T) {
 	m := newPendingBurstModel(t, []string{"alpha", "bravo", "charlie", "delta"})
-	// external = [alpha, bravo, charlie]; trigger = delta. alpha confirmed before the
-	// cancel; bravo's ack poll was abandoned by the cancel (AckTimeout); charlie + delta
-	// never attempted.
 	m.burstCancelled = true
 	msg := spawnCompleteMsg{
 		Batch: "b1",
@@ -252,12 +189,8 @@ func TestBurstCancel_AfterSomeOpenedUnmarksConfirmedKeepsRest(t *testing.T) {
 	}
 }
 
-// TestBurstCancel_AllConfirmedRaceDoesNotSelfAttach guards the race where a cancel
-// arrives AFTER every external window already confirmed: the terminal event is
-// all-confirmed, but burstCancelled must still route it to the leave-what-opened arm —
-// NO self-attach, NO quit — because the user pressed Ctrl-C.
 func TestBurstCancel_AllConfirmedRaceDoesNotSelfAttach(t *testing.T) {
-	m := newPendingBurstModel(t, []string{"alpha", "bravo"}) // external = [alpha], trigger = bravo
+	m := newPendingBurstModel(t, []string{"alpha", "bravo"})
 	m.burstCancelled = true
 	msg := spawnCompleteMsg{
 		Batch: "b1",
@@ -288,16 +221,11 @@ func TestBurstCancel_AllConfirmedRaceDoesNotSelfAttach(t *testing.T) {
 	}
 }
 
-// TestBurstCancel_SelfCleansBatchMarkersOnCancelPath — "it self-cleans the batch
-// markers on the cancel path". A REAL cancelled burst still runs the goroutine's
-// Clean(batch) on its terminal step.
 func TestBurstCancel_SelfCleansBatchMarkersOnCancelPath(t *testing.T) {
 	m, cmd, ack := realCancellableBurst(t, "alpha", "bravo", "charlie")
 
 	updated, drainCmd := m.cancelBurst()
 	m = updated.(Model)
-	// Progress events (if any) may still be in flight on the receiver we abandon here;
-	// keep the original receiver chain running until the terminal event.
 	_ = cmd
 	m = driveCancelToTerminal(t, m, drainCmd)
 
@@ -309,11 +237,6 @@ func TestBurstCancel_SelfCleansBatchMarkersOnCancelPath(t *testing.T) {
 	}
 }
 
-// TestBurstCancel_TerminalEventAlwaysDeliveredAfterCancel is the focused regression
-// for the concurrency defect: after a real cancel the terminal event is ALWAYS
-// delivered (never dropped by a ctx-vs-send race), so burstPending is cleared and the
-// picker is never permanently input-locked. Run under -race (and -count) for the
-// concurrency path.
 func TestBurstCancel_TerminalEventAlwaysDeliveredAfterCancel(t *testing.T) {
 	m, cmd, _ := realCancellableBurst(t, "alpha", "bravo", "charlie", "delta")
 	_ = cmd
@@ -337,14 +260,9 @@ func TestBurstCancel_TerminalEventAlwaysDeliveredAfterCancel(t *testing.T) {
 	}
 }
 
-// TestBurstCancel_CtrlCLiveWhileInputLockedCancelsNotQuits — "it keeps Ctrl-C live
-// while input-locked and cancels rather than quits". A row action (Enter) is swallowed
-// (input-locked) while Ctrl-C stays live and cancels — proving the cancellation
-// carve-out sits inside the input-lock.
 func TestBurstCancel_CtrlCLiveWhileInputLockedCancelsNotQuits(t *testing.T) {
 	m, cancelled := cancellablePendingModel(t, "alpha", "bravo")
 
-	// A second Enter is swallowed (input-locked) — no cancel, no quit, still pending.
 	updated, enterCmd := m.updateSessionList(tea.KeyPressMsg{Code: tea.KeyEnter})
 	locked := updated.(Model)
 	if enterCmd != nil {
@@ -357,7 +275,6 @@ func TestBurstCancel_CtrlCLiveWhileInputLockedCancelsNotQuits(t *testing.T) {
 		t.Error("Enter must leave the burst pending")
 	}
 
-	// Ctrl-C stays live even though the picker is otherwise inert — it cancels, not quits.
 	updated, ctrlCmd := locked.updateSessionList(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
 	m = updated.(Model)
 	if !*cancelled {
@@ -374,9 +291,6 @@ func TestBurstCancel_CtrlCLiveWhileInputLockedCancelsNotQuits(t *testing.T) {
 	}
 }
 
-// TestBurstPartialFailureFlash_DegenerateEmptyFailedNoFlash pins the degenerate-flash
-// guard at the pure-function level: no failed windows and no permission wall yields NO
-// flash text (not the leading-space " failed to open — others left open").
 func TestBurstPartialFailureFlash_DegenerateEmptyFailedNoFlash(t *testing.T) {
 	got := burstPartialFailureFlash(
 		[]spawn.WindowResult{{Session: "alpha", Ack: spawn.AckConfirmed, Result: spawn.Success("")}},
@@ -386,13 +300,8 @@ func TestBurstPartialFailureFlash_DegenerateEmptyFailedNoFlash(t *testing.T) {
 	}
 }
 
-// TestBurstPartialFailure_DegenerateEmptyFailedRendersNoBand covers the model-level
-// guard: a non-cancel partial with no failed window (only a confirmed one, fewer
-// results than external) sets NO flash band.
 func TestBurstPartialFailure_DegenerateEmptyFailedRendersNoBand(t *testing.T) {
 	m := newPendingBurstModel(t, []string{"alpha", "bravo", "charlie"})
-	// external = [alpha, bravo]; trigger = charlie. alpha confirmed; bravo never
-	// attempted (fewer results than external → the partial arm), NOT cancelled.
 	msg := spawnCompleteMsg{
 		Batch:   "b1",
 		Results: []spawn.WindowResult{{Session: "alpha", Ack: spawn.AckConfirmed, Result: spawn.Success("")}},

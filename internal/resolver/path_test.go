@@ -74,7 +74,6 @@ func TestIsPathArgument(t *testing.T) {
 func TestResolvePath(t *testing.T) {
 	t.Run("resolves relative path to absolute", func(t *testing.T) {
 		dir := t.TempDir()
-		// Resolve symlinks so macOS /var -> /private/var matches filepath.Abs output
 		dir, err := filepath.EvalSymlinks(dir)
 		if err != nil {
 			t.Fatalf("failed to eval symlinks: %v", err)
@@ -84,7 +83,6 @@ func TestResolvePath(t *testing.T) {
 			t.Fatalf("failed to create subdir: %v", err)
 		}
 
-		// Change to dir so "sub" is a relative path
 		t.Chdir(dir)
 
 		got, err := resolver.ResolvePath("sub")
@@ -122,7 +120,6 @@ func TestResolvePath(t *testing.T) {
 			t.Fatalf("failed to get home dir: %v", err)
 		}
 
-		// Use a directory that should exist under home
 		got, err := resolver.ResolvePath("~/")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)

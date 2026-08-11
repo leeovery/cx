@@ -1,22 +1,10 @@
 package bootstrap
 
-// Task spectrum-tui-design-5-2 — progress-emitter seam on the orchestrator.
-//
-// The §10.2 concurrent cold-boot route streams a per-step progress event to
-// the loading-page TUI. The orchestrator gains a context-carried emitter seam
-// (WithProgressEmitter) that each of the ten steps invokes at the same site
-// it logs "step complete", in step order. On the synchronous warm/CLI route no
-// emitter is in the context, so Run behaves exactly as today (the emitter read
-// resolves to nil and every emit is a no-op).
-
 import (
 	"context"
 	"testing"
 )
 
-// TestRun_EmitsProgressEventPerStepInOrder asserts the orchestrator emits one
-// StepEvent per real bootstrap step, in spec order, with the canonical step
-// index (1..10) and name, when an emitter is wired through the context.
 func TestRun_EmitsProgressEventPerStepInOrder(t *testing.T) {
 	r := &stepRecorder{}
 	o := newOrchestrator(r, nil)
@@ -52,15 +40,10 @@ func TestRun_EmitsProgressEventPerStepInOrder(t *testing.T) {
 	}
 }
 
-// TestRun_NoEmitterIsNoOp asserts the synchronous route (no emitter in the
-// context) runs every step and returns success without any progress plumbing —
-// the warm/CLI path is unaffected by the seam.
 func TestRun_NoEmitterIsNoOp(t *testing.T) {
 	r := &stepRecorder{}
 	o := newOrchestrator(r, nil)
 
-	// context.Background() carries no emitter — the read must resolve to nil
-	// and Run must behave exactly as the pre-5-2 synchronous path.
 	if _, _, err := o.Run(context.Background()); err != nil {
 		t.Fatalf("Run returned error: %v", err)
 	}
@@ -75,9 +58,6 @@ func TestRun_NoEmitterIsNoOp(t *testing.T) {
 	}
 }
 
-// TestRun_FatalStepStopsEmitting asserts a fatal step (EnsureServer here) emits
-// no progress event for the aborting step — mirroring the "no step-complete log
-// for an aborting step" contract — and emits nothing thereafter.
 func TestRun_FatalStepStopsEmitting(t *testing.T) {
 	r := &stepRecorder{EnsureServerErr: context.Canceled}
 	o := newOrchestrator(r, nil)

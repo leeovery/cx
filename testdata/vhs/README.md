@@ -47,7 +47,9 @@ it rots and why the rule above exists. A reference frame is the **design** the c
 was built against — exported and committed *before* implementation so the
 implementer and the reviewer could self-check against it. It does not go stale the
 way a capture does; it is a record of what was specified, and for some screens it is
-the only reference that exists. Keep them, and keep pointing comments at them.
+the only reference that exists. Keep them — and note that no Go source cites them
+by path, so their retention rests on this table rather than on an inbound
+reference.
 
 **The fixtures and the harness are permanent.** The Go fixture definitions in
 `internal/capture`, `cmd/capturetool` and the `vhs` route all stay. Only the images

@@ -8,11 +8,6 @@ import (
 	"github.com/leeovery/portal/internal/project"
 )
 
-// renderTagsModel builds a minimal Model with the edit modal state seeded for
-// exercising renderEditProjectContent's TAGS block directly. The modal is in
-// navigate mode (no live edit buffer) with the given focus, tags, and element
-// index. Updated to the §13.1 MV grammar (task 3-9): the TAGS block is the square
-// chip boxes + faint `+ add` slot, not the legacy `[x]`/`Add:` rows.
 func renderTagsModel(t *testing.T, focus editField, tags []string, tagCursor int) Model {
 	t.Helper()
 	return Model{
@@ -48,7 +43,6 @@ func TestRenderEditProjectContent_EachTagRendersAsChip(t *testing.T) {
 	m := renderTagsModel(t, editFieldTags, []string{"work", "personal"}, 0)
 	out := ansi.Strip(m.renderEditProjectContent())
 
-	// Each tag value renders as chip text, with NO legacy `[x]` removal marker.
 	if !strings.Contains(out, "work") {
 		t.Errorf("output missing tag value 'work'\n%s", out)
 	}
@@ -61,11 +55,6 @@ func TestRenderEditProjectContent_EachTagRendersAsChip(t *testing.T) {
 }
 
 func TestRenderEditProjectContent_FocusedTagBorderViolet(t *testing.T) {
-	// The focused chip (cursor 1 → "personal") renders in accent.primary; the
-	// unfocused field's chips are border grey. We assert that both the
-	// violet and grey border tokens appear (the focused chip violet, the others grey
-	// — Aliases is unfocused). The precise per-chip colour scoping is covered by
-	// TestEditModal_ChipFocusedVioletNoCross.
 	m := renderTagsModel(t, editFieldTags, []string{"work", "personal"}, 1)
 	content := m.renderEditProjectContent()
 	violet := tokenFgSeq(t, m.themeState.active.AccentPrimary)
@@ -82,8 +71,6 @@ func TestRenderEditProjectContent_EmptyTagsShowsOnlyAddSlot(t *testing.T) {
 	if tagsIdx == -1 {
 		t.Fatalf("output missing TAGS heading\n%s", out)
 	}
-	// A zero-chip field shows only the `+ add` slot after the TAGS heading — no
-	// chip boxes, and no legacy `(none)` empty-state line.
 	tail := out[tagsIdx:]
 	if !strings.Contains(tail, "+ add") {
 		t.Errorf("empty tags should still render the `+ add` slot\n%s", tail)
@@ -94,7 +81,6 @@ func TestRenderEditProjectContent_EmptyTagsShowsOnlyAddSlot(t *testing.T) {
 }
 
 func TestRenderEditProjectContent_AddSlotAlwaysRendered(t *testing.T) {
-	// The `+ add` slot always renders, both with zero tags and with existing tags.
 	emptyOut := ansi.Strip(renderTagsModel(t, editFieldTags, nil, 0).renderEditProjectContent())
 	if !strings.Contains(emptyOut, "+ add") {
 		t.Errorf("`+ add` slot should render with zero tags\n%s", emptyOut)
@@ -108,9 +94,7 @@ func TestRenderEditProjectContent_AddSlotAlwaysRendered(t *testing.T) {
 }
 
 func TestRenderEditProjectContent_NewChipShowsLiveBuffer(t *testing.T) {
-	// A brand-new chip being edited shows its in-progress text as a chip box before
-	// the `+ add` slot.
-	m := renderTagsModel(t, editFieldTags, []string{"work"}, 1) // cursor on add slot
+	m := renderTagsModel(t, editFieldTags, []string{"work"}, 1)
 	m.editMode = editModeEdit
 	m.editIsNewChip = true
 	m.editBuffer = "draft"
@@ -123,7 +107,6 @@ func TestRenderEditProjectContent_NewChipShowsLiveBuffer(t *testing.T) {
 }
 
 func TestRenderEditProjectContent_TagsHeadingFocusScoped(t *testing.T) {
-	// Name focused: NAME label is accent.primary, TAGS label is text.muted.
 	m := renderTagsModel(t, editFieldName, []string{"work"}, 0)
 	content := m.renderEditProjectContent()
 	violet := tokenFgSeq(t, m.themeState.active.AccentPrimary)
@@ -137,7 +120,6 @@ func TestRenderEditProjectContent_TagsHeadingFocusScoped(t *testing.T) {
 		t.Errorf("TAGS label should NOT be accent.violet when Name focused; seg=%q", tagsSeg)
 	}
 
-	// Tags focused: TAGS label is accent.primary.
 	tagsFocused := renderTagsModel(t, editFieldTags, []string{"work"}, 0).renderEditProjectContent()
 	if seg := labelSegment(t, tagsFocused, "TAGS"); !strings.Contains(seg, violet) {
 		t.Errorf("TAGS label should be accent.violet when Tags focused; seg=%q", seg)

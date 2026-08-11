@@ -1,20 +1,11 @@
 package resolver_test
 
-// Tests for the K-returning multi-target resolver variants (ResolveBareAll,
-// ResolveSessionPinAll, ResolveAliasPinAll). CRITICAL divergence from the single-
-// result Phase-1/2 methods: in the multi-target context a not-found is a COLLECTED
-// MISS (a *MissResult in the returned slice), NOT a hard error — the aggregated
-// pre-flight reports EVERY unresolvable target, not just the first. These tests
-// reuse the mocks declared in query_test.go (same package).
-
 import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/resolver"
 )
 
-// sessionNames extracts the Name of every *SessionResult in the slice, failing the
-// test on any other result type. Used to assert glob expansion order.
 func sessionNames(t *testing.T, results []resolver.QueryResult) []string {
 	t.Helper()
 	names := make([]string, 0, len(results))
@@ -100,9 +91,6 @@ func TestQueryResolver_ResolveBareAll(t *testing.T) {
 	})
 
 	t.Run("bad path becomes a single collected miss, not a hard error", func(t *testing.T) {
-		// A bare path-like value that fails ResolvePath (nonexistent dir) is a hard
-		// error in the single-target Resolve; in the multi-target context it is a
-		// collected miss carrying the raw target.
 		qr := resolver.NewQueryResolver(
 			&mockSessionLister{},
 			&mockAliasLookup{aliases: map[string]string{}},
@@ -127,8 +115,6 @@ func TestQueryResolver_ResolveBareAll(t *testing.T) {
 	})
 
 	t.Run("gone alias dir becomes a single collected miss", func(t *testing.T) {
-		// A bare value resolving via alias to a gone dir is a *DirNotFoundError hard
-		// error in single-target Resolve; multi-target collapses it to a miss.
 		qr := resolver.NewQueryResolver(
 			&mockSessionLister{},
 			&mockAliasLookup{aliases: map[string]string{"stale": "/gone/dir"}},
@@ -317,7 +303,6 @@ func TestQueryResolver_ResolveAliasPinAll(t *testing.T) {
 		if len(results) != 2 {
 			t.Fatalf("len(results) = %d, want 2", len(results))
 		}
-		// Keys() returns sorted names, so workflow-a precedes workflow-b.
 		wantDirs := []string{"/code/wa", "/code/wb"}
 		for i, r := range results {
 			pr, ok := r.(*resolver.PathResult)
@@ -359,7 +344,6 @@ func TestQueryResolver_ResolveAliasPinAll(t *testing.T) {
 		if !ok {
 			t.Fatalf("result[1] = %T, want *MissResult", results[1])
 		}
-		// The miss carries the KEY, not the glob value.
 		if miss.Target != "workflow-b" {
 			t.Errorf("miss.Target = %q, want the matched key workflow-b", miss.Target)
 		}

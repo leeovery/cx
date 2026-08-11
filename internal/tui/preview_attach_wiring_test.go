@@ -7,9 +7,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// fakePreviewAttacher is a test-only PreviewAttacher that records Run
-// invocations. Returns a no-op tea.Cmd so callers can dispatch without
-// triggering any tmux side effects.
 type fakePreviewAttacher struct {
 	calls []recordedAttacherCall
 }
@@ -59,8 +56,6 @@ func TestNewPreviewModel_PropagatesAttacherOntoPreviewModel(t *testing.T) {
 }
 
 func TestNewPreviewModel_AcceptsNilAttacher(t *testing.T) {
-	// Tests that do not exercise Enter pass nil; the constructor must not
-	// require an attacher to be non-nil.
 	enum := &stubEnumerator{
 		groups: []tmux.WindowGroup{
 			{WindowIndex: 0, WindowName: "main", PaneIndices: []int{0}},
@@ -78,8 +73,6 @@ func TestNewPreviewModel_AcceptsNilAttacher(t *testing.T) {
 }
 
 func TestSpaceOnSessionsPage_PassesModelAttacherIntoPreviewModel(t *testing.T) {
-	// Behavioural assertion: when Space opens preview, the Model's previewAttacher
-	// is propagated onto the constructed previewModel via NewPreviewModel.
 	attacher := &fakePreviewAttacher{}
 	sessions := []tmux.Session{
 		{Name: "alpha", Windows: 1, Attached: false},
@@ -117,8 +110,6 @@ func TestNewPreviewAttachPipeline_ReturnsNonNilAttacher(t *testing.T) {
 	if p == nil {
 		t.Fatalf("NewPreviewAttachPipeline returned nil")
 	}
-	// Smoke test that the returned attacher executes the pipeline:
-	// invoking Run should drive the fake tmux through at least HasSessionProbe.
 	cmd := p.Run("foo", 1, 0)
 	if cmd == nil {
 		t.Fatalf("Run returned nil tea.Cmd")

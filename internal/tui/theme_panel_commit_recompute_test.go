@@ -14,37 +14,6 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// The picker idiom's POST-COMMIT RECOMPUTE: "a successful commit recomputes the panel's full
-// row set, not just the badges."
-//
-// The row SET moves in both directions, which is the half that is easy to miss —
-// `Enter` clears both slots, so a row that existed only because a slot named it
-// loses its reason to exist and DISAPPEARS, while a slot commit makes the other
-// slot live so a slug with no file and no built-in gains one and a row APPEARS.
-//
-// Three traps sit on that recompute and each is a named test below:
-//
-//   - THE MERGED BYTES. Re-deriving from what the commit's read-modify-write just
-//     read would import another instance's writes at the moment the user presses a
-//     key — the cross-instance sync the construction-time load rule declines, arrived at
-//     through the write path instead of the open path.
-//   - THE DIRECTORY. Re-reading it would break the re-read-on-open rule's pin (enumeration
-//     belongs to panel open; a commit changes prefs, not the directory) and would mint a third
-//     parse that can disagree with the row on screen.
-//   - THE INDEX. Anchoring the cursor to one silently breaks the picker idiom's invariant the
-//     moment a row is inserted above it: the screen keeps previewing one theme
-//     while the cursor sits on another.
-//
-// No t.Parallel() — the package-level mock convention makes parallelism unsafe
-// across this package's tests.
-
-// newRecomputePanelModel is the recompute fixture: a REAL loader over a REAL
-// themes directory, a recording persister, and the panel already open.
-//
-// The loader is real because the recompute's whole subject is the DERIVATION —
-// which rows the union holds for a given set of persisted keys, and in what order.
-// A stub seam answering with a fixed union would make every row assertion a
-// statement about the fixture rather than about theme.Reassemble.
 func newRecomputePanelModel(t *testing.T, dir string, keys theme.RawKeys) (Model, *countingThemeSource, *fakeThemePersister) {
 	t.Helper()
 
@@ -61,8 +30,6 @@ func newRecomputePanelModel(t *testing.T, dir string, keys theme.RawKeys) (Model
 	return m, enumerator, persister
 }
 
-// requireRowLabels fails unless the panel lists exactly these labels, in this
-// order — the ORDER being half of what a recompute has to get right.
 func requireRowLabels(t *testing.T, m Model, want ...string) {
 	t.Helper()
 
@@ -77,17 +44,6 @@ func requireRowLabels(t *testing.T, m Model, want ...string) {
 	}
 }
 
-// TestPanelRecompute_RowDisappearsOnConstantCommit: it removes a row whose only
-// reason to exist was a cleared slot.
-//
-// The picker idiom: "`Enter` clears both slots, so a `not found` or charset-rejected row that
-// existed *only* because a slot named it loses its reason to exist and
-// **disappears**." The row is the union rule's persisted-slug row — minted so the `●` always
-// has something to sit on — and with the slot cleared there is no longer a `●` for
-// it to hold.
-//
-// The pre-commit assertion is the control: the row IS there before the keypress,
-// so its absence afterwards is a recompute rather than a union that never held it.
 func TestPanelRecompute_RowDisappearsOnConstantCommit(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
@@ -104,19 +60,8 @@ func TestPanelRecompute_RowDisappearsOnConstantCommit(t *testing.T) {
 	requireCursorOn(t, m, "sunset")
 }
 
-// commitSlotForTest drives a SLOT commit through the PRODUCTION path (commitSlot): the named
-// slot written, the constant cleared in the same write and the other slot left untouched —
-// prefs.SaveThemeSlot's on-disk shape mirrored onto the model's raw keys — followed by this
-// task's recompute.
-//
-// IT TAKES (slug, slot) RATHER THAN THE FINISHED KEYS, so the recompute is driven
-// from a state a single slot commit can actually produce: a helper assigning keys
-// of its own could hand the panel a pair no keypress could reach and the row
-// assertions below would be about that instead.
-//
-// The KEY that reaches this commit is gated behind the confirm while a
-// constant is set, which is why the helper calls the commit directly rather
-// than pressing `d` — the recompute's half is identical whichever route gets there.
+// Calls the commit directly because the key is gated behind the confirm while a
+// constant is set.
 func commitSlotForTest(t *testing.T, m Model, slug string, member theme.Member) Model {
 	t.Helper()
 
@@ -124,22 +69,11 @@ func commitSlotForTest(t *testing.T, m Model, slug string, member theme.Member) 
 		t.Fatalf("commitSlot(%s, %v): %v", slug, member, err)
 	}
 	if m.themeState.keys.Theme != "" {
-		t.Fatalf("the slot commit left the constant %q set; §8.2 clears it in the SAME write", m.themeState.keys.Theme)
+		t.Fatalf("the slot commit left the constant %q set; it is cleared in the SAME write", m.themeState.keys.Theme)
 	}
 	return m
 }
 
-// TestPanelRecompute_RowAppearsForNewlyLiveSlot: it inserts a row for a
-// newly-live slot.
-//
-// The picker idiom: "`d`/`l` on a constant makes the other slot live. If that slot names
-// a slug with no file and no built-in, the union rule requires it to have a row — and the
-// open-time union never minted one, because a `theme`-wins file's slots are not
-// read at all. So a row **appears**."
-//
-// The fixture is therefore a hand-edited prefs.json carrying all three keys, which
-// the constant-or-pair rule makes legal and resolves as a CONSTANT — the one shape in which a
-// persisted slot names something the open-time union is blind to.
 func TestPanelRecompute_RowAppearsForNewlyLiveSlot(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
@@ -154,21 +88,13 @@ func TestPanelRecompute_RowAppearsForNewlyLiveSlot(t *testing.T) {
 	requireRowLabels(t, m, "ghost", "nord", "sunset", theme.DefaultDarkSlug, theme.DefaultLightSlug)
 	ghost := themePanelRowFor(t, m, "ghost")
 	if ghost.Row.Selectable() {
-		t.Error("the minted `ghost` row is selectable; a slug with no file and no built-in is unselectable with its reason (§9.4)")
+		t.Error("the minted `ghost` row is selectable; a slug with no file and no built-in is unselectable with its reason")
 	}
 	if got := ghost.Row.Rejection.Reason; got != theme.ReasonNotFound {
-		t.Errorf("the minted `ghost` row carries reason %q, want %q — the slug resolves to nothing (§9.4)", got, theme.ReasonNotFound)
+		t.Errorf("the minted `ghost` row carries reason %q, want %q — the slug resolves to nothing", got, theme.ReasonNotFound)
 	}
 }
 
-// TestPanelRecompute_ReSortsThroughTheComparator: it re-sorts an inserted row into
-// place.
-//
-// The row-rendering rule's order is applied INSIDE theme.Reassemble, so the recompute states
-// no comparator of its own and performs no caller-side sort. The inserted slug is
-// chosen to land in the MIDDLE of the union: appending it, prepending it, or
-// leaving the pre-commit order alone all produce a different list, so the
-// assertion cannot pass on an accident of position.
 func TestPanelRecompute_ReSortsThroughTheComparator(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
@@ -182,20 +108,12 @@ func TestPanelRecompute_ReSortsThroughTheComparator(t *testing.T) {
 	requireRowLabels(t, m, "nord", "prism", "sunset", theme.DefaultDarkSlug, theme.DefaultLightSlug)
 }
 
-// renderRecomputePanel renders the panel block at the height it is composited into,
-// so a badge assertion can be made against what the user actually sees rather than
-// against the item field alone.
 func renderRecomputePanel(m Model) string {
 	return renderThemePanel(m.themePanel, m.contentHeight(), m.themeState.active, m.colourless)
 }
 
-// requireBadgeText fails unless the rendered panel carries exactly the given badge
-// texts, counted by occurrence.
-//
-// The bare `●` is counted as OCCURRENCES OF THE GLYPH minus the slot forms, because
-// `● light` and `● dark` both contain it: counting the glyph alone would report a
-// pair as three badges, and counting the constant's text as a whole string would
-// report every slot badge as one.
+// The bare `●` is counted as glyph occurrences minus the slot forms, because
+// `● light` and `● dark` both contain the glyph.
 func requireBadgeText(t *testing.T, m Model, wantBare, wantLight, wantDark int) {
 	t.Helper()
 
@@ -209,18 +127,6 @@ func requireBadgeText(t *testing.T, m Model, wantBare, wantLight, wantDark int) 
 	}
 }
 
-// TestPanelRecompute_VirginInstallBadgeCollapse: it collapses two slot badges to
-// one bare dot.
-//
-// The MOST COMMON first write in the product: the on-disk prefs shape leaves a fresh install
-// with no prefs.json at all, so both slots arrive as the shipped defaults and the
-// panel opens carrying `● light` and `● dark` (the row-rendering rule's third badge row —
-// unset and set-to-the-default are the same state). `Enter` writes one constant and clears
-// both slots, so the pair collapses to a single bare `●` — "two inherited defaults
-// just became one pin".
-//
-// Both the item BADGES and the RENDERED text are asserted: the map is what the
-// recompute writes, the glyphs are what the user is told.
 func TestPanelRecompute_VirginInstallBadgeCollapse(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
@@ -242,13 +148,8 @@ func TestPanelRecompute_VirginInstallBadgeCollapse(t *testing.T) {
 	requireBadgeText(t, m, 1, 0, 0)
 }
 
-// TestPanelRecompute_ReadsNothing: it reads no directory and no prefs.
-//
-// The two halves are the re-read-on-open rule's and the construction-time load rule's, and
-// each is driven the only way it cannot be faked. The DIRECTORY is deleted after the panel
-// opened, so a re-read would have nothing to find; PREFS.JSON on disk is seeded to name a slug
-// this instance has never held, so a re-read — of the file OR of the merged bytes the
-// persister's read-modify-write just had in hand — would show up as a row.
+// prefs.json on disk is seeded to name a slug this instance has never held, so
+// a re-read — of the file or of the persister's merged bytes — shows up as a row.
 func TestPanelRecompute_ReadsNothing(t *testing.T) {
 	t.Run("no directory read", func(t *testing.T) {
 		dir := t.TempDir()
@@ -264,7 +165,7 @@ func TestPanelRecompute_ReadsNothing(t *testing.T) {
 		requireCommitted(t, persister, "sunset")
 		requireRowLabels(t, m, "nord", "sunset", theme.DefaultDarkSlug, theme.DefaultLightSlug)
 		if enumerator.opens != 1 {
-			t.Errorf("the commit ran %d enumerations in total, want the single one the open performed — §5.8 pins enumeration to panel OPEN, and a commit changes prefs rather than the directory", enumerator.opens)
+			t.Errorf("the commit ran %d enumerations in total, want the single one the open performed — enumeration is pinned to panel OPEN, and a commit changes prefs rather than the directory", enumerator.opens)
 		}
 		if _, err := os.Stat(dir); !os.IsNotExist(err) {
 			t.Errorf("the themes directory exists again after the commit (err %v); nothing on this path touches it", err)
@@ -280,9 +181,6 @@ func TestPanelRecompute_ReadsNothing(t *testing.T) {
 		t.Setenv("PORTAL_PREFS_FILE", prefsFile)
 		dir := t.TempDir()
 		writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
-		// The IN-MEMORY light slot names `ghost`; the file names `phantom`. The construction-time
-		// load rule's construction-time snapshot is what this instance holds, and the recompute
-		// re-derives from THAT plus its own mutation.
 		keys := theme.RawKeys{Theme: "sunset", Light: "ghost", Dark: "sunset"}
 		m, _, _ := newRecomputePanelModel(t, dir, keys)
 
@@ -299,41 +197,16 @@ func TestPanelRecompute_ReadsNothing(t *testing.T) {
 	})
 }
 
-// sgrPattern matches one SGR escape sequence, which is how "the frame's colours"
-// is measured as a SET rather than as bytes: a recompute legitimately changes the
-// frame (rows move), so a byte comparison cannot say whether the palette moved
-// with them.
+// The frame's colours are measured as a set rather than as bytes: a recompute
+// legitimately moves rows, so a byte comparison cannot isolate the palette.
 var sgrPattern = regexp.MustCompile("\x1b\\[[0-9;]*m")
 
-// frameColours is the sorted, deduplicated set of SGR sequences in a frame.
 func frameColours(frame string) []string {
 	seqs := sgrPattern.FindAllString(frame, -1)
 	slices.Sort(seqs)
 	return slices.Compact(seqs)
 }
 
-// TestPanelRecompute_DoesNotApplyTheme: it never re-themes.
-//
-// The picker idiom: a commit is a WRITE, NOT A NAVIGATION. The re-resolution the recompute
-// runs is for the BADGES alone — it selects no new active member and calls no
-// Model.ApplyTheme — so the previewed palette and the frame's colours survive a
-// keypress that visibly changes the rows.
-//
-// THE FIXTURE ARROWS AWAY FIRST, and what that buys is narrower than it looks —
-// worth stating exactly, because a later task could otherwise read this as a
-// guarantee it is not. `Enter` commits the CURSOR's slug, so after the write the
-// persisted row IS the previewed row: a recompute that re-resolved and applied
-// THAT would be an invisible no-op here rather than a caught defect. What this
-// test does catch is an apply of any OTHER row — a re-resolution reading the
-// pre-commit keys, the other slot, or the per-slot fallback — and the no-op
-// direction is closed elsewhere, structurally by the "the commit path calls no
-// ApplyTheme" scan and observably by its byte-identical frame comparison. The
-// claim bites directly only on the SLOT commit, where committing the
-// non-active slot leaves the previewed and the resolved themes genuinely
-// different.
-//
-// The row-set assertion is the control — without it, "the colours did not move" is
-// equally true of a recompute that never ran.
 func TestPanelRecompute_DoesNotApplyTheme(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
@@ -351,27 +224,15 @@ func TestPanelRecompute_DoesNotApplyTheme(t *testing.T) {
 	m, _ = pressCommitKey(t, m)
 
 	requireCommitted(t, persister, "sunset")
-	// The control: the recompute genuinely ran, so the assertions below are about a
-	// keypress that changed the panel rather than one that changed nothing.
 	requireRowLabels(t, m, "aurora", "nord", "sunset", theme.DefaultDarkSlug, theme.DefaultLightSlug)
 	if m.themeState.active != previewed {
-		t.Errorf("the recompute rendered canvas %s, want the previewed %s left alone — the re-resolution is for the badges, never for selecting a new active member (§9.2)", m.themeState.active.Canvas.Value, previewed.Canvas.Value)
+		t.Errorf("the recompute rendered canvas %s, want the previewed %s left alone — the re-resolution is for the badges, never for selecting a new active member", m.themeState.active.Canvas.Value, previewed.Canvas.Value)
 	}
 	if got := frameColours(m.View().Content); !slices.Equal(got, colours) {
 		t.Errorf("the recompute changed the frame's colours\nbefore: %v\nafter:  %v", colours, got)
 	}
 }
 
-// TestPanelRecompute_CursorAnchoredByIdentity: it anchors the cursor by identity.
-//
-// The picker idiom: the recompute "re-anchors the cursor to the previewed theme's identity,
-// never to its index. Anchoring to an index would silently break the picker idiom's invariant
-// the moment a row is inserted above the cursor: the screen would keep previewing
-// one theme while the cursor sat on another."
-//
-// So the fixture inserts a row ABOVE the cursor — the one shape in which an index
-// anchor and an identity anchor disagree — and the INDEX MOVING is as much the
-// assertion as the label not moving.
 func TestPanelRecompute_CursorAnchoredByIdentity(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
@@ -393,18 +254,10 @@ func TestPanelRecompute_CursorAnchoredByIdentity(t *testing.T) {
 		t.Errorf("the cursor sits at index %d, want %d — the inserted row pushed `sunset` down and the anchor followed the IDENTITY", got, before+1)
 	}
 	if m.themeState.active != previewed {
-		t.Errorf("the recompute rendered canvas %s, want the previewed %s — the cursor's row is always what is painted behind the panel (§9.2)", m.themeState.active.Canvas.Value, previewed.Canvas.Value)
+		t.Errorf("the recompute rendered canvas %s, want the previewed %s — the cursor's row is always what is painted behind the panel", m.themeState.active.Canvas.Value, previewed.Canvas.Value)
 	}
 }
 
-// TestPanelRecompute_NoChangeCommitIsStable: it is idempotent for an unchanged
-// commit.
-//
-// Committing the slug that is ALREADY the constant changes nothing on disk, so the
-// recompute must produce an identical row set, an identical badge map and an
-// identical cursor — which makes it provably idempotent rather than merely usually
-// harmless. The rendered frame is compared byte for byte, because with nothing
-// moving there is nothing a recompute may legitimately change.
 func TestPanelRecompute_NoChangeCommitIsStable(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
@@ -432,30 +285,16 @@ func TestPanelRecompute_NoChangeCommitIsStable(t *testing.T) {
 	}
 }
 
-// errThemeResolveFatal is the build-time guarantee's fatal as the seam hands it back — the
-// ONLY error Resolve can return, from a binary whose embedded set cannot supply a fallback.
-// A real loader cannot produce it against a correctly built binary, which is why
-// the degrade path is driven through a fake.
 var errThemeResolveFatal = errors.New("theme: the embedded set cannot supply a fallback")
 
-// themeRowsUnion wraps hand-declared rows as the union shape the seam hands back,
-// over a readable themes directory.
-//
-// Count and Rejected are DERIVED from the rows rather than passed in: a
-// hand-carried tally is a fixture that can disagree with its own rows.
 func themeRowsUnion(rows []theme.Row) theme.Union {
 	return themeRowsUnionDirUnusable(rows, false)
 }
 
-// themeRowsUnionDirUnusable is themeRowsUnion for the fixtures that also drive
-// the unreadable-directory state, which the panel pins its own row for.
 func themeRowsUnionDirUnusable(rows []theme.Row, dirUnusable bool) theme.Union {
 	return theme.Union{Rows: rows, DirUnusable: dirUnusable, Count: len(rows), Rejected: arrowRejectedCount(rows)}
 }
 
-// TestThemeRowsUnion_DerivesTalliesFromRows: the fixture helper's tallies come
-// from the rows themselves, so a fixture cannot state a rejected count its own
-// rows contradict.
 func TestThemeRowsUnion_DerivesTalliesFromRows(t *testing.T) {
 	rejected := func(slug string) theme.Row {
 		return theme.Row{Slug: slug, Source: theme.SourceFile, Filename: slug + ".theme", Rejection: &theme.Rejection{Reason: theme.ReasonBadColour}}
@@ -497,16 +336,8 @@ func TestThemeRowsUnion_DerivesTalliesFromRows(t *testing.T) {
 	}
 }
 
-// newSplitPanelModel opens the panel over `opened`, with the seam's split-reassembly
-// field primed to answer the recompute with `reassembled`.
-//
-// The two DIFFERENT unions are what isolate the recompute's own effect: whatever the
-// panel lists after a commit came from the REASSEMBLY, and whatever it lists without
-// one came from the open. A real loader can show none of it, because the three
-// states the suite drives are ones it cannot reach — a selectable row vanishing from
-// under the cursor (no directory is re-read, so a valid file's row cannot go away),
-// a Resolve returning the build-time guarantee's fatal, and a reassembly the panel must render
-// in the assembler's order rather than in its own.
+// The two unions differ deliberately: what the panel lists after a commit came
+// from the reassembly, what it lists without one came from the open.
 func newSplitPanelModel(t *testing.T, opened, reassembled []theme.Row, cursorSlug string) (Model, *fakeThemeSource, *fakeThemePersister) {
 	t.Helper()
 
@@ -524,18 +355,8 @@ func newSplitPanelModel(t *testing.T, opened, reassembled []theme.Row, cursorSlu
 	return openCommitPanel(t, deps, PageSessions, cursorSlug), enumerator, persister
 }
 
-// TestPanelRecompute_CursorClampsOnMissingIdentity: it degrades when the previewed
-// identity is gone.
-//
-// A STRUCTURAL GUARD, NOT A LIVE PATH. The cursor is always on a selectable row
-// and the recompute re-reads no directory, so a valid file's row cannot go
-// away underneath it — the reassembly can only add or drop the persisted-slug rows,
-// which are unselectable. The guard is here because the alternative to degrading is
-// indexing out of range inside a list the user is looking at.
-//
-// The clamp is anchorThemePanelCursor's own: the FIRST SELECTABLE row, which is why
-// the reassembly leads with an unselectable one — landing on index 0 would put the
-// cursor somewhere the arrows, which skip unselectable rows, cannot return to.
+// The clamp lands on the first SELECTABLE row, which is why the reassembly
+// leads with an unselectable one.
 func TestPanelRecompute_CursorClampsOnMissingIdentity(t *testing.T) {
 	opened := arrowValidRows(t, 4)
 	reassembled := []theme.Row{
@@ -551,25 +372,12 @@ func TestPanelRecompute_CursorClampsOnMissingIdentity(t *testing.T) {
 	requireRowLabels(t, m, arrowSlug(0), arrowSlug(1), arrowSlug(3))
 	requireCursorOn(t, m, arrowSlug(1))
 	if row := themePanelCursorRow(t, m); !row.Selectable() {
-		t.Errorf("the clamp landed the cursor on the unselectable %q; §9.2's invariant is that the cursor is always on a SELECTABLE row", row.Label())
+		t.Errorf("the clamp landed the cursor on the unselectable %q; the invariant is that the cursor is always on a SELECTABLE row", row.Label())
 	}
 }
 
-// TestPanelRecompute_ResolveErrorKeepsBadges: it keeps the badges when the
-// re-resolution errors.
-//
-// The build-time guarantee's fatal is the only error Resolve can return, and the panel
-// DEGRADES on it rather than escalating — the policy applyInForceTheme states once for all
-// three panel call sites. Here degrading specifically means KEEPING THE EXISTING TABLE:
-// theme.Badges returns an EMPTY map for an empty slice, so deriving from a zero
-// Resolution would wipe every `●` off the panel at the exact moment the user
-// committed one — the marker lying in the direction the failed-commit rule's "a failed commit
-// does not move the `●`" rule exists to forbid.
-//
-// The other steps still run on that path, because they read the mutated keys and
-// the retained enumeration rather than the resolution: the reassembly's rows are
-// rendered IN ITS OWN ORDER (deliberately not alphabetical here, so a caller-side
-// sort would show up) and the cursor is re-anchored by identity.
+// The reassembly's order is deliberately not alphabetical, so a caller-side
+// sort would show up.
 func TestPanelRecompute_ResolveErrorKeepsBadges(t *testing.T) {
 	opened := arrowValidRows(t, 4)
 	reassembled := []theme.Row{
@@ -582,10 +390,8 @@ func TestPanelRecompute_ResolveErrorKeepsBadges(t *testing.T) {
 	if badges[arrowSlug(0)] != theme.BadgeConstant {
 		t.Fatalf("fixture: the open left badges %v, want a constant `●` on %q", badges, arrowSlug(0))
 	}
-	// From here the seam answers as the LOADER itself does — the build-time guarantee's fatal
-	// alongside the ZERO Resolution — and that shape is what keeps the assertion below from
-	// being vacuous: theme.Badges yields an empty map for an empty slot slice, so a
-	// refresh that ignored the error would wipe the table rather than leave it.
+	// A ZERO Resolution alongside the fatal, as the loader answers: a populated
+	// one would make the assertion below vacuous.
 	enumerator.resolution = theme.Resolution{}
 	enumerator.err = errThemeResolveFatal
 
@@ -600,17 +406,6 @@ func TestPanelRecompute_ResolveErrorKeepsBadges(t *testing.T) {
 	requireCursorOn(t, m, arrowSlug(0))
 }
 
-// TestPanelRecompute_SkippedOnFailedCommit: it does not run on a failed write.
-//
-// The failed-commit rule: a failed commit "does not move the `●` — the marker means 'what is
-// persisted' and would be lying if it moved". The badges are derived from the raw
-// keys, which a failed write leaves untouched, so the mechanism is that the
-// recompute is never reached at all.
-//
-// The seam's two unions are what make that observable: a reassembly that ran would
-// replace the panel's rows outright, so an unchanged list plus a zero reassembly
-// count is the recompute genuinely not happening. The positive control is the same
-// fixture with the write succeeding.
 func TestPanelRecompute_SkippedOnFailedCommit(t *testing.T) {
 	opened := arrowValidRows(t, 4)
 	reassembled := arrowValidRows(t, 2)
@@ -624,14 +419,12 @@ func TestPanelRecompute_SkippedOnFailedCommit(t *testing.T) {
 	requireCommitted(t, persister, arrowSlug(0))
 	requireRowLabels(t, m, arrowSlug(0), arrowSlug(1), arrowSlug(2), arrowSlug(3))
 	if got := m.themePanel.badges; !maps.Equal(got, badges) {
-		t.Errorf("the failed commit left badges %v, want the untouched %v — a failed commit does not move the `●` (§9.13)", got, badges)
+		t.Errorf("the failed commit left badges %v, want the untouched %v — a failed commit does not move the `●`", got, badges)
 	}
 	if enumerator.reassembles != 0 {
-		t.Errorf("the failed commit ran %d reassemblies, want 0 — only a SUCCESSFUL commit recomputes (§9.2)", enumerator.reassembles)
+		t.Errorf("the failed commit ran %d reassemblies, want 0 — only a SUCCESSFUL commit recomputes", enumerator.reassembles)
 	}
 
-	// Positive control: the same fixture with the write succeeding does recompute,
-	// so the untouched rows above are the failure path rather than an unwired one.
 	wired, control, _ := newSplitPanelModel(t, opened, reassembled, arrowSlug(0))
 	wired, _ = pressCommitKey(t, wired)
 	requireRowLabels(t, wired, arrowSlug(0), arrowSlug(1))
@@ -640,22 +433,9 @@ func TestPanelRecompute_SkippedOnFailedCommit(t *testing.T) {
 	}
 }
 
-// TestPanelRecompute_ItemsReplacedNotRebuilt: it keeps the list instance and its
-// re-pointed styles.
-//
-// The swap-speed finding rules a rebuild out as the expensive path and the completeness risk
-// names this instance the WORST CASE of the cached-style class, so the recompute replaces the
-// list's ITEMS and nothing else. The `bubbles/list`-owned styles stay RE-POINTED by the
-// restyle path rather than reassigned here — a commit changes no theme, so there is
-// nothing to re-point.
-//
-// The PAGINATION DOTS are the class's exemplar and the reason a rebuild would be
-// visible: `bubbles/list` reads its dot STRINGS out of the styles once at
-// construction, so a list rebuilt here would print the library's hardcoded greys
-// under every theme. The TITLE is the instance probe — the panel draws its own
-// header and disables the list's (newThemePanelList), so nothing in production ever
-// reads or writes this field, and a value written into it survives an item swap
-// while a fresh list.Model could not carry it.
+// `bubbles/list` snapshots its dot strings at construction, so a rebuilt list
+// prints the library greys. Title is the instance probe: production never
+// touches it, so a value there survives an item swap but not a fresh list.Model.
 func TestPanelRecompute_ItemsReplacedNotRebuilt(t *testing.T) {
 	const (
 		sentinel   = "recompute-instance-probe"

@@ -1,7 +1,5 @@
 package main
 
-// Tests in this file read NO_COLOR and MUST NOT use t.Parallel.
-
 import (
 	"bytes"
 	"fmt"
@@ -24,15 +22,6 @@ import (
 	"github.com/leeovery/portal/internal/tui"
 )
 
-// TestFlags_AreFixtureAndThemeOnly pins the harness contract's flag surface: --appearance is
-// REMOVED, not kept alongside --theme, and --theme defaults to the shipped dark
-// built-in.
-//
-// It is a source guard because flag registration happens in main(), which no test
-// runs — a surviving --appearance would compile, parse and be honoured forever
-// with nothing failing. The registered names are read from the AST rather than
-// grepped, so a doc comment explaining what --theme replaced cannot satisfy or
-// break the assertion.
 func TestFlags_AreFixtureAndThemeOnly(t *testing.T) {
 	flags := registeredStringFlags(t)
 
@@ -43,15 +32,13 @@ func TestFlags_AreFixtureAndThemeOnly(t *testing.T) {
 	slices.Sort(names)
 
 	if want := []string{"fixture", "theme"}; !slices.Equal(names, want) {
-		t.Errorf("registered flags = %v, want %v — a theme IS the mode, so there is no appearance left to pin (§13.3)", names, want)
+		t.Errorf("registered flags = %v, want %v — a theme IS the mode, so there is no appearance left to pin", names, want)
 	}
 	if got, want := flags["theme"], "defaultThemeSlug"; got != want {
 		t.Errorf("--theme default = %s, want the %s constant", got, want)
 	}
 }
 
-// registeredStringFlags returns every flag.String the harness registers, mapped
-// from its name to the source expression of its default value.
 func registeredStringFlags(t *testing.T) map[string]string {
 	t.Helper()
 
@@ -85,16 +72,6 @@ func registeredStringFlags(t *testing.T) map[string]string {
 	return flags
 }
 
-// TestResolveTheme_DefaultsToTheShippedDarkBuiltin pins the built-in --theme
-// resolves to when the flag is omitted, and pins WHERE that value comes from.
-//
-// It is the shipped dark default and every capture taken without the flag
-// depends on it, so the constant is DERIVED from theme.DefaultDarkSlug rather
-// than restating its value: moving the shipped default has to move every
-// unflagged capture with it, not leave them rendering a palette the product no
-// longer defaults to with nothing failing. The source guard is what makes the
-// derivation checkable — a literal spelling out today's default would satisfy the
-// equality below forever.
 func TestResolveTheme_DefaultsToTheShippedDarkBuiltin(t *testing.T) {
 	if defaultThemeSlug != theme.DefaultDarkSlug {
 		t.Fatalf("defaultThemeSlug = %q, want the shipped dark default %q", defaultThemeSlug, theme.DefaultDarkSlug)
@@ -117,9 +94,6 @@ func TestResolveTheme_DefaultsToTheShippedDarkBuiltin(t *testing.T) {
 	}
 }
 
-// declaredConstSource returns the source expression the named package-level
-// constant is declared from, so a test can assert a value is DERIVED rather than
-// restated — which its runtime value alone can never show.
 func declaredConstSource(t *testing.T, name string) string {
 	t.Helper()
 
@@ -147,13 +121,6 @@ func declaredConstSource(t *testing.T, name string) string {
 	return ""
 }
 
-// TestThemeArg_SlugVersusPath pins the harness contract's discrimination rule: the argument is
-// a PATH if it carries a path separator OR ends in `.theme`, and a built-in SLUG
-// otherwise.
-//
-// The separator half is the load-bearing one. Without it `./mytheme.txt` — a real
-// file that plainly exists — classifies as a slug and is rejected as an unknown
-// built-in, naming the wrong problem entirely.
 func TestThemeArg_SlugVersusPath(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -177,11 +144,6 @@ func TestThemeArg_SlugVersusPath(t *testing.T) {
 	}
 }
 
-// TestResolveTheme_UnknownSlugIsAnError asserts a slug naming no built-in is a
-// hard error carrying the slug, never a silent fall back to some other palette.
-//
-// Rendering the wrong theme at a visual gate is precisely the failure this tool
-// exists to prevent, so an unknown slug must render nothing at all.
 func TestResolveTheme_UnknownSlugIsAnError(t *testing.T) {
 	got, err := resolveTheme(theme.NewSilentLoader(), "not-a-theme", io.Discard)
 	if err == nil {
@@ -195,13 +157,6 @@ func TestResolveTheme_UnknownSlugIsAnError(t *testing.T) {
 	}
 }
 
-// TestResolveTheme_InvalidBuiltinIsAnErrorNotAFallback asserts a slug that DOES
-// name a built-in whose file fails validation is a hard error carrying the reason vocabulary
-// reason — again never a fallback.
-//
-// The build-time guarantee makes this unreachable through the shipped set, so
-// the rejection arrives through an injected loader rather than by breaking a
-// shipped file.
 func TestResolveTheme_InvalidBuiltinIsAnErrorNotAFallback(t *testing.T) {
 	rejection := &theme.Rejection{Reason: theme.ReasonMissingTokens, Detail: "missing canvas, border"}
 
@@ -219,25 +174,14 @@ func TestResolveTheme_InvalidBuiltinIsAnErrorNotAFallback(t *testing.T) {
 	}
 }
 
-// rejectingLoader is a theme loader that refuses every slug: each one is a known
-// built-in whose file the reason vocabulary ladder refused.
 type rejectingLoader struct {
 	rejection *theme.Rejection
 }
 
-// LoadBuiltin returns the canned rejection, found, and no palette — the shape
-// theme.Loader produces for a built-in that does not parse.
 func (l rejectingLoader) LoadBuiltin(string) (theme.Result, *theme.Rejection, bool) {
 	return theme.Result{}, l.rejection, true
 }
 
-// TestResolveTheme_PathContentReasonsAreHardErrors pins the harness contract for an
-// explicit path: ONLY the four content reasons apply, and each is a hard error
-// carrying its terse reason rather than a fallback.
-//
-// The files are staged and loaded for real — this is the one place the harness's
-// path branch meets the ladder, and a fake loader would prove only that the fake
-// was wired up.
 func TestResolveTheme_PathContentReasonsAreHardErrors(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -284,7 +228,7 @@ func TestResolveTheme_PathContentReasonsAreHardErrors(t *testing.T) {
 				t.Fatalf("resolveTheme(%q) returned nil error, want the hard error %q", path, tt.wantReason)
 			}
 			if !strings.Contains(err.Error(), string(tt.wantReason)) {
-				t.Errorf("error %q does not carry the §6.2 reason %q", err.Error(), tt.wantReason)
+				t.Errorf("error %q does not carry the rejection reason %q", err.Error(), tt.wantReason)
 			}
 			if got != (theme.Theme{}) {
 				t.Error("resolveTheme returned a palette alongside its error")
@@ -293,13 +237,6 @@ func TestResolveTheme_PathContentReasonsAreHardErrors(t *testing.T) {
 	}
 }
 
-// TestResolveTheme_NoFallbackOnFailure pins the consequence of every failure
-// above: NOTHING renders. Not the default theme, not the built-in the slug nearly
-// named — no model at all, on either branch of the harness.
-//
-// This is the failure the tool exists to prevent: a visual gate whose
-// whole job is judging colours cannot be handed a frame of some other palette,
-// and a silent fallback is indistinguishable from a correct capture to a reviewer.
 func TestResolveTheme_NoFallbackOnFailure(t *testing.T) {
 	dir := t.TempDir()
 
@@ -337,18 +274,6 @@ func TestResolveTheme_NoFallbackOnFailure(t *testing.T) {
 	}
 }
 
-// TestResolveTheme_PathBadNameWarnsWithoutBlocking pins the first of the two
-// filename reasons on the path form: a fatal filename WARNS on stderr and renders
-// anyway.
-//
-// Warning rather than blocking is what the flag's stated purpose demands:
-// this is the only visual-verification route a drop-in author has, so it is the
-// one place a fatal name is worth catching before the file reaches the themes
-// directory — and refusing to render would leave them with no route at all.
-//
-// Both `bad name` causes are covered — an illegal stem and a wrong extension — and both warn
-// with the one line — capturetool is not doctor, which is where the pinned copy's per-cause
-// lines live.
 func TestResolveTheme_PathBadNameWarnsWithoutBlocking(t *testing.T) {
 	tests := []struct {
 		name string
@@ -379,16 +304,6 @@ func TestResolveTheme_PathBadNameWarnsWithoutBlocking(t *testing.T) {
 	}
 }
 
-// TestResolveTheme_PathReservedNameWarnsWithoutBlocking pins the second: a file
-// whose basename yields a BUILT-IN's slug warns and renders.
-//
-// The candidate slug exists solely to produce this line and is never used
-// as identity — the theme it names is still the one the file declared, and the
-// Result carries no slug at all.
-//
-// Blocking would break the workflow the export contract publishes: `portal theme export`
-// writes a built-in out under its own name, so an exported theme IS a reserved slug right
-// up until the user renames it.
 func TestResolveTheme_PathReservedNameWarnsWithoutBlocking(t *testing.T) {
 	const base = "nord.theme"
 	if !slices.Contains(theme.BuiltinSlugs(), "nord") {
@@ -406,8 +321,6 @@ func TestResolveTheme_PathReservedNameWarnsWithoutBlocking(t *testing.T) {
 	if got == (theme.Theme{}) {
 		t.Error("resolveTheme returned the zero palette for a valid file")
 	}
-	// The rendered palette is the FILE's, not the built-in's — the candidate slug
-	// produced a warning and nothing else.
 	builtin, _, _ := theme.NewSilentLoader().LoadBuiltin("nord")
 	if got == builtin.Theme {
 		t.Error("resolveTheme rendered the built-in nord palette, want the file's own — the candidate slug is not identity")
@@ -418,14 +331,6 @@ func TestResolveTheme_PathReservedNameWarnsWithoutBlocking(t *testing.T) {
 	}
 }
 
-// TestResolveTheme_SlugFormNeverWarns pins the other half of the harness contract's "path form
-// only": a SLUG argument names a built-in by design, so neither filename reason
-// applies to it.
-//
-// `nord` is the case that makes this non-trivial rather than incidental: it IS a
-// built-in slug, so a reserved-name check applied to the slug form would fire on
-// the normal, documented invocation and warn every user about the thing they
-// asked for.
 func TestResolveTheme_SlugFormNeverWarns(t *testing.T) {
 	for _, slug := range theme.BuiltinSlugs() {
 		t.Run(slug, func(t *testing.T) {
@@ -442,9 +347,6 @@ func TestResolveTheme_SlugFormNeverWarns(t *testing.T) {
 	}
 }
 
-// TestResolveModel verifies the capture tool resolves a fixture name into a real
-// production tui.Model via the shared tui.Build constructor — without opening a
-// tmux server or touching config (the fixture is fully in-memory).
 func TestResolveModel(t *testing.T) {
 	pinned := themetest.Builtin(t, defaultThemeSlug)
 
@@ -475,18 +377,6 @@ func TestResolveModel(t *testing.T) {
 	})
 }
 
-// TestResolveModel_PassesConstantNomination pins the shape the harness contract requires of
-// every tui.Build capture: the CONSTANT nomination, never an adaptive pair.
-//
-// A constant is what makes a capture byte-deterministic — no OSC 11 detection, no
-// first-paint wait, the palette named on the command line and no other. Both
-// halves are observable on the FIRST frame and both are asserted: an adaptive
-// nomination would hold the neutral blank frame (BackgroundColor nil) until a
-// reply that never arrives outside a running program, and a nomination carrying
-// anything but the resolved theme would paint a different canvas.
-//
-// The theme is loaded from a PATH, so the assertion cannot pass on the built-in
-// the model seeds itself with when nothing is injected.
 func TestResolveModel_PassesConstantNomination(t *testing.T) {
 	pinned := pathThemeForTest(t, "#1A2B3C")
 
@@ -504,14 +394,6 @@ func TestResolveModel_PassesConstantNomination(t *testing.T) {
 	}
 }
 
-// TestResolveModel_NoColorWinsOverTheme pins the NO_COLOR carve-out's precedence on
-// the fixture path: NO_COLOR is read after the theme resolves and WINS over it,
-// because a colourless render has no canvas to select.
-//
-// The pinned theme is a path theme with a canvas hex no built-in carries, so the
-// negative assertion is about the resolved palette rather than about colour in
-// general — and the positive control proves the same call paints it when NO_COLOR
-// is absent.
 func TestResolveModel_NoColorWinsOverTheme(t *testing.T) {
 	pinned := pathThemeForTest(t, "#1A2B3C")
 
@@ -548,15 +430,6 @@ func TestResolveModel_NoColorWinsOverTheme(t *testing.T) {
 	})
 }
 
-// TestResolveProgram_ThemeDrivesBothBranches pins the harness contract's "one flag, both
-// branches": the tui.Build fixture path and the standalone contrast-validation
-// swatch render the SAME resolved theme.
-//
-// They are deliberately different render paths — the swatch does not route
-// through tui.Build, which is what lets it take a whole palette before the render
-// layer does — so nothing else pins that one input reaches both. A wrong-variable
-// slip at either call site is silent: the tool exits 0 having captured a frame of
-// some other theme, at a gate whose entire job is judging colours the tests cannot.
 func TestResolveProgram_ThemeDrivesBothBranches(t *testing.T) {
 	path := themetest.Write(t, t.TempDir(), "mytheme.theme", themetest.WithValue(themetest.Lines(), "canvas", "#1a2b3c"))
 
@@ -583,15 +456,6 @@ func TestResolveProgram_ThemeDrivesBothBranches(t *testing.T) {
 	}
 }
 
-// TestCaptureTool_ThemeResolutionIsSilent asserts resolving a theme writes
-// NOTHING to the log — through either branch, and on failure as well as success.
-//
-// capturetool is the `theme` log component's fifth caller and neither uses nor diagnoses a
-// theme — it is an offline renderer whose output is a frame — so the loader is handed
-// log.Discard and the `theme` component stays empty on this path. The stderr
-// warnings are not log records either: they go to the injected writer. The
-// positive control proves the assertion is not vacuous: a component logger
-// emitting through the same swapped handler IS captured.
 func TestCaptureTool_ThemeResolutionIsSilent(t *testing.T) {
 	sink := &logtest.Sink{}
 	log.SetTestHandler(t, sink)
@@ -623,12 +487,6 @@ func TestCaptureTool_ThemeResolutionIsSilent(t *testing.T) {
 	}
 }
 
-// pathThemeForTest stages a valid theme file carrying the given canvas value and
-// returns the palette resolved from its PATH.
-//
-// The canvas is caller-chosen so an assertion against it cannot pass on a
-// built-in's palette — including the dark built-in a model seeds itself with when
-// no nomination is injected.
 func pathThemeForTest(t *testing.T, canvas string) theme.Theme {
 	t.Helper()
 

@@ -7,15 +7,11 @@ import (
 	"strings"
 )
 
-// PackageGoFiles returns the .go files held directly by dir, as paths joined
-// onto dir in os.ReadDir's filename order. Test sources are included only when
-// includeTests is set.
-//
-// It records in one place what a package-local source guard covers, the way
-// GoSourceFiles does for the repo-wide walk: one directory, never descended
-// into, so a guard's scope is the package it is written about. An unreadable
-// directory and a directory yielding no matching file are both errors — a guard
-// that enumerates nothing must fail rather than pass having stopped looking.
+// PackageGoFiles returns the .go files held directly by dir, in filename order,
+// never descending into a subdirectory. Test sources are included only when
+// includeTests is set. An unreadable directory and one yielding no matching file
+// are both errors: a guard that enumerates nothing must fail rather than pass
+// having stopped looking.
 func PackageGoFiles(dir string, includeTests bool) ([]string, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {

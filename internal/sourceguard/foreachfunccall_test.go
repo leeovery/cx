@@ -10,9 +10,6 @@ import (
 	"github.com/leeovery/portal/internal/sourceguard"
 )
 
-// TestForEachFuncCall_VisitsEveryCallUnderItsFunction asserts the walk reaches
-// calls at any depth — nested arguments, closures and inner function literals —
-// and reports each under the top-level declaration holding it, methods included.
 func TestForEachFuncCall_VisitsEveryCallUnderItsFunction(t *testing.T) {
 	file := parseSource(t, `package a
 
@@ -46,9 +43,6 @@ var atPackageLevel = notAFunctionDecl()
 	}
 }
 
-// TestForEachFuncCall_BodylessDeclarationYieldsNothing pins the nil-body case:
-// an externally-implemented declaration carries no call and must not panic the
-// walk that steps over it.
 func TestForEachFuncCall_BodylessDeclarationYieldsNothing(t *testing.T) {
 	file := parseSource(t, `package a
 
@@ -69,9 +63,6 @@ func local() { after() }
 	}
 }
 
-// TestForEachFuncCall_FalseStopsTheWalk asserts a false return ends the whole
-// walk rather than the current declaration, so a guard that has found what it
-// came for stops looking everywhere.
 func TestForEachFuncCall_FalseStopsTheWalk(t *testing.T) {
 	file := parseSource(t, `package a
 

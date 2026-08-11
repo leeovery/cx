@@ -9,16 +9,9 @@ import (
 	"testing"
 )
 
-// TestResolver_DoesNotEmitLogs guards the spec invariant that internal/resolver
-// stays a pure, log-free library: the resolution-decision line is emitted only
-// from the open command body (cmd/open.go), where resolution is driven — never
-// from the resolver itself.
-//
-// The guard is precise rather than blanket: it forbids the emission surface (a
-// log/slog import or a log.For component binding), NOT every reference to
-// internal/log. The resolver legitimately imports internal/log for the
-// non-emitting exec.CombinedOutputWithContext boundary helper (gitroot.go); that
-// is not logging and stays permitted.
+// The guard is deliberately precise: it forbids the emission surface — a
+// log/slog import or a component binding — not every reference to internal/log,
+// which the resolver legitimately uses for a non-emitting exec helper.
 func TestResolver_DoesNotEmitLogs(t *testing.T) {
 	fset := token.NewFileSet()
 	files, err := filepath.Glob("*.go")

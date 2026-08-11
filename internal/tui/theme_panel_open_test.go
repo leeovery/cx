@@ -15,35 +15,10 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// The panel-open rule `t` open path: the keypress that binds the slide-over on Sessions and
-// Projects, performs the ONE directory read (construction enumerates
-// nothing), retains the parse results for the panel's lifetime and drops
-// them on close.
-//
-// The two config sources are read on DELIBERATELY OPPOSITE cadences: the
-// themes directory fresh on every open, because that is what the drop-in loop
-// edits by hand between opens, and prefs from the construction-time snapshot,
-// because re-reading it would import another instance's commit — the
-// cross-instance sync the concurrent-write rule declines.
-//
-// No t.Parallel() — the package-level mock convention makes parallelism unsafe
-// across this package's tests.
-
-// fixtureThemesDir is the directory the fixture seam answers with. It is a
-// SHARED constant rather than a literal in the fake, so an assertion on the
-// retained enumeration is pinned to what the seam actually handed back.
 const fixtureThemesDir = "/fixture/themes"
 
-// newOpenEnumerator is the fixture seam an open case reads through: the shared
-// declared-value fake, answering with a hand-built union and the fixture themes
-// directory. The recorded open count is what pins the open cadence, and the
-// recorded keys are what pin the construction-time prefs snapshot.
-//
-// Its Resolve answers with whatever resolution the case declares — which is what
-// the panel derives its badges, its applied theme and its cursor from. The zero
-// value names no slot, which the open's degrade policy reads as "leave all three
-// exactly as they were": the cases below that declare none are asserting the open
-// CADENCE, not its resolution.
+// A zero resolution names no slot, which the open's degrade policy reads as
+// "leave all three as they were": such cases assert the cadence, not the result.
 func newOpenEnumerator(union theme.Union) *fakeThemeSource {
 	return &fakeThemeSource{
 		enumeration: theme.Enumeration{DirPath: fixtureThemesDir},
@@ -51,16 +26,8 @@ func newOpenEnumerator(union theme.Union) *fakeThemeSource {
 	}
 }
 
-// countingThemeSource is the PRODUCTION adapter itself — theme.DirThemeSource
-// over a real theme.Loader and a real directory — carrying the open count the
-// cadence assertions below read. Driving the real one is the only way to assert
-// that a mid-session file edit is picked up and that each open is a genuine
-// directory read rather than a replayed fake.
-//
-// The adapter is EMBEDDED rather than restated, so counting is the only
-// behaviour added: three of the four methods are production's untouched, and the
-// fourth delegates to production's after incrementing. A re-implementation here
-// could drift from the seam production actually wires while both still compiled.
+// The production adapter embedded rather than restated, so counting is the only
+// behaviour added: a re-implementation could drift and still compile.
 type countingThemeSource struct {
 	theme.DirThemeSource
 	opens int
@@ -71,14 +38,10 @@ func (e *countingThemeSource) Open(keys theme.RawKeys) (theme.Enumeration, theme
 	return e.DirThemeSource.Open(keys)
 }
 
-// countingEnumeratorOver binds the production adapter to a loader and a staged
-// directory, wrapped in the open counter.
 func countingEnumeratorOver(loader theme.Loader, dir string) *countingThemeSource {
 	return &countingThemeSource{DirThemeSource: theme.DirThemeSource{Loader: loader, Dir: dir}}
 }
 
-// themeOpenTestUnion is a two-row union: one built-in and one unresolvable
-// persisted slug, which is the shape every badge and reason assertion below needs.
 func themeOpenTestUnion() theme.Union {
 	rows := []theme.Row{
 		{Slug: "nord", Source: theme.SourcePersisted, Rejection: &theme.Rejection{Reason: theme.ReasonNotFound}},
@@ -87,13 +50,6 @@ func themeOpenTestUnion() theme.Union {
 	return themeRowsUnion(rows)
 }
 
-// themeOpenTestModel builds a Sessions-page model with the two constructor slots
-// this task threads, through the SHARED Build chokepoint so the assertions are
-// about the production wiring rather than about a struct literal.
-//
-// There is no slot record to pass: the panel's badges come from the seam's own
-// Resolve against the enumeration it just read, which is what the injected
-// record was retired in favour of.
 func themeOpenTestModel(t *testing.T, enumerator ThemeSource, keys theme.RawKeys) Model {
 	t.Helper()
 	return Build(Deps{
@@ -103,10 +59,8 @@ func themeOpenTestModel(t *testing.T, enumerator ThemeSource, keys theme.RawKeys
 	})
 }
 
-// themeOpenTestPopulatedModel builds a model with real rows on BOTH pages, which
-// the filter and swallow assertions need: `bubbles/list` will not focus a filter
-// input over an empty list, and a swallowed row action has to have a row to act
-// on.
+// `bubbles/list` will not focus a filter input over an empty list, and a swallowed
+// row action has to have a row to act on.
 func themeOpenTestPopulatedModel(t *testing.T, enumerator ThemeSource) Model {
 	t.Helper()
 	m := NewModelWithSessions([]tmux.Session{{Name: "alpha", Windows: 1}, {Name: "bravo", Windows: 2}})
@@ -117,8 +71,6 @@ func themeOpenTestPopulatedModel(t *testing.T, enumerator ThemeSource) Model {
 	return m
 }
 
-// pressThemeKey drives the model's LIVE Update with `t`, so the assertion covers
-// the page dispatch and the panel arm rather than a handler called directly.
 func pressThemeKey(t *testing.T, m Model) Model {
 	t.Helper()
 	return pressPanelKey(t, m, tea.KeyPressMsg{Code: 't', Text: "t"})
@@ -130,34 +82,23 @@ func pressPanelKey(t *testing.T, m Model, msg tea.KeyPressMsg) Model {
 	return updated.(Model)
 }
 
-// closeThemePanelForTest drives the `Esc` close (closeThemePanel) through Update.
 func closeThemePanelForTest(t *testing.T, m Model) Model {
 	t.Helper()
 	return pressPanelKey(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
 }
 
-// themeOpenTestLoader returns a real loader emitting into a capture sink, so the
-// the `theme: enumerated` cadence is observable.
 func themeOpenTestLoader(t *testing.T) (theme.Loader, *logtest.Sink) {
 	t.Helper()
 	logger, sink := logtest.NewCaptureLogger(t)
 	return theme.NewLoader(theme.NewEventLogger(logger)), sink
 }
 
-// countThemeEvents counts sink records carrying the given message. It is the
-// count-only read of themeEventRecords rather than a second walk of the sink, so
-// the two cannot come to disagree about what "carrying the message" means.
 func countThemeEvents(sink *logtest.Sink, msg string) int {
 	return len(themeEventRecords(sink, msg))
 }
 
-// writeThemeFileForTest writes a COMPLETE theme file whose every token carries
-// value.
-//
-// One colour across the whole palette is deliberate: comparing a single token
-// then identifies which file was parsed, and an unparseable value makes EVERY
-// token bad, so a rejection's detail does not turn on which token the loader
-// reaches first.
+// One colour across the whole palette, deliberately: a single token identifies
+// which file was parsed, and an unparseable value makes every token bad.
 func writeThemeFileForTest(t *testing.T, dir, base, value string) {
 	t.Helper()
 
@@ -168,7 +109,6 @@ func writeThemeFileForTest(t *testing.T, dir, base, value string) {
 	themetest.Write(t, dir, base, lines)
 }
 
-// themePanelRowFor returns the panel item whose row is labelled label.
 func themePanelRowFor(t *testing.T, m Model, label string) themeRowItem {
 	t.Helper()
 	for _, item := range m.themePanel.list.Items() {
@@ -184,7 +124,6 @@ func themePanelRowFor(t *testing.T, m Model, label string) themeRowItem {
 	return themeRowItem{}
 }
 
-// themePanelRowLabels lists the panel's row labels, for failure messages.
 func themePanelRowLabels(m Model) []string {
 	labels := make([]string, 0, len(m.themePanel.list.Items()))
 	for _, item := range m.themePanel.list.Items() {
@@ -195,12 +134,6 @@ func themePanelRowLabels(m Model) []string {
 	return labels
 }
 
-// TestThemePanelOpen_BoundOnBothPages: it opens the panel from Sessions and
-// Projects.
-//
-// The panel-open rule binds `t` on BOTH pages because theme is a GLOBAL setting — refusing on
-// Projects would make it feel page-scoped for no reason — so the two are asserted
-// as one table rather than one page with the other left to a later phase.
 func TestThemePanelOpen_BoundOnBothPages(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -242,12 +175,6 @@ func TestThemePanelOpen_BoundOnBothPages(t *testing.T) {
 	}
 }
 
-// TestThemePanelOpen_FilterCarveOut: it treats t as a filter character while
-// filtering.
-//
-// The panel-open rule pins the carve-out explicitly — while `/` is focused `t` is a literal
-// filter character, exactly as `s` already is — so the binding must sit BELOW each
-// page's SettingFilter guard rather than above it.
 func TestThemePanelOpen_FilterCarveOut(t *testing.T) {
 	t.Run("sessions", func(t *testing.T) {
 		enumerator := newOpenEnumerator(themeOpenTestUnion())
@@ -293,13 +220,8 @@ func TestThemePanelOpen_FilterCarveOut(t *testing.T) {
 	})
 }
 
-// TestThemePanelOpen_NoEnumerationAtConstruction: it reads the directory on the
-// keypress, not at construction.
-//
-// The lazy-discovery rule's whole point: auto-discovery must not turn one config read into an
-// N-file scan-parse-validate sweep on a cold path that is explicitly latency-engineered.
-// The directory here is POPULATED, so a construction-time sweep would be visible
-// both as an enumerator call and as a `theme: enumerated` record.
+// The directory is populated, so a construction-time sweep would be visible as
+// both a call and a log record.
 func TestThemePanelOpen_NoEnumerationAtConstruction(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
@@ -309,7 +231,7 @@ func TestThemePanelOpen_NoEnumerationAtConstruction(t *testing.T) {
 	m := themeOpenTestModel(t, enumerator, theme.RawKeys{})
 
 	if enumerator.opens != 0 {
-		t.Errorf("construction ran %d enumerations, want 0 — discovery is lazy (§5.7)", enumerator.opens)
+		t.Errorf("construction ran %d enumerations, want 0 — discovery is lazy", enumerator.opens)
 	}
 	if got := countThemeEvents(sink, "enumerated"); got != 0 {
 		t.Errorf("construction emitted %d `theme: enumerated` records, want 0", got)
@@ -323,17 +245,11 @@ func TestThemePanelOpen_NoEnumerationAtConstruction(t *testing.T) {
 	if got := countThemeEvents(sink, "enumerated"); got != 1 {
 		t.Errorf("the keypress emitted %d `theme: enumerated` records, want exactly 1", got)
 	}
-	// The drop-in is proof the read was of the REAL directory rather than of a
-	// cached or faked answer.
 	themePanelRowFor(t, m, "sunset")
 }
 
-// TestThemePanelOpen_ReEnumeratesPerOpen: it re-enumerates on every open.
-//
-// The re-read-on-open rule: the directory is enumerated on EVERY panel open, not once per
-// process — caching buys nothing measurable while breaking the loop the drop-in route
-// exists for. The `theme` log component makes `theme: enumerated` a per-EVENT INFO with no
-// dedup, so three opens are three records.
+// `theme: enumerated` is a per-event INFO with no dedup, so three opens are
+// three records.
 func TestThemePanelOpen_ReEnumeratesPerOpen(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
@@ -351,19 +267,13 @@ func TestThemePanelOpen_ReEnumeratesPerOpen(t *testing.T) {
 	}
 
 	if enumerator.opens != opens {
-		t.Errorf("%d opens ran %d enumerations, want %d — the read is per open (§5.8)", opens, enumerator.opens, opens)
+		t.Errorf("%d opens ran %d enumerations, want %d — the read is per open", opens, enumerator.opens, opens)
 	}
 	if got := countThemeEvents(sink, "enumerated"); got != opens {
-		t.Errorf("%d opens emitted %d `theme: enumerated` records, want %d (§12.3 — per event, no dedup)", opens, got, opens)
+		t.Errorf("%d opens emitted %d `theme: enumerated` records, want %d (per event, no dedup)", opens, got, opens)
 	}
 }
 
-// TestThemePanelOpen_SeesAMidSessionEdit: it picks up a mid-session file edit on
-// the next open.
-//
-// This is the loop the re-read-on-open rule exists to serve — copy a built-in, edit it, see
-// it, WITHOUT relaunching Portal — driven in the direction that matters most: a
-// previously-invalid file becomes valid and is selectable on the next open.
 func TestThemePanelOpen_SeesAMidSessionEdit(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "sunset.theme", "not-a-colour")
@@ -385,24 +295,10 @@ func TestThemePanelOpen_SeesAMidSessionEdit(t *testing.T) {
 	}
 }
 
-// TestThemePanelOpen_EnumerationDiscardedOnClose: it retains the enumeration for
-// the panel's lifetime and discards it on close.
-//
-// The re-read-on-open rule retains the parse results for the panel's LIFETIME and drops them
-// when it closes, so the next open re-reads. Asserted from three ends: the PARSE the open
-// retained, that it is gone after close, and that a directory mutated between
-// close and re-open is reflected.
-//
-// The retention half asserts the ENTRIES and not merely the path, because the
-// entries are what the retention is FOR: the open-time re-resolution and the picker idiom's
-// post-commit recompute both re-derive from them, so an enumeration dropped on
-// the floor at open would silently re-derive a union of built-ins alone — every
-// drop-in row vanishing the moment the user commits, with nothing erroring.
 func TestThemePanelOpen_EnumerationDiscardedOnClose(t *testing.T) {
 	dir := t.TempDir()
-	// Seeded BEFORE the first open, so the retained enumeration has an entry to
-	// carry. Its name is not `sunset`, or the mid-test write below would no longer
-	// be a mutation and the re-read half would prove nothing.
+	// Seeded before the first open so the retained enumeration has an entry to
+	// carry, and named other than `sunset` so the later write is a mutation.
 	writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
 	loader, _ := themeOpenTestLoader(t)
 	m := themeOpenTestModel(t, countingEnumeratorOver(loader, dir), theme.RawKeys{})
@@ -411,8 +307,6 @@ func TestThemePanelOpen_EnumerationDiscardedOnClose(t *testing.T) {
 	if len(m.themePanel.union.Rows) == 0 {
 		t.Fatal("precondition: the first open retained no rows")
 	}
-	// Reported by count and path rather than through %+v: an Entry carries a whole
-	// Theme, which is 19 {name value} pairs of noise per row.
 	if got := m.themePanel.enumeration; len(got.Entries) != 1 || got.DirPath != dir {
 		t.Errorf("the open retained %d entries read from %q, want the 1 seeded entry read from %q", len(got.Entries), got.DirPath, dir)
 	}
@@ -436,21 +330,8 @@ func TestThemePanelOpen_EnumerationDiscardedOnClose(t *testing.T) {
 	themePanelRowFor(t, m, "sunset")
 }
 
-// TestThemePanelOpen_UsesConstructionTimePrefsSnapshot: it does not re-read prefs
-// on open.
-//
-// The construction-time load rule's deliberate asymmetry with the re-read-on-open rule's fresh
-// directory read: the themes directory is what the drop-in loop edits by hand, whereas
-// prefs.json is what Portal itself writes — re-reading it would let another instance's commit
-// silently change what this panel shows and marks, the cross-instance sync the
-// concurrent-write rule explicitly declines.
-//
-// The staged prefs file is what makes the assertion mean anything: it puts a
-// DIFFERENT answer on disk, at the path the config layer resolves to, for the
-// whole window between construction and the second open. The keys handed to the
-// seam must still be the ones injected at construction — so a re-read wired onto
-// the open path by ANY route, env-resolved or newly seamed, changes what this
-// records.
+// The staged prefs file puts a different answer on disk at the path the config
+// layer resolves to, so a re-read wired on by any route changes what this records.
 func TestThemePanelOpen_UsesConstructionTimePrefsSnapshot(t *testing.T) {
 	prefsFile := filepath.Join(t.TempDir(), "prefs.json")
 	if err := os.WriteFile(prefsFile, []byte(`{"theme":"nord"}`), 0o644); err != nil {
@@ -465,7 +346,6 @@ func TestThemePanelOpen_UsesConstructionTimePrefsSnapshot(t *testing.T) {
 	m = pressThemeKey(t, m)
 	m = closeThemePanelForTest(t, m)
 
-	// Another instance commits a constant while this one is live.
 	if err := os.WriteFile(prefsFile, []byte(`{"theme":"tokyo-night-day"}`), 0o644); err != nil {
 		t.Fatalf("rewrite prefs: %v", err)
 	}
@@ -479,9 +359,6 @@ func TestThemePanelOpen_UsesConstructionTimePrefsSnapshot(t *testing.T) {
 			t.Errorf("open %d handed the seam %+v, want the construction-time snapshot %+v", i+1, got, construction)
 		}
 	}
-	// The resolving half is handed the same snapshot, UNCOLLAPSED: the tiebreak and
-	// the shipped-default substitution are the seam's, so a setting derived here
-	// could answer for slugs the panel never listed or marked.
 	if len(enumerator.resolves) == 0 {
 		t.Fatal("the seam was asked to resolve nothing across two opens")
 	}
@@ -495,18 +372,6 @@ func TestThemePanelOpen_UsesConstructionTimePrefsSnapshot(t *testing.T) {
 	}
 }
 
-// TestThemePanelOpen_BadgesFromTheSeamsResolution: it renders badges from the
-// seam's own re-resolution.
-//
-// The construction-time load rule: a badge needs the PERSISTED slug, not the nomination's —
-// under a fallback the two differ by design. The fixture is exactly that case: `nord` was
-// nominated, did not load, and the dark default rendered instead. The `●` must
-// stay on `nord`, and the fallback's own row must carry none.
-//
-// The record comes from the SEAM rather than from a constructor slot, and that is
-// the whole of why the injected one is retired: the panel is closed until the open
-// sequence runs, so `Resolve` is the only badge source there has ever been a badge
-// to come from, and a `Deps` field alongside it would be a second and staler one.
 func TestThemePanelOpen_BadgesFromTheSeamsResolution(t *testing.T) {
 	enumerator := newOpenEnumerator(themeOpenTestUnion())
 	enumerator.resolution = theme.Resolution{
@@ -532,10 +397,6 @@ func TestThemePanelOpen_BadgesFromTheSeamsResolution(t *testing.T) {
 	}
 }
 
-// TestThemePanelOpen_NilSeamIsASilentNoOp: it tolerates a nil enumerator.
-//
-// The mode-persister nil-guard precedent: a fixture or capturetool model that
-// wires no seam makes `t` a silent no-op rather than a panic.
 func TestThemePanelOpen_NilSeamIsASilentNoOp(t *testing.T) {
 	m := themeOpenTestModel(t, nil, theme.RawKeys{Theme: "nord"})
 
@@ -546,18 +407,9 @@ func TestThemePanelOpen_NilSeamIsASilentNoOp(t *testing.T) {
 	}
 }
 
-// TestThemePanelOpen_ThemesThePaginationDots: it themes the panel's own
-// pagination dots at open.
-//
-// The completeness risk assigns the panel's chrome to the SAME restyle path as the main list,
-// and the dots are the class it names: `bubbles/list` reads its dot strings out of
-// its styles once, so a panel list left at the library's defaults renders the same
-// hardcoded greys under every theme — identical before and after a swap, which
-// the completeness guard structurally cannot see, since nothing changed.
-//
-// Both built-ins are driven, and the LIGHT case is the one that bites: the model's
-// construction seed is the dark built-in, so dots taken from the seed rather than
-// from the active theme would pass the dark case alone.
+// `bubbles/list` reads its dot strings out of its styles once, so library
+// defaults render identically before and after a swap — invisible to a
+// swap-and-diff guard. The seed is the dark built-in, hence the light case.
 func TestThemePanelOpen_ThemesThePaginationDots(t *testing.T) {
 	rows := themePanelTestRows(20)
 	union := themeRowsUnion(rows)
@@ -591,9 +443,6 @@ func TestThemePanelOpen_ThemesThePaginationDots(t *testing.T) {
 		m := themeOpenTestModel(t, newOpenEnumerator(union), theme.RawKeys{})
 		m.colourless = true
 
-		// The NO_COLOR panel block's entry gate BLOCKS `t` under NO_COLOR, so the colourless panel
-		// is armed directly (armPanelUnderNoColorForTest states why): this case asserts the
-		// colourless RENDER of the dot row, not that a colourless panel can be opened.
 		m = armPanelUnderNoColorForTest(t, m)
 
 		row := themePanelDotRow(t, renderThemePanel(m.themePanel, 16, testDarkTheme(t), true))
@@ -608,17 +457,10 @@ func TestThemePanelOpen_ThemesThePaginationDots(t *testing.T) {
 	})
 }
 
-// bubblesDefaultDotGreys are `bubbles/list`'s own paginator dot colours (#979797
-// active, #3C3C3C inactive) as truecolor SGR parameters — the values a panel list
-// left at the library defaults renders under EVERY theme. They are stated as the
-// thing that must be ABSENT, because their presence is invisible to the completeness guard's
-// swap-and-diff guard: a value identical before and after a swap is exactly what
-// that guard cannot report.
+// `bubbles/list`'s own paginator dot colours as truecolor SGR parameters — what
+// a panel list left at the library defaults renders under every theme.
 var bubblesDefaultDotGreys = []string{"38;2;151;151;151", "38;2;60;60;60"}
 
-// themePanelDotRow locates the paginator's dot row inside a rendered panel block:
-// the one line whose visible content is nothing but the left border cell, the dot
-// glyphs and padding.
 func themePanelDotRow(t *testing.T, block string) string {
 	t.Helper()
 	for line := range strings.SplitSeq(block, "\n") {
@@ -634,17 +476,6 @@ func themePanelDotRow(t *testing.T, block string) string {
 	return ""
 }
 
-// TestThemePanelOpen_SwallowsPageKeys: it swallows every key but Ctrl-C while
-// open.
-//
-// The entry-condition rule: the panel is key-exclusive. Pass-through is genuinely bad — `k`
-// would kill the highlighted session while you pick a theme, `x` would swap to Projects with
-// the panel open, `m` would start a multi-select behind it. None of that reasoning
-// reaches the global quit, and swallowing it would take away the user's exit key
-// inside a settings surface.
-//
-// Each swallowed key carries a CONTROL press with the panel closed, so a key that
-// silently stopped working outside the panel could not pass this as a swallow.
 func TestThemePanelOpen_SwallowsPageKeys(t *testing.T) {
 	newModel := func(t *testing.T) Model {
 		t.Helper()
@@ -689,7 +520,7 @@ func TestThemePanelOpen_SwallowsPageKeys(t *testing.T) {
 			m = pressPanelKey(t, m, tc.press)
 
 			if tc.effect(m) {
-				t.Errorf("%v reached %s while the panel was open — the panel is key-exclusive (§9.7)", tc.press, tc.effectS)
+				t.Errorf("%v reached %s while the panel was open — the panel is key-exclusive", tc.press, tc.effectS)
 			}
 			if !m.themePanel.open {
 				t.Errorf("%v closed the panel; only Esc closes it", tc.press)

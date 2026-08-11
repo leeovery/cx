@@ -10,21 +10,11 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// darkBg / lightBg are deterministic OSC 11 BackgroundColorMsg payloads. The
-// dark value is near-black (luminance < 0.5 → IsDark true); the light value is
-// near-white (luminance ≥ 0.5 → IsDark false).
 var (
 	darkBg  = tea.BackgroundColorMsg{Color: color.RGBA{R: 0x0b, G: 0x0c, B: 0x14, A: 0xff}}
 	lightBg = tea.BackgroundColorMsg{Color: color.RGBA{R: 0xe1, G: 0xe2, B: 0xe7, A: 0xff}}
 )
 
-// detectModel builds a Sessions model for the given loaded nomination through
-// the PRODUCTION chokepoint (Build, which opens the detect-or-timeout window),
-// sized for rendering with the deterministic flat session set ingested through
-// the production path.
-//
-// The nomination's SHAPE decides what the gate does: an adaptive pair holds the
-// first paint on detection-or-timeout, a constant stays resolved (arm is a no-op).
 func detectModel(t *testing.T, n theme.Nomination) Model {
 	t.Helper()
 	sessions := []tmux.Session{
@@ -39,10 +29,6 @@ func detectModel(t *testing.T, n theme.Nomination) Model {
 	return m
 }
 
-// blankView is the neutral pre-resolution frame: a full-terminal blank canvas
-// with no real content (no "Sessions" title row painted). The detect-or-timeout
-// gate holds the first real paint until the mode resolves so Portal never paints
-// one canvas then flips to the other.
 func assertBlankFrame(t *testing.T, m Model) {
 	t.Helper()
 	if m.modeResolved() {
@@ -53,10 +39,8 @@ func assertBlankFrame(t *testing.T, m Model) {
 	}
 }
 
-// assertPaintedCanvas asserts an ADAPTIVE model resolved to the given answer and
-// painted the member that answer names. It is adaptive-only by construction: a
-// constant derives no answer, so its answer in force stays at the dark zero value
-// whatever palette it paints (assertActiveTheme is that path's assertion).
+// Adaptive-only: a constant's in-force member stays at the dark zero value
+// whatever palette it paints — use assertActiveTheme there.
 func assertPaintedCanvas(t *testing.T, m Model, appearance theme.Member) {
 	t.Helper()
 	if !m.modeResolved() {
@@ -74,8 +58,6 @@ func assertPaintedCanvas(t *testing.T, m Model, appearance theme.Member) {
 	}
 }
 
-// themeForAppearance returns the built-in the gate's answer selects out of the
-// shipped pair — the test-side mirror of theme.Nomination.Select.
 func themeForAppearance(t *testing.T, appearance theme.Member) theme.Theme {
 	t.Helper()
 	if appearance == theme.MemberLight {
@@ -84,11 +66,6 @@ func themeForAppearance(t *testing.T, appearance theme.Member) theme.Theme {
 	return testDarkTheme(t)
 }
 
-// TestUnresolvedGateCarriesDarkFallback pins the load-bearing zero value: a
-// gate nobody resolved — a bare struct, an armed and still-open adaptive gate,
-// and the model built over one — already carries the dark member Portal falls
-// back to when no answer arrives, so a timeout resolves to the answer that was
-// standing all along.
 func TestUnresolvedGateCarriesDarkFallback(t *testing.T) {
 	var bare appearanceGate
 	if bare.appearance != theme.MemberDark {
@@ -111,10 +88,6 @@ func TestUnresolvedGateCarriesDarkFallback(t *testing.T) {
 	}
 }
 
-// TestAdaptiveDetectsDark: an adaptive pair + a dark BackgroundColorMsg resolves
-// the answer in force to Dark, marks resolved, and paints the dark canvas.
-// Before the message the frame is the neutral blank (no pre-resolution real
-// paint).
 func TestAdaptiveDetectsDark(t *testing.T) {
 	m := detectModel(t, testBuiltinPair(t))
 	assertBlankFrame(t, m)
@@ -123,8 +96,6 @@ func TestAdaptiveDetectsDark(t *testing.T) {
 	assertPaintedCanvas(t, updated.(Model), theme.MemberDark)
 }
 
-// TestAdaptiveDetectsLight: an adaptive pair + a light BackgroundColorMsg
-// resolves the answer in force to Light and paints the light canvas.
 func TestAdaptiveDetectsLight(t *testing.T) {
 	m := detectModel(t, testBuiltinPair(t))
 	assertBlankFrame(t, m)
@@ -133,34 +104,25 @@ func TestAdaptiveDetectsLight(t *testing.T) {
 	assertPaintedCanvas(t, updated.(Model), theme.MemberLight)
 }
 
-// TestNoPaintThenFlip: before resolution the View is the neutral blank frame
-// (not a painted canvas); after resolution it is the correct canvas; and a later
-// message never re-resolves the mode (no second resolution, no flip).
 func TestNoPaintThenFlip(t *testing.T) {
 	m := detectModel(t, testBuiltinPair(t))
 	assertBlankFrame(t, m)
 
-	// OSC 11 answers dark first → resolves dark, paints.
 	updated, _ := m.Update(darkBg)
 	resolved := updated.(Model)
 	assertPaintedCanvas(t, resolved, theme.MemberDark)
 
-	// A late timeout (the loser of the race) must be ignored — the mode is
-	// already resolved, so it must not flip to anything.
 	after, _ := resolved.Update(appearanceTimeoutMsg{})
 	if after.(Model).themeState.inForceMode() != theme.MemberDark {
 		t.Errorf("a late timeout flipped the answer in force to %v, want it pinned at the dark canvas (no second resolution)", after.(Model).themeState.inForceMode())
 	}
 
-	// And a late, conflicting BackgroundColorMsg (light) must not flip either.
 	after2, _ := after.(Model).Update(lightBg)
 	if after2.(Model).themeState.inForceMode() != theme.MemberDark {
 		t.Errorf("a late light BackgroundColorMsg flipped the answer in force to %v, want it pinned at the dark canvas (no flip)", after2.(Model).themeState.inForceMode())
 	}
 }
 
-// TestTimeoutFallsBackToDark: the timeout fires before any BackgroundColorMsg, so
-// the mode resolves to the dark fallback and paints.
 func TestTimeoutFallsBackToDark(t *testing.T) {
 	m := detectModel(t, testBuiltinPair(t))
 	assertBlankFrame(t, m)
@@ -169,9 +131,6 @@ func TestTimeoutFallsBackToDark(t *testing.T) {
 	assertPaintedCanvas(t, updated.(Model), theme.MemberDark)
 }
 
-// TestColorFGBGNeverOverridesOSC11: even with COLORFGBG advertising a light
-// terminal, an OSC 11 answer of dark wins — COLORFGBG is a weak hint only and
-// must never override the OSC 11 reply.
 func TestColorFGBGNeverOverridesOSC11(t *testing.T) {
 	t.Setenv("COLORFGBG", "0;15") // fg black on bg white → "light" by the weak hint
 	m := detectModel(t, testBuiltinPair(t))
@@ -180,15 +139,9 @@ func TestColorFGBGNeverOverridesOSC11(t *testing.T) {
 	assertPaintedCanvas(t, updated.(Model), theme.MemberDark)
 }
 
-// TestMisdetectionLegibleNotBroken: a mis-detected terminal resolves to the
-// wrong-but-painted canvas (here light reported for a model that "should" be
-// dark) — the canvas still paints (not blank, not crashed); the contrast floor
-// holds against whichever canvas is painted (§2.3).
 func TestMisdetectionLegibleNotBroken(t *testing.T) {
 	m := detectModel(t, testBuiltinPair(t))
 
-	// The terminal mis-reports light. The model paints the light canvas — wrong
-	// mode but fully legible, not blank, not crashed.
 	updated, _ := m.Update(lightBg)
 	resolved := updated.(Model)
 	assertPaintedCanvas(t, resolved, theme.MemberLight)
@@ -198,9 +151,6 @@ func TestMisdetectionLegibleNotBroken(t *testing.T) {
 	}
 }
 
-// assertNoTimeoutTick drains Init's batched cmds and asserts none of them
-// produces an appearanceTimeoutMsg — a CONSTANT nomination must not arm the
-// detection timeout (it skips the gate and the wait entirely).
 func assertNoTimeoutTick(t *testing.T, m Model) {
 	t.Helper()
 	for _, msg := range initCmds(t, m.Init()) {
@@ -210,9 +160,6 @@ func assertNoTimeoutTick(t *testing.T, m Model) {
 	}
 }
 
-// TestAdaptiveArmsTimeoutTick: under an adaptive pair Init arms the
-// detect-or-timeout tick so a non-responding terminal still resolves to the dark
-// fallback.
 func TestAdaptiveArmsTimeoutTick(t *testing.T) {
 	m := detectModel(t, testBuiltinPair(t))
 	found := false

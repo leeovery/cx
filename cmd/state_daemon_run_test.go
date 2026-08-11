@@ -1,4 +1,3 @@
-// Tests in this file mutate package-level state via Cobra and MUST NOT use t.Parallel.
 package cmd
 
 import (
@@ -20,54 +19,33 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// daemonFakeCommander is a tmux.Commander that dispatches per-command and
-// records every invocation. Tests configure the per-command outputs they care
-// about via the dispatch maps; unset commands return ("", nil) so unrelated
-// tmux calls do not fail the test.
-//
-// The mutex is necessary because RunRaw is invoked from CaptureAndHashPane in
-// captureAndCommit, while Run is invoked from various other tmux helpers — the
-// daemon itself is single-threaded but the in-test goroutines (defaultDaemonRun
-// path) may interleave.
+// A tmux.Commander whose unset commands return ("", nil), so unrelated tmux
+// calls do not fail a test. The mutex covers Run and RunRaw interleaving from
+// the in-test goroutines that drive defaultDaemonRun.
 type daemonFakeCommander struct {
 	mu sync.Mutex
 
-	// markersOut is the stdout for "show-options -sv".
 	markersOut string
 	markersErr error
 
-	// optionByName maps option name → value for "show-option -sv <name>".
-	// optionErr seeds an error returned for any show-option call.
 	optionByName map[string]string
 	optionErr    error
 
-	// sessionsOut is the stdout for "list-sessions ...".
 	sessionsOut string
 	sessionsErr error
 
-	// panesOut is the stdout for "list-panes -a -F ...".
 	panesOut string
 	panesErr error
 
-	// envBySession maps session name → "show-environment -t <name>" output.
 	envBySession map[string]string
 
-	// captureByTarget maps capture target → "capture-pane ..." output.
-	// captureErrByTarget seeds errors per target.
 	captureByTarget    map[string]string
 	captureErrByTarget map[string]error
 
-	// dispatchHook, if non-nil, is invoked after every dispatch resolution
-	// with the args of the just-handled call. Used by ctx-cancellation tests
-	// to fire cancel() while a tmux subcall is "in flight" inside
-	// CaptureStructure (e.g. on show-environment) so the surrounding code
-	// observes the cancellation at the next ctx.Done() check.
+	// Invoked after every dispatch resolution, so a cancellation test can fire
+	// cancel() while a tmux subcall is in flight.
 	dispatchHook func(args []string)
 
-	// commitErr, if non-nil, is returned for the "set-option -s" / similar
-	// writes — currently unused since Commit writes via os.WriteFile, not tmux.
-
-	// Recorded calls.
 	calls    [][]string
 	rawCalls [][]string
 }
@@ -107,20 +85,14 @@ func (c *daemonFakeCommander) dispatch(args []string) (string, error) {
 		if c.optionErr != nil {
 			return "", c.optionErr
 		}
-		// args == [show-option, -sv, <name>]
 		if len(args) >= 3 {
 			if v, ok := c.optionByName[args[2]]; ok {
 				return v, nil
 			}
 		}
-		// Mirror production: RealCommander never surfaces a bare
-		// ErrOptionNotFound through the Commander layer. tmux exits non-zero
-		// with an absence-pattern stderr and runCommand wraps that into a
-		// *CommandError; the discriminator inside GetServerOption is what
-		// maps it to ErrOptionNotFound. Returning the bare sentinel here
-		// would bypass the discriminator and let the fake diverge from
-		// production for any future test that asserts on the underlying
-		// *CommandError shape.
+		// An absence must surface as a *CommandError, never a bare
+		// ErrOptionNotFound: production reaches that sentinel only through
+		// GetServerOption's stderr discriminator, which a bare return bypasses.
 		name := ""
 		if len(args) >= 3 {
 			name = args[2]
@@ -134,7 +106,6 @@ func (c *daemonFakeCommander) dispatch(args []string) (string, error) {
 	case "list-panes":
 		return c.panesOut, c.panesErr
 	case "show-environment":
-		// args == [show-environment, -t, <session>]
 		if len(args) >= 3 {
 			if v, ok := c.envBySession[args[2]]; ok {
 				return v, nil
@@ -142,7 +113,6 @@ func (c *daemonFakeCommander) dispatch(args []string) (string, error) {
 		}
 		return "", nil
 	case "capture-pane":
-		// args == [capture-pane, -e, -p, -S, -, -t, <target>]
 		var target string
 		if len(args) >= 7 {
 			target = args[6]
@@ -158,7 +128,6 @@ func (c *daemonFakeCommander) dispatch(args []string) (string, error) {
 	return "", nil
 }
 
-// callsContaining returns recorded calls whose first argument equals cmd.
 func (c *daemonFakeCommander) callsContaining(cmd string) [][]string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -176,19 +145,9 @@ func (c *daemonFakeCommander) callsContaining(cmd string) [][]string {
 	return out
 }
 
-// makeDeps assembles a daemonDeps for tick-level tests. The supplied dir is
-// expected to be a t.TempDir already EnsureDir-prepared by the caller (so the
-// scrollback subdirectory exists). PrevIndex defaults to nil; HashMap to a
-// fresh empty map; LastSaveAt to zero (which makes gap=true on the first tick
-// — most tests override it).
-//
-// HookStore + lastCleanup default to production-shaped values so the tick's
-// idle branch (which now runs the throttled hooks-cleanup gate) is safe for
-// every tick-level test: HookStore is a fresh empty store (production always
-// builds one via loadHookStore) and lastCleanup is anchored to "now" (mirroring
-// the daemon-start anchor), so the ~10s throttle is NOT elapsed by default and
-// the gate no-ops unless a test explicitly rewinds deps.lastCleanup and seeds
-// deps.HookStore.
+// LastSaveAt is left zero, which makes gap=true on the first tick. lastCleanup
+// is anchored to now so the idle branch's throttled cleanup gate no-ops unless a
+// test rewinds it explicitly.
 func makeDeps(t *testing.T, dir string, fc *daemonFakeCommander) *daemonDeps {
 	t.Helper()
 	if _, err := state.EnsureDir(); err != nil {
@@ -207,11 +166,6 @@ func makeDeps(t *testing.T, dir string, fc *daemonFakeCommander) *daemonDeps {
 	}
 }
 
-// sentinelIndex returns a fixed-shape *state.Index distinguishable by name.
-// Used as a seed for deps.PrevIndex so post-call assertions can verify the
-// pointer was (or was not) replaced by captureAndCommit. The exact shape is
-// not load-bearing — it just needs to be obviously distinct from any fixture-
-// driven capture so a stale reference is easy to spot.
 func sentinelIndex(name string) *state.Index {
 	return &state.Index{
 		Version: state.SchemaVersion,
@@ -222,14 +176,6 @@ func sentinelIndex(name string) *state.Index {
 	}
 }
 
-// assertNoCommit asserts the two invariants of the "captureAndCommit returned
-// without committing" outcome:
-//
-//  1. deps.PrevIndex pointer is unchanged (still references sentinel).
-//  2. sessions.json does not exist in stateDir.
-//
-// Used by the cancellation-path tests where captureAndCommit must short-circuit
-// without mutating PrevIndex or writing the commit artifact.
 func assertNoCommit(t *testing.T, deps *daemonDeps, sentinel *state.Index, stateDir string) {
 	t.Helper()
 	if deps.PrevIndex != sentinel {
@@ -240,9 +186,6 @@ func assertNoCommit(t *testing.T, deps *daemonDeps, sentinel *state.Index, state
 	}
 }
 
-// assertCommitReplacedPrev is the peer of assertNoCommit for the happy-path
-// regression guard: captureAndCommit must replace deps.PrevIndex with a fresh
-// non-nil pointer (not merely mutate the sentinel's contents).
 func assertCommitReplacedPrev(t *testing.T, deps *daemonDeps, sentinel *state.Index, stateDir string) {
 	t.Helper()
 	if deps.PrevIndex == sentinel {
@@ -251,10 +194,9 @@ func assertCommitReplacedPrev(t *testing.T, deps *daemonDeps, sentinel *state.In
 	if deps.PrevIndex == nil {
 		t.Fatal("PrevIndex is nil after successful capture; expected new &idx")
 	}
-	_ = stateDir // reserved for future on-disk assertions; kept for signature parity with assertNoCommit
+	_ = stateDir
 }
 
-// touchSaveRequested creates an empty save.requested in dir.
 func touchSaveRequested(t *testing.T, dir string) {
 	t.Helper()
 	if err := os.WriteFile(state.SaveRequested(dir), nil, 0o600); err != nil {
@@ -262,22 +204,16 @@ func touchSaveRequested(t *testing.T, dir string) {
 	}
 }
 
-// oneSession returns canned commander outputs for a single session "work" with
-// one window and one pane. Useful as a fixture for the captureAndCommit happy
-// path.
 func oneSession() (sessionsOut, panesOut string) {
 	sessionsOut = "work|1|0|"
-	// Format matches captureFormat in internal/state/capture.go. The trailing
-	// empty |||-separated field is the un-stamped @portal-id column (11th
-	// field) added by the fixed-arity bump; a legacy session resolves it to "".
+	// Fields match captureFormat; the trailing empty one is the un-stamped
+	// @portal-id column a legacy session resolves to "".
 	panesOut = "work|||0|||main|||layout|||0|||1|||0|||/tmp|||1|||zsh|||"
 	return
 }
 
-// transportErrCommandError returns the canonical *tmux.CommandError used by
-// transport-error fault-injection tests. The Stderr does NOT match the
-// option-absent pattern family, so GetServerOption propagates it as a
-// non-ErrOptionNotFound error through TryGetServerOption to IsRestoringSet.
+// The Stderr deliberately does not match the option-absent pattern family, so
+// GetServerOption propagates it rather than mapping it to ErrOptionNotFound.
 func transportErrCommandError() *tmux.CommandError {
 	return &tmux.CommandError{
 		Stderr: "lost server",
@@ -309,7 +245,7 @@ func TestDaemonTick_FiresWhenDirty(t *testing.T) {
 	sess, panes := oneSession()
 	fc := &daemonFakeCommander{sessionsOut: sess, panesOut: panes}
 	deps := makeDeps(t, dir, fc)
-	deps.LastSaveAt = time.Now() // gap=false
+	deps.LastSaveAt = time.Now()
 	touchSaveRequested(t, dir)
 
 	tick(t.Context(), deps)
@@ -329,7 +265,7 @@ func TestDaemonTick_FiresAfterMaxGap(t *testing.T) {
 	fc := &daemonFakeCommander{sessionsOut: sess, panesOut: panes}
 	deps := makeDeps(t, dir, fc)
 	deps.MaxGap = 10 * time.Millisecond
-	deps.LastSaveAt = time.Now().Add(-1 * time.Hour) // very old
+	deps.LastSaveAt = time.Now().Add(-1 * time.Hour)
 
 	tick(t.Context(), deps)
 
@@ -339,14 +275,11 @@ func TestDaemonTick_FiresAfterMaxGap(t *testing.T) {
 }
 
 func TestDaemonTick_FiresOnFirstTickWhenLastSaveAtZero(t *testing.T) {
-	// Initial LastSaveAt is the zero value; gap should be true so the first
-	// eligible tick fires even without an explicit save.requested.
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
 	sess, panes := oneSession()
 	fc := &daemonFakeCommander{sessionsOut: sess, panesOut: panes}
 	deps := makeDeps(t, dir, fc)
-	// Don't set LastSaveAt — leave it as zero.
 
 	tick(t.Context(), deps)
 
@@ -360,7 +293,7 @@ func TestDaemonTick_SkipsEntireTickWhenRestoring(t *testing.T) {
 	t.Setenv("PORTAL_STATE_DIR", dir)
 	fc := &daemonFakeCommander{
 		optionByName: map[string]string{state.RestoringMarkerName: "1"},
-		// Seed sessions output so any leak through would trip the check.
+		// Seeded so a leak through the restore guard trips the assertion.
 		sessionsOut: "work|1|0|",
 	}
 	deps := makeDeps(t, dir, fc)
@@ -408,12 +341,9 @@ func TestDaemonTick_RemovesSaveRequestedAfterSuccess(t *testing.T) {
 func TestDaemonTick_PreservesSaveRequestedOnError(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
-	// list-sessions fails so CaptureStructure errors and tick logs+returns
-	// without removing the dirty flag.
+	// The seeded list-sessions error is deliberately cleared: ListSessionNames
+	// swallows it, so list-panes is the only way to fail CaptureStructure.
 	fc := &daemonFakeCommander{sessionsErr: errors.New("tmux down")}
-	// list-sessions is wrapped — ListSessions returns ([], nil) on err. To
-	// force the failure path through CaptureStructure we instead force
-	// list-panes to fail; ListSessionNames swallows list-sessions errors.
 	fc.sessionsErr = nil
 	fc.sessionsOut = "work|1|0|"
 	fc.panesErr = errors.New("list-panes failed")
@@ -435,9 +365,8 @@ func TestDaemonTick_PicksUpNotifyArrivingBetweenTicks(t *testing.T) {
 	sess, panes := oneSession()
 	fc := &daemonFakeCommander{sessionsOut: sess, panesOut: panes}
 	deps := makeDeps(t, dir, fc)
-	deps.LastSaveAt = time.Now() // gap=false; only dirty drives subsequent tick
+	deps.LastSaveAt = time.Now()
 
-	// Tick 1: dirty flag set, fires capture, clears flag.
 	touchSaveRequested(t, dir)
 	tick(t.Context(), deps)
 	if _, err := os.Stat(state.SaveRequested(dir)); !os.IsNotExist(err) {
@@ -445,10 +374,8 @@ func TestDaemonTick_PicksUpNotifyArrivingBetweenTicks(t *testing.T) {
 	}
 	firstCalls := len(fc.callsContaining("list-sessions"))
 
-	// Notify arrives between ticks.
 	touchSaveRequested(t, dir)
 
-	// Tick 2: dirty flag set again, fires another capture.
 	tick(t.Context(), deps)
 
 	secondCalls := len(fc.callsContaining("list-sessions"))
@@ -464,7 +391,6 @@ func TestDaemonTick_SkipsSkeletonMarkedPanesInScrollback(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
 
-	// Session "work" with two panes 0 and 1; mark pane 1 as skeleton.
 	skipKey := state.SanitizePaneKey("work", 0, 1)
 	markersOut := fmt.Sprintf(`%s%s "1"`, state.SkeletonMarkerPrefix, skipKey)
 
@@ -478,8 +404,7 @@ func TestDaemonTick_SkipsSkeletonMarkedPanesInScrollback(t *testing.T) {
 			"work:0.1": "should-not-be-captured",
 		},
 	}
-	// Seed PrevIndex with the skeleton-marked pane so the merge keeps it
-	// in the index.
+	// The merge only keeps the skeleton-marked pane if PrevIndex carries it.
 	prevPane := state.Pane{Index: 1, CWD: "/prev", ScrollbackFile: "scrollback/" + skipKey + ".bin"}
 	prev := state.Index{Version: state.SchemaVersion, Sessions: []state.Session{{
 		Name:    "work",
@@ -493,7 +418,6 @@ func TestDaemonTick_SkipsSkeletonMarkedPanesInScrollback(t *testing.T) {
 	tick(t.Context(), deps)
 
 	for _, call := range fc.callsContaining("capture-pane") {
-		// args[6] is the -t target.
 		if len(call) >= 7 && call[6] == "work:0.1" {
 			t.Errorf("capture-pane invoked for skeleton-marked target work:0.1: %v", call)
 		}
@@ -520,11 +444,9 @@ func TestDaemonTick_ContinuesOnPerPaneCaptureError(t *testing.T) {
 
 	tick(t.Context(), deps)
 
-	// commit must still happen.
 	if _, err := os.Stat(state.SessionsJSON(dir)); err != nil {
 		t.Errorf("sessions.json must commit despite per-pane error: %v", err)
 	}
-	// scrollback for the surviving pane was written.
 	survivingKey := state.SanitizePaneKey("work", 0, 1)
 	if _, err := os.Stat(state.ScrollbackFile(dir, survivingKey)); err != nil {
 		t.Errorf("surviving pane scrollback not written: %v", err)
@@ -582,8 +504,8 @@ func TestDaemonTick_LogsAndSkipsOnCommitErrorWithoutAdvancingLastSaveAt(t *testi
 	originalLastSave := time.Now().Add(-1 * time.Hour)
 	deps.LastSaveAt = originalLastSave
 
-	// Force commit failure: make sessions.json a directory so AtomicWrite
-	// cannot rename onto it.
+	// A directory at sessions.json forces commit failure: AtomicWrite cannot
+	// rename onto it.
 	if err := os.MkdirAll(state.SessionsJSON(dir), 0o700); err != nil {
 		t.Fatalf("create blocking dir: %v", err)
 	}
@@ -599,12 +521,6 @@ func TestDaemonTick_LogsAndSkipsOnCommitErrorWithoutAdvancingLastSaveAt(t *testi
 	}
 }
 
-// TestDaemonTick_RunsHookCleanupOnIdleTick pins the load-bearing placement of
-// the daemon-owned hooks stale-cleanup gate (spec § Daemon-Owned Hooks Cleanup
-// → Placement in the tick): on an idle tick (!dirty && !gap, @portal-restoring
-// unset) with the throttle elapsed, maybeRunHookCleanup runs and reaps the stale
-// entry — and it does so on the idle fast path, so NO capture cycle (list-sessions)
-// runs that tick.
 func TestDaemonTick_RunsHookCleanupOnIdleTick(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
@@ -615,19 +531,17 @@ func TestDaemonTick_RunsHookCleanupOnIdleTick(t *testing.T) {
 }`
 	store, _ := newTempHooksStore(t, seed)
 
-	// panesOut carries the single live pane key; the stale key is absent so the
-	// cleanup reaps it. No sessionsOut — capture must not run on an idle tick.
+	// The stale key is absent from panesOut so the cleanup reaps it; no
+	// sessionsOut, because capture must not run on an idle tick.
 	fc := &daemonFakeCommander{panesOut: "live:0.0"}
 	deps := makeDeps(t, dir, fc)
 	deps.HookStore = store
-	deps.LastSaveAt = time.Now()                                          // gap=false
-	deps.MaxGap = 30 * time.Second                                        // !gap
-	deps.lastCleanup = time.Now().Add(-hookCleanupInterval - time.Second) // throttle elapsed
-	// No save.requested → !dirty. @portal-restoring unset (default).
+	deps.LastSaveAt = time.Now()
+	deps.MaxGap = 30 * time.Second
+	deps.lastCleanup = time.Now().Add(-hookCleanupInterval - time.Second)
 
 	tick(t.Context(), deps)
 
-	// Cleanup ran on the idle branch: the stale entry is reaped, live survives.
 	postRun, err := store.Load()
 	if err != nil {
 		t.Fatalf("store.Load: %v", err)
@@ -639,16 +553,11 @@ func TestDaemonTick_RunsHookCleanupOnIdleTick(t *testing.T) {
 		t.Errorf("live hook entry wrongly reaped on idle tick; hooks=%v", keysOf(postRun))
 	}
 
-	// Still the idle fast path — no capture cycle ran.
 	if got := fc.callsContaining("list-sessions"); len(got) != 0 {
 		t.Errorf("list-sessions invoked on an idle tick (capture must not run): %v", got)
 	}
 }
 
-// TestDaemonTick_SkipsHookCleanupWhenRestoring pins that a @portal-restoring-set
-// tick short-circuits the whole tick BEFORE the idle branch, so cleanup never
-// runs during a restore window even with the throttle elapsed (spec § Placement
-// in the tick — skipped entirely while @portal-restoring is set).
 func TestDaemonTick_SkipsHookCleanupWhenRestoring(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
@@ -665,11 +574,10 @@ func TestDaemonTick_SkipsHookCleanupWhenRestoring(t *testing.T) {
 	deps := makeDeps(t, dir, fc)
 	deps.HookStore = store
 	deps.LastSaveAt = time.Now()
-	deps.lastCleanup = time.Now().Add(-hookCleanupInterval - time.Second) // throttle elapsed
+	deps.lastCleanup = time.Now().Add(-hookCleanupInterval - time.Second)
 
 	tick(t.Context(), deps)
 
-	// @portal-restoring returns before the idle branch — the stale entry survives.
 	postRun, err := store.Load()
 	if err != nil {
 		t.Fatalf("store.Load: %v", err)
@@ -678,16 +586,11 @@ func TestDaemonTick_SkipsHookCleanupWhenRestoring(t *testing.T) {
 		t.Errorf("stale hook entry reaped during restore window; cleanup must be skipped; hooks=%v", keysOf(postRun))
 	}
 
-	// The cleanup's ListAllPanes (list-panes) must never have been invoked.
 	if got := fc.callsContaining("list-panes"); len(got) != 0 {
 		t.Errorf("list-panes (cleanup) invoked during restore window: %v", got)
 	}
 }
 
-// TestDaemonTick_SkipsHookCleanupOnDirtyCaptureTick pins that a capture-pending
-// (dirty) tick takes the captureAndCommit branch and never reaches the idle
-// branch, so cleanup is skipped that tick — scrollback always wins (spec §
-// Placement in the tick — dirty||gap → capture runs, cleanup skipped).
 func TestDaemonTick_SkipsHookCleanupOnDirtyCaptureTick(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
@@ -701,13 +604,12 @@ func TestDaemonTick_SkipsHookCleanupOnDirtyCaptureTick(t *testing.T) {
 	fc := &daemonFakeCommander{sessionsOut: sess, panesOut: panes}
 	deps := makeDeps(t, dir, fc)
 	deps.HookStore = store
-	deps.LastSaveAt = time.Now()                                          // gap=false
-	deps.lastCleanup = time.Now().Add(-hookCleanupInterval - time.Second) // throttle elapsed
-	touchSaveRequested(t, dir)                                            // dirty=true
+	deps.LastSaveAt = time.Now()
+	deps.lastCleanup = time.Now().Add(-hookCleanupInterval - time.Second)
+	touchSaveRequested(t, dir)
 
 	tick(t.Context(), deps)
 
-	// dirty → capture branch taken; the idle branch (cleanup) is never reached.
 	if got := fc.callsContaining("list-sessions"); len(got) == 0 {
 		t.Errorf("list-sessions not invoked; capture must run on a dirty tick")
 	}
@@ -720,10 +622,6 @@ func TestDaemonTick_SkipsHookCleanupOnDirtyCaptureTick(t *testing.T) {
 	}
 }
 
-// TestDaemonTick_SkipsHookCleanupOnMaxGapCaptureTick is the gap-driven peer of
-// the dirty-tick guard: a max-gap capture tick (!dirty but gap=true) runs
-// captureAndCommit and never reaches the idle branch, so cleanup is skipped that
-// tick (spec § Placement in the tick — dirty||gap → capture runs).
 func TestDaemonTick_SkipsHookCleanupOnMaxGapCaptureTick(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
@@ -738,9 +636,8 @@ func TestDaemonTick_SkipsHookCleanupOnMaxGapCaptureTick(t *testing.T) {
 	deps := makeDeps(t, dir, fc)
 	deps.HookStore = store
 	deps.MaxGap = 10 * time.Millisecond
-	deps.LastSaveAt = time.Now().Add(-1 * time.Hour)                      // gap=true
-	deps.lastCleanup = time.Now().Add(-hookCleanupInterval - time.Second) // throttle elapsed
-	// No save.requested → !dirty; gap=true drives the capture branch.
+	deps.LastSaveAt = time.Now().Add(-1 * time.Hour)
+	deps.lastCleanup = time.Now().Add(-hookCleanupInterval - time.Second)
 
 	tick(t.Context(), deps)
 
@@ -756,13 +653,6 @@ func TestDaemonTick_SkipsHookCleanupOnMaxGapCaptureTick(t *testing.T) {
 	}
 }
 
-// TestDaemonTick_RunsProjectCleanupOnIdleTick is the stale-project-prune peer of
-// TestDaemonTick_RunsHookCleanupOnIdleTick: on an idle tick (!dirty && !gap,
-// @portal-restoring unset) with the project-prune throttle elapsed,
-// maybeRunProjectCleanup runs on the idle fast path and prunes the gone-dir
-// project while retaining the live one — and it does so WITHOUT a capture cycle
-// (no list-sessions runs that tick). Spec § clean deleted — stale-project pruning
-// folds into the daemon's automation on a slow cadence.
 func TestDaemonTick_RunsProjectCleanupOnIdleTick(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
@@ -771,25 +661,22 @@ func TestDaemonTick_RunsProjectCleanupOnIdleTick(t *testing.T) {
 	gone := filepath.Join(t.TempDir(), "gone-dir-does-not-exist")
 	store, _ := seedProjectsJSON(t, live, gone)
 
-	// No sessionsOut — capture must not run on an idle tick.
+	// No sessionsOut: capture must not run on an idle tick. makeDeps anchors
+	// lastCleanup to now, leaving the hooks gate throttled so this test isolates
+	// the project prune.
 	fc := &daemonFakeCommander{}
 	deps := makeDeps(t, dir, fc)
 	deps.ProjectStore = store
-	deps.LastSaveAt = time.Now()                                                    // gap=false
-	deps.MaxGap = 30 * time.Second                                                  // !gap
-	deps.lastProjectCleanup = time.Now().Add(-projectCleanupInterval - time.Second) // throttle elapsed
-	// makeDeps anchors lastCleanup to now, so the hooks-cleanup gate stays throttled
-	// this tick — this test isolates the project prune. No save.requested → !dirty.
-	// @portal-restoring unset (default).
+	deps.LastSaveAt = time.Now()
+	deps.MaxGap = 30 * time.Second
+	deps.lastProjectCleanup = time.Now().Add(-projectCleanupInterval - time.Second)
 
 	tick(t.Context(), deps)
 
-	// The gone-dir project is pruned on the idle branch; the live one survives.
 	if paths := projectPaths(t, store); len(paths) != 1 || paths[0] != live {
 		t.Errorf("project prune did not run on the idle branch; paths=%v, want [%s]", paths, live)
 	}
 
-	// Still the idle fast path — no capture cycle ran.
 	if got := fc.callsContaining("list-sessions"); len(got) != 0 {
 		t.Errorf("list-sessions invoked on an idle tick (capture must not run): %v", got)
 	}
@@ -803,7 +690,7 @@ func TestDaemonShutdownFlush_FlushesOnContextCancelWhenNotRestoring(t *testing.T
 	deps := makeDeps(t, dir, fc)
 	logger, sink := newCaptureLoggerForComponent(t, "daemon")
 	deps.Logger = logger
-	deps.TickerPeriod = time.Hour // ensure no ticker firing during test
+	deps.TickerPeriod = time.Hour
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -811,7 +698,6 @@ func TestDaemonShutdownFlush_FlushesOnContextCancelWhenNotRestoring(t *testing.T
 		t.Fatalf("defaultDaemonRun: %v", err)
 	}
 
-	// Final flush should have committed sessions.json and called list-sessions.
 	if got := fc.callsContaining("list-sessions"); len(got) == 0 {
 		t.Errorf("final flush did not invoke list-sessions")
 	}
@@ -847,20 +733,13 @@ func TestDaemonShutdownFlush_SkipsWhenRestoring(t *testing.T) {
 	}
 }
 
-// TestDefaultShutdownFlush_SkipsOnTransportError covers the conservative-on-
-// error branch in defaultShutdownFlush: when IsRestoringSet errors (e.g.,
-// transport failure during the restoration window), the final flush is skipped
-// and nil is returned. The fault-injection shape is a *tmux.CommandError whose
-// Stderr does NOT match the option-absent pattern family, so GetServerOption
-// propagates it as a non-ErrOptionNotFound error through TryGetServerOption to
-// IsRestoringSet.
 func TestDefaultShutdownFlush_SkipsOnTransportError(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
 	fc := &daemonFakeCommander{
 		optionErr: transportErrCommandError(),
-		// Seed sessions output so any leak through to captureAndCommit would
-		// surface as a list-sessions call we can assert against.
+		// Seeded so a leak through to captureAndCommit surfaces as a
+		// list-sessions call the assertions below can catch.
 		sessionsOut: "work|1|0|",
 	}
 	deps := makeDeps(t, dir, fc)
@@ -872,9 +751,6 @@ func TestDefaultShutdownFlush_SkipsOnTransportError(t *testing.T) {
 	})
 
 	t.Run("zero_commits", func(t *testing.T) {
-		// captureAndCommit's first tmux call is list-sessions (via
-		// CaptureStructure). Zero list-sessions invocations is the structural
-		// proof that no commit cycle ran.
 		if got := fc.callsContaining("list-sessions"); len(got) != 0 {
 			t.Errorf("list-sessions invoked despite transport error on @portal-restoring read: %v", got)
 		}
@@ -884,11 +760,6 @@ func TestDefaultShutdownFlush_SkipsOnTransportError(t *testing.T) {
 	})
 }
 
-// TestTick_SkipsOnTransportError covers the conservative-on-error branch in
-// tick() (cmd/state_daemon.go:95-99). Same fault-injection shape as the
-// shutdown-flush test: when IsRestoringSet errors via a non-absent
-// *tmux.CommandError, tick logs at WARN and returns without performing capture
-// or commit.
 func TestTick_SkipsOnTransportError(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
@@ -903,13 +774,9 @@ func TestTick_SkipsOnTransportError(t *testing.T) {
 	tick(t.Context(), deps)
 
 	t.Run("no_capture", func(t *testing.T) {
-		// capture-pane is invoked inside captureAndCommit, only reached if the
-		// restoring-marker check did not abort the tick.
 		if got := fc.callsContaining("capture-pane"); len(got) != 0 {
 			t.Errorf("capture-pane invoked despite transport error on @portal-restoring read: %v", got)
 		}
-		// list-sessions is the first tmux call in captureAndCommit; zero
-		// invocations is independent structural proof.
 		if got := fc.callsContaining("list-sessions"); len(got) != 0 {
 			t.Errorf("list-sessions invoked despite transport error on @portal-restoring read: %v", got)
 		}
@@ -919,8 +786,6 @@ func TestTick_SkipsOnTransportError(t *testing.T) {
 		if _, err := os.Stat(state.SessionsJSON(dir)); !os.IsNotExist(err) {
 			t.Errorf("sessions.json should not be written on transport error; stat=%v", err)
 		}
-		// save.requested must survive a skipped tick — the dirty flag is only
-		// cleared after a successful capture-and-commit.
 		if _, err := os.Stat(state.SaveRequested(dir)); err != nil {
 			t.Errorf("save.requested should survive transport-error skip: %v", err)
 		}
@@ -931,7 +796,6 @@ func TestDaemonStartup_SeedsHashMapFromDisk(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
 
-	// Pre-seed scrollback files before invoking the daemon RunE.
 	if _, err := state.EnsureDir(); err != nil {
 		t.Fatalf("EnsureDir: %v", err)
 	}
@@ -946,7 +810,6 @@ func TestDaemonStartup_SeedsHashMapFromDisk(t *testing.T) {
 		}
 	}
 
-	// Capture deps via the run-func seam so we can inspect HashMap.
 	holder := withImmediateRun(t)
 	withDaemonLockFileReset(t)
 
@@ -972,7 +835,6 @@ func TestDaemonStartup_LoadsPrevIndexFromSessionsJSON(t *testing.T) {
 		t.Fatalf("EnsureDir: %v", err)
 	}
 
-	// Pre-seed sessions.json with a known structure.
 	want := state.Index{
 		Version: state.SchemaVersion,
 		Sessions: []state.Session{{
@@ -1011,8 +873,6 @@ func TestDaemonStartup_HandlesMissingSessionsJSONAsNilPrev(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
 
-	// The daemon RunE logs via daemonLogger (log.For("daemon")); capture those
-	// records in-process so we can assert no ReadIndex warning was emitted.
 	sink := &logtest.Sink{}
 	log.SetTestHandler(t, sink)
 
@@ -1028,9 +888,6 @@ func TestDaemonStartup_HandlesMissingSessionsJSONAsNilPrev(t *testing.T) {
 	if (*holder).PrevIndex != nil {
 		t.Errorf("PrevIndex = %+v; want nil for missing sessions.json", (*holder).PrevIndex)
 	}
-	// Missing-file is a clean skip: no warning about reading sessions.json
-	// should be logged. This is the corrupt-vs-missing classification we
-	// inherit from state.ReadIndex.
 	if data := sink.Body(); strings.Contains(data, "ReadIndex") || strings.Contains(data, "sessions.json") {
 		t.Errorf("missing sessions.json should not produce a ReadIndex warning; got:\n%s", data)
 	}
@@ -1046,8 +903,6 @@ func TestDaemonStartup_LogsWarningOnUndecodableSessionsJSON(t *testing.T) {
 		t.Fatalf("seed bad sessions.json: %v", err)
 	}
 
-	// The daemon RunE logs via daemonLogger (log.For("daemon")); capture those
-	// records in-process.
 	sink := &logtest.Sink{}
 	log.SetTestHandler(t, sink)
 
@@ -1060,37 +915,15 @@ func TestDaemonStartup_LogsWarningOnUndecodableSessionsJSON(t *testing.T) {
 	if (*holder).PrevIndex != nil {
 		t.Errorf("PrevIndex should be nil on decode error; got %+v", *(*holder).PrevIndex)
 	}
-	// state.ReadIndex wraps decode failures with ErrCorruptIndex, whose
-	// message is "sessions.json corrupt" — it rides the error attr so the
-	// daemon distinguishes corrupt-content from a missing file or other
-	// read errors.
 	if logged := sink.Body(); !strings.Contains(logged, "sessions.json corrupt") {
 		t.Errorf("expected corrupt-index warning in log; got:\n%s", logged)
 	}
 }
 
-// TestCaptureAndCommit_UncancelledCtxMatchesPreThreadingBehaviour is the
-// happy-path regression guard for the ctx-threading plumbing step (spec
-// § Change 2 / Phase 2 Task 2-1). It drives a multi-pane fixture through
-// captureAndCommit with a never-cancelled context.Background() and asserts the
-// pre-threading semantics still hold:
-//
-//  1. PrevIndex is replaced with the freshly captured index (the input
-//     pointer is overwritten with the post-capture &idx).
-//  2. state.Commit is invoked exactly once — observable as a single
-//     sessions.json file on disk containing the captured sessions.
-//  3. All panes are processed — every (sess, win, pane) tuple in the
-//     fixture surfaces a scrollback file and a capture-pane call.
-//
-// Subsequent tasks (2-2/2-3/2-4) will introduce mid-iteration ctx.Done()
-// observation points; this test pins the uncancelled-ctx behaviour so those
-// future changes cannot silently regress the happy path.
 func TestCaptureAndCommit_UncancelledCtxMatchesPreThreadingBehaviour(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
 
-	// Two sessions, two windows total, three panes — exercises the inner
-	// loop's pane-iteration across the (sess, win, pane) nesting.
 	fc := &daemonFakeCommander{
 		sessionsOut: "work|1|0|\nside|1|0|",
 		panesOut: "work|||0|||main|||layout|||0|||1|||0|||/tmp|||1|||zsh|||\n" +
@@ -1103,9 +936,6 @@ func TestCaptureAndCommit_UncancelledCtxMatchesPreThreadingBehaviour(t *testing.
 		},
 	}
 
-	// Seed PrevIndex with a sentinel value distinct from anything the fixture
-	// will produce, so we can prove the pointer was replaced (not merely
-	// mutated to equivalent contents).
 	sentinelPrev := sentinelIndex("sentinel-must-be-replaced")
 	deps := makeDeps(t, dir, fc)
 	deps.PrevIndex = sentinelPrev
@@ -1114,7 +944,6 @@ func TestCaptureAndCommit_UncancelledCtxMatchesPreThreadingBehaviour(t *testing.
 		t.Fatalf("captureAndCommit returned error on happy path: %v", err)
 	}
 
-	// (1) PrevIndex pointer replacement.
 	assertCommitReplacedPrev(t, deps, sentinelPrev, dir)
 	if len(deps.PrevIndex.Sessions) != 2 {
 		t.Errorf("PrevIndex.Sessions length = %d; want 2", len(deps.PrevIndex.Sessions))
@@ -1125,8 +954,6 @@ func TestCaptureAndCommit_UncancelledCtxMatchesPreThreadingBehaviour(t *testing.
 		}
 	}
 
-	// (2) state.Commit invoked exactly once — sessions.json exists with the
-	// captured sessions decoded back.
 	sessionsJSONPath := state.SessionsJSON(dir)
 	data, err := os.ReadFile(sessionsJSONPath)
 	if err != nil {
@@ -1140,8 +967,6 @@ func TestCaptureAndCommit_UncancelledCtxMatchesPreThreadingBehaviour(t *testing.
 		t.Errorf("committed sessions length = %d; want 2", len(committed.Sessions))
 	}
 
-	// (3) All panes processed — three capture-pane calls (one per pane) and
-	// three scrollback files on disk.
 	captureCalls := fc.callsContaining("capture-pane")
 	if len(captureCalls) != 3 {
 		t.Errorf("capture-pane call count = %d; want 3 (one per pane): %v", len(captureCalls), captureCalls)
@@ -1157,24 +982,12 @@ func TestCaptureAndCommit_UncancelledCtxMatchesPreThreadingBehaviour(t *testing.
 	}
 }
 
-// TestCaptureAndCommit_PreCancelledCtxReturnsImmediately covers observation
-// point 1 of 3 (spec § Change 2 / Phase 2 Task 2-2): the ctx.Done() check at
-// captureAndCommit's entry, before any tmux enumeration work. A context that
-// is already cancelled when captureAndCommit is invoked must:
-//
-//  1. Return nil (not an error — tick logs WARN on non-nil; cancellation must
-//     not log).
-//  2. Not invoke ListSkeletonMarkers (show-options), CaptureStructure
-//     (list-sessions / list-panes), or any capture-pane call.
-//  3. Leave deps.PrevIndex unchanged (no pointer replacement).
-//  4. Produce no commit — sessions.json must not be written.
 func TestCaptureAndCommit_PreCancelledCtxReturnsImmediately(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
 
-	// Seed a multi-pane fixture so that, if the cancellation check were
-	// missing, the function would do observable work (enumerate sessions,
-	// capture panes, commit) — the assertions below would catch the leak.
+	// A fixture with real work in it, so a missing cancellation check leaks
+	// observable tmux calls rather than passing silently.
 	fc := &daemonFakeCommander{
 		sessionsOut: "work|1|0|",
 		panesOut:    "work|||0|||main|||layout|||0|||1|||0|||/tmp|||1|||zsh|||",
@@ -1183,7 +996,6 @@ func TestCaptureAndCommit_PreCancelledCtxReturnsImmediately(t *testing.T) {
 		},
 	}
 
-	// Seed PrevIndex with a sentinel — assertion target for "unchanged".
 	sentinelPrev := sentinelIndex("sentinel-must-be-preserved")
 	deps := makeDeps(t, dir, fc)
 	deps.PrevIndex = sentinelPrev
@@ -1195,8 +1007,6 @@ func TestCaptureAndCommit_PreCancelledCtxReturnsImmediately(t *testing.T) {
 		t.Errorf("captureAndCommit returned error on pre-cancelled ctx: %v; want nil", err)
 	}
 
-	// No tmux work: ListSkeletonMarkers (show-options), CaptureStructure
-	// (list-sessions / list-panes), capture-pane.
 	if got := fc.callsContaining("show-options"); len(got) != 0 {
 		t.Errorf("show-options invoked on pre-cancelled ctx (ListSkeletonMarkers leaked): %v", got)
 	}
@@ -1210,41 +1020,13 @@ func TestCaptureAndCommit_PreCancelledCtxReturnsImmediately(t *testing.T) {
 		t.Errorf("capture-pane invoked on pre-cancelled ctx: %v", got)
 	}
 
-	// PrevIndex pointer unchanged + no commit on disk.
 	assertNoCommit(t, deps, sentinelPrev, dir)
 }
 
-// TestCaptureAndCommit_CancelDuringCaptureStructureReturnsBeforePerPaneWork
-// covers observation point 2 of 3 (spec § Change 2 / Phase 2 Task 2-3): the
-// ctx.Done() check immediately after CaptureStructure returns and before the
-// per-pane loop begins. The test triggers cancel() from inside the commander's
-// dispatch hook while CaptureStructure is still running (specifically on its
-// final tmux subcall, show-environment) — so CaptureStructure completes
-// successfully with a populated multi-pane index, but the ctx is observed
-// cancelled at the post-enumeration check before any per-pane work runs.
-//
-// Pins the timing-specific behaviour: cancellation observed AFTER
-// CaptureStructure, not at entry. Distinguishes observation point 2 from
-// observation point 1 — point 1 would catch a pre-call cancel; point 2 is
-// load-bearing for cancellations that arrive during CaptureStructure's
-// subprocess calls.
-//
-// Asserts:
-//  1. Returns nil (not an error — tick logs WARN on non-nil).
-//  2. CaptureStructure ran to completion (list-sessions / list-panes /
-//     show-environment all observed).
-//  3. No per-pane work began: zero capture-pane calls.
-//  4. No commit landed on disk: sessions.json absent.
-//  5. deps.PrevIndex pointer unchanged from its pre-call value (no
-//     post-loop replacement).
 func TestCaptureAndCommit_CancelDuringCaptureStructureReturnsBeforePerPaneWork(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
 
-	// Multi-pane fixture — if the post-enumeration check were missing, the
-	// per-pane loop would iterate three panes and the assertions below would
-	// catch the leak (capture-pane calls / scrollback files / committed
-	// sessions.json).
 	fc := &daemonFakeCommander{
 		sessionsOut: "work|1|0|\nside|1|0|",
 		panesOut: "work|||0|||main|||layout|||0|||1|||0|||/tmp|||1|||zsh|||\n" +
@@ -1257,7 +1039,6 @@ func TestCaptureAndCommit_CancelDuringCaptureStructureReturnsBeforePerPaneWork(t
 		},
 	}
 
-	// Seed PrevIndex with a sentinel — assertion target for "unchanged".
 	sentinelPrev := sentinelIndex("sentinel-must-be-preserved")
 	deps := makeDeps(t, dir, fc)
 	deps.PrevIndex = sentinelPrev
@@ -1265,14 +1046,9 @@ func TestCaptureAndCommit_CancelDuringCaptureStructureReturnsBeforePerPaneWork(t
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	// Wire the dispatch hook: cancel() fires when CaptureStructure makes its
-	// final subcall (show-environment), which runs once per kept session
-	// after list-sessions / list-panes. By the time CaptureStructure
-	// returns, ctx is cancelled — but the function itself completes
-	// successfully with the freshly populated multi-pane index.
-	//
-	// The ctx.Done() check at observation point 2 then fires before the
-	// per-pane loop begins.
+	// show-environment is CaptureStructure's final subcall, so cancelling there
+	// leaves it completing successfully with a populated index while the ctx is
+	// already done — the post-enumeration check, not the entry check.
 	fc.dispatchHook = func(args []string) {
 		if len(args) > 0 && args[0] == "show-environment" {
 			cancel()
@@ -1283,8 +1059,6 @@ func TestCaptureAndCommit_CancelDuringCaptureStructureReturnsBeforePerPaneWork(t
 		t.Errorf("captureAndCommit returned error on mid-CaptureStructure cancel: %v; want nil", err)
 	}
 
-	// CaptureStructure ran to completion — all three of its tmux subcalls
-	// landed before observation point 2 fired.
 	if got := fc.callsContaining("list-sessions"); len(got) == 0 {
 		t.Errorf("list-sessions not invoked; CaptureStructure did not start")
 	}
@@ -1295,11 +1069,9 @@ func TestCaptureAndCommit_CancelDuringCaptureStructureReturnsBeforePerPaneWork(t
 		t.Errorf("show-environment not invoked; CaptureStructure did not reach its env phase")
 	}
 
-	// No per-pane work began.
 	if got := fc.callsContaining("capture-pane"); len(got) != 0 {
 		t.Errorf("capture-pane invoked after post-enumeration cancel: %v", got)
 	}
-	// No scrollback files written.
 	for _, key := range []string{
 		state.SanitizePaneKey("work", 0, 0),
 		state.SanitizePaneKey("work", 0, 1),
@@ -1310,35 +1082,13 @@ func TestCaptureAndCommit_CancelDuringCaptureStructureReturnsBeforePerPaneWork(t
 		}
 	}
 
-	// PrevIndex pointer unchanged + no commit on disk.
 	assertNoCommit(t, deps, sentinelPrev, dir)
 }
 
-// TestCaptureAndCommit_CancelMidLoopAfterKofNPanesProcessed covers observation
-// point 3 of 3 (spec § Change 2 / Phase 2 Task 2-4): the ctx.Done() check at
-// the top of the innermost per-pane loop body. The test drives a multi-pane
-// fixture (1 session × 1 window × 3 panes) and cancels after the first pane's
-// capture-pane subcall fires — so observation point 3 fires before iteration
-// k+1 begins.
-//
-// Per-pane scrollback files from completed iterations may remain on disk
-// (atomic writes — no rollback). The spec's no-partial-commit invariant is
-// about sessions.json, not per-pane files (see spec § Change 2 Cancellation
-// semantics).
-//
-// Asserts:
-//  1. Returns nil (not an error — tick logs WARN on non-nil).
-//  2. capture-pane invoked at least once (the iteration that triggered the
-//     cancel) but fewer than 3 times (subsequent iterations short-circuit).
-//  3. sessions.json absent — Commit was not invoked.
-//  4. deps.PrevIndex pointer unchanged from its pre-call value (no
-//     post-loop replacement).
 func TestCaptureAndCommit_CancelMidLoopAfterKofNPanesProcessed(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
 
-	// Single session, single window, three panes — exercises the innermost
-	// pane-iteration loop.
 	fc := &daemonFakeCommander{
 		sessionsOut: "work|1|0|",
 		panesOut: "work|||0|||main|||layout|||0|||1|||0|||/tmp|||1|||zsh|||\n" +
@@ -1358,10 +1108,8 @@ func TestCaptureAndCommit_CancelMidLoopAfterKofNPanesProcessed(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	// Wire the dispatch hook: cancel() fires after the first pane's
-	// capture-pane subcall. The current iteration completes its write; the
-	// next iteration's observation-point-3 check observes ctx.Done() and
-	// returns nil before invoking CaptureAndHashPane on pane 2.
+	// The first pane's iteration completes its write; the next iteration's
+	// check observes ctx.Done() before capturing pane 2.
 	fc.dispatchHook = func(args []string) {
 		if len(args) > 0 && args[0] == "capture-pane" {
 			cancel()
@@ -1372,7 +1120,6 @@ func TestCaptureAndCommit_CancelMidLoopAfterKofNPanesProcessed(t *testing.T) {
 		t.Errorf("captureAndCommit returned error on mid-loop cancel: %v; want nil", err)
 	}
 
-	// capture-pane invoked at least once but fewer than 3 times.
 	captureCalls := fc.callsContaining("capture-pane")
 	if len(captureCalls) < 1 {
 		t.Errorf("capture-pane invoked %d times; want at least 1", len(captureCalls))
@@ -1381,25 +1128,12 @@ func TestCaptureAndCommit_CancelMidLoopAfterKofNPanesProcessed(t *testing.T) {
 		t.Errorf("capture-pane invoked %d times; want fewer than 3 (mid-loop cancel should short-circuit): %v", len(captureCalls), captureCalls)
 	}
 
-	// PrevIndex pointer unchanged + no commit on disk. Per-pane scrollback
-	// files from completed iterations MAY remain on disk; that is intentional
-	// (atomic writes, no rollback), and the spec's no-partial-commit
-	// invariant is about sessions.json, not per-pane files.
+	// Scrollback files from completed iterations may remain on disk: writes are
+	// atomic with no rollback, and the no-partial-commit invariant covers
+	// sessions.json only.
 	assertNoCommit(t, deps, sentinelPrev, dir)
 }
 
-// TestCaptureAndCommit_UncancelledMultiPaneFixtureProcessesAllPanesAndCommits
-// is the regression guard for observation point 3 (spec § Change 2 / Phase 2
-// Task 2-4): the same multi-pane fixture as the mid-loop-cancel test, run
-// without any cancellation, must process every pane and commit fully. Pins
-// that observation point 3's `default:` arm does not silently short-circuit
-// the happy path.
-//
-// Asserts:
-//  1. Returns nil.
-//  2. capture-pane invoked exactly 3 times (one per pane).
-//  3. sessions.json exists and decodes to the captured index.
-//  4. deps.PrevIndex pointer replaced (no longer the sentinel).
 func TestCaptureAndCommit_UncancelledMultiPaneFixtureProcessesAllPanesAndCommits(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
@@ -1429,7 +1163,6 @@ func TestCaptureAndCommit_UncancelledMultiPaneFixtureProcessesAllPanesAndCommits
 		t.Errorf("capture-pane call count = %d; want 3 (one per pane): %v", len(captureCalls), captureCalls)
 	}
 
-	// sessions.json exists and decodes back to the captured index.
 	data, err := os.ReadFile(state.SessionsJSON(dir))
 	if err != nil {
 		t.Fatalf("sessions.json not written by commit: %v", err)
@@ -1442,20 +1175,9 @@ func TestCaptureAndCommit_UncancelledMultiPaneFixtureProcessesAllPanesAndCommits
 		t.Errorf("committed sessions length = %d; want 1", len(committed.Sessions))
 	}
 
-	// PrevIndex pointer replaced.
 	assertCommitReplacedPrev(t, deps, sentinelPrev, dir)
 }
 
-// TestDefaultDaemonRun_WritesVersionFileFromDepsVersion is the regression guard
-// for the WriteVersionFile move (RunE → defaultDaemonRun). It invokes
-// defaultDaemonRun directly (bypassing RunE entirely) with a daemonDeps whose
-// Version field is set to a sentinel value, and asserts that daemon.version
-// lands on disk with the sentinel content.
-//
-// Pins the contract: defaultDaemonRun is the sole production write site for
-// daemon.version, sourcing the value from deps.Version. A regression that
-// moves WriteVersionFile back into RunE would fail this test because RunE is
-// not on the call path here.
 func TestDefaultDaemonRun_WritesVersionFileFromDepsVersion(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
@@ -1463,9 +1185,6 @@ func TestDefaultDaemonRun_WritesVersionFileFromDepsVersion(t *testing.T) {
 		t.Fatalf("EnsureDir: %v", err)
 	}
 
-	// Short-circuit the tick loop so defaultDaemonRun returns immediately
-	// after its startup write sequence; pre-cancel the ctx as a belt-and-
-	// braces in case the seam swap is bypassed.
 	prevLoop := daemonTickLoopFunc
 	daemonTickLoopFunc = func(_ context.Context, _ *daemonDeps) error { return nil }
 	t.Cleanup(func() { daemonTickLoopFunc = prevLoop })

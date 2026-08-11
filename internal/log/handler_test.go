@@ -9,9 +9,6 @@ import (
 	"time"
 )
 
-// handleRecord drives a record through h, failing the test on a Handle error.
-// The rendered output is captured by the buffer the caller passed to
-// newTextHandler.
 func handleRecord(t *testing.T, h slog.Handler, r slog.Record) {
 	t.Helper()
 	if err := h.Handle(context.Background(), r); err != nil {
@@ -19,7 +16,6 @@ func handleRecord(t *testing.T, h slog.Handler, r slog.Record) {
 	}
 }
 
-// newRecord builds a slog.Record carrying the given message, level, and attrs.
 func newRecord(level slog.Level, msg string, attrs ...slog.Attr) slog.Record {
 	r := slog.NewRecord(time.Date(2026, 5, 29, 8, 38, 0, 0, time.UTC), level, msg, 0)
 	r.AddAttrs(attrs...)
@@ -29,7 +25,6 @@ func newRecord(level slog.Level, msg string, attrs ...slog.Attr) slog.Record {
 func TestTextHandler_RendersComponentAsPrefixAndOmitsFromAttrs(t *testing.T) {
 	var buf bytes.Buffer
 	h := newTextHandler(&buf, slog.LevelInfo, 12345, "0.5.0", "hydrate")
-	// component arrives via WithAttrs, exactly as For (root.With("component", ...)) delivers it.
 	h = h.WithAttrs([]slog.Attr{slog.String("component", "hydrate")})
 
 	handleRecord(t, h, newRecord(slog.LevelInfo, "ok", slog.String("pane_key", "foo:0.0")))
@@ -64,7 +59,6 @@ func TestTextHandler_InjectsBaselinesOnLoggerCachedBeforeHandlerExisted(t *testi
 	restore := snapshotHandler()
 	t.Cleanup(restore)
 
-	// Obtain a logger BEFORE the configured handler is constructed/swapped.
 	cached := For("daemon")
 
 	var buf bytes.Buffer
@@ -146,9 +140,6 @@ func TestTextHandler_DropsDebugWhenConfiguredLevelIsInfo(t *testing.T) {
 	if !h.Enabled(context.Background(), slog.LevelInfo) {
 		t.Error("Enabled(INFO) must be true when configured level is INFO")
 	}
-	// At INFO the DEBUG level-drop must still hold through Handle: a non-lifecycle
-	// DEBUG record reaching Handle is dropped (defends against the Enabled change
-	// not regressing the Task 1-3 level-drop contract).
 	handleRecord(t, h, newRecord(slog.LevelDebug, "verbose"))
 	if buf.Len() != 0 {
 		t.Errorf("DEBUG record must be dropped at configured INFO, got: %q", buf.String())
@@ -214,8 +205,6 @@ func TestTextHandler_FiltersArbitraryProcessInfoNotInLifecycleSetAtWarn(t *testi
 	h := newTextHandler(&buf, slog.LevelWarn, 1, "v", "daemon")
 	h = h.WithAttrs([]slog.Attr{slog.String("component", "process")})
 
-	// Only the closed lifecycle msg set bypasses; an arbitrary process INFO line
-	// is filtered like any other INFO record.
 	handleRecord(t, h, newRecord(slog.LevelInfo, "doing work"))
 
 	if buf.Len() != 0 {

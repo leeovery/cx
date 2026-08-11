@@ -12,64 +12,14 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// keymap_dispatch_guard_theme_test.go extends keymap_dispatch_guard_test.go's
-// descriptor↔dispatch parity to the theme panel (§9.12) and to the nested confirm
-// scope beneath it (§9.2) — the SECOND and THIRD places in the product a key label
-// can go stale, both of them bespoke vertical footers rendered from descriptors that
-// live outside the three page keymaps.
-//
-// The contract is the pages': every non-help descriptor entry has a probe the LIVE
-// dispatch honours, and every probe's key appears in the descriptor. Both directions
-// bite, which is why the panel scope is authored as all SIX keys rather than the four
-// its footer shows — arrows and paging are dispatched inside the panel, so leaving
-// them out of the descriptor is what breaks parity rather than what satisfies it.
-//
-// A PROBE MUST ASSERT THE BOUND EFFECT, NEVER MERE CONSUMPTION. That is the one way
-// this guard could pass vacuously where the page guards cannot: the panel is
-// key-exclusive while it is open (§9.7), so "the keypress was swallowed" is true of
-// every key in the alphabet — including one whose dispatch arm has just been deleted.
-// Every probe below therefore asserts a state change the dispatch is supposed to
-// cause, and TestThemePanelParity_ProbesAssertEffects executes that rule against all
-// of them.
-//
-// THE SEEDS TOUCH NOTHING REAL. A faked enumerator answers with hand-built rows so no
-// themes directory is read, and a recording fake persister collects the commits so no
-// `prefs.json` is written — the guard drives §9.2's four writing keys, which is
-// precisely the set that would otherwise reach the user's own config.
-//
-// No t.Parallel() — the package-level mock convention makes parallelism unsafe across
-// this package's tests.
+// A probe must assert the bound effect, never mere consumption: while the panel
+// is open "swallowed" is true of every key, deleted dispatch arm or not.
 
-// themePanelGuardRows is the guard seed's union: four selectable rows and one the
-// loader rejected.
-//
-// The INVALID row is not decoration: §9.4 requires a broken drop-in to be listed, so
-// this is the shape a real themes directory reaches the moment anyone edits a file.
-// It sorts last, leaving the pair the seed's slots name (rows[0] / rows[1]) and the
-// rows the cursor steps and pages onto all selectable.
 func themePanelGuardRows(t *testing.T) []theme.Row {
 	t.Helper()
 	return append(arrowValidRows(t, 4), arrowInvalidRow(arrowSlug(4)))
 }
 
-// themePanelGuardModel is the panel scope's seed — sessionsGuardModel's counterpart
-// one surface in: a Sessions model with the §13.3 seam faked, a recording persister,
-// and the panel already OPEN through the production `t` keypress rather than a
-// hand-installed struct.
-//
-// THE SETTING IS AN ADAPTIVE PAIR, which is what keeps the `d`/`l` probes about the
-// COMMIT: over a constant §9.2's gate makes those keys raise a confirm instead, and
-// the probes would be asserting the question. The confirm gets its own seed and its
-// own scope below.
-//
-// THE TERMINAL IS THE PAGINATING ONE (arrowPagingTermH), because the paging probe has
-// to observe the page MOVE. At the standard fixture height every row fits one page,
-// where `Ctrl+↓` routes perfectly and goes nowhere — indistinguishable from a deleted
-// arm.
-//
-// The two preconditions are asserted rather than assumed for the same reason
-// themeGuardModel checks `colourless`: a seed that quietly stopped opening the panel,
-// or stopped paginating, would make the probes pass against nothing at all.
 func themePanelGuardModel(t *testing.T) (Model, *fakeThemePersister) {
 	t.Helper()
 
@@ -80,7 +30,7 @@ func themePanelGuardModel(t *testing.T) (Model, *fakeThemePersister) {
 
 	m := Build(deps)
 	if m.colourless {
-		t.Fatal("the guard seed must not be colourless — §9.10 blocks `t`, and every probe would assert a refusal")
+		t.Fatal("the guard seed must not be colourless — that blocks `t`, and every probe would assert a refusal")
 	}
 	m.termWidth, m.termHeight = arrowTermW, arrowPagingTermH
 	m.applySessions(closePanelSessions())
@@ -94,20 +44,11 @@ func themePanelGuardModel(t *testing.T) (Model, *fakeThemePersister) {
 	return m, persister
 }
 
-// themePanelDispatch is the panel's key routing as a VALUE, so the probe sets can be
-// driven against a deliberately broken stand-in as well as against production.
-//
-// Without it the guard could never be guarded: a suite proving that deleting an arm
-// makes a probe fail would have to delete the arm from updateThemePanel itself.
+// A value so the probes can also be driven against a deliberately broken stand-in.
 type themePanelDispatch func(Model, tea.KeyPressMsg) (tea.Model, tea.Cmd)
 
-// livePanelDispatch is production — the routing every real probe drives. Both scopes
-// share it: the confirm resolves inside updateThemePanel's own key-exclusive arm, so
-// there is no second entry point to drive it through.
 var livePanelDispatch themePanelDispatch = Model.updateThemePanel
 
-// dispatchPanelKey drives one press through the given dispatch and returns the model
-// it produced.
 func dispatchPanelKey(t *testing.T, dispatch themePanelDispatch, m Model, press tea.KeyPressMsg) Model {
 	t.Helper()
 
@@ -119,35 +60,13 @@ func dispatchPanelKey(t *testing.T, dispatch themePanelDispatch, m Model, press 
 	return next
 }
 
-// themePanelProbes is §9.12's panel scope as SIX probes, one per descriptor entry,
-// each driving the live routing and asserting the effect that entry is bound to.
-//
-// NOT ONE OF THEM ASSERTS CONSUMPTION, and that is a requirement rather than a
-// style: the panel owns the keyboard while it is open (§9.7), so "the key was
-// swallowed" is true of every key in the alphabet and would be satisfied by a
-// dispatch arm that had just been deleted. TestThemePanelParity_ProbesAssertEffects
-// executes that rule against every probe below.
-//
-// ARROWS AND PAGING CARRY PROBES TOO, because the descriptor lists them (§9.12's
-// "all six") and the guard's contract is parity in BOTH directions — a descriptor
-// key with no probe is a failure, so omitting them is what breaks the check rather
-// than what satisfies it. Their non-core flag governs the FOOTER, not this set.
-//
-// The dispatch is a PARAMETER so the same six probes can be driven against a
-// deliberately broken stand-in; the live suites pass livePanelDispatch.
 func themePanelProbes(dispatch themePanelDispatch) map[string]dispatchProbe {
 	return map[string]dispatchProbe{
-		// ↑↓ navigate — the panel's own cursor moves (routed by updateThemePanel
-		// against the list's KeyMap, not by the list's Update alone).
 		"↑↓": {press: arrowDown, honour: func(t *testing.T) bool {
 			m, _ := themePanelGuardModel(t)
 			before := m.themePanel.list.Index()
 			return dispatchPanelKey(t, dispatch, m, arrowDown).themePanel.list.Index() != before
 		}},
-		// ^↑/↓ page — the paging bindings are live on the panel's list AND the
-		// keypress moves the PAGE. The binding half alone would pass on a list whose
-		// page never moves; the page half alone would pass on a one-row page, where
-		// paging is indistinguishable from a step.
 		"^↑/↓": {press: arrowPageDown, honour: func(t *testing.T) bool {
 			m, _ := themePanelGuardModel(t)
 			if len(m.themePanel.list.KeyMap.NextPage.Keys()) == 0 || len(m.themePanel.list.KeyMap.PrevPage.Keys()) == 0 {
@@ -156,28 +75,18 @@ func themePanelProbes(dispatch themePanelDispatch) map[string]dispatchProbe {
 			before := m.themePanel.list.Paginator.Page
 			return dispatchPanelKey(t, dispatch, m, arrowPageDown).themePanel.list.Paginator.Page != before
 		}},
-		// ⏎ set theme — the persister records the CURSOR's slug as a constant, and the
-		// panel is still open. Both halves: §9.2 pins the write and the not-closing
-		// equally, and `Enter` is precisely the key a dual-purpose exit would break.
 		"⏎": {press: commitEnter, honour: func(t *testing.T) bool {
 			m, persister := themePanelGuardModel(t)
 			slug := themePanelCursorRow(t, m).Slug
 			after := dispatchPanelKey(t, dispatch, m, commitEnter)
 			return slices.Equal(persister.constants, []string{slug}) && after.themePanel.open
 		}},
-		// d set as dark — the persister records the cursor's slug against the TYPED
-		// dark slot.
 		"d": {press: slotDarkPress, honour: func(t *testing.T) bool {
 			return themePanelSlotHonoured(t, dispatch, slotDarkPress, theme.MemberDark)
 		}},
-		// l set as light — the same against the light slot. Asserted separately from
-		// `d` because a transposed slot argument is invisible from either key alone.
 		"l": {press: slotLightPress, honour: func(t *testing.T) bool {
 			return themePanelSlotHonoured(t, dispatch, slotLightPress, theme.MemberLight)
 		}},
-		// esc close — the panel CLOSES and the retained parse goes with it. This is
-		// the close, never the confirm's cancel: the seed holds no confirm, and
-		// TestThemePanelDispatch_EscMeansInnermostFirst pins the two apart.
 		"esc": {press: keyEsc, honour: func(t *testing.T) bool {
 			m, _ := themePanelGuardModel(t)
 			after := dispatchPanelKey(t, dispatch, m, keyEsc)
@@ -186,13 +95,6 @@ func themePanelProbes(dispatch themePanelDispatch) map[string]dispatchProbe {
 	}
 }
 
-// themePanelSlotHonoured is the shared body of the `d` and `l` probes: the cursor's
-// slug written into the slot the key names, with the panel left open and no confirm
-// raised.
-//
-// The seed is an ADAPTIVE PAIR precisely so no confirm intervenes — over a constant
-// §9.2's gate would make these keys ask rather than write, and the probe would be
-// asserting the question instead of the commit.
 func themePanelSlotHonoured(t *testing.T, dispatch themePanelDispatch, press tea.KeyPressMsg, member theme.Member) bool {
 	t.Helper()
 
@@ -203,9 +105,6 @@ func themePanelSlotHonoured(t *testing.T, dispatch themePanelDispatch, press tea
 		after.themePanel.open && !after.themePanel.confirming()
 }
 
-// themePanelStateDropped reports whether the panel's retained state went with the
-// close — §5.8's one read, the union it produced and the list built from it, which
-// closeThemePanel discards WHOLE.
 func themePanelStateDropped(m Model) bool {
 	return len(m.themePanel.enumeration.Entries) == 0 &&
 		len(m.themePanel.union.Rows) == 0 &&
@@ -213,30 +112,17 @@ func themePanelStateDropped(m Model) bool {
 		m.themePanel.width == 0
 }
 
-// themeConfirmProbes is §9.2's NESTED CONFIRM SCOPE as its own probe set — a SECOND
-// scope beside the panel's, so the substituted footer and the arms it advertises
-// cannot drift apart either.
-//
-// The descriptor carries the terse `y`/`n` glyphs and the dispatch honours both
-// cases; TestThemeConfirmDispatch_UppercaseReachesTheSameArm drives `Y`/`N` through
-// these same effect predicates so the uppercase half is not left unguarded by a
-// lowercase-only probe.
 func themeConfirmProbes(dispatch themePanelDispatch) map[string]dispatchProbe {
 	return map[string]dispatchProbe{
-		// y confirm — the pending assignment is written and the question comes down.
 		"y": {press: confirmYes, honour: func(t *testing.T) bool {
 			return themeConfirmYesHonoured(t, dispatch, confirmYes)
 		}},
-		// n cancel — nothing is written and the question comes down. The write half
-		// alone would be true of a swallow, so the resolution is what this asserts.
 		"n": {press: confirmNo, honour: func(t *testing.T) bool {
 			return themeConfirmNoHonoured(t, dispatch, confirmNo)
 		}},
 	}
 }
 
-// themeConfirmYesHonoured is the `y` arm's bound effect: the pending assignment
-// written, the confirm resolved, and the panel still open.
 func themeConfirmYesHonoured(t *testing.T, dispatch themePanelDispatch, press tea.KeyPressMsg) bool {
 	t.Helper()
 
@@ -246,8 +132,6 @@ func themeConfirmYesHonoured(t *testing.T, dispatch themePanelDispatch, press te
 		!after.themePanel.confirming() && after.themePanel.open
 }
 
-// themeConfirmNoHonoured is the `n` arm's bound effect: the confirm resolved with
-// the panel still open and NOTHING written.
 func themeConfirmNoHonoured(t *testing.T, dispatch themePanelDispatch, press tea.KeyPressMsg) bool {
 	t.Helper()
 
@@ -256,19 +140,8 @@ func themeConfirmNoHonoured(t *testing.T, dispatch themePanelDispatch, press tea
 	return len(persister.slugs) == 0 && !after.themePanel.confirming() && after.themePanel.open
 }
 
-// themeConfirmPending is the assignment the seed below leaves outstanding: the row
-// its cursor is parked on, into the slot its raise named. `y` writes exactly this and
-// the other two answers write nothing, so the pending value and the raise that
-// produces it are declared together rather than restated at each predicate.
 var themeConfirmPending = slotCommit{slug: slotConfirmTarget(), member: theme.MemberLight}
 
-// themeConfirmGuardModel is the confirm scope's seed: a CONSTANT setting with the
-// cursor arrowed off the persisted row, and `l` pressed to raise §9.2's question.
-//
-// The constant is the whole condition — it is the only setting shape under which
-// `d`/`l` ask rather than write — and the raise goes through the live dispatch, so a
-// scope whose question stopped being raised fails here rather than leaving its two
-// probes asserting against a panel that answers nothing.
 func themeConfirmGuardModel(t *testing.T) (Model, *fakeThemePersister) {
 	t.Helper()
 
@@ -276,35 +149,14 @@ func themeConfirmGuardModel(t *testing.T) (Model, *fakeThemePersister) {
 	return raiseSlotConfirmForTest(t, m, slotLightPress, themeConfirmPending.member), persister
 }
 
-// TestThemePanelDescriptorDispatchParity: it keeps the panel descriptor and
-// dispatch in parity.
-//
-// The panel renders a bespoke VERTICAL footer from a descriptor of its own — the
-// second place in the product a key label can go stale, and the drift class this
-// guard exists to make a test failure rather than a bug report. The check is the
-// SAME two-way one the three pages take: every non-help descriptor entry has a probe
-// the live dispatch honours, and every probe's key appears in the descriptor.
 func TestThemePanelDescriptorDispatchParity(t *testing.T) {
 	assertDescriptorDispatchParity(t, "theme panel", themePanelKeymap(), themePanelProbes(livePanelDispatch))
 }
 
-// TestThemeConfirmDescriptorDispatchParity: it keeps the confirm descriptor and
-// dispatch in parity.
-//
-// The confirm SUBSTITUTES its own footer while it is live (§9.2), which is the third
-// such place, so it takes the same check as its own scope rather than riding on the
-// panel's.
 func TestThemeConfirmDescriptorDispatchParity(t *testing.T) {
 	assertDescriptorDispatchParity(t, "theme confirm", themePanelConfirmKeymap(), themeConfirmProbes(livePanelDispatch))
 }
 
-// themePanelArmRemoved is the live routing with ONE arm deleted: the presses it
-// names fall through to the swallow-everything default, which is exactly what
-// removing a `case` from updateThemePanel leaves behind.
-//
-// It WRAPS the production dispatch rather than restating it, so every surviving arm
-// is the real one and the guard-of-the-guard cannot pass against a stub that has
-// quietly stopped resembling the thing it stands in for.
 func themePanelArmRemoved(presses ...tea.KeyPressMsg) themePanelDispatch {
 	return func(m Model, msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if slices.Contains(presses, msg) {
@@ -314,13 +166,6 @@ func themePanelArmRemoved(presses ...tea.KeyPressMsg) themePanelDispatch {
 	}
 }
 
-// TestThemePanelParity_DetectsARemovedArm: it fails on a missing dispatch arm.
-//
-// The guard's own guard, in both directions of the parity contract. A suite that
-// passes today says nothing about tomorrow unless deleting a dispatch arm — or
-// advertising a key nothing dispatches — is shown to BREAK it, and the failure has to
-// name the key that went: a check reporting six violations for one deleted arm sends
-// the reader looking in five wrong places.
 func TestThemePanelParity_DetectsARemovedArm(t *testing.T) {
 	t.Run("a removed dispatch arm", func(t *testing.T) {
 		for _, tc := range []struct {
@@ -359,11 +204,6 @@ func TestThemePanelParity_DetectsARemovedArm(t *testing.T) {
 	})
 }
 
-// requireDriftNaming fails unless the parity check reported EXACTLY ONE violation
-// and it names key.
-//
-// The count is half the assertion: one broken binding must produce one report, or the
-// guard tells a reader which key to look at by listing all of them.
 func requireDriftNaming(t *testing.T, drift []string, key string) {
 	t.Helper()
 
@@ -375,15 +215,6 @@ func requireDriftNaming(t *testing.T, drift []string, key string) {
 	}
 }
 
-// TestThemePanelParity_ProbesAssertEffects: it probes a bound effect rather than
-// consumption.
-//
-// THE PANEL IS KEY-EXCLUSIVE (§9.7), so a probe asserting only that the key was
-// SWALLOWED passes for every key in the alphabet — including one whose dispatch arm
-// has just been deleted, which is the whole failure this guard exists to catch. Every
-// probe therefore has to assert a state change the dispatch is supposed to CAUSE, and
-// this is that requirement executed: driven against a dispatch that swallows
-// everything and changes nothing, not one probe may pass.
 func TestThemePanelParity_ProbesAssertEffects(t *testing.T) {
 	swallow := themePanelDispatch(func(m Model, _ tea.KeyPressMsg) (tea.Model, tea.Cmd) { return m, nil })
 
@@ -404,15 +235,6 @@ func TestThemePanelParity_ProbesAssertEffects(t *testing.T) {
 	}
 }
 
-// TestThemePanelDispatch_EscMeansInnermostFirst: it distinguishes panel close from
-// confirm cancel.
-//
-// `Esc` is the one genuinely OVERLOADED key across the two scopes — §9.2 gives it the
-// panel's close and the confirm's cancel, resolved innermost-first — so a probe that
-// did not tell the two apart would prove nothing about either. The panel scope's
-// `esc` probe asserts the CLOSE; this asserts both meanings side by side, which is
-// what makes that probe's silence about the cancel a division of labour rather than a
-// gap.
 func TestThemePanelDispatch_EscMeansInnermostFirst(t *testing.T) {
 	t.Run("with no confirm live it closes the panel", func(t *testing.T) {
 		m, persister := themePanelGuardModel(t)
@@ -423,13 +245,13 @@ func TestThemePanelDispatch_EscMeansInnermostFirst(t *testing.T) {
 		after := dispatchPanelKey(t, livePanelDispatch, m, keyEsc)
 
 		if after.themePanel.open {
-			t.Error("`Esc` with no confirm live left the panel open; it is the ONLY way out (§9.2)")
+			t.Error("`Esc` with no confirm live left the panel open; it is the ONLY way out")
 		}
 		if !themePanelStateDropped(after) {
-			t.Errorf("the close retained panel state %+v, want the whole struct dropped so the next open re-reads (§5.8)", after.themePanel)
+			t.Errorf("the close retained panel state %+v, want the whole struct dropped so the next open re-reads", after.themePanel)
 		}
 		if len(persister.slugs) != 0 {
-			t.Errorf("the close wrote %v; every write is an explicit commit key (§9.2)", persister.slugs)
+			t.Errorf("the close wrote %v; every write is an explicit commit key", persister.slugs)
 		}
 	})
 
@@ -439,32 +261,20 @@ func TestThemePanelDispatch_EscMeansInnermostFirst(t *testing.T) {
 		after := dispatchPanelKey(t, livePanelDispatch, m, keyEsc)
 
 		if !after.themePanel.open {
-			t.Fatal("`Esc` closed the panel while the confirm was live; the innermost thing resolves first (§9.2)")
+			t.Fatal("`Esc` closed the panel while the confirm was live; the innermost thing resolves first")
 		}
 		if after.themePanel.confirming() {
-			t.Error("`Esc` left the confirm standing; it is one of the three inputs that resolve it (§9.2)")
+			t.Error("`Esc` left the confirm standing; it is one of the three inputs that resolve it")
 		}
 		if themePanelStateDropped(after) {
 			t.Errorf("the cancel dropped the panel state %+v, want everything the CLOSE would have discarded left in place", after.themePanel)
 		}
 		if len(persister.slugs) != 0 {
-			t.Errorf("the cancel wrote %v; nothing is written until `y` (§9.2)", persister.slugs)
+			t.Errorf("the cancel wrote %v; nothing is written until `y`", persister.slugs)
 		}
 	})
 }
 
-// TestThemeConfirmDispatch_UppercaseReachesTheSameArm: it honours both cases of the
-// confirm keys.
-//
-// The descriptor advertises the TERSE `y`/`n` glyphs — the footer form — while §9.2
-// answers on either case, so the parity probes are pinned to the lowercase press and
-// the uppercase half would sit outside the guard entirely. It is driven through the
-// SAME effect predicates those probes use, so a `Y` reaching a different arm than `y`
-// could not satisfy it.
-//
-// Both shapes an uppercase answer arrives in are covered: the ModShift press every
-// terminal actually sends, and the bare `Mod == 0` press the matcher's case-fold is
-// defensive against.
 func TestThemeConfirmDispatch_UppercaseReachesTheSameArm(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
@@ -478,19 +288,12 @@ func TestThemeConfirmDispatch_UppercaseReachesTheSameArm(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if !tc.honoured(t, livePanelDispatch, tc.press) {
-				t.Errorf("%q does not reach the arm its lowercase form does; the descriptor carries ONE glyph for both cases (§9.2)", tc.name)
+				t.Errorf("%q does not reach the arm its lowercase form does; the descriptor carries ONE glyph for both cases", tc.name)
 			}
 		})
 	}
 }
 
-// TestThemePanelKeymap_NoRightAlignedEntry: it adds no right-aligned entry.
-//
-// The `?` help allow-list is the parity check's ONE exception and it is derived from
-// the descriptor's own RightAligned flag, so an entry carrying that flag is silently
-// exempted from needing a probe. Neither theme scope may have one: their footers are
-// VERTICAL (§9.1), with no right anchor to pin an entry to, so the allow-list has
-// nothing to exclude here and must not widen to admit anything.
 func TestThemePanelKeymap_NoRightAlignedEntry(t *testing.T) {
 	for _, scope := range themeKeymapScopes() {
 		for _, e := range scope.entries {
@@ -500,8 +303,6 @@ func TestThemePanelKeymap_NoRightAlignedEntry(t *testing.T) {
 		}
 	}
 
-	// The control: the flag is a LIVE carve-out on the horizontal page footers, so the
-	// assertion above is about these scopes rather than about a flag nothing uses.
 	for _, page := range []struct {
 		name    string
 		entries []keymapEntry
@@ -515,7 +316,6 @@ func TestThemePanelKeymap_NoRightAlignedEntry(t *testing.T) {
 	}
 }
 
-// countRightAligned counts a descriptor's right-anchored entries.
 func countRightAligned(entries []keymapEntry) int {
 	n := 0
 	for _, e := range entries {
@@ -526,22 +326,12 @@ func countRightAligned(entries []keymapEntry) int {
 	return n
 }
 
-// TestThemePanelKeymap_NoHelpEntry: it binds no help key.
-//
-// §9.12: `?` does nothing inside the panel. There is no panel help modal — a help
-// body over a non-blanking overlay would stack the shape §9.6 rejects — so the scope
-// exists to drive the vertical footer and the guard, and `?` earns neither a
-// descriptor entry nor a probe.
-//
-// `Ctrl-C` is the opposite omission and belongs beside it: it IS dispatched in both
-// scopes and deliberately unadvertised, being the global quit §9.7 keeps live
-// everywhere rather than a scope binding.
 func TestThemePanelKeymap_NoHelpEntry(t *testing.T) {
 	t.Run("neither scope advertises or probes ?", func(t *testing.T) {
 		for _, scope := range themeKeymapScopes() {
 			for _, e := range scope.entries {
 				if e.Key == "?" || e.HelpKey == "?" {
-					t.Errorf("the %s scope advertises a `?` entry; `?` does nothing inside the panel (§9.12)", scope.name)
+					t.Errorf("the %s scope advertises a `?` entry; `?` does nothing inside the panel", scope.name)
 				}
 			}
 			if _, probed := scope.probes["?"]; probed {
@@ -557,7 +347,7 @@ func TestThemePanelKeymap_NoHelpEntry(t *testing.T) {
 		after := dispatchPanelKey(t, livePanelDispatch, m, tea.KeyPressMsg{Code: '?', Text: "?"})
 
 		if !after.themePanel.open || after.modal != modalNone {
-			t.Errorf("`?` inside the panel left open=%t modal=%v, want the panel standing with no modal (§9.12)", after.themePanel.open, after.modal)
+			t.Errorf("`?` inside the panel left open=%t modal=%v, want the panel standing with no modal", after.themePanel.open, after.modal)
 		}
 		if got := after.themePanel.list.Index(); got != before {
 			t.Errorf("`?` moved the panel cursor to row %d, want it left on %d", got, before)
@@ -576,19 +366,15 @@ func TestThemePanelKeymap_NoHelpEntry(t *testing.T) {
 		for _, scope := range themeKeymapScopes() {
 			for _, e := range scope.entries {
 				if slices.Contains(ctrlCGlyphs, e.Key) {
-					t.Errorf("the %s scope advertises %q; `Ctrl-C` is the global quit that stays live everywhere, not a scope binding (§9.7)", scope.name, e.Key)
+					t.Errorf("the %s scope advertises %q; `Ctrl-C` is the global quit that stays live everywhere, not a scope binding", scope.name, e.Key)
 				}
 			}
 		}
 	})
 }
 
-// ctrlCGlyphs are the forms the global quit would be written in if a scope ever
-// advertised it.
 var ctrlCGlyphs = []string{"^c", "^C", "ctrl+c", "ctrl-c", "Ctrl-C"}
 
-// themeKeymapScopes pairs each theme scope's descriptor with its probe set, so the
-// negatives above are stated once over both rather than twice over one.
 func themeKeymapScopes() []struct {
 	name    string
 	entries []keymapEntry
@@ -604,19 +390,6 @@ func themeKeymapScopes() []struct {
 	}
 }
 
-// TestKeymapGuard_PageDescriptorsUnchanged: it leaves the page descriptors
-// untouched.
-//
-// The theme scopes are NEW SCOPES BESIDE the three pages, never an extension of
-// them: nothing about the panel's six keys or the confirm's two may reach
-// sessionsKeymap / projectsKeymap / previewKeymap, and their probe sets are pinned by
-// the parity check itself — direction 1 demands a probe for every non-help entry and
-// direction 2 rejects a probe the descriptor omits, so those probe keys ARE the keys
-// pinned below.
-//
-// The golden is the KEY ORDER AND THE FLAGS: what the dispatch guard and the footer
-// read. The Action / HelpAction copy is pinned by the footer and help suites, so
-// restating it here would duplicate their goldens rather than add a statement.
 func TestKeymapGuard_PageDescriptorsUnchanged(t *testing.T) {
 	for _, tc := range []struct {
 		page string
@@ -671,8 +444,6 @@ func TestKeymapGuard_PageDescriptorsUnchanged(t *testing.T) {
 	}
 }
 
-// descriptorShape reduces a descriptor to the ordered keys and the flags the footer
-// and the dispatch guard read.
 func descriptorShape(entries []keymapEntry) []string {
 	shapes := make([]string, 0, len(entries))
 	for _, e := range entries {

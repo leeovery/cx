@@ -1,18 +1,3 @@
-// Tests in this file mutate package-level state (the process-wide log handler
-// via log.SetTestHandler) and MUST NOT use t.Parallel.
-//
-// Phase 5 Task 5-5: the two cmd/bootstrap clean-sweep cycle summaries. Both
-// SweepOrphanDaemons and CleanStaleMarkers emit exactly ONE INFO summary at
-// completion under the clean-bound package logger (component "clean"), while
-// per-item Debug/Warn breadcrumbs stay on the injected bootstrap-bound logger
-// seam. The orphan-daemon summary carries killed=N + took; the marker summary
-// carries unset=N + took. The per-kill INFO is demoted to a per-item DEBUG
-// (under clean, grouping the sweep's own detail with its summary).
-//
-// Spec reference: § Cycle-level summary cadence and shape (orphan-daemon-sweep
-// and marker-cleanup rows of the concrete cycle catalog); § Subsystem prefix
-// taxonomy (clean component; closed cycle-summary attrs killed/unset/took).
-
 package bootstrap
 
 import (
@@ -26,16 +11,10 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// cleanSummarySink is a thin wrapper over the shared logtest.Sink that adds the
-// clean-sweep summary's component+message record filtering. The clean-sweep
-// summary tests assert on the structured record (component=clean, msg,
-// killed/unset int attrs, took rendered as a duration) via the sink's shared
-// accessors.
 type cleanSummarySink struct {
 	*logtest.Sink
 }
 
-// summariesFor returns every record whose component matches comp and msg matches.
 func (s *cleanSummarySink) summariesFor(comp, msg string) []logtest.Record {
 	var out []logtest.Record
 	for _, r := range s.Records() {
@@ -48,8 +27,6 @@ func (s *cleanSummarySink) summariesFor(comp, msg string) []logtest.Record {
 	return out
 }
 
-// onlySummary asserts exactly one record with the given component+msg was
-// emitted and returns it.
 func (s *cleanSummarySink) onlySummary(t *testing.T, comp, msg string) logtest.Record {
 	t.Helper()
 	sums := s.summariesFor(comp, msg)
@@ -66,8 +43,6 @@ func installCleanSummarySink(t *testing.T) *cleanSummarySink {
 	return sink
 }
 
-// matching returns every record whose level+msg match and whose component
-// equals comp.
 func (s *cleanSummarySink) matching(level slog.Level, comp, msg string) []logtest.Record {
 	var out []logtest.Record
 	for _, r := range s.Records() {
@@ -82,8 +57,6 @@ func (s *cleanSummarySink) matching(level slog.Level, comp, msg string) []logtes
 	}
 	return out
 }
-
-// ---- Orphan-daemon sweep summary ----
 
 func TestSweepOrphanDaemons_EmitsCleanSummaryCountingSuccessfulKills(t *testing.T) {
 	sink := installCleanSummarySink(t)
@@ -127,7 +100,6 @@ func TestSweepOrphanDaemons_DemotesPerKillInfoToDebug(t *testing.T) {
 		t.Fatalf("SweepOrphanDaemons returned error: %v", err)
 	}
 
-	// No INFO per-kill line under any component.
 	for _, r := range sink.Records() {
 		if r.Level == slog.LevelInfo && r.Msg == "orphan killed" {
 			t.Errorf("per-kill line must not be INFO: %+v", r)
@@ -136,7 +108,6 @@ func TestSweepOrphanDaemons_DemotesPerKillInfoToDebug(t *testing.T) {
 			t.Errorf("old per-kill INFO message must be gone: %+v", r)
 		}
 	}
-	// Exactly one per-item DEBUG "orphan killed" under clean, carrying target_pid.
 	dbg := sink.matching(slog.LevelDebug, "clean", "orphan killed")
 	if len(dbg) != 1 {
 		t.Fatalf("expected 1 DEBUG 'orphan killed' under clean, got %d: %+v", len(dbg), sink.Records())
@@ -148,8 +119,6 @@ func TestSweepOrphanDaemons_DemotesPerKillInfoToDebug(t *testing.T) {
 
 func TestSweepOrphanDaemons_ExcludesSkippedAndFailedFromKilled(t *testing.T) {
 	sink := installCleanSummarySink(t)
-	// 3001 identifies-not-portal-daemon (DEBUG skip), 3002 kill fails (WARN),
-	// 3003 succeeds. killed must be exactly 1.
 	identify := &recordingIdentify{
 		results: map[int]identifyOutcome{
 			3001: {res: state.IdentifyNotPortalDaemon},
@@ -175,12 +144,10 @@ func TestSweepOrphanDaemons_ExcludesSkippedAndFailedFromKilled(t *testing.T) {
 		t.Errorf("killed = %d, want 1 (excludes skip + failed kill)", got)
 	}
 
-	// Identity-skip stays DEBUG on the bootstrap logger.
 	skips := sink.matching(slog.LevelDebug, "bootstrap", "sweep: pid not identity-checked as portal daemon, skipping")
 	if len(skips) != 1 {
 		t.Errorf("expected 1 identity-skip DEBUG under bootstrap, got %d: %+v", len(skips), sink.Records())
 	}
-	// Kill-failure stays WARN on the bootstrap logger.
 	warns := sink.matching(slog.LevelWarn, "bootstrap", "sweep: kill failed")
 	if len(warns) != 1 {
 		t.Errorf("expected 1 kill-failure WARN under bootstrap, got %d: %+v", len(warns), sink.Records())
@@ -207,8 +174,6 @@ func TestSweepOrphanDaemons_NoSummaryWhenPgrepFails(t *testing.T) {
 
 func TestSweepOrphanDaemons_SummaryWithZeroKilledWhenSaverPanePIDErrors(t *testing.T) {
 	sink := installCleanSummarySink(t)
-	// SaverPanePID errors → empty legitimate set → sweep proceeds. No candidates
-	// kill (all identify dead), so killed=0 but the summary is still emitted.
 	identify := &recordingIdentify{def: identifyOutcome{res: state.IdentifyDead}}
 	kill := &recordingKill{}
 
@@ -229,8 +194,6 @@ func TestSweepOrphanDaemons_SummaryWithZeroKilledWhenSaverPanePIDErrors(t *testi
 	}
 	rec.RequireDuration(t, "took")
 }
-
-// ---- Marker sweep summary ----
 
 func TestCleanStaleMarkers_EmitsCleanSummaryCountingSuccessfulUnsets(t *testing.T) {
 	sink := installCleanSummarySink(t)
@@ -264,8 +227,6 @@ func TestCleanStaleMarkers_EmitsCleanSummaryCountingSuccessfulUnsets(t *testing.
 
 func TestCleanStaleMarkers_SummaryUnsetCountsOnlySuccessfulUnsets(t *testing.T) {
 	sink := installCleanSummarySink(t)
-	// Three stale markers; the middle unset fails. unset must be 2, and the
-	// aggregate error still returns.
 	lister := &fakeMarkerLister{markers: map[string]struct{}{
 		"a__0.0": {},
 		"b__0.0": {},
@@ -301,7 +262,6 @@ func TestCleanStaleMarkers_SummaryUnsetZeroOnMassUnsetHazardDeferral(t *testing.
 		"protected__0.0": {},
 		"another__1.2":   {},
 	}}
-	// No error, but zero panes parsed → mass-unset-hazard deferral.
 	live := &fakeLivePaneLister{output: ""}
 	unsetter := &fakeMarkerUnsetter{}
 
@@ -322,7 +282,6 @@ func TestCleanStaleMarkers_SummaryUnsetZeroOnMassUnsetHazardDeferral(t *testing.
 	if got := rec.IntAttr(t, "unset"); got != 0 {
 		t.Errorf("unset = %d, want 0 (never a false unset on deferral)", got)
 	}
-	// The deferral WARN still fires on the bootstrap logger.
 	warns := sink.matching(slog.LevelWarn, "bootstrap", "stale-marker cleanup: zero live panes parsed with markers present; skipping to avoid mass-unset hazard (next bootstrap retries)")
 	if len(warns) != 1 {
 		t.Errorf("expected 1 deferral WARN under bootstrap, got %d: %+v", len(warns), sink.Records())
@@ -374,7 +333,6 @@ func TestCleanStaleMarkers_NoSummaryWhenListErrorReturns(t *testing.T) {
 func TestCleanStaleMarkers_SummaryUnsetZeroOnEmptyMarkersNoOp(t *testing.T) {
 	sink := installCleanSummarySink(t)
 	lister := &fakeMarkerLister{markers: map[string]struct{}{}}
-	// Empty live + empty markers → clean no-op return.
 	live := &fakeLivePaneLister{output: ""}
 	unsetter := &fakeMarkerUnsetter{}
 
@@ -395,7 +353,4 @@ func TestCleanStaleMarkers_SummaryUnsetZeroOnEmptyMarkersNoOp(t *testing.T) {
 	rec.RequireDuration(t, "took")
 }
 
-// Compile-time guard: tmux import is exercised so goimports does not drop it if
-// a future edit removes the only reference; the StructuralKeyFormat constant is
-// the canonical live-pane format the marker sweep requests.
 var _ = tmux.StructuralKeyFormat

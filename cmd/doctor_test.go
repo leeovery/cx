@@ -1,5 +1,3 @@
-// Tests in this file mutate package-level Cobra/DI state (doctorDeps, rootCmd)
-// and MUST NOT use t.Parallel.
 package cmd
 
 import (
@@ -19,18 +17,10 @@ import (
 	"github.com/leeovery/portal/internal/state"
 )
 
-// doctorUnsupportedResolve is a neutral host-terminal Resolve seam returning
-// "unsupported" for any identity. withHealthyRuntime stubs it (with a NULL
-// detector) so the appended informational host-terminal line is computed from
-// injected fakes rather than a real spawn.NewDetector (which reads the process
-// tree / tmux) in every doctor test.
 func doctorUnsupportedResolve(spawn.Identity) (spawn.Adapter, spawn.Resolution) {
 	return nil, spawn.ResolutionUnsupported
 }
 
-// seedLiveDaemonPID writes daemon.pid pointing at the current process so the
-// liveness probe always succeeds in-test. Self-contained (does not borrow the
-// state-status test helpers, which Task 4-7 deletes).
 func seedLiveDaemonPID(t *testing.T, dir string) {
 	t.Helper()
 	pid := strconv.Itoa(os.Getpid())
@@ -39,8 +29,6 @@ func seedLiveDaemonPID(t *testing.T, dir string) {
 	}
 }
 
-// seedDeadDaemonPID writes daemon.pid pointing at an almost-certainly-dead PID
-// so the liveness probe fails.
 func seedDeadDaemonPID(t *testing.T, dir string) {
 	t.Helper()
 	if err := os.WriteFile(state.DaemonPID(dir), []byte("999999\n"), 0o600); err != nil {
@@ -48,7 +36,6 @@ func seedDeadDaemonPID(t *testing.T, dir string) {
 	}
 }
 
-// seedDaemonVersion writes daemon.version with the supplied marker.
 func seedDaemonVersion(t *testing.T, dir, version string) {
 	t.Helper()
 	if err := os.WriteFile(state.DaemonVersion(dir), []byte(version+"\n"), 0o600); err != nil {
@@ -56,8 +43,6 @@ func seedDaemonVersion(t *testing.T, dir, version string) {
 	}
 }
 
-// seedValidSessionsJSON writes a canonical sessions.json with the given number
-// of single-window/single-pane sessions.
 func seedValidSessionsJSON(t *testing.T, dir string, sessions int) {
 	t.Helper()
 	idx := state.Index{Version: state.SchemaVersion, SavedAt: time.Now()}
@@ -78,11 +63,8 @@ func seedValidSessionsJSON(t *testing.T, dir string, sessions int) {
 	}
 }
 
-// allHooksHealthy is a HookCounts result with exactly one Portal entry on
-// every managed event — the healthy hooks state. Mirrors the managedEvents
-// table in internal/tmux (which cmd cannot import at test time); the doctor
-// hooks check only inspects the per-event counts, so the key set stands in for
-// the canonical event set.
+// cmd cannot import the managedEvents table at test time, so this key set
+// stands in for the canonical event set.
 func allHooksHealthy() map[string]int {
 	return map[string]int{
 		"session-created":        1,
@@ -97,17 +79,9 @@ func allHooksHealthy() map[string]int {
 	}
 }
 
-// withHealthyRuntime fills the three runtime tmux probe seams on deps with a
-// healthy running server (server up, saver present, one hook per managed
-// event) unless the caller already set them. State-check-focused tests use it
-// so the server gate opens and the runtime checks pass, isolating the
-// server-independent state checks under test.
-//
-// It also stubs the informational host-terminal seams (a NULL detector +
-// unsupported resolve) unless the caller set them, so the appended host-terminal
-// line never invokes a real spawn.NewDetector (which reads the process tree /
-// tmux). The stub is inert: host terminal is checkInfo, never counted by
-// doctorUnhealthy.
+// withHealthyRuntime fills any unset probe seam with a healthy result. It also
+// stubs the host-terminal seams so no doctor test invokes a real detector,
+// which would read the process tree and the live tmux server.
 func withHealthyRuntime(deps *DoctorDeps) *DoctorDeps {
 	if deps.ServerRunning == nil {
 		deps.ServerRunning = func() bool { return true }
@@ -127,10 +101,6 @@ func withHealthyRuntime(deps *DoctorDeps) *DoctorDeps {
 	return deps
 }
 
-// seedHealthyStateDir seeds a live daemon.pid, a daemon.version marker, and a
-// valid single-session sessions.json so every state-based check passes — used
-// by tests that want to isolate a single runtime probe as the ONLY unhealthy
-// (or not-evaluable) check.
 func seedHealthyStateDir(t *testing.T, dir string) {
 	t.Helper()
 	seedLiveDaemonPID(t, dir)
@@ -138,16 +108,10 @@ func seedHealthyStateDir(t *testing.T, dir string) {
 	seedValidSessionsJSON(t, dir, 1)
 }
 
-// runDoctor executes "portal doctor" with a hermetic DoctorDeps.StateDir
-// pointing at dir, returning stdout, stderr, and the rootCmd.Execute error.
-// The runtime tmux probe seams default to a healthy running server so the
-// existing state-check tests exercise their subject with the server gate open;
-// tests asserting a down/absent runtime override the seams before calling.
 func runDoctor(t *testing.T, dir string) (*bytes.Buffer, *bytes.Buffer, error) {
 	t.Helper()
-	// resolveDoctorDeps now sources the host-terminal seams from the shared
-	// buildProductionSpawnSeams bundle, which reads terminals.json eagerly — isolate
-	// it so the Execute path never touches the developer's real config file.
+	// The deps resolution reads terminals.json eagerly; isolate it so Execute
+	// never touches the developer's real config file.
 	isolateTerminalsFile(t)
 	doctorDeps = withHealthyRuntime(&DoctorDeps{StateDir: dir})
 	t.Cleanup(func() { doctorDeps = nil })
@@ -162,8 +126,6 @@ func runDoctor(t *testing.T, dir string) (*bytes.Buffer, *bytes.Buffer, error) {
 	return outBuf, errBuf, err
 }
 
-// findCheck locates the checkResult with the given name, failing the test when
-// absent.
 func findCheck(t *testing.T, results []checkResult, name string) checkResult {
 	t.Helper()
 	for _, r := range results {
@@ -197,21 +159,14 @@ func TestDoctorAllStateChecksPassExitsZero(t *testing.T) {
 	if !strings.Contains(out, "1 session, 1 pane") {
 		t.Errorf("report missing sessions detail:\n%s", out)
 	}
-	// The report now closes with the summary line. Six checks are counted, not
-	// seven: runDoctor leaves the stale-hooks seams to their production defaults,
-	// whose live-pane enumeration fails against TestMain's poisoned tmux socket
-	// and reports not-evaluable — a status counted by neither N nor T.
+	// The stale-hooks seams keep their production defaults, whose live-pane
+	// enumeration fails against TestMain's poisoned tmux socket and reports
+	// not-evaluable — so that check falls outside the count below.
 	if !strings.HasSuffix(out, "\n  6 checks passed\n") {
 		t.Errorf("report does not close with the all-passed summary:\n%s", out)
 	}
 }
 
-// TestDoctorZeroValueCheckResultNotHealthy pins the defensive iota-0 sentinel: a
-// zero-value checkResult{} — the shape a forgotten status assignment would
-// produce — must NOT read as pass and must NOT yield a healthy
-// (doctorUnhealthy == false) result. Without an explicit checkUnknown at iota 0
-// the zero value would silently classify as checkPass, letting the scriptable
-// exit-code contract be satisfied by an unset status.
 func TestDoctorZeroValueCheckResultNotHealthy(t *testing.T) {
 	zero := checkResult{}
 
@@ -249,12 +204,9 @@ func TestDoctorDeadDaemonFailsNonZero(t *testing.T) {
 }
 
 func TestDoctorFreshInstallReportedHonestly(t *testing.T) {
-	// A path whose parent exists but the state dir itself does not — a fresh
-	// install with no state dir, no daemon.pid, no sessions.json.
 	dir := filepath.Join(t.TempDir(), "state")
 
 	outBuf, _, err := runDoctor(t, dir)
-	// daemon-alive fails → overall unhealthy, but no crash.
 	if err != ErrDoctorUnhealthy {
 		t.Fatalf("Execute err = %v; want ErrDoctorUnhealthy on fresh install (daemon down)", err)
 	}
@@ -268,18 +220,12 @@ func TestDoctorFreshInstallReportedHonestly(t *testing.T) {
 	if !strings.Contains(out, "sessions.json: no sessions saved yet") {
 		t.Errorf("absent sessions.json must pass:\n%s", out)
 	}
-	// The failing daemon check drops the summary to the partial form — the case
-	// the summary exists for, since that is when the non-zero exit needs
-	// explaining. Six counted (stale hooks is not-evaluable, host terminal is
-	// informational), five passing.
 	if !strings.HasSuffix(out, "\n  5 of 6 checks passed\n") {
 		t.Errorf("report does not close with the partial summary:\n%s", out)
 	}
 }
 
 func TestDoctorIsReadOnly(t *testing.T) {
-	// A non-existent state dir must NOT be created by a diagnosis pass —
-	// doctor is strictly read-only (state.Dir(), never EnsureDir).
 	dir := filepath.Join(t.TempDir(), "state")
 
 	if _, _, err := runDoctor(t, dir); err != ErrDoctorUnhealthy {
@@ -386,15 +332,9 @@ func TestDoctorStateDirSaneHealthyDirPasses(t *testing.T) {
 	}
 }
 
-// TestDoctorStateDirSaneFailBranches pins the two checkStateDirSane failure
-// paths: an existing-but-non-directory state-dir path, and an unreadable stat
-// (a non-ErrNotExist os.Stat error). Both are pure unit tests — no real tmux or
-// daemon — driven through runDoctorDiagnosis with a healthy runtime so only the
-// state-dir check is the subject.
 func TestDoctorStateDirSaneFailBranches(t *testing.T) {
 	t.Run("existing path that is not a directory fails", func(t *testing.T) {
-		// A regular file at the state-dir path: os.Stat succeeds but IsDir() is
-		// false → the "not a directory" fail branch.
+		// A regular file at the state-dir path: os.Stat succeeds, IsDir does not.
 		file := filepath.Join(t.TempDir(), "state")
 		if err := os.WriteFile(file, []byte("i am a file, not a dir"), 0o600); err != nil {
 			t.Fatalf("write state file: %v", err)
@@ -416,9 +356,8 @@ func TestDoctorStateDirSaneFailBranches(t *testing.T) {
 		if os.Geteuid() == 0 {
 			t.Skip("root bypasses 0o000 directory permissions; the stat would not fail")
 		}
-		// A state-dir path nested inside a directory stripped of all permissions:
-		// os.Stat of the child returns EACCES (not ErrNotExist), exercising the
-		// "unreadable" fail branch.
+		// os.Stat of a child inside a 0o000 directory returns EACCES, not
+		// ErrNotExist.
 		blocked := filepath.Join(t.TempDir(), "blocked")
 		if err := os.Mkdir(blocked, 0o700); err != nil {
 			t.Fatalf("mkdir blocked: %v", err)
@@ -501,24 +440,19 @@ func TestIsSilentExitErrorRecognisesDoctorUnhealthy(t *testing.T) {
 	}
 }
 
-// doctorRuntimeNotRunningDetail is the byte-exact detail every runtime check
-// emits when the tmux server is down. Duplicated here (not imported) so the
-// test independently pins the contract rather than trusting the production
-// constant.
+// Duplicated rather than imported, so a drift in the production string is a
+// failure rather than a silent agreement.
 const doctorRuntimeNotRunningDetail = "Portal runtime not running — run portal open to start"
 
 func TestDoctorServerDownReportsRuntimeNotRunning(t *testing.T) {
 	dir := t.TempDir()
-	// A live daemon.pid on disk must NOT rescue the daemon check: a down server
-	// gates daemon, saver AND hooks to the distinct not-running message.
 	seedHealthyStateDir(t, dir)
 
 	deps := &DoctorDeps{
 		StateDir:      dir,
 		ServerRunning: func() bool { return false },
-		// Healthy probe returns: if the gate is (wrongly) bypassed these would
-		// produce PASS details, so the not-running assertions below would fail
-		// loudly — proving the down gate short-circuits the probes.
+		// Healthy probe returns: were the down-server gate bypassed these would
+		// produce PASS details and the assertions below would fail loudly.
 		SaverPresent: func() (bool, error) { return true, nil },
 		HookCounts:   func() (map[string]int, error) { return allHooksHealthy(), nil },
 	}
@@ -537,12 +471,10 @@ func TestDoctorServerDownReportsRuntimeNotRunning(t *testing.T) {
 		}
 	}
 
-	// The down-server report is unhealthy → non-zero, distinct from corruption.
 	if !doctorUnhealthy(results) {
 		t.Error("doctorUnhealthy = false; want true for a down server")
 	}
 
-	// State-based checks stay server-independent and pass on a healthy dir.
 	if got := findCheck(t, results, "state dir"); got.status != checkPass {
 		t.Errorf("state dir status = %v; want checkPass (server-independent)", got.status)
 	}
@@ -551,10 +483,6 @@ func TestDoctorServerDownReportsRuntimeNotRunning(t *testing.T) {
 	}
 }
 
-// TestRuntimeDownResult pins the shared down-server result helper: for each of
-// the three runtime-check names it must produce checkFail with the byte-exact
-// doctorRuntimeNotRunning detail, so the daemon / saver / hooks checks stay
-// byte-identical after routing their !serverUp arm through it.
 func TestRuntimeDownResult(t *testing.T) {
 	for _, name := range []string{"daemon", "saver", "hooks"} {
 		got := runtimeDownResult(name)
@@ -740,10 +668,6 @@ func TestDoctorSaverCheck(t *testing.T) {
 	})
 }
 
-// TestDoctorHostTerminalLine covers the informational host-terminal line: the
-// three classifications (supported / recognised-but-undriven / NULL-remote),
-// each computed from the injected Detect()+Resolve seams and reported as
-// checkInfo.
 func TestDoctorHostTerminalLine(t *testing.T) {
 	dir := t.TempDir()
 	seedHealthyStateDir(t, dir)
@@ -774,8 +698,7 @@ func TestDoctorHostTerminalLine(t *testing.T) {
 	})
 
 	t.Run("null identity reports unsupported remote session regardless of resolve", func(t *testing.T) {
-		// Resolve returns Native to prove the NULL short-circuit ignores it: a
-		// remote/mosh / no-host-local client can never be classified "supported".
+		// Resolve returns Native, which the NULL short-circuit must ignore.
 		deps := hostDeps(spawn.Identity{}, spawn.ResolutionNative)
 		results, err := runDoctorDiagnosis(deps)
 		if err != nil {
@@ -806,15 +729,10 @@ func TestDoctorHostTerminalLine(t *testing.T) {
 	})
 }
 
-// TestDoctorHostTerminalNeverDrivesExit proves the informational host-terminal
-// line is outside the pass/fail set: an unsupported host can't push the exit
-// non-zero, and a supported host can't rescue a genuine runtime-health failure.
 func TestDoctorHostTerminalNeverDrivesExit(t *testing.T) {
 	t.Run("unsupported host with a healthy runtime stays healthy", func(t *testing.T) {
 		dir := t.TempDir()
 		seedHealthyStateDir(t, dir)
-		// NULL detector → "unsupported (remote session)"; every runtime check
-		// healthy; the stale checks are not-evaluable (nil stores) — none a fail.
 		deps := withHealthyRuntime(&DoctorDeps{
 			StateDir: dir,
 			Detector: fakeTerminalDetector{},
@@ -858,9 +776,6 @@ func TestDoctorHostTerminalNeverDrivesExit(t *testing.T) {
 	})
 }
 
-// TestDoctorCheckOrder pins the stable report order: daemon, saver, hooks,
-// state dir, sessions.json, stale hooks, stale projects, host terminal (the
-// informational host line is appended last).
 func TestDoctorCheckOrder(t *testing.T) {
 	dir := t.TempDir()
 	seedHealthyStateDir(t, dir)
@@ -879,9 +794,6 @@ func TestDoctorCheckOrder(t *testing.T) {
 	}
 }
 
-// fakeHookLister is an AllPaneLister fake for the stale-hooks check: it returns
-// the crafted live hook-key set (or an error, to exercise the transient path)
-// without touching a real tmux server.
 type fakeHookLister struct {
 	keys []string
 	err  error
@@ -889,9 +801,6 @@ type fakeHookLister struct {
 
 func (f fakeHookLister) ListAllPaneHookKeys() ([]string, error) { return f.keys, f.err }
 
-// seedHooksJSON writes a hooks.json at a fresh temp path with one on-resume
-// entry per supplied hook key and returns the store plus the file path (so a
-// read-only test can snapshot the bytes). Zero keys writes an empty object.
 func seedHooksJSON(t *testing.T, keys ...string) (*hooks.Store, string) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "hooks.json")
@@ -909,8 +818,6 @@ func seedHooksJSON(t *testing.T, keys ...string) (*hooks.Store, string) {
 	return hooks.NewStore(path), path
 }
 
-// seedProjectsJSON writes a projects.json at a fresh temp path with one project
-// record per supplied path and returns the store plus the file path.
 func seedProjectsJSON(t *testing.T, paths ...string) (*project.Store, string) {
 	t.Helper()
 	file := filepath.Join(t.TempDir(), "projects.json")
@@ -931,8 +838,6 @@ func seedProjectsJSON(t *testing.T, paths ...string) (*project.Store, string) {
 	return project.NewStore(file), file
 }
 
-// staleDeps builds a DoctorDeps with a healthy runtime and the stale-entry
-// seams wired to the supplied lister/stores.
 func staleDeps(dir string, lister AllPaneLister, hookStore *hooks.Store, projectStore *project.Store) *DoctorDeps {
 	return withHealthyRuntime(&DoctorDeps{
 		StateDir:     dir,
@@ -942,11 +847,6 @@ func staleDeps(dir string, lister AllPaneLister, hookStore *hooks.Store, project
 	})
 }
 
-// seedStalePruneFixture seeds the shared `--fix` stale-prune scenario over
-// stateDir: a healthy runtime, one hook entry that no live pane claims, and two
-// project records of which one directory is gone. It returns the wired deps plus
-// the paths a caller needs to read back — the hooks and projects files, and the
-// live and gone project directories.
 func seedStalePruneFixture(t *testing.T, stateDir string) (deps *DoctorDeps, hooksPath, projectsPath, liveDir, goneDir string) {
 	t.Helper()
 
@@ -956,16 +856,13 @@ func seedStalePruneFixture(t *testing.T, stateDir string) (deps *DoctorDeps, hoo
 	goneDir = filepath.Join(t.TempDir(), "gone")
 	projectStore, projectsPath := seedProjectsJSON(t, liveDir, goneDir)
 
-	// A live-pane set that excludes sessA:0.0 makes it stale (prunable); the
-	// non-empty set means the hazard guard does NOT defer.
+	// A live-pane set excluding sessA:0.0 makes it stale, and its non-emptiness
+	// keeps the hazard guard from deferring.
 	lister := fakeHookLister{keys: []string{"sessB:0.0"}}
 
 	return staleDeps(stateDir, lister, hookStore, projectStore), hooksPath, projectsPath, liveDir, goneDir
 }
 
-// assertStalePrunesApplied checks the on-disk and reported outcome of a `--fix`
-// run over seedStalePruneFixture: the stale hook and the stale project are gone,
-// the live project survives, and both prunes left their breadcrumb in out.
 func assertStalePrunesApplied(t *testing.T, hooksPath, projectsPath, liveDir, goneDir, out string) {
 	t.Helper()
 
@@ -996,13 +893,10 @@ func assertStalePrunesApplied(t *testing.T, hooksPath, projectsPath, liveDir, go
 	}
 }
 
-// downServerDeferFixture seeds the shared `--fix` down-server scenario over
-// stateDir: a hook entry, one project record whose directory is gone, and deps
-// wired to a server that is down. A down server yields an empty live-pane
-// enumeration, and an empty live set is indistinguishable from "every pane is
-// gone" — so the mass-deletion hazard guard defers the stale-hook prune rather
-// than wiping a user's non-reconstructable on-resume commands. The
-// filesystem-only stale-project prune has no such ambiguity and still runs.
+// downServerDeferFixture wires a down server, whose empty live-pane
+// enumeration is indistinguishable from "every pane is gone" - so the
+// mass-deletion hazard guard defers the stale-hook prune. The filesystem-only
+// project prune has no such ambiguity and still runs.
 func downServerDeferFixture(t *testing.T, stateDir string) (deps *DoctorDeps, hooksPath, projectsPath, goneDir string) {
 	t.Helper()
 
@@ -1022,10 +916,6 @@ func downServerDeferFixture(t *testing.T, stateDir string) (deps *DoctorDeps, ho
 	return deps, hooksPath, projectsPath, goneDir
 }
 
-// assertDownServerDeferral checks the outcome of a `--fix` run over
-// downServerDeferFixture: hooks.json is byte-identical to hooksBefore, the stale
-// project is gone from projects.json, and the run exits unhealthy because the
-// server is still down post-repair.
 func assertDownServerDeferral(t *testing.T, hooksBefore []byte, hooksPath, projectsPath, goneDir string, err error) {
 	t.Helper()
 
@@ -1154,11 +1044,6 @@ func TestDoctorStaleHooksCheck(t *testing.T) {
 	})
 }
 
-// TestDoctorStaleHooksParityWithPredicate proves checkStaleHooks derives its
-// stale count from the same hooks.StaleKeys predicate the prune uses: for
-// representative persisted/live inputs past the hazard guard, the reported count
-// equals len(hooks.StaleKeys(persisted, live)); and the hazard-guard paths still
-// map to checkNotEvaluable/checkPass with no prune (byte-identical store).
 func TestDoctorStaleHooksParityWithPredicate(t *testing.T) {
 	t.Run("past-guard count equals the shared predicate", func(t *testing.T) {
 		cases := []struct {
@@ -1188,7 +1073,6 @@ func TestDoctorStaleHooksParityWithPredicate(t *testing.T) {
 				}
 				want := len(hooks.StaleKeys(persisted, tc.live))
 
-				// The detail carries the count; assert it matches the predicate.
 				wantDetail := "no stale hooks"
 				wantStatus := checkPass
 				if want > 0 {
@@ -1248,9 +1132,6 @@ func TestDoctorStaleHooksParityWithPredicate(t *testing.T) {
 	})
 }
 
-// TestDoctorStaleProjectsParityWithPredicate proves checkStaleProjects derives
-// its stale count from the same project.Store.StaleEntries predicate the prune
-// uses (present/missing fixtures) and stays not-evaluable on a load error.
 func TestDoctorStaleProjectsParityWithPredicate(t *testing.T) {
 	t.Run("count equals the shared predicate", func(t *testing.T) {
 		dir := t.TempDir()
@@ -1283,8 +1164,8 @@ func TestDoctorStaleProjectsParityWithPredicate(t *testing.T) {
 
 	t.Run("load error is not-evaluable", func(t *testing.T) {
 		dir := t.TempDir()
-		// projects.json inside a 0000 dir so Load fails with a non-ErrNotExist
-		// (permission) error — the not-evaluable path.
+		// projects.json inside a 0o000 dir so Load fails with a permission error
+		// rather than ErrNotExist.
 		unreadableDir := filepath.Join(t.TempDir(), "noread")
 		if err := os.Mkdir(unreadableDir, 0o000); err != nil {
 			t.Fatalf("mkdir: %v", err)
@@ -1306,15 +1187,10 @@ func TestDoctorStaleProjectsParityWithPredicate(t *testing.T) {
 	})
 }
 
-// runDoctorFixCmd executes "portal doctor --fix" with the supplied hermetic
-// DoctorDeps, returning stdout, stderr, and the rootCmd.Execute error. Unlike
-// runDoctor it does NOT force withHealthyRuntime — the caller wires exactly the
-// seams the scenario needs (a down server, a stale-hook lister, temp-path
-// stores) so no real tmux server or state dir is ever touched.
+// Unlike runDoctor, the caller wires exactly the seams the scenario needs.
 func runDoctorFixCmd(t *testing.T, deps *DoctorDeps) (*bytes.Buffer, *bytes.Buffer, error) {
 	t.Helper()
-	// resolveDoctorDeps eagerly builds the shared spawn seams (terminals.json read)
-	// — isolate the file so the Execute path stays hermetic.
+	// terminals.json is read eagerly when the deps resolve; isolate it.
 	isolateTerminalsFile(t)
 	doctorDeps = deps
 	t.Cleanup(func() { doctorDeps = nil })
@@ -1329,15 +1205,9 @@ func runDoctorFixCmd(t *testing.T, deps *DoctorDeps) (*bytes.Buffer, *bytes.Buff
 	return outBuf, errBuf, err
 }
 
-// runDoctorCmd executes plain "portal doctor" (no --fix) with the supplied
-// hermetic DoctorDeps, returning stdout, stderr, and the rootCmd.Execute error.
-// Like runDoctorFixCmd it wires exactly the seams the scenario needs — no real
-// tmux server or state dir is touched — but drives the read-only diagnosis path
-// that ends in ErrDoctorUnhealthy rather than the repair path.
 func runDoctorCmd(t *testing.T, deps *DoctorDeps) (*bytes.Buffer, *bytes.Buffer, error) {
 	t.Helper()
-	// resolveDoctorDeps eagerly builds the shared spawn seams (terminals.json read)
-	// — isolate the file so the Execute path stays hermetic.
+	// terminals.json is read eagerly when the deps resolve; isolate it.
 	isolateTerminalsFile(t)
 	doctorDeps = deps
 	t.Cleanup(func() { doctorDeps = nil })
@@ -1352,20 +1222,14 @@ func runDoctorCmd(t *testing.T, deps *DoctorDeps) (*bytes.Buffer, *bytes.Buffer,
 	return outBuf, errBuf, err
 }
 
-// TestDoctorExecuteStaleEntryReturnsUnhealthy Executes plain `portal doctor`
-// (not --fix) over an otherwise-healthy runtime carrying a genuinely stale hook
-// AND a stale project, and asserts the command returns ErrDoctorUnhealthy: the
-// read-only diagnosis surfaces the stale state as a non-zero exit without
-// repairing anything (only --fix prunes).
 func TestDoctorExecuteStaleEntryReturnsUnhealthy(t *testing.T) {
 	dir := t.TempDir()
 	seedHealthyStateDir(t, dir)
 
-	// A persisted hook key with no matching live pane — the live set is non-empty,
-	// so the hazard guard does NOT defer — is genuinely stale.
+	// A persisted hook key with no matching live pane, against a non-empty live
+	// set, is genuinely stale.
 	hookStore, _ := seedHooksJSON(t, "sessA:0.0")
 	lister := fakeHookLister{keys: []string{"sessB:0.0"}}
-	// A project whose directory no longer exists is genuinely stale.
 	goneDir := filepath.Join(t.TempDir(), "gone")
 	projectStore, _ := seedProjectsJSON(t, goneDir)
 
@@ -1384,9 +1248,6 @@ func TestDoctorExecuteStaleEntryReturnsUnhealthy(t *testing.T) {
 	if !strings.Contains(out, "stale projects: 1 stale project") {
 		t.Errorf("report missing stale-projects fail line:\n%s", out)
 	}
-	// Plain doctor is read-only: exactly one report renders (no post-repair pass),
-	// so exactly one summary closes it — the partial form, counting both stale
-	// failures against the seven-member catalog.
 	if n := strings.Count(out, "Portal doctor:"); n != 1 {
 		t.Errorf("report count = %d; want 1 (plain doctor renders once, no --fix re-diagnosis):\n%s", n, out)
 	}
@@ -1398,10 +1259,6 @@ func TestDoctorExecuteStaleEntryReturnsUnhealthy(t *testing.T) {
 	}
 }
 
-// TestDoctorFixPrunesStaleEntriesThenRediagnosesClean is the happy path: a stale
-// hook and a stale project are seeded over an otherwise-healthy runtime; after
-// `--fix` both are pruned from disk, the post-repair diagnosis reports them
-// clean, and the command exits 0.
 func TestDoctorFixPrunesStaleEntriesThenRediagnosesClean(t *testing.T) {
 	deps, hooksPath, projectsPath, liveDir, goneDir := seedStalePruneFixture(t, t.TempDir())
 
@@ -1413,20 +1270,15 @@ func TestDoctorFixPrunesStaleEntriesThenRediagnosesClean(t *testing.T) {
 	out := outBuf.String()
 	assertStalePrunesApplied(t, hooksPath, projectsPath, liveDir, goneDir, out)
 
-	// The initial (pre-fix) report AND the post-repair report both render.
 	if n := strings.Count(out, "Portal doctor:"); n != 2 {
 		t.Errorf("report count = %d; want 2 (initial + post-repair):\n%s", n, out)
 	}
-	// Post-repair the two stale checks read clean.
 	if !strings.Contains(out, "stale hooks: no stale hooks") {
 		t.Errorf("post-repair stale-hooks check not clean:\n%s", out)
 	}
 	if !strings.Contains(out, "stale projects: no stale projects") {
 		t.Errorf("post-repair stale-projects check not clean:\n%s", out)
 	}
-	// One summary per render, and the post-repair one counts the whole catalog
-	// clean. (TestDoctorSummary_FixPathRendersTwo owns the pre/post-form contract
-	// in full; this test's subject is the repair.)
 	if n := strings.Count(out, " checks passed\n"); n != 2 {
 		t.Errorf("summary count = %d; want 2 (one per report render):\n%s", n, out)
 	}
@@ -1435,11 +1287,6 @@ func TestDoctorFixPrunesStaleEntriesThenRediagnosesClean(t *testing.T) {
 	}
 }
 
-// TestDoctorFixProtectsUserHooksWhenLiveSetEmptyOrErrored proves the down-server
-// data-loss safety: when live-pane enumeration is empty OR errored (the
-// down/rebooted-server state), `--fix` prunes NO hooks — user-authored,
-// non-reconstructable on-resume commands survive byte-for-byte. The protection
-// is the runHookStaleCleanup hazard guard, not a bespoke doctor branch.
 func TestDoctorFixProtectsUserHooksWhenLiveSetEmptyOrErrored(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -1473,11 +1320,6 @@ func TestDoctorFixProtectsUserHooksWhenLiveSetEmptyOrErrored(t *testing.T) {
 	}
 }
 
-// TestDoctorFixDownServerPrunesProjectsButNotHooks proves the split behaviour on
-// a down server: the filesystem-only stale-project prune STILL runs (gone dir
-// removed), the stale-hook prune does NOT (hazard guard defers), and the
-// post-repair exit is driven by the re-diagnosis — still non-zero because the
-// daemon / saver / hooks checks remain failed on a down server.
 func TestDoctorFixDownServerPrunesProjectsButNotHooks(t *testing.T) {
 	deps, hooksPath, projectsPath, goneDir := downServerDeferFixture(t, t.TempDir())
 	hooksBefore, err := os.ReadFile(hooksPath)
@@ -1492,9 +1334,6 @@ func TestDoctorFixDownServerPrunesProjectsButNotHooks(t *testing.T) {
 	if !strings.Contains(out, "Pruned stale project: proj0 ("+goneDir+")") {
 		t.Errorf("missing pruned-project breadcrumb:\n%s", out)
 	}
-	// Both renders close with a partial summary — the server is down in both
-	// passes, so daemon / saver / hooks stay failed. The stale-projects prune is
-	// the only thing the repair moves: two passing pre-repair, three after.
 	if n := strings.Count(out, " checks passed\n"); n != 2 {
 		t.Errorf("summary count = %d; want 2 (one per report render):\n%s", n, out)
 	}
@@ -1506,25 +1345,19 @@ func TestDoctorFixDownServerPrunesProjectsButNotHooks(t *testing.T) {
 	}
 }
 
-// TestDoctorFixLogSweepNeverDrivesExit proves the log-sweep is an unconditional
-// maintenance side-action OUTSIDE the diagnose→repair loop: it runs against the
-// resolved state dir (deleting a stale rotated log seeded there) yet an
-// otherwise-healthy post-repair state still exits 0 — a stale-log state can
-// never make doctor non-zero.
 func TestDoctorFixLogSweepNeverDrivesExit(t *testing.T) {
 	dir := t.TempDir()
 	seedHealthyStateDir(t, dir)
 
-	// A rotated log dated well before today: the sweep (cutoff == today) deletes
-	// it, which observably proves the sweep ran against deps.StateDir.
+	// A rotated log dated well before today: only a sweep running against
+	// deps.StateDir would delete it.
 	staleLog := filepath.Join(dir, "portal.log.2000-01-01")
 	if err := os.WriteFile(staleLog, []byte("old\n"), 0o600); err != nil {
 		t.Fatalf("seed stale rotated log: %v", err)
 	}
 
-	// nil stores → no hook/project prune; the log-sweep is the ONLY repair action,
-	// isolating its (non-)effect on the exit code. Stale checks report
-	// not-evaluable (never fail), so the post-repair state is fully healthy.
+	// nil stores leave the log-sweep as the only repair action, isolating its
+	// effect on the exit code.
 	deps := withHealthyRuntime(&DoctorDeps{StateDir: dir})
 	outBuf, _, err := runDoctorFixCmd(t, deps)
 	if err != nil {
@@ -1535,9 +1368,6 @@ func TestDoctorFixLogSweepNeverDrivesExit(t *testing.T) {
 		t.Errorf("stale rotated log not swept (stat err = %v); log-sweep did not run against the state dir", statErr)
 	}
 
-	// Both renders close with the same all-passed summary: the sweep is outside
-	// the diagnose→repair loop, so it moves neither count. Six are counted — the
-	// stale-hooks check is not-evaluable against TestMain's poisoned tmux socket.
 	out := outBuf.String()
 	if n := strings.Count(out, "\n  6 checks passed\n"); n != 2 {
 		t.Errorf("all-passed summary count = %d; want 2 (one per report render, both unmoved by the sweep):\n%s", n, out)
@@ -1558,7 +1388,6 @@ func TestDoctorStaleProjectsCheck(t *testing.T) {
 		if got.status != checkFail {
 			t.Errorf("status = %v; want checkFail for a gone-dir project", got.status)
 		}
-		// Only the gone dir is stale; the live dir is retained (not counted).
 		if got.detail != "1 stale project" {
 			t.Errorf("detail = %q; want %q", got.detail, "1 stale project")
 		}
@@ -1599,11 +1428,6 @@ func TestDoctorStaleProjectsCheck(t *testing.T) {
 		}
 	})
 
-	// Permission-denied paths are RETAINED (not stale) by the same os.Stat
-	// default branch project.Store.CleanStale uses — that classification is
-	// covered by the CleanStale model in internal/project; simulating EACCES
-	// portably here is infeasible, so this suite covers gone-dir + live-dir.
-
 	t.Run("evaluates with the server down (filesystem-only)", func(t *testing.T) {
 		goneDir := filepath.Join(t.TempDir(), "gone")
 		projectStore, _ := seedProjectsJSON(t, goneDir)
@@ -1626,10 +1450,6 @@ func TestDoctorStaleProjectsCheck(t *testing.T) {
 	})
 }
 
-// TestDoctorStaleChecksAreReadOnly proves neither stale check mutates its store:
-// both are seeded with genuinely-stale entries (so they detect staleness and
-// would prune under --fix) and the on-disk bytes must be byte-identical after a
-// full diagnosis pass.
 func TestDoctorStaleChecksAreReadOnly(t *testing.T) {
 	dir := t.TempDir()
 	hookStore, hooksPath := seedHooksJSON(t, "sessA:0.0")
@@ -1651,7 +1471,6 @@ func TestDoctorStaleChecksAreReadOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("runDoctorDiagnosis: %v", err)
 	}
-	// Sanity: both checks actually detected staleness (proving they ran).
 	if got := findCheck(t, results, "stale hooks"); got.status != checkFail {
 		t.Fatalf("stale hooks status = %v; want checkFail (setup should be stale)", got.status)
 	}

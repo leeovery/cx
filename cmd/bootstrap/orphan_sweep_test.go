@@ -10,9 +10,6 @@ import (
 	"github.com/leeovery/portal/internal/state"
 )
 
-// recordingIdentify is a callable seam that records each invocation in order
-// and returns a per-call (result, error) pair. The keyed map lets a test pin
-// behaviour per PID; a missing key returns the zero default.
 type recordingIdentify struct {
 	calls   []int
 	results map[int]identifyOutcome
@@ -34,8 +31,6 @@ func (r *recordingIdentify) fn(pid int) (state.IdentifyResult, error) {
 	return r.def.res, r.def.err
 }
 
-// recordingKill records signal targets in invocation order so tests can
-// assert which PIDs were killed and how many times.
 type recordingKill struct {
 	calls []int
 	errs  map[int]error
@@ -88,7 +83,7 @@ func TestSweepOrphanDaemons_saverAbsentKillsAllIdentifying(t *testing.T) {
 
 	c := &OrphanSweepCore{
 		Pgrep:        func() ([]int, error) { return []int{3001, 3002, 3003}, nil },
-		SaverPanePID: func() (pid int, present bool, err error) { return 0, false, nil }, // _portal-saver absent
+		SaverPanePID: func() (pid int, present bool, err error) { return 0, false, nil },
 		Identify:     identify.fn,
 		Kill:         kill.fn,
 	}
@@ -292,20 +287,7 @@ func TestSweepOrphanDaemons_cleanStateZeroInfo(t *testing.T) {
 	}
 }
 
-// recordingSignalKill records the signal alongside the PID so tests can assert
-// that the production semantic is SIGKILL (never SIGTERM). The seam used in
-// production is the bare Kill(pid int) error so this test installs a wrapper
-// that records the signal it would have sent — verifying that the Core never
-// reaches for SIGTERM at the call site (the Core only calls Kill(pid)).
 func TestSweepOrphanDaemons_neverSIGTERM(t *testing.T) {
-	// The Core's Kill seam takes only a PID — meaning the signal choice is
-	// the seam adapter's responsibility, NOT the Core's. We verify that
-	// no path in the Core invokes anything BUT the Kill seam (e.g., no
-	// hidden SIGTERM call), by recording all PIDs through Kill and asserting
-	// the production default (when Kill is unset) delegates to SIGKILL.
-	//
-	// This is exercised via the default-seam path: leaving Kill nil and
-	// asserting that the defaulted closure invokes syscall.Kill with SIGKILL.
 	var capturedSig syscall.Signal
 	var capturedPID int
 	identify := &recordingIdentify{def: identifyOutcome{res: state.IdentifyIsPortalDaemon}}
@@ -314,8 +296,6 @@ func TestSweepOrphanDaemons_neverSIGTERM(t *testing.T) {
 		Pgrep:        func() ([]int, error) { return []int{}, nil },
 		SaverPanePID: func() (pid int, present bool, err error) { return 0, false, nil },
 		Identify:     identify.fn,
-		// Inject a Kill closure to record the call shape that the Core
-		// performs — Core MUST call Kill(pid) with a single int arg only.
 		Kill: func(pid int) error {
 			capturedPID = pid
 			capturedSig = syscall.SIGKILL
@@ -325,8 +305,6 @@ func TestSweepOrphanDaemons_neverSIGTERM(t *testing.T) {
 	if err := c.SweepOrphanDaemons(); err != nil {
 		t.Fatalf("SweepOrphanDaemons returned error: %v", err)
 	}
-	// With empty pgrep, kill is never invoked; we use the suppression to
-	// confirm Core never invokes Kill for non-existent candidates.
 	if capturedPID != 0 {
 		t.Errorf("unexpected Kill invocation; pid=%d sig=%v", capturedPID, capturedSig)
 	}
@@ -354,15 +332,11 @@ func TestSweepOrphanDaemons_defensiveOwnPIDSkip(t *testing.T) {
 			t.Fatalf("own pid %d must never be killed; got %v", ownPID, kill.calls)
 		}
 	}
-	// Other PID still killed.
 	if len(kill.calls) != 1 || kill.calls[0] != 10001 {
 		t.Errorf("expected only 10001 killed; got %v", kill.calls)
 	}
 }
 
-// TestSweepOrphanDaemons_pgrepEmptyListNoOp pins the edge case from the task:
-// pgrep returning an empty slice (e.g., exit status 1 with zero matches) must
-// be a clean no-op — no kill calls, no INFO entries, no warnings.
 func TestSweepOrphanDaemons_pgrepEmptyListNoOp(t *testing.T) {
 	logger := &RecordingLogger{}
 	kill := &recordingKill{}
@@ -387,14 +361,6 @@ func TestSweepOrphanDaemons_pgrepEmptyListNoOp(t *testing.T) {
 	}
 }
 
-// TestSweepOrphanDaemons_perKillNotEmittedAtInfoOnBootstrapLogger pins the
-// Phase 5 (task 5-5) demotion: the old per-kill INFO "sweep: killed orphan
-// daemon" is gone from the bootstrap-bound seam — the per-kill detail moved to
-// a DEBUG ("orphan killed") on cleanLogger (component clean), and the only INFO
-// at completion is the clean-component cycle summary. The positive DEBUG
-// assertion lives in clean_sweep_summary_test.go
-// (TestSweepOrphanDaemons_DemotesPerKillInfoToDebug); here we pin that nothing
-// lands on the injected bootstrap logger at INFO for a successful kill.
 func TestSweepOrphanDaemons_perKillNotEmittedAtInfoOnBootstrapLogger(t *testing.T) {
 	logger := &RecordingLogger{}
 	identify := &recordingIdentify{def: identifyOutcome{res: state.IdentifyIsPortalDaemon}}
@@ -420,9 +386,6 @@ func TestSweepOrphanDaemons_perKillNotEmittedAtInfoOnBootstrapLogger(t *testing.
 	}
 }
 
-// TestSweepOrphanDaemons_nilLoggerSafe pins the mirroring convention with
-// MarkerCleanupCore — a nil Logger must not panic; call sites must dispatch
-// through a substituted no-op.
 func TestSweepOrphanDaemons_nilLoggerSafe(t *testing.T) {
 	identify := &recordingIdentify{def: identifyOutcome{res: state.IdentifyIsPortalDaemon}}
 	kill := &recordingKill{}
@@ -438,12 +401,6 @@ func TestSweepOrphanDaemons_nilLoggerSafe(t *testing.T) {
 	}
 }
 
-// TestSweepOrphanDaemons_presentVsAbsentTriState pins the SaverPanePID seam's
-// tri-state contract — (pid, present, err) where (0, true, nil) ("present but
-// reports pid 0", a defensive future-implementer shape) is observably distinct
-// from (0, false, nil) ("absent"). Both must skip the saverErr warning path;
-// the seam's signature MUST encode "absent" at the type level so a future
-// implementer returning a real PID of 0 cannot silently flip the meaning.
 func TestSweepOrphanDaemons_presentVsAbsentTriState(t *testing.T) {
 	t.Run("absent — (0, false, nil) — empty legit set, no warning", func(t *testing.T) {
 		logger := &RecordingLogger{}
@@ -470,11 +427,6 @@ func TestSweepOrphanDaemons_presentVsAbsentTriState(t *testing.T) {
 	})
 
 	t.Run("present with pid 0 — (0, true, nil) — distinct from absent, no warning", func(t *testing.T) {
-		// Defensive future-implementer shape: present=true with pid=0. The
-		// seam must observe this as a distinct case from (0, false, nil)
-		// — no warning, and pid 0 placed in the legit set (no practical
-		// effect since pgrep cannot return pid 0, but the type-level
-		// distinction is the load-bearing contract).
 		logger := &RecordingLogger{}
 		identify := &recordingIdentify{def: identifyOutcome{res: state.IdentifyIsPortalDaemon}}
 		kill := &recordingKill{}
@@ -488,13 +440,11 @@ func TestSweepOrphanDaemons_presentVsAbsentTriState(t *testing.T) {
 		if err := c.SweepOrphanDaemons(); err != nil {
 			t.Fatalf("SweepOrphanDaemons returned error: %v", err)
 		}
-		// present=true with pid 0 must NOT trigger the saverErr warn path.
 		for _, msg := range logger.warnings {
 			if strings.Contains(msg, "list-panes") && strings.Contains(msg, "_portal-saver") {
 				t.Errorf("present=true path must NOT emit list-panes Warn; got %q", msg)
 			}
 		}
-		// Non-legit pid still killed.
 		if len(kill.calls) != 1 || kill.calls[0] != 20002 {
 			t.Errorf("present (pid 0): expected pid 20002 killed; got %v", kill.calls)
 		}
@@ -531,8 +481,6 @@ func TestSweepOrphanDaemons_presentVsAbsentTriState(t *testing.T) {
 	})
 }
 
-// TestSweepOrphanDaemons_neverReturnsError pins acceptance criterion that the
-// method swallows EVERY error path and returns nil unconditionally.
 func TestSweepOrphanDaemons_neverReturnsError(t *testing.T) {
 	cases := []struct {
 		name string

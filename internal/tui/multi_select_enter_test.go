@@ -7,25 +7,18 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// pressEnter drives the §5 multi-select Enter commit through updateSessionList,
-// returning both the updated model and the returned cmd so a test can assert the
-// N-count boundary (quit vs no-op) as well as the model state.
 func pressEnter(t *testing.T, m Model) (Model, tea.Cmd) {
 	t.Helper()
 	updated, cmd := m.updateSessionList(tea.KeyPressMsg{Code: tea.KeyEnter})
 	return updated.(Model), cmd
 }
 
-// TestMultiSelectEnterN0 covers the N=0 boundary: Enter with nothing marked is a
-// no-op that exits the mode and stays in the picker (same effect as Esc) — it
-// opens nothing and does NOT quit.
 func TestMultiSelectEnterN0(t *testing.T) {
 	m := NewModelWithSessions([]tmux.Session{
 		{Name: "alpha", Windows: 1},
 		{Name: "bravo", Windows: 2},
 	})
 
-	// Enter the mode and clear the auto-marked row (double-`m`) → zero marked.
 	m = enterMultiSelectEmpty(t, m)
 	if !m.MultiSelectActive() || m.SelectedSessionCount() != 0 {
 		t.Fatalf("precondition: expected in-mode with zero marked; active=%v count=%d",
@@ -48,16 +41,12 @@ func TestMultiSelectEnterN0(t *testing.T) {
 	}
 }
 
-// TestMultiSelectEnterN1 covers the N=1 boundary: Enter with exactly one marked
-// session selects that session's name and quits, degenerating to the existing
-// single-attach commit (mirroring handleSessionListEnter).
 func TestMultiSelectEnterN1(t *testing.T) {
 	m := NewModelWithSessions([]tmux.Session{
 		{Name: "alpha", Windows: 1},
 		{Name: "bravo", Windows: 2},
 	})
 
-	// Enter mode: mark-on-entry marks the highlighted row (alpha, index 0).
 	m = pressSession(t, m, pressM)
 	if !m.IsSessionSelected("alpha") || m.SelectedSessionCount() != 1 {
 		t.Fatalf("precondition: expected exactly alpha marked; count=%d", m.SelectedSessionCount())
@@ -73,28 +62,21 @@ func TestMultiSelectEnterN1(t *testing.T) {
 	}
 }
 
-// TestMultiSelectEnterN1IgnoresCursor covers the cursor-irrelevance rule: with a
-// highlighted-but-unmarked row (alpha) and exactly one OTHER session marked
-// (bravo), N=1 Enter opens the MARKED session (bravo), not the highlighted one.
 func TestMultiSelectEnterN1IgnoresCursor(t *testing.T) {
 	m := NewModelWithSessions([]tmux.Session{
 		{Name: "alpha", Windows: 1},
 		{Name: "bravo", Windows: 2},
 	})
 
-	// Enter mode (cursor on alpha, index 0 — mark-on-entry marks alpha), move to
-	// bravo (index 1) and mark it, then unmark the auto-marked alpha so exactly bravo
-	// remains marked.
 	m = pressSession(t, m, pressM)
 	m.sessionList.Select(1)
-	m = pressSession(t, m, pressM) // mark bravo
+	m = pressSession(t, m, pressM)
 	m.sessionList.Select(0)
-	m = pressSession(t, m, pressM) // unmark the auto-marked alpha
+	m = pressSession(t, m, pressM)
 	if !m.IsSessionSelected("bravo") || m.SelectedSessionCount() != 1 {
 		t.Fatalf("precondition: expected exactly bravo marked; count=%d", m.SelectedSessionCount())
 	}
 
-	// The cursor rests on alpha — highlighted but unmarked.
 	if si, ok := m.selectedSessionItem(); !ok || si.Session.Name != "alpha" {
 		t.Fatalf("precondition: cursor must be on the unmarked alpha row")
 	}
@@ -109,22 +91,15 @@ func TestMultiSelectEnterN1IgnoresCursor(t *testing.T) {
 	}
 }
 
-// TestMultiSelectEnterN2DetectionUnwired covers the N≥2 boundary when host-terminal
-// detection is UNWIRED (no detector — every existing test model and the offline
-// capture harness): the §6-3 burst arm DEFERS on the unresolved detection and,
-// with no detector to dispatch, never resolves — so the mode and the selection stay
-// intact, nothing opens, and Enter does not quit. (A resolved-supported terminal
-// dispatches the async burst instead — see burst_dispatch_test.go.)
 func TestMultiSelectEnterN2DetectionUnwired(t *testing.T) {
 	m := NewModelWithSessions([]tmux.Session{
 		{Name: "alpha", Windows: 1},
 		{Name: "bravo", Windows: 2},
 	})
 
-	// Enter mode (mark-on-entry marks alpha at index 0) and mark bravo too.
 	m = pressSession(t, m, pressM)
 	m.sessionList.Select(1)
-	m = pressSession(t, m, pressM) // marks bravo
+	m = pressSession(t, m, pressM)
 	if m.SelectedSessionCount() != 2 {
 		t.Fatalf("precondition: expected two marked; count=%d", m.SelectedSessionCount())
 	}

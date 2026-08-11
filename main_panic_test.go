@@ -10,12 +10,8 @@ import (
 	"github.com/leeovery/portal/internal/log"
 )
 
-// captureHandler is an in-memory slog.Handler that records every Handle call.
-// It is the main-package equivalent of internal/log's recordingHandler, used to
-// assert on the process: panic / process: exit terminal markers emitted across
-// the run()/Close() boundary. WithAttrs returns h so the component attr (delivered
-// via log.For -> root.With("component", ...)) is observed at Handle time but not
-// re-bound; tests assert on Message + Level + the record's own attrs.
+// WithAttrs returns the receiver, so a bound component attr is observed at Handle
+// time rather than re-bound.
 type captureHandler struct {
 	mu      sync.Mutex
 	records []slog.Record
@@ -34,7 +30,6 @@ func (h *captureHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
 
 func (h *captureHandler) WithGroup(string) slog.Handler { return h }
 
-// messages returns the captured records whose Message equals msg.
 func (h *captureHandler) messages(msg string) []slog.Record {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -47,7 +42,6 @@ func (h *captureHandler) messages(msg string) []slog.Record {
 	return out
 }
 
-// attrValue resolves the named attr from a record, reporting whether it was set.
 func attrValue(r slog.Record, key string) (slog.Value, bool) {
 	var (
 		v     slog.Value
@@ -103,9 +97,6 @@ func TestRunPanicEmission(t *testing.T) {
 
 		_, panicked := run()
 
-		// run() does not call Close; Close is gated behind !panicked in main().
-		// Model that gate: since panicked is true, main would skip Close, so no
-		// process: exit marker may exist on this path.
 		if !panicked {
 			t.Fatal("panicked = false, want true (so main skips Close)")
 		}
@@ -200,7 +191,6 @@ func TestRunPanicEmission(t *testing.T) {
 				if panicked != tc.wantPanic {
 					t.Fatalf("panicked = %v, want %v", panicked, tc.wantPanic)
 				}
-				// Exactly one terminal marker fires: panic XOR exit.
 				if panics+exits != 1 {
 					t.Fatalf("terminal markers panic=%d exit=%d, want exactly one total", panics, exits)
 				}
@@ -215,11 +205,9 @@ func TestRunPanicEmission(t *testing.T) {
 	})
 }
 
-// mainEmitClose models main()'s post-run !panicked gate: main calls
-// log.Close(code) (which emits process: exit code=N) only on the non-panic path.
-// It lets the panic/exit mutual-exclusivity be asserted at the main() level
-// WITHOUT invoking the real main() (which calls os.Exit). Close routes through
-// the already-swapped test handler.
+// mainEmitClose models main()'s post-run !panicked gate, so the panic/exit
+// mutual exclusivity can be asserted without invoking the real main, which
+// calls os.Exit.
 func mainEmitClose(code int, panicked bool) {
 	if !panicked {
 		log.Close(code)

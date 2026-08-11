@@ -5,9 +5,6 @@ import (
 	"testing"
 )
 
-// TestWindowResult_Confirmed pins the count-semantics predicate: a window is
-// "opened" exactly when its Ack is AckConfirmed; every other ack (timeout, failed,
-// the zero value) is not confirmed.
 func TestWindowResult_Confirmed(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -29,8 +26,6 @@ func TestWindowResult_Confirmed(t *testing.T) {
 	}
 }
 
-// TestPartitionResults asserts the confirmed/failed partition preserves list order
-// and unifies AckTimeout + AckFailed into "failed".
 func TestPartitionResults(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -87,9 +82,6 @@ func TestPartitionResults(t *testing.T) {
 	}
 }
 
-// TestFirstPermission asserts FirstPermission returns the FIRST permission-required
-// window (switching on the generic Outcome alone) and (zero, false) when none hit
-// the wall.
 func TestFirstPermission(t *testing.T) {
 	tests := []struct {
 		name        string

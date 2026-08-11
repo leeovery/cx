@@ -9,17 +9,9 @@ import (
 	"github.com/leeovery/portal/internal/hooks"
 )
 
-// ResolveHooksFilePathFromEnv mirrors cmd/config.go's configFilePath
-// resolution chain but consumes the env slice returned by
-// portaltest.IsolateStateForTest rather than os.Getenv. The chain:
-//
-//  1. If env contains PORTAL_HOOKS_FILE=<path>, return <path> verbatim.
-//  2. Otherwise scan env for XDG_CONFIG_HOME=<dir> and return
-//     <dir>/portal/hooks.json.
-//  3. Otherwise t.Fatalf — signals isolation regression.
-//
-// Returning early on PORTAL_HOOKS_FILE matches the production behaviour
-// where the env-var override takes precedence over XDG-derived defaults.
+// ResolveHooksFilePathFromEnv resolves hooks.json the way production does, but
+// against a supplied env slice rather than os.Getenv: PORTAL_HOOKS_FILE wins,
+// else XDG_CONFIG_HOME. Neither present is an isolation regression and fatals.
 func ResolveHooksFilePathFromEnv(t *testing.T, env []string) string {
 	t.Helper()
 	const (
@@ -41,15 +33,8 @@ func ResolveHooksFilePathFromEnv(t *testing.T, env []string) string {
 	return filepath.Join(xdg, "portal", "hooks.json")
 }
 
-// SeedHooksJSON writes a populated hooks.json under the resolved config
-// path. The supplied entries map is interpreted as
-// {structuralKey: onResumeCommand} — for each entry, a single on-resume
-// hook is registered via the production hooks.Store so the on-disk JSON
-// layout matches what `portal hooks set --on-resume` would produce at
-// runtime.
-//
-// The resolved path is t.Logf'd to verify the seed lands under the
-// isolated tree, per the project's daemon-test isolation rule.
+// SeedHooksJSON writes a hooks.json of {hookKey: onResumeCommand} entries via
+// the production store, so the on-disk layout matches what the CLI produces.
 func SeedHooksJSON(t *testing.T, env []string, entries map[string]string) {
 	t.Helper()
 	path := ResolveHooksFilePathFromEnv(t, env)
@@ -67,15 +52,8 @@ func SeedHooksJSON(t *testing.T, env []string, entries map[string]string) {
 	}
 }
 
-// HooksJSONBytes returns the raw on-disk bytes of hooks.json resolved
-// from the test-isolated env. Used for byte-identical before/after
-// comparisons that pin the "no wipe" invariant. Fails the test on any
-// read error other than ENOENT — callers asserting on byte identity have
-// no meaningful answer if the file is unreadable.
-//
-// ENOENT returns a nil slice so a missing-file precondition can be
-// distinguished from a present-but-empty file (bytes.Equal handles both
-// cases the same way, but the caller may want to check the distinction).
+// HooksJSONBytes returns the raw on-disk bytes of hooks.json, or nil when the
+// file is absent. Any other read error fails the test.
 func HooksJSONBytes(t *testing.T, env []string) []byte {
 	t.Helper()
 	path := ResolveHooksFilePathFromEnv(t, env)

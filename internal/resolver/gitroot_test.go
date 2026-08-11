@@ -7,14 +7,12 @@ import (
 	"github.com/leeovery/portal/internal/resolver"
 )
 
-// MockCommandRunner implements CommandRunner for testing.
 type MockCommandRunner struct {
 	Output string
 	Err    error
 	OnRun  func(name string, args ...string)
 }
 
-// Run returns the configured output and error, optionally calling OnRun for argument capture.
 func (m *MockCommandRunner) Run(name string, args ...string) (string, error) {
 	if m.OnRun != nil {
 		m.OnRun(name, args...)

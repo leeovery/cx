@@ -144,8 +144,8 @@ func TestCheckTmuxVersion(t *testing.T) {
 		output      string
 		runErr      error
 		wantErr     bool
-		wantErrMsg  string // exact match when set
-		wantContain string // substring match when set
+		wantErrMsg  string
+		wantContain string
 	}{
 		{
 			name:   "accepts tmux 3.0 as satisfying minimum",
@@ -228,7 +228,6 @@ func TestCheckTmuxVersion(t *testing.T) {
 				}
 			}
 
-			// Verify it called tmux -V exactly once.
 			if len(mock.Calls) != 1 {
 				t.Fatalf("expected 1 call, got %d", len(mock.Calls))
 			}

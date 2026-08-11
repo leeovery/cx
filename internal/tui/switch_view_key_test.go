@@ -12,8 +12,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// fakeModePersister is a test double for the ModePersister seam that records
-// every Save call (value + count) and can be configured to fail.
 type fakeModePersister struct {
 	calls   int
 	last    prefs.SessionListMode
@@ -26,11 +24,8 @@ func (f *fakeModePersister) Save(mode prefs.SessionListMode) error {
 	return f.saveErr
 }
 
-// keyS is the session-list grouping switch-view key.
 var keyS = tea.KeyPressMsg{Code: 's', Text: "s"}
 
-// newSwitchViewTestModel builds a Model on the sessions page with a real
-// session list, the supplied mode + persister, and the given sessions/projects.
 func newSwitchViewTestModel(t *testing.T, mode prefs.SessionListMode, persister ModePersister, sessions []tmux.Session, projects []project.Project) Model {
 	t.Helper()
 	m := Model{
@@ -57,7 +52,6 @@ func TestNextSessionListMode(t *testing.T) {
 		{prefs.ModeFlat, prefs.ModeByProject},
 		{prefs.ModeByProject, prefs.ModeByTag},
 		{prefs.ModeByTag, prefs.ModeFlat},
-		// Out-of-range value collapses defensively to Flat.
 		{prefs.SessionListMode(99), prefs.ModeFlat},
 	}
 	for _, c := range cases {
@@ -98,13 +92,10 @@ func TestSwitchViewKey(t *testing.T) {
 
 	t.Run("cycles unconditionally with zero tags", func(t *testing.T) {
 		dir := t.TempDir()
-		// Project with no tags + one live session in it.
 		projects := []project.Project{{Path: dir, Name: "Portal"}}
 		sessions := []tmux.Session{{Name: "portal-abc", Dir: dir}}
 		persister := &fakeModePersister{}
 
-		// Start in By Project; pressing s advances into By Tag even though no
-		// tags exist anywhere.
 		m := newSwitchViewTestModel(t, prefs.ModeByProject, persister, sessions, projects)
 
 		updated, _ := m.Update(keyS)
@@ -148,7 +139,6 @@ func TestSwitchViewKey(t *testing.T) {
 	t.Run("treats s as a literal filter character while the filter input is focused", func(t *testing.T) {
 		persister := &fakeModePersister{}
 		m := newSwitchViewTestModel(t, prefs.ModeFlat, persister, nil, nil)
-		// Drive the list into the actively-filtering state so SettingFilter() is true.
 		m.sessionList.SetFilterState(list.Filtering)
 
 		updated, _ := m.Update(keyS)
@@ -188,8 +178,6 @@ func TestSwitchViewKey(t *testing.T) {
 		sessions := []tmux.Session{{Name: "portal-abc", Dir: dir}}
 		persister := &fakeModePersister{}
 
-		// Flat → By Project: after the press, a Portal header row leads the
-		// single session row.
 		m := newSwitchViewTestModel(t, prefs.ModeFlat, persister, sessions, projects)
 
 		updated, _ := m.Update(keyS)
@@ -209,8 +197,6 @@ func TestSwitchViewKey(t *testing.T) {
 	})
 
 	t.Run("resets to the first page and first session row on view switch", func(t *testing.T) {
-		// Enough sessions to span multiple pages so an advanced page is
-		// observable, then assert the switch snaps back to page 0 / first row.
 		var sessions []tmux.Session
 		for i := range 60 {
 			sessions = append(sessions, tmux.Session{Name: fmt.Sprintf("sess-%02d", i)})
@@ -227,13 +213,9 @@ func TestSwitchViewKey(t *testing.T) {
 		updated, _ := m.Update(keyS)
 		mm := updated.(Model)
 
-		// Page snaps back to the first page (the core fix).
 		if mm.sessionList.Paginator.Page != 0 {
 			t.Errorf("after switch view, page = %d, want 0 (page must reset)", mm.sessionList.Paginator.Page)
 		}
-		// And the cursor lands on the first session row — these dir-less
-		// sessions group under a leading "Unknown" header in By Project, so the
-		// first selectable row is the first session, not the header.
 		if selectedHeader(mm) {
 			t.Errorf("after switch view, cursor rests on a header, want first session row")
 		}

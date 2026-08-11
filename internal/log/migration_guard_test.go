@@ -9,10 +9,6 @@ import (
 	"github.com/leeovery/portal/internal/portalbintest"
 )
 
-// forbiddenLegacySymbols are the legacy bespoke-logger references that the
-// observability migration removed from all PRODUCTION (non-_test.go) source.
-// The legacy type itself has been deleted (internal/state/logger.go is gone),
-// so no production file may reference any of these symbols.
 var forbiddenLegacySymbols = []string{
 	"state.Component",
 	"state.OpenLogger",
@@ -20,17 +16,8 @@ var forbiddenLegacySymbols = []string{
 	"openNoRotateLogger",
 }
 
-// excludedFromGuard lists production files permitted to reference the legacy
-// logger symbols. The legacy type's declaration was deleted with its dedicated
-// migration task, so the set is now empty: every production file is in scope.
 var excludedFromGuard = map[string]bool{}
 
-// TestNoLegacyLoggerInProductionSource walks every production .go file in the
-// repository and fails if any references a forbidden legacy-logger symbol.
-// This is the migration's standing guard: the closed observability vocabulary
-// is enforced structurally, so a future contributor cannot reintroduce a
-// state.Component* / state.OpenLogger / state.NopLogger / openNoRotateLogger
-// reference into production code without this test going red.
 func TestNoLegacyLoggerInProductionSource(t *testing.T) {
 	root, err := portalbintest.ProjectRoot()
 	if err != nil {
@@ -42,7 +29,6 @@ func TestNoLegacyLoggerInProductionSource(t *testing.T) {
 			return err
 		}
 		if d.IsDir() {
-			// Skip VCS, build, and dependency caches.
 			switch d.Name() {
 			case ".git", "vendor", "node_modules":
 				return filepath.SkipDir

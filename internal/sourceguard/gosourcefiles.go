@@ -7,16 +7,9 @@ import (
 	"strings"
 )
 
-// GoSourceFiles returns every .go file under root, test sources included,
-// as paths joined onto root.
-//
-// It records in one place what the guards that consume it cover:
-// directories whose name begins with "." are skipped, as are vendor and
-// node_modules. The skipped tree holds only documentation scaffolding that Go's
-// own tooling already ignores (a leading dot keeps a directory out of every
-// build and every ./... pattern), so nothing a guard is written to police can
-// hide there. A guard that walks its own subset is a guard narrower than its
-// siblings by accident.
+// GoSourceFiles returns every .go file under root, test sources included, as
+// paths joined onto root. Dot-directories, vendor and node_modules are skipped:
+// Go's own tooling ignores them, so nothing a guard polices can hide there.
 func GoSourceFiles(root string) ([]string, error) {
 	var paths []string
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {

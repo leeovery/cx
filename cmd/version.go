@@ -6,14 +6,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// version is set at build time via ldflags:
-//
-//	go build -ldflags "-X github.com/leeovery/portal/cmd.version=1.2.3"
+// version is set at build time via ldflags; renaming it breaks the release
+// build's -X target.
 var version = "dev"
 
-// Version exposes the build-time version string to package main, which needs
-// it for log.Init before Cobra runs. The variable itself stays unexported so
-// the ldflags target (cmd.version) and the rest of the package are unchanged.
 func Version() string { return version }
 
 var versionCmd = &cobra.Command{

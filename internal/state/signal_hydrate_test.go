@@ -69,7 +69,6 @@ func TestWriteFIFOSignal_WritesOneByteOnFirstTrySuccess(t *testing.T) {
 		t.Errorf("Sleep called %v times on first-try success, want 0", len(sleep.Durations))
 	}
 
-	// Independent side-effect check: the byte must be observable on the read end.
 	_ = w.Close()
 	buf := make([]byte, 8)
 	n, _ := r.Read(buf)
@@ -107,21 +106,14 @@ func TestWriteFIFOSignal_RetriesOnENXIOPerLadder(t *testing.T) {
 		t.Errorf("OpenFIFO calls = %d, want 3", openCalls)
 	}
 	want := []time.Duration{
-		state.SignalHydrateRetryDelays[0], // 10ms before retry 1
-		state.SignalHydrateRetryDelays[1], // 20ms before retry 2
+		state.SignalHydrateRetryDelays[0],
+		state.SignalHydrateRetryDelays[1],
 	}
 	if !reflect.DeepEqual(sleep.Durations, want) {
 		t.Errorf("Sleep durations = %v, want %v", sleep.Durations, want)
 	}
 }
 
-// TestWriteFIFOSignal_EmitsRetryDebugUnderSignal pins the lower-level
-// transition breadcrumb (Phase 5 Task 5-11, option a): on each retryable-error
-// transition (ENXIO/EAGAIN) the retry ladder emits a DEBUG "fifo signal
-// retrying" under component=signal carrying path + the wrapped error. The
-// whole-operation WARN stays at the EagerSignalHydrate caller; this is the
-// per-retry detail under signal. A retryable-then-success ladder fires the
-// DEBUG once (one retry) and the operation still returns nil.
 func TestWriteFIFOSignal_EmitsRetryDebugUnderSignal(t *testing.T) {
 	sink := installFIFOSummarySink(t)
 
@@ -168,10 +160,6 @@ func TestWriteFIFOSignal_EmitsRetryDebugUnderSignal(t *testing.T) {
 	}
 }
 
-// TestWriteFIFOSignal_RetryDebugOncePerRetryTransition pins the breadcrumb
-// cardinality: a retry-exhaustion ladder (always ENXIO) fires the DEBUG once
-// per actual sleep+retry transition — len(SignalHydrateRetryDelays) times,
-// not once per open attempt.
 func TestWriteFIFOSignal_RetryDebugOncePerRetryTransition(t *testing.T) {
 	sink := installFIFOSummarySink(t)
 
@@ -250,8 +238,6 @@ func TestWriteFIFOSignal_ENOENTReturnsImmediatelyWithOpenFifoWrap(t *testing.T) 
 }
 
 func TestWriteFIFOSignal_NonRetryableErrorReturnsImmediately(t *testing.T) {
-	// Any non-ENXIO/non-EAGAIN error must surface on the first iteration with
-	// no Sleep call, wrapped with the "open fifo %s" prefix.
 	sentinel := errors.New("permission denied (sentinel)")
 	openCalls := 0
 	open := func(_ string) (*os.File, error) {
@@ -294,12 +280,10 @@ func TestWriteFIFOSignal_RetryExhaustionWrapsLastErrWithRetriesExhausted(t *test
 		t.Fatalf("expected error, got nil")
 	}
 
-	// 7 attempts: initial + len(delays) retries.
 	wantOpens := 1 + len(state.SignalHydrateRetryDelays)
 	if openCalls != wantOpens {
 		t.Errorf("OpenFIFO calls = %d, want %d (initial + 6 retries)", openCalls, wantOpens)
 	}
-	// One sleep before each retry.
 	if len(sleep.Durations) != len(state.SignalHydrateRetryDelays) {
 		t.Errorf("Sleep called %d times, want %d", len(sleep.Durations), len(state.SignalHydrateRetryDelays))
 	}
@@ -317,10 +301,6 @@ func TestWriteFIFOSignal_RetryExhaustionWrapsLastErrWithRetriesExhausted(t *test
 }
 
 func TestOpenFIFOForSignal_NonBlockingFlags(t *testing.T) {
-	// Validate the production seam by inspecting its observable behavior:
-	// open a real FIFO with no reader and verify OpenFIFOForSignal returns
-	// ENXIO immediately rather than blocking. Only O_WRONLY|O_NONBLOCK
-	// produces this result on POSIX.
 	if runtime.GOOS == "windows" {
 		t.Skip("FIFOs are not supported on Windows")
 	}
@@ -341,18 +321,11 @@ func TestOpenFIFOForSignal_NonBlockingFlags(t *testing.T) {
 	if !errors.Is(err, syscall.ENXIO) {
 		t.Fatalf("OpenFIFOForSignal err = %v, want syscall.ENXIO", err)
 	}
-	// O_NONBLOCK guarantees the call returns immediately rather than blocking
-	// for a reader. 100ms is a generous upper bound.
 	if elapsed >= 100*time.Millisecond {
 		t.Errorf("OpenFIFOForSignal blocked for %v; expected ~immediate return (O_NONBLOCK missing?)", elapsed)
 	}
 }
 
-// TestSendHydrateSignal_WritesOneByteToReadyFIFO pins the production no-seam
-// entry point: SendHydrateSignal opens the supplied FIFO via the production
-// OpenFIFOForSignal seam, writes one byte, returns nil. This guards the
-// caller-facing contract that production sites (cmd/state_signal_hydrate and
-// cmd/bootstrap_production) rely on — neither passes a custom seam.
 func TestSendHydrateSignal_WritesOneByteToReadyFIFO(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("FIFOs are not supported on Windows")
@@ -363,13 +336,8 @@ func TestSendHydrateSignal_WritesOneByteToReadyFIFO(t *testing.T) {
 		t.Fatalf("mkfifo: %v", err)
 	}
 
-	// Stand up a blocking O_RDONLY reader in a goroutine so the FIFO has a
-	// reader present by the time SendHydrateSignal calls its O_WRONLY|O_NONBLOCK
-	// open. The reader's blocking Read returns once SendHydrateSignal writes
-	// the byte; the goroutine forwards (n, err) on a buffered channel that
-	// the main goroutine drains with a 1s timeout. FIFOs do not support
-	// SetReadDeadline (file type does not support deadline) so a goroutine +
-	// channel timeout is the portable shape.
+	// A FIFO supports no read deadline, so the blocking reader needs a goroutine
+	// and a channel timeout rather than SetReadDeadline.
 	type readResult struct {
 		n   int
 		err error
@@ -404,19 +372,13 @@ func TestSendHydrateSignal_WritesOneByteToReadyFIFO(t *testing.T) {
 	}
 }
 
-// TestSendHydrateSignal_PropagatesNonRetryableError pins the error contract
-// against a missing FIFO: ENOENT must surface immediately wrapped with the
-// production "open fifo" prefix because SendHydrateSignal delegates to
-// WriteFIFOSignal, which surfaces non-ENXIO/non-EAGAIN errors on the first
-// iteration. A regression that altered the wrapping (or accidentally swapped
-// the production seams) would surface here.
 func TestSendHydrateSignal_PropagatesNonRetryableError(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("FIFOs are not supported on Windows")
 	}
 	dir := t.TempDir()
 	path := filepath.Join(dir, "missing.fifo")
-	// NOTE: deliberately do NOT mkfifo — the open MUST surface ENOENT.
+	// Deliberately no mkfifo: the open must surface ENOENT.
 
 	err := state.SendHydrateSignal(path)
 	if err == nil {
@@ -431,19 +393,13 @@ func TestSendHydrateSignal_PropagatesNonRetryableError(t *testing.T) {
 	}
 }
 
-// TestDefaultFIFOSignaler_SendSignalDelegatesToSendHydrateSignal pins the
-// adapter contract: DefaultFIFOSignaler{}.SendSignal(path) returns whatever
-// state.SendHydrateSignal(path) returns. Since DefaultFIFOSignaler is the
-// production wiring at cmd/bootstrap_production.go, a regression that broke
-// this delegation would silently drop the FIFO byte for every restored pane.
 func TestDefaultFIFOSignaler_SendSignalDelegatesToSendHydrateSignal(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("FIFOs are not supported on Windows")
 	}
 	dir := t.TempDir()
 	path := filepath.Join(dir, "missing.fifo")
-	// No mkfifo — both SendSignal and SendHydrateSignal must surface ENOENT
-	// wrapped with the same "open fifo" prefix.
+	// Deliberately no mkfifo: both calls must surface the same wrapped ENOENT.
 
 	directErr := state.SendHydrateSignal(path)
 	adapterErr := state.DefaultFIFOSignaler{}.SendSignal(path)

@@ -1,17 +1,5 @@
 package cmd
 
-// Task skip-bootstrap-when-warm-2-3 — the latch-read three-way branch in
-// PersistentPreRunE. A single @portal-bootstrapped read computed once upstream
-// diverts satisfied commands to the abridged path (liveness-only saver + sync
-// plumbing, no orchestrator, no concurrent route); every not-satisfied verdict
-// (absent / version-mismatch / read-error / nil client) folds into the existing
-// full-bootstrap routing.
-//
-// Tests mutate package-level state (bootstrapDeps, listDeps, openDeps,
-// openSessionFunc, openTUIFunc, rootCmd, the bootstrapWarnings sink, the version
-// var, and the tmux.BootstrapAliveCheck / tmux.PortalSaverRetryDelay seams) and
-// MUST NOT use t.Parallel.
-
 import (
 	"bytes"
 	"errors"
@@ -24,12 +12,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// satisfiedLatchAliveSaverCommander returns a recordingCommander whose
-// @portal-bootstrapped read (show-option) returns the running version — so the
-// latch reads as SATISFIED — and whose _portal-saver pane-pid probe returns a
-// live pid, so the abridged path's ensureSaverLiveness is a no-op (present +
-// alive). Every other tmux call returns empty/nil; the abridged path issues
-// only the latch read plus the saver probe.
 func satisfiedLatchAliveSaverCommander() *recordingCommander {
 	return &recordingCommander{
 		RunFunc: func(args ...string) (string, error) {
@@ -44,14 +26,7 @@ func satisfiedLatchAliveSaverCommander() *recordingCommander {
 	}
 }
 
-// saverAbsentReviveFailsCommander returns a recordingCommander driving the
-// "saver absent, revive fails" scenario: the _portal-saver presence probe reads
-// absent (list-panes -> noSuchSessionErr) and every revive attempt fails
-// (has-session -> can't-find-session, new-session -> create-denied), so
-// ensureSaverLiveness exhausts its retries and funnels a SaverDownWarning. It
-// carries NO latch (show-option) arm — ensureSaverLiveness never reads the latch.
-// The PersistentPreRunE route tests layer one on via
-// satisfiedLatchSaverAbsentCommander.
+// Carries no latch arm: ensureSaverLiveness never reads the latch.
 func saverAbsentReviveFailsCommander() *recordingCommander {
 	return &recordingCommander{
 		RunFunc: func(args ...string) (string, error) {
@@ -68,10 +43,6 @@ func saverAbsentReviveFailsCommander() *recordingCommander {
 	}
 }
 
-// satisfiedLatchSaverAbsentCommander layers a satisfied-latch show-option arm
-// over saverAbsentReviveFailsCommander, so PersistentPreRunE reads the latch as
-// SATISFIED (routes to the abridged path) and then finds the saver absent and
-// un-revivable — the shared scaffold for both abridged-warning route tests.
 func satisfiedLatchSaverAbsentCommander() *recordingCommander {
 	base := saverAbsentReviveFailsCommander()
 	return &recordingCommander{
@@ -84,10 +55,8 @@ func satisfiedLatchSaverAbsentCommander() *recordingCommander {
 	}
 }
 
-// optionAbsentErr is a *tmux.CommandError whose stderr carries tmux's
-// option-absent phrasing, so GetServerOption maps it to ErrOptionNotFound and
-// TryGetServerOption collapses it to ("", false, nil) — the "latch absent"
-// classification.
+// Carries tmux's option-absent phrasing, so TryGetServerOption collapses it
+// to ("", false, nil) — the "latch absent" classification.
 func optionAbsentErr() error {
 	return &tmux.CommandError{
 		Stderr: "unknown option: @portal-bootstrapped",
@@ -95,11 +64,9 @@ func optionAbsentErr() error {
 	}
 }
 
-// notSatisfiedLatchClient returns a *tmux.Client whose @portal-bootstrapped read
-// is option-absent, so the latch reads as NOT satisfied and PersistentPreRunE
-// takes the full-bootstrap path deterministically — independent of any real
-// tmux server the developer happens to be running (whose latch may coincide with
-// the dev `version`). Every non-latch call returns empty/nil.
+// Reads the latch as absent, so the route is deterministic regardless of any
+// real tmux server the developer is running (whose latch may coincide with
+// the dev version).
 func notSatisfiedLatchClient() *tmux.Client {
 	return tmux.NewClient(&recordingCommander{
 		RunFunc: func(args ...string) (string, error) {
@@ -111,8 +78,6 @@ func notSatisfiedLatchClient() *tmux.Client {
 	})
 }
 
-// installMockList wires a no-session listDeps so the `list` command's RunE
-// resolves without touching the shared client, restoring it on cleanup.
 func installMockList(t *testing.T) {
 	t.Helper()
 	listDeps = &ListDeps{
@@ -122,12 +87,6 @@ func installMockList(t *testing.T) {
 	t.Cleanup(func() { listDeps = nil })
 }
 
-// TestPersistentPreRunE_FullBootstrap_WhenNotSatisfied proves every
-// not-satisfied @portal-bootstrapped verdict — latch absent, version mismatch,
-// and latch read error — folds into the full-bootstrap route, driving the
-// orchestrator exactly once. The three cases differ only in the show-option
-// read outcome, an optional running-version override, and the assertion reason;
-// the setup -> Execute -> assert body is shared.
 func TestPersistentPreRunE_FullBootstrap_WhenNotSatisfied(t *testing.T) {
 	cases := []struct {
 		name            string
@@ -191,9 +150,6 @@ func TestPersistentPreRunE_FullBootstrap_WhenNotSatisfied(t *testing.T) {
 	}
 }
 
-// TestPersistentPreRunE_Abridged_EmitsWarningsToStderrOnCLIPath proves the
-// abridged CLI path drains bootstrapWarnings to stderr before RunE — identical
-// to a warm command today — and never runs the full orchestrator.
 func TestPersistentPreRunE_Abridged_EmitsWarningsToStderrOnCLIPath(t *testing.T) {
 	resetBootstrapOnce(t)
 	resetBootstrapWarnings(t)
@@ -226,9 +182,6 @@ func TestPersistentPreRunE_Abridged_EmitsWarningsToStderrOnCLIPath(t *testing.T)
 	}
 }
 
-// TestPersistentPreRunE_Abridged_LeavesWarningsForOpenTUIOnTUIPath proves the
-// abridged TUI path does NOT flush warnings in PersistentPreRunE — they are left
-// in the package sink for openTUI to stage onto the loading-page notice band.
 func TestPersistentPreRunE_Abridged_LeavesWarningsForOpenTUIOnTUIPath(t *testing.T) {
 	resetBootstrapOnce(t)
 	resetBootstrapWarnings(t)
@@ -265,13 +218,6 @@ func TestPersistentPreRunE_Abridged_LeavesWarningsForOpenTUIOnTUIPath(t *testing
 	}
 }
 
-// TestPersistentPreRunE_Abridged_OpenSessionTakesAbridgedPath proves the
-// abridged latch-satisfied fast-path is command-AGNOSTIC: `open --session` —
-// which absorbed the retired attach command's exact-name attach job — hits the
-// abridged gate on a satisfied latch exactly as attach did. The full
-// orchestrator never runs (runner.calls == 0) and the command still proceeds to
-// connect. This is the load-bearing proof that retiring attach lost no bootstrap
-// behaviour — the fast-path keys on the version-stamped latch, never on the verb.
 func TestPersistentPreRunE_Abridged_OpenSessionTakesAbridgedPath(t *testing.T) {
 	resetBootstrapOnce(t)
 	resetBootstrapWarnings(t)
@@ -281,9 +227,6 @@ func TestPersistentPreRunE_Abridged_OpenSessionTakesAbridgedPath(t *testing.T) {
 	bootstrapDeps = &BootstrapDeps{Orchestrator: runner, Client: client}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
-	// Phase-2 open --session wiring: the injected SessionLister carries the target
-	// name (session-domain pre-check hits), and openSessionFunc routes the resolved
-	// hit into the connector so the "still connects" assertion holds.
 	connector := &mockSessionConnector{}
 	openDeps = &OpenDeps{SessionLister: &testSessionLister{names: []string{"proj-abc123"}}}
 	t.Cleanup(func() { openDeps = nil })

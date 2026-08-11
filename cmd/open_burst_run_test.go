@@ -1,13 +1,5 @@
 package cmd
 
-// Tests for the multi-target open burst body (Task 3-6): runOpenBurstWithDeps with
-// an injected OpenBurstDeps. They drive the FIRST-trigger net-N dispatch directly
-// (no cobra) with fabricated seams — a fake Detector/Resolve, a recording
-// Connector, a spawntest fake adapter/ack-channel wired into a real Burster on a
-// manual clock, and a recording LocalMint — so the whole detect → resolve → spawn
-// N−1 → self-connect-last flow runs with zero real tmux, osascript, or process
-// handoff. MUST NOT use t.Parallel (package cmd mutates package-level state).
-
 import (
 	"bytes"
 	"errors"
@@ -24,15 +16,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// openBurstEvents is a shared ordered event recorder proving the N−1 external
-// spawns precede the trigger self-connect.
 type openBurstEvents struct {
 	seq []string
 }
 
-// recordingAdapter appends "spawn" to the shared event log on each OpenWindow,
-// then delegates to the inner FakeAdapter (which records argv + writes the ack
-// marker for a confirmed window).
 type recordingAdapter struct {
 	events *openBurstEvents
 	inner  *spawntest.FakeAdapter
@@ -43,8 +30,6 @@ func (a *recordingAdapter) OpenWindow(command []string) spawn.Result {
 	return a.inner.OpenWindow(command)
 }
 
-// recordingConnector records every self-connect target AND appends "connect:<name>"
-// to the shared event log, standing in for the inside/outside-tmux connector.
 type recordingConnector struct {
 	events *openBurstEvents
 	calls  []string
@@ -57,14 +42,11 @@ func (c *recordingConnector) Connect(name string) error {
 	return c.err
 }
 
-// mintCall captures one LocalMint invocation.
 type mintCall struct {
 	dir     string
 	command []string
 }
 
-// recordingMint records every local-mint invocation AND appends "mint:<dir>" to
-// the shared event log, standing in for openPath's trigger-is-mint local connect.
 type recordingMint struct {
 	events *openBurstEvents
 	calls  []mintCall
@@ -77,39 +59,29 @@ func (m *recordingMint) mint(_ *cobra.Command, dir string, command []string) err
 	return m.err
 }
 
-// Fixed burst-composition inputs: an injected ExePath and PATH so each recorded
-// OpenWindow argv is a deterministic, exact env-self-sufficient `open` command
-// with no dependence on the running binary or the developer's PATH.
+// Injected so every recorded argv is deterministic, independent of the
+// running binary and the developer's PATH.
 const (
 	spawnPipelineExe  = "/opt/portal/bin/portal"
 	spawnPipelinePATH = "/opt/homebrew/bin:/usr/bin:/bin"
 )
 
-// ghosttyIdentity is the fixed supported host-terminal identity the burst tests
-// detect (a real native adapter would resolve for it in production).
 func ghosttyIdentity() spawn.Identity {
 	return spawn.Identity{Name: "Ghostty", BundleID: "com.mitchellh.ghostty"}
 }
 
-// appleTerminalIdentity is a recognised-but-undriven host terminal: it has a real
-// friendly name and bundle id (so it is NOT the NULL identity), yet no native
-// adapter drives it, so the resolver classifies it unsupported. The N≥2
-// atomic-no-op gate must name it in the one-line message.
+// Recognised but undriven: a real name and bundle id, so not the NULL
+// identity, yet no native adapter resolves for it.
 func appleTerminalIdentity() spawn.Identity {
 	return spawn.NewIdentity("com.apple.Terminal", "Apple Terminal")
 }
 
-// manualClock is the deterministic fake clock the burster-reaching tests drive:
-// now reads the current instant, sleep advances it. No real time passes, so no
-// real time.Sleep is ever invoked.
 type manualClock struct{ t time.Time }
 
 func (c *manualClock) now() time.Time        { return c.t }
 func (c *manualClock) sleep(d time.Duration) { c.t = c.t.Add(d) }
 
-// seqIDGen returns a deterministic id generator yielding "id1", "id2", … — the
-// first call is the batch id, each later call a per-window token. Option-safe
-// (alphanumeric) so NewSpawnID accepts them and distinct so no ids collide.
+// Ids must be option-safe (alphanumeric) for NewSpawnID to accept them.
 func seqIDGen() func() (string, error) {
 	var n int
 	return func() (string, error) {
@@ -118,9 +90,6 @@ func seqIDGen() func() (string, error) {
 	}
 }
 
-// cleanOrderConnector is a SessionConnector that, on each Connect, snapshots how
-// many batches the shared ack channel has cleaned so far — letting a test prove
-// Clean(batch) ran BEFORE the trigger self-connect on the success path.
 type cleanOrderConnector struct {
 	ack           *spawntest.FakeAckChannel
 	calls         []string
@@ -133,10 +102,6 @@ func (c *cleanOrderConnector) Connect(name string) error {
 	return nil
 }
 
-// openBurstDepsForTest assembles a fully-injected OpenBurstDeps for the burst body:
-// the fabricated detector/resolver, the recording connector + local mint, and the
-// fixed executable/PATH composition seams. Ack + NewBurster are wired separately by
-// withOpenBurster on the paths that reach the burster.
 func openBurstDepsForTest(id spawn.Identity, resolution spawn.Resolution, adapter spawn.Adapter, conn SessionConnector, mint func(*cobra.Command, string, []string) error) *OpenBurstDeps {
 	return &OpenBurstDeps{
 		Detector:  fakeTerminalDetector{id: id},
@@ -150,11 +115,6 @@ func openBurstDepsForTest(id spawn.Identity, resolution spawn.Resolution, adapte
 	}
 }
 
-// withOpenBurster wires a fake ack channel + manual clock into deps and the inner
-// fake adapter so a burst-reaching test drives the whole spawn → confirm flow with
-// zero real time, tmux, or osascript: deps.Ack and the adapter's Ack share ack, and
-// deps.NewBurster builds a real Burster on the manual clock with a deterministic id
-// generator.
 func withOpenBurster(deps *OpenBurstDeps, inner *spawntest.FakeAdapter, ack *spawntest.FakeAckChannel, clock *manualClock) {
 	deps.Ack = ack
 	inner.Ack = ack
@@ -173,10 +133,6 @@ func withOpenBurster(deps *OpenBurstDeps, inner *spawntest.FakeAdapter, ack *spa
 	}
 }
 
-// surfacesFromArgv reconstructs the ordered external surfaces the burster spawned
-// from the recorded OpenWindow argvs (composeOpenArgv is deterministic:
-// `--session <name>` for an attach surface, `--path <dir>` for a mint surface). It
-// lets a test assert the burster received surfaces[1:] in order, kinds included.
 func surfacesFromArgv(calls [][]string) []spawn.Surface {
 	var out []spawn.Surface
 	for _, argv := range calls {
@@ -192,9 +148,6 @@ func surfacesFromArgv(calls [][]string) []spawn.Surface {
 	return out
 }
 
-// argvForTarget returns the first recorded argv whose flag element (e.g. --path /
-// --session) is immediately followed by value, or nil if none matches. It lets a
-// test pick out a specific spawned window's argv from the recorded calls.
 func argvForTarget(calls [][]string, flag, value string) []string {
 	for _, argv := range calls {
 		for i := 0; i+1 < len(argv); i++ {
@@ -207,7 +160,6 @@ func argvForTarget(calls [][]string, flag, value string) []string {
 }
 
 func TestRunOpenBurst_TriggerFirst_ExternalRestInOrder(t *testing.T) {
-	// surfaces = [a, b, c] → trigger a (first), external [b, c] in order.
 	events := &openBurstEvents{}
 	inner := &spawntest.FakeAdapter{}
 	adapter := &recordingAdapter{events: events, inner: inner}
@@ -243,7 +195,6 @@ func TestRunOpenBurst_TriggerFirst_ExternalRestInOrder(t *testing.T) {
 }
 
 func TestRunOpenBurst_TriggerConnectsLast(t *testing.T) {
-	// The N−1 external OpenWindow calls must ALL precede the trigger self-connect.
 	events := &openBurstEvents{}
 	inner := &spawntest.FakeAdapter{}
 	adapter := &recordingAdapter{events: events, inner: inner}
@@ -297,8 +248,6 @@ func TestRunOpenBurst_TriggerAttach_RoutesToConnector(t *testing.T) {
 }
 
 func TestRunOpenBurst_TriggerMint_RoutesToLocalMint(t *testing.T) {
-	// A mint trigger self-connects via LocalMint(cmd, dir, command) — the command
-	// is threaded verbatim (single unit, no word-splitting).
 	events := &openBurstEvents{}
 	inner := &spawntest.FakeAdapter{}
 	adapter := &recordingAdapter{events: events, inner: inner}
@@ -330,16 +279,12 @@ func TestRunOpenBurst_TriggerMint_RoutesToLocalMint(t *testing.T) {
 	if len(conn.calls) != 0 {
 		t.Errorf("Connector.Connect targets = %#v, want none for a mint trigger", conn.calls)
 	}
-	// The external attach window still spawned.
 	if len(inner.Calls) != 1 {
 		t.Errorf("OpenWindow calls = %d, want 1 (the external e1)", len(inner.Calls))
 	}
 }
 
 func TestRunOpenBurst_Command_RidesMintExternalsOnly(t *testing.T) {
-	// A mixed external set with a command: the external MINT window carries the
-	// `-- claude` passthrough tail, the external ATTACH window does not. The
-	// attach trigger connects bare (its own target carries no command).
 	events := &openBurstEvents{}
 	inner := &spawntest.FakeAdapter{}
 	adapter := &recordingAdapter{events: events, inner: inner}
@@ -383,7 +328,6 @@ func TestRunOpenBurst_Command_RidesMintExternalsOnly(t *testing.T) {
 		t.Errorf("external attach window argv carries the command; argv = %#v", attachArgv)
 	}
 
-	// The attach trigger self-connects bare.
 	if !slices.Equal(conn.calls, []string{"trig"}) {
 		t.Errorf("self-connect targets = %#v, want exactly [trig]", conn.calls)
 	}
@@ -393,9 +337,6 @@ func TestRunOpenBurst_Command_RidesMintExternalsOnly(t *testing.T) {
 }
 
 func TestRunOpenBurst_AllAttachWithCommand_UsageError(t *testing.T) {
-	// A multi-target ALL-ATTACH set carrying a command has nowhere to run it (no mint
-	// surface), so it is a usage error (exit 2) — the multi-target arity of the
-	// single-target attach-command guard. Nothing opens, nothing self-connects.
 	events := &openBurstEvents{}
 	inner := &spawntest.FakeAdapter{}
 	adapter := &recordingAdapter{events: events, inner: inner}
@@ -403,7 +344,6 @@ func TestRunOpenBurst_AllAttachWithCommand_UsageError(t *testing.T) {
 	mint := &recordingMint{events: events}
 	deps := openBurstDepsForTest(ghosttyIdentity(), spawn.ResolutionNative, adapter, conn, mint.mint)
 
-	// Spy: neither the burster nor any detection may run on the guard path.
 	bursterBuilt := false
 	deps.NewBurster = func(spawn.Adapter) *spawn.Burster {
 		bursterBuilt = true
@@ -424,7 +364,7 @@ func TestRunOpenBurst_AllAttachWithCommand_UsageError(t *testing.T) {
 		t.Fatalf("error = %T (%v), want *UsageError (exit 2)", err, err)
 	}
 	if want := "a command (-e/--) can only run in a newly-created session, not an existing one"; err.Error() != want {
-		t.Errorf("error = %q, want %q (Task 2-6's message)", err.Error(), want)
+		t.Errorf("error = %q, want %q verbatim", err.Error(), want)
 	}
 	if bursterBuilt {
 		t.Error("NewBurster must not be built on the zero-mint-command usage-error path")
@@ -441,8 +381,6 @@ func TestRunOpenBurst_AllAttachWithCommand_UsageError(t *testing.T) {
 }
 
 func TestRunOpenBurst_DuplicatesHonored_NoDedup(t *testing.T) {
-	// surfaces = [a, a, b] → trigger a, external [a, b]; the duplicate is honored,
-	// never collapsed.
 	events := &openBurstEvents{}
 	inner := &spawntest.FakeAdapter{}
 	adapter := &recordingAdapter{events: events, inner: inner}
@@ -474,15 +412,6 @@ func TestRunOpenBurst_DuplicatesHonored_NoDedup(t *testing.T) {
 	}
 }
 
-// runUnsupportedOpenBurstNoOp arranges the shared unsupported N≥2 open-burst scaffold
-// (recording adapter/connector/local-mint over openBurstDepsForTest + the NewBurster
-// spy + a two-attach surfaces slice) for the given detected identity, executes the
-// burst through runOpenBurstWithDeps, and returns the recorders and the burster-built
-// flag alongside the resulting error (error last, per ST1008). It is the cmd-side
-// counterpart of the tui side's assertAtomicNoOp scaffold. The identity is a parameter
-// so both the named and the NULL/remote identity shapes route through the identical
-// arrange + execute path; each caller keeps only its own divergent err.Error()
-// assertion (computed spawn.UnsupportedNoopMessage vs a byte-literal spec-copy string).
 func runUnsupportedOpenBurstNoOp(t *testing.T, id spawn.Identity) (*spawntest.FakeAdapter, *recordingConnector, *recordingMint, bool, error) {
 	t.Helper()
 	events := &openBurstEvents{}
@@ -492,7 +421,6 @@ func runUnsupportedOpenBurstNoOp(t *testing.T, id spawn.Identity) (*spawntest.Fa
 	mint := &recordingMint{events: events}
 	deps := openBurstDepsForTest(id, spawn.ResolutionUnsupported, adapter, conn, mint.mint)
 
-	// Spy: the burster must never be built on the unsupported no-op path.
 	bursterBuilt := false
 	deps.NewBurster = func(spawn.Adapter) *spawn.Burster {
 		bursterBuilt = true
@@ -507,11 +435,6 @@ func runUnsupportedOpenBurstNoOp(t *testing.T, id spawn.Identity) (*spawntest.Fa
 	return inner, conn, mint, bursterBuilt, err
 }
 
-// assertOpenBurstAtomicNoOp asserts the structural atomic-no-op invariants shared by
-// both unsupported-terminal open-burst cases: an error surfaced, the burster was never
-// built, and nothing opened, self-connected, or minted. The distinct message assertion
-// (computed spawn.UnsupportedNoopMessage vs a byte-literal spec-copy string) stays at
-// each call site.
 func assertOpenBurstAtomicNoOp(t *testing.T, err error, inner *spawntest.FakeAdapter, conn *recordingConnector, mint *recordingMint, bursterBuilt bool) {
 	t.Helper()
 	if err == nil {
@@ -532,31 +455,16 @@ func assertOpenBurstAtomicNoOp(t *testing.T, err error, inner *spawntest.FakeAda
 }
 
 func TestRunOpenBurst_UnsupportedTerminal_AtomicNoop(t *testing.T) {
-	// A recognised-but-undriven terminal (Apple Terminal → unsupported) at N≥2 is an
-	// atomic no-op: nothing opens, the trigger does NOT half-connect, and the error
-	// names the identity. The burster is never constructed or run.
 	id := appleTerminalIdentity()
 	inner, conn, mint, bursterBuilt, err := runUnsupportedOpenBurstNoOp(t, id)
 
 	assertOpenBurstAtomicNoOp(t, err, inner, conn, mint, bursterBuilt)
-	// Computed message — spawn.UnsupportedNoopMessage(id) — so a renderer drift (the
-	// picker/CLI share this renderer) is caught here. The byte-literal spec-copy drift
-	// is pinned separately by TestRunOpenBurst_UnsupportedTerminal_CopyIsPlainLanguage.
 	if want := spawn.UnsupportedNoopMessage(id); err.Error() != want {
 		t.Errorf("error = %q, want %q (names the detected identity)", err.Error(), want)
 	}
 }
 
 func TestRunOpenBurst_UnsupportedTerminal_CopyIsPlainLanguage(t *testing.T) {
-	// Explicit byte-literal copy regression pinning the rewritten plain-language
-	// unsupported no-op strings on the CLI open-burst surface (spec §5 copy set,
-	// §7 CLI copy assertions). TestRunOpenBurst_UnsupportedTerminal_AtomicNoop
-	// asserts want := spawn.UnsupportedNoopMessage(id) — it SELF-REFERENCES the
-	// shared renderer and so silently tracks any wording change. Each `want` here is
-	// a hardcoded literal (NOT spawn.UnsupportedNoopMessage(id)), so this test FAILS
-	// if the copy drifts from spec §5. It drives the same N≥2 unsupported atomic
-	// no-op path for BOTH message shapes: the named terminal AND the NULL/remote
-	// identity — closing the gap the named-only existing test leaves uncovered.
 	tests := []struct {
 		name string
 		id   spawn.Identity
@@ -578,10 +486,9 @@ func TestRunOpenBurst_UnsupportedTerminal_CopyIsPlainLanguage(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			inner, conn, mint, bursterBuilt, err := runUnsupportedOpenBurstNoOp(t, tt.id)
 
-			// Atomic no-op is preserved: nothing built, nothing opened, no half-connect.
 			assertOpenBurstAtomicNoOp(t, err, inner, conn, mint, bursterBuilt)
-			// Byte-literal want — NOT spawn.UnsupportedNoopMessage(tt.id) — so a copy
-			// drift from spec §5 is caught here rather than silently tracked.
+			// Byte-literal want, deliberately not the shared renderer — routing it
+			// through spawn.UnsupportedNoopMessage would track a copy drift silently.
 			if err.Error() != tt.want {
 				t.Errorf("error = %q, want the plain-language literal %q", err.Error(), tt.want)
 			}
@@ -590,9 +497,6 @@ func TestRunOpenBurst_UnsupportedTerminal_CopyIsPlainLanguage(t *testing.T) {
 }
 
 func TestRunOpenBurst_PreSpawnBursterError_TriggerNotConnected(t *testing.T) {
-	// A pre-spawn Burster error (the executable fails to resolve before any window
-	// opens) aborts before the self-connect: the error propagates and the trigger
-	// is NOT connected.
 	events := &openBurstEvents{}
 	inner := &spawntest.FakeAdapter{}
 	adapter := &recordingAdapter{events: events, inner: inner}
@@ -601,7 +505,6 @@ func TestRunOpenBurst_PreSpawnBursterError_TriggerNotConnected(t *testing.T) {
 	ack := &spawntest.FakeAckChannel{}
 	clock := &manualClock{}
 	deps := openBurstDepsForTest(ghosttyIdentity(), spawn.ResolutionNative, adapter, conn, mint.mint)
-	// A failing ExePath makes Burster.Run abort at the top, before any OpenWindow.
 	exeErr := errors.New("executable unresolvable")
 	deps.ExePath = func() (string, error) { return "", exeErr }
 	withOpenBurster(deps, inner, ack, clock)
@@ -626,16 +529,9 @@ func TestRunOpenBurst_PreSpawnBursterError_TriggerNotConnected(t *testing.T) {
 	}
 }
 
-// --- Task 3-8: leave-what-opened partial failure + per-window ack timeout + log ---
-
-// burstDelayingAck mirrors internal/spawn's burst_test.go delayingAck at the cmd
-// layer: Write records a token with a reveal instant of now()+delay, Collect
-// returns only tokens whose reveal instant has arrived, and Clean records swept
-// batches. Driving it with the shared manualClock lets a cmd-level burst test prove
-// the per-window ack timer starts at each window's OWN spawn (a delay >= Poll and <
-// Timeout forces the poll loop to cross a timeout check, which an immediate-reveal
-// FakeAckChannel cannot). It satisfies spawn.AckChannelFull (Collect+Clean) and
-// spawn.AckWriter (Write).
+// Reveals each written token only after a delay, so a burst test can cross a
+// timeout check in the poll loop — which an immediate-reveal FakeAckChannel
+// cannot force.
 type burstDelayingAck struct {
 	now      func() time.Time
 	delay    time.Duration
@@ -673,14 +569,9 @@ func (d *burstDelayingAck) Clean(batch string) error {
 	return nil
 }
 
-// ackWritingAdapter is a minimal spawn.Adapter that, on each OpenWindow, parses the
-// --ack <batch>:<token> pair out of the composed argv and — when that window's
-// confirm flag is true (a nil confirm slice, and any index beyond it, confirms) —
-// writes the token to an AckWriter, simulating the spawned window's marker write.
-// It always reports the adapter open itself as successful, so a suppressed write
-// times the window out. It is the cmd-side counterpart of burst_test.go's
-// writingAdapter, used only where the burster's Ack is a burstDelayingAck (whose
-// concrete type the spawntest.FakeAdapter cannot target).
+// Parses the --ack pair out of the composed argv and writes the token,
+// simulating the spawned window's marker write; a suppressed write times that
+// window out. Needed because FakeAdapter cannot target burstDelayingAck.
 type ackWritingAdapter struct {
 	ack     spawn.AckWriter
 	confirm []bool
@@ -710,10 +601,6 @@ func (a *ackWritingAdapter) confirmed(i int) bool {
 }
 
 func TestRunOpenBurst_PartialFailure_LeavesOthersOpen_StillConnectsTrigger(t *testing.T) {
-	// External e1 spawn-fails, e2 confirms. Leave-what-opened: e2 stays open, e1 is
-	// neither retried nor torn down, and — the open-specific divergence from the
-	// picker's burst — the trigger STILL connects and NO partial-failure error is
-	// returned. The failed window rides a best-effort stderr summary + portal.log only.
 	events := &openBurstEvents{}
 	inner := &spawntest.FakeAdapter{
 		Results: []spawn.Result{spawn.SpawnFailed("osascript exited 1: -1743"), spawn.Success("ok")},
@@ -741,16 +628,12 @@ func TestRunOpenBurst_PartialFailure_LeavesOthersOpen_StillConnectsTrigger(t *te
 		t.Fatalf("partial failure must NOT return an error (trigger-independence); got %v", err)
 	}
 
-	// Both externals were attempted (no early stop, no teardown).
 	if len(inner.Calls) != 2 {
 		t.Errorf("OpenWindow calls = %d, want 2 (e1 failed, e2 opened; both attempted)", len(inner.Calls))
 	}
-	// The trigger connects regardless of e1's failure.
 	if !slices.Equal(conn.calls, []string{"trig"}) {
 		t.Errorf("self-connect targets = %#v, want exactly [trig] (trigger connects independent of external failures)", conn.calls)
 	}
-	// Best-effort stderr partial-failure summary names the failed window; e2 opened,
-	// so othersOpened is true.
 	want := spawn.PartialFailureMessage([]string{"e1"}, true)
 	if got := strings.TrimSpace(buf.String()); got != want {
 		t.Errorf("stderr = %q, want the partial-failure summary %q", got, want)
@@ -758,11 +641,6 @@ func TestRunOpenBurst_PartialFailure_LeavesOthersOpen_StillConnectsTrigger(t *te
 }
 
 func TestRunOpenBurst_TriggerOwnConnectFails_PropagatesError(t *testing.T) {
-	// The trigger's OWN connect failing (its attach session vanished between
-	// pre-flight and connect) is the SOLE case the trigger is skipped: connectTrigger
-	// returns that error and runOpenBurstWithDeps propagates it (outside tmux Portal
-	// returns to the shell). Externals all succeed, isolating the own-target failure
-	// as the cause.
 	events := &openBurstEvents{}
 	inner := &spawntest.FakeAdapter{}
 	adapter := &recordingAdapter{events: events, inner: inner}
@@ -786,12 +664,6 @@ func TestRunOpenBurst_TriggerOwnConnectFails_PropagatesError(t *testing.T) {
 }
 
 func TestRunOpenBurst_TriggerConnectFails_EmitsCorrectiveWarn(t *testing.T) {
-	// The batch summary is emitted just BEFORE the trigger self-connect (a
-	// successful outside-tmux attach exec-replaces this process and never returns),
-	// so it optimistically counts the trigger's self-attach in `opened`. On the rare
-	// connect-failure path the process survives, so a corrective WARN must record
-	// that the trigger did NOT attach — otherwise the durable portal.log is left
-	// claiming an `opened N/N` that includes a trigger which never landed.
 	events := &openBurstEvents{}
 	inner := &spawntest.FakeAdapter{}
 	adapter := &recordingAdapter{events: events, inner: inner}
@@ -834,18 +706,12 @@ func TestRunOpenBurst_TriggerConnectFails_EmitsCorrectiveWarn(t *testing.T) {
 	if got := w.AttrString(t, "detail"); !strings.Contains(got, connErr.Error()) {
 		t.Errorf("corrective WARN detail attr = %q, want it to carry the connect error %q", got, connErr.Error())
 	}
-	// The batch summary above still emitted its optimistic `opened` count — it MUST,
-	// since a successful attach never returns to emit it. The corrective WARN is what
-	// keeps the durable log honest despite that count.
 	if len(summaries) != 1 {
 		t.Fatalf("opened batch summaries = %d, want exactly 1; body:\n%s", len(summaries), sink.Body())
 	}
 }
 
 func TestRunOpenBurst_TriggerMintOwnConnectFails_PropagatesError(t *testing.T) {
-	// The mint-trigger analogue: LocalMint failing (the trigger's own local mint
-	// errors) propagates as the command's error, even though the external window
-	// opened fine.
 	events := &openBurstEvents{}
 	inner := &spawntest.FakeAdapter{}
 	adapter := &recordingAdapter{events: events, inner: inner}
@@ -869,10 +735,6 @@ func TestRunOpenBurst_TriggerMintOwnConnectFails_PropagatesError(t *testing.T) {
 }
 
 func TestRunOpenBurst_RecordsOutcomesInLog(t *testing.T) {
-	// Full success: each external window's outcome is recorded in portal.log via the
-	// shared logemit helpers — one DEBUG per window carrying its ack, plus one INFO
-	// `opened N/N` batch summary (opened = 2 confirmed externals + the trigger; total
-	// = len(surfaces) = 3).
 	events := &openBurstEvents{}
 	inner := &spawntest.FakeAdapter{}
 	adapter := &recordingAdapter{events: events, inner: inner}
@@ -939,10 +801,6 @@ func TestRunOpenBurst_RecordsOutcomesInLog(t *testing.T) {
 }
 
 func TestRunOpenBurst_PermissionRequired_GuidanceOnce_StillConnectsTrigger(t *testing.T) {
-	// A permission wall on an EXTERNAL window stops the burst (later windows never
-	// spawn), surfaces the driver's guidance exactly ONCE (LogPermission + one
-	// best-effort stderr line, NO batch summary), and — per trigger-independence —
-	// STILL connects the trigger with NO error returned.
 	const guidance = "grant Automation for Ghostty, then try again"
 	events := &openBurstEvents{}
 	inner := &spawntest.FakeAdapter{
@@ -972,15 +830,12 @@ func TestRunOpenBurst_PermissionRequired_GuidanceOnce_StillConnectsTrigger(t *te
 		t.Fatalf("a permission wall on an external window must NOT return an error (trigger-independence); got %v", err)
 	}
 
-	// Burst stopped at the permission wall (e2): e1,e2 attempted, e3 never spawned.
 	if len(inner.Calls) != 2 {
 		t.Errorf("OpenWindow calls = %d, want 2 (burst stops at the permission wall; e3 never spawned)", len(inner.Calls))
 	}
-	// The trigger STILL connects (permission on an external window doesn't cost it its landing).
 	if !slices.Equal(conn.calls, []string{"trig"}) {
 		t.Errorf("self-connect targets = %#v, want exactly [trig] (trigger connects despite the external permission wall)", conn.calls)
 	}
-	// Exactly one LogPermission INFO and NO batch summary (the burst stopped).
 	var perms, summaries []logtest.Record
 	for _, rec := range sink.Records() {
 		switch {
@@ -996,20 +851,15 @@ func TestRunOpenBurst_PermissionRequired_GuidanceOnce_StillConnectsTrigger(t *te
 	if len(summaries) != 0 {
 		t.Errorf("generic opened-summary records = %d, want 0 (permission path skips the batch summary); body:\n%s", len(summaries), sink.Body())
 	}
-	// Guidance surfaced exactly once on stderr, verbatim, on a single line.
 	if got := strings.TrimSpace(buf.String()); got != guidance {
 		t.Errorf("stderr = %q, want exactly the driver guidance %q (shown once)", got, guidance)
 	}
-	// Driver-quarantine: the opaque AppleEvent detail never reaches the stderr line.
 	if strings.Contains(buf.String(), "-1743") {
 		t.Errorf("stderr %q leaks the opaque driver detail; it must ride the log only", buf.String())
 	}
 }
 
 func TestRunOpenBurst_MarkersCleanedBeforeSelfConnect(t *testing.T) {
-	// The batch @portal-spawn-* markers are cleaned on every post-burst path BEFORE
-	// the trigger's self-connect handoff (a point of no return outside tmux). The
-	// cleanOrderConnector snapshots how many batches were cleaned at Connect time.
 	inner := &spawntest.FakeAdapter{}
 	adapter := &recordingAdapter{events: &openBurstEvents{}, inner: inner}
 	ack := &spawntest.FakeAckChannel{}
@@ -1036,13 +886,9 @@ func TestRunOpenBurst_MarkersCleanedBeforeSelfConnect(t *testing.T) {
 }
 
 func TestRunOpenBurst_PerWindowAckTimeout_TimedFromOwnSpawn(t *testing.T) {
-	// External e1 never acks (times out, consuming a FULL ~8s budget); e2 acks
-	// late-but-in-time. The per-window timer starts at e2's OWN spawn, so e1's spent
-	// budget does not eat e2's — e2 still confirms even though the global clock is
-	// already past a whole Timeout by e2's spawn. Mirrors internal/spawn's
-	// burst_test.go per-window clock proof, driven through the open burst; a delay >=
-	// Poll and < Timeout forces the poll loop across a timeout check (an
-	// immediate-reveal ack could not distinguish per-window from a global timer).
+	// e1 never acks and consumes a full timeout budget before e2 spawns, so the
+	// timer must start at each window's own spawn. The delay must be >= Poll and
+	// < Timeout to force the loop across a timeout check.
 	clock := &manualClock{}
 	dack := newBurstDelayingAck(clock.now, 200*time.Millisecond)
 	adapter := &ackWritingAdapter{ack: dack, confirm: []bool{false, true}}
@@ -1075,8 +921,6 @@ func TestRunOpenBurst_PerWindowAckTimeout_TimedFromOwnSpawn(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// The global clock is already past a full Timeout by e2's spawn (e1 consumed it),
-	// so e2 confirming proves its budget is judged from its own spawn, not a global timer.
 	if elapsed := clock.t.Sub(time.Time{}); elapsed < 8*time.Second {
 		t.Fatalf("clock advanced only %v, want >= Timeout so the per-window proof is meaningful", elapsed)
 	}
@@ -1099,7 +943,6 @@ func TestRunOpenBurst_PerWindowAckTimeout_TimedFromOwnSpawn(t *testing.T) {
 	if !e2Confirmed {
 		t.Errorf("want e2 recorded ack=confirmed (judged from its own spawn); body:\n%s", sink.Body())
 	}
-	// The trigger still connects.
 	if !slices.Equal(conn.calls, []string{"trig"}) {
 		t.Errorf("self-connect targets = %#v, want exactly [trig]", conn.calls)
 	}

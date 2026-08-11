@@ -1,21 +1,6 @@
-// Package spawn is Portal's shared host-terminal spawn service: it detects the
-// host terminal a Portal process is running under, resolves that terminal to a
-// window-spawning adapter, and drives the adapter to open new terminal windows
-// for restored sessions.
-//
-// It is a single service reached in-process by two burst callers — the TUI picker
-// (which spawns windows as part of its multi-select attach flow) and the
-// multi-target open burst (cmd/open_burst_run.go — the `open` command opening N≥2
-// resolved surfaces). Both share one detection and resolution path so their
-// behaviour cannot drift. (The host-terminal detector alone is also reused by the
-// `portal doctor` host-terminal line.)
-//
-// Detection produces an Identity: the host terminal's macOS bundle id plus a
-// friendly display name, or a NULL identity when there is no host-local
-// terminal (a remote/mosh client, or an unsupported/transient outcome).
-// Adapter resolution matches an Identity's bundle id against a bundle-id family
-// glob. Phase 1 of the feature provides only the Identity value type and the
-// standalone family-matching primitive; the process-tree walk, the env
-// fast-path, the inside-tmux client enumeration, the detect orchestrator, and
-// the adapter layer are layered in by later phases.
+// Package spawn detects the host terminal a Portal process runs under, resolves
+// it to a window-spawning adapter, and drives that adapter to open new windows.
+// Detection yields an Identity — a macOS bundle id plus display name, or the
+// NULL identity when there is no host-local terminal (a remote/mosh client, or a
+// transient failure).
 package spawn

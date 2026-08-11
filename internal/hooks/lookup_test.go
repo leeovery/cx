@@ -156,9 +156,8 @@ func TestLookupOnResume(t *testing.T) {
 	t.Run("surfaces a wrapped I/O error distinct from the no-hook case", func(t *testing.T) {
 		dir := t.TempDir()
 		filePath := filepath.Join(dir, "hooks.json")
-		// Create a directory at the path where Store expects a file.
-		// os.ReadFile on a directory returns EISDIR (not ErrNotExist),
-		// so Store.Load propagates it and LookupOnResume wraps it.
+		// Reading a directory returns EISDIR, not ErrNotExist, so the error
+		// propagates rather than degrading to "no hook".
 		if err := os.Mkdir(filePath, 0o700); err != nil {
 			t.Fatalf("failed to create directory: %v", err)
 		}

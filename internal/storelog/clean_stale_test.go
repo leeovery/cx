@@ -12,10 +12,6 @@ import (
 	"github.com/leeovery/portal/internal/storelog"
 )
 
-// installCapture swaps the shared logtest.Sink into the process-wide log
-// indirection for the duration of the test and returns it. The storelog tests
-// assert on the helper's emitted record (component, attr values) via the sink's
-// shared accessors.
 func installCapture(t *testing.T) *logtest.Sink {
 	t.Helper()
 	sink := &logtest.Sink{}
@@ -55,7 +51,6 @@ func TestEmitCleanStaleSummary_SuccessInfo(t *testing.T) {
 	if tookVal.Kind() != slog.KindDuration {
 		t.Errorf("took attr kind = %v, want Duration", tookVal.Kind())
 	}
-	// A successful summary must NOT carry error / error_class.
 	if _, ok := rec.Attrs["error"]; ok {
 		t.Errorf("success summary must omit error attr: %+v", rec.Attrs)
 	}
@@ -90,7 +85,6 @@ func TestEmitCleanStaleSummary_FailureWarn(t *testing.T) {
 	if got := rec.AttrString(t, "via"); got != "internal" {
 		t.Errorf("via = %q, want %q", got, "internal")
 	}
-	// error_class is derived from fileutil.ClassifyWriteError inside the helper.
 	if got := rec.AttrString(t, "error_class"); got != "write-failed-temp-create" {
 		t.Errorf("error_class = %q, want %q", got, "write-failed-temp-create")
 	}

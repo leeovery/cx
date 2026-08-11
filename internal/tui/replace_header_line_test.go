@@ -2,12 +2,6 @@ package tui
 
 import "testing"
 
-// TestReplaceHeaderLine pins the shared section-header line-0 splice helper: the
-// four-line idiom that swaps a freshly-rendered header in for the FIRST line of a
-// bubbles/list view. It replaces line 0 (up to the first newline) with header and
-// keeps the tail from the first newline onward — the one-row-per-delegate
-// pagination invariant every applySectionHeader / applyProjectsSectionHeader
-// branch depends on. The degenerate no-newline listView returns header bare.
 func TestReplaceHeaderLine(t *testing.T) {
 	for _, tc := range []struct {
 		name     string

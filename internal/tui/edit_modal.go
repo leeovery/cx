@@ -7,75 +7,33 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// The two-mode edit-project modal — the MV render over the 3-8
-// state machine. A reskin (the editMode/editFocus/edit-buffer state machine in
-// model.go is untouched); this file owns only the FINAL MV rendering.
-//
-// VISUAL GRAMMAR (the revised design — it supersedes the older fill/✕
-// wording). NOTHING FILLS: every editable element (the NAME input AND the chips)
-// is a glyph-drawn bordered box whose STATE is carried by the BORDER COLOUR, never
-// a background fill — grey (border) idle/unfocused → accent.primary
-// focused → accent.attention editing (+ a live block cursor). Inputs render ROUNDED
-// corners, chips render SQUARE corners (the element-type differentiator). Chips are
-// text.primary, never green, with NO inline ✕ (removal is `x` on a focused chip,
-// carried by the footer). The `◉ EDIT MODE` header indicator is accent.attention,
-// shown ONLY while editing in place.
-//
-// The panel chrome reuses the shared single-tone hand-drawn joined panel
-// (renderJoinedPanel) — the SAME frame the help/kill/rename modals use, three
-// compartments (header / body / footer) with joined ├───┤ dividers in
-// border. Under the NO_COLOR carve-out every hue drops to the native fg;
-// state survives via the border PRESENCE + the live cursor + the `◉ EDIT MODE`
-// text + bold/dim — state is never colour-only.
-
 const (
-	// editHeaderPrefix opens the header — `Edit Project ` in text.primary, with the
-	// project name trailing in text.muted.
-	editHeaderPrefix = "Edit Project "
-	// editModeIndicator is the accent.attention `◉ EDIT MODE` header badge, shown ONLY
-	// while editing in place (glyph + colour + text).
+	editHeaderPrefix  = "Edit Project "
 	editModeIndicator = "◉ EDIT MODE"
 
-	// Field labels: the focused field's label is accent.primary, the others
-	// text.muted.
 	editLabelName    = "NAME"
 	editLabelAliases = "ALIASES"
 	editLabelTags    = "TAGS"
 
-	// editAddSlot is the inline faint `+ add` slot trailing the chips (text.faint).
 	editAddSlot = "+ add"
 
-	// editNameInnerWidth is the NAME input box's inner content width (cells) — the
-	// span inside the rounded box's side borders, including its 1-cell horizontal
-	// padding each side. It also anchors the panel's body width so the panel stays a
-	// consistent size regardless of value length, matching the reference's wide NAME
-	// field. Sized to comfortably hold a `{project}-{nanoid}` name with room to grow.
+	// Also anchors the panel's body width, so the panel size is stable
+	// regardless of value length.
 	editNameInnerWidth = 56
 
-	// editChipPadX is the chip box's horizontal padding (cells each side) inside its
-	// square border — so a chip reads `│ fapi │`, matching the reference's compact
-	// chips.
 	editChipPadX = 1
 
-	// editFieldGap is the blank spacer row between the field blocks (label + control)
-	// — the body's vertical rhythm.
 	editFieldGap = ""
 )
 
-// inputBoxState is the border-colour state of an editable bordered box: the
-// SAME three-state model for the NAME input AND every chip. Grey unfocused/idle →
-// violet focused → orange editing (+ cursor). The rename input routes
-// through renderInputBox in the always-editing variant.
 type inputBoxState int
 
 const (
-	inputBoxIdle    inputBoxState = iota // border token — unfocused/normal
-	inputBoxFocused                      // accent.primary border — focused, not editing
-	inputBoxEditing                      // accent.attention border + live cursor — editing in place
+	inputBoxIdle inputBoxState = iota
+	inputBoxFocused
+	inputBoxEditing
 )
 
-// inputBoxBorderToken maps a box state to its border role token: grey →
-// violet → orange. The shared mapping the NAME input and chips both use.
 func inputBoxBorderToken(state inputBoxState, th theme.Theme) theme.Token {
 	switch state {
 	case inputBoxFocused:
@@ -87,23 +45,10 @@ func inputBoxBorderToken(state inputBoxState, th theme.Theme) theme.Token {
 	}
 }
 
-// renderInputBox draws the reusable bordered box the rename modal shares:
-// content wrapped in a thin glyph border whose colour is the state's role token,
-// over a TRANSPARENT interior (NO fill, ever). rounded selects ROUNDED corners (the
-// NAME input) vs SQUARE corners (chips). innerWidth fixes the box's inner content
-// width (the NAME input pins it for a consistent panel width; a chip passes -1 to
-// size to its content). Returns the box's rendered rows (one per line) so the
-// caller can lay them out — three rows for a single-line content.
-//
-// No fill, by design: a flush fill cannot coexist with a thin glyph border in a
-// terminal — a border glyph owns a full cell with one background, so a fill either
-// leaves a half-cell gap or bleeds past the border (the corigendum's confirmed
-// finding). Focus is therefore carried by the border COLOUR. Under the NO_COLOR
-// carve-out the border foreground is dropped so the glyphs survive on the native fg
-// (the box PRESENCE is the state signal; the cursor + EDIT MODE text distinguish
-// editing).
+// No fill, by design: a border glyph owns a full cell with one background, so a
+// fill either leaves a half-cell gap or bleeds past it — state rides the border.
 func renderInputBox(content string, state inputBoxState, rounded bool, innerWidth int, th theme.Theme, colourless bool) []string {
-	border := lipgloss.NormalBorder() // square corners (chips)
+	border := lipgloss.NormalBorder()
 	if rounded {
 		border = lipgloss.RoundedBorder()
 	}
@@ -119,15 +64,6 @@ func renderInputBox(content string, state inputBoxState, rounded bool, innerWidt
 	return strings.Split(style.Render(content), "\n")
 }
 
-// editChipContent renders one chip's interior — its value in text.primary, with a
-// live block cursor appended/inserted when editing. The chip's value is
-// never green; the cursor is the editing-state signal that survives NO_COLOR.
-//
-// A navigate-mode chip (normal or focused) is sized to its CONTENT — no reserved
-// trailing cell. An edit-mode chip renders its live cursor via renderEditableValue,
-// so its box may be one cell wider while editing; that is fine and expected — the
-// panel width is anchored by the header/footer/name box (all wider than any chip),
-// so a wider chip never resizes the panel.
 func editChipContent(value string, editing bool, cursor int, th theme.Theme, colourless bool) string {
 	if editing {
 		return renderEditableValue(value, cursor, th, colourless)
@@ -135,16 +71,9 @@ func editChipContent(value string, editing bool, cursor int, th theme.Theme, col
 	return headerStyle(th.TextPrimary, th, colourless).Render(value)
 }
 
-// renderEditableValue renders a live-edited value (the NAME input value or a chip
-// value being edited) in text.primary with an accent.attention block cursor at the
-// rune index. The cursor is a reverse-video block (SGR 7) over the orange
-// foreground, so under the NO_COLOR carve-out the reverse block survives as the
-// editing signal even with no hue.
-//
-// The rendered width is ALWAYS len(value)+1: an end-of-value cursor paints a
-// trailing block cell, and a mid-value cursor overlays a rune block AND appends a
-// trailing blank cell — so an editable box stays a CONSTANT width regardless of
-// where the text cursor sits (and matches the navigate-mode reserved-cell width).
+// Rendered width is always len(value)+1 — a mid cursor overlays a rune and
+// appends a trailing blank — so the box never resizes as the cursor moves. The
+// reverse-video block survives NO_COLOR as the editing signal.
 func renderEditableValue(value string, cursor int, th theme.Theme, colourless bool) string {
 	runes := []rune(value)
 	if cursor < 0 {
@@ -156,7 +85,7 @@ func renderEditableValue(value string, cursor int, th theme.Theme, colourless bo
 	before := string(runes[:cursor])
 	cursorGlyph := " "
 	after := ""
-	trailing := "" // reserved trailing cell when the cursor overlays a mid-value rune.
+	trailing := ""
 	if cursor < len(runes) {
 		cursorGlyph = string(runes[cursor])
 		after = string(runes[cursor+1:])
@@ -181,20 +110,6 @@ func renderEditableValue(value string, cursor int, th theme.Theme, colourless bo
 	return b.String()
 }
 
-// renderEditProjectContent composes the MV edit-project modal: three
-// compartments drawn by the shared single-tone joined panel —
-//
-//	header:  Edit Project <name>        [◉ EDIT MODE]   (prefix text.primary, name text.muted, badge accent.attention while editing)
-//	body:    NAME                                        (focused-field label accent.primary, others text.muted)
-//	         ╭ <value>▌ ╮                                (rounded box; grey/violet/orange border, no fill)
-//	         ALIASES
-//	         ┌ fapi ┐ ┌ v1 ┐ + add                       (square chip boxes + faint `+ add`)
-//	         TAGS
-//	         ┌ Fabric ┐ ┌ api ┐ + add
-//	footer:  contextual keymap                           (key glyphs accent.key, labels text.muted)
-//
-// The render reads the live editBuffer/editCursor for the one live element so an
-// in-progress edit shows; everything else comes from the persisted edit state.
 func (m Model) renderEditProjectContent() string {
 	th, colourless := m.themeState.active, m.colourless
 
@@ -205,21 +120,10 @@ func (m Model) renderEditProjectContent() string {
 	return renderJoinedPanel([][]string{header, body, footer}, th.Border, th, colourless)
 }
 
-// editPanelContentWidth returns the modal's panel content width — the span every
-// compartment row is padded to — computed ONCE and independent of edit state, so
-// toggling navigate↔edit never resizes the panel (the "jaggedy" resize bug). It is
-// the max of:
-//
-//   - the NAME input box (the widest body element, editNameInnerWidth + 2 side
-//     borders), and
-//   - the header's worst case (left title + badge gap + the `◉ EDIT MODE` badge,
-//     which the navigate header reserves as blank), and
-//   - the footer's worst case (the always-longest editing-in-place footer copy).
-//
-// Pinning the width to these state-independent constants means the header, name
-// box, chip rows, and footer all render at one stable width whether editing or not.
+// Computed from state-independent constants so toggling navigate↔edit never
+// resizes the panel.
 func (m Model) editPanelContentWidth() int {
-	w := editNameInnerWidth + 2 // name box: inner width + the two side borders.
+	w := editNameInnerWidth + 2
 	if hw := editHeaderNaturalWidth(m.editProject.Name); hw > w {
 		w = hw
 	}
@@ -229,35 +133,19 @@ func (m Model) editPanelContentWidth() int {
 	return w
 }
 
-// editHeaderNaturalWidth is the header row's width WITH the badge present (the
-// worst case): `Edit Project <name>` + the badge gap + `◉ EDIT MODE`. The navigate
-// header reserves this exact span (blank where the badge would be) so the row width
-// is identical in both modes.
 func editHeaderNaturalWidth(name string) int {
 	return lipgloss.Width(editHeaderPrefix) + lipgloss.Width(name) +
 		editHeaderBadgeGap + lipgloss.Width(editModeIndicator)
 }
 
-// editFooterWidestWidth is the width of the longest footer copy (the
-// editing-in-place footer), measured plain so the panel width never depends on the
-// live mode.
 func editFooterWidestWidth() int {
 	return lipgloss.Width(strings.Join([]string{
 		"⏎ save", "esc discard", "←→ cursor", "empty on save = delete",
 	}, footerEntrySeparator))
 }
 
-// editHeaderBadgeGap is the minimum gap (cells) between the title and the
-// right-corner `◉ EDIT MODE` badge — also the blank span the navigate header
-// reserves so the header width is constant.
 const editHeaderBadgeGap = 3
 
-// editModalHeaderRow renders the header as a FIXED full-content-width row:
-// `Edit Project <name>` (prefix text.primary, name text.muted) left-aligned, and
-// the `◉ EDIT MODE` badge (accent.attention) RIGHT-aligned in the far corner — shown
-// ONLY while editing in place. In navigate mode the badge's slot is rendered as a
-// same-width blank, so the header (and therefore the whole panel) is byte-for-byte
-// the SAME width in both modes — entering edit never resizes the panel.
 func (m Model) editModalHeaderRow(th theme.Theme, colourless bool) string {
 	prefix := headerStyle(th.TextPrimary, th, colourless).Bold(true).Render(editHeaderPrefix)
 	name := headerStyle(th.TextMuted, th, colourless).Render(m.editProject.Name)
@@ -265,14 +153,7 @@ func (m Model) editModalHeaderRow(th theme.Theme, colourless bool) string {
 	return renderHeaderWithBadge(left, m.editPanelContentWidth(), m.editMode == editModeEdit, th, colourless)
 }
 
-// renderHeaderWithBadge lays out a modal header as a FIXED full-content-width row:
-// the pre-rendered left title segment left-aligned, a flexible canvas spacer, then
-// the `◉ EDIT MODE` badge (accent.attention, bold) RIGHT-aligned in the far corner.
-// When showBadge is false the badge's slot is rendered as a same-width blank, so the
-// header (and therefore the whole panel) is byte-for-byte the SAME width whether the
-// badge shows or not. Shared by the edit modal (badge gated on edit mode) and the
-// rename modal (always editing → badge always shown). The right-align is the
-// fixed-content-width row + flexible-spacer technique.
+// A hidden badge renders as a same-width blank so toggling never resizes the panel.
 func renderHeaderWithBadge(left string, contentWidth int, showBadge bool, th theme.Theme, colourless bool) string {
 	leftWidth := lipgloss.Width(left)
 	badgeWidth := lipgloss.Width(editModeIndicator)
@@ -283,19 +164,13 @@ func renderHeaderWithBadge(left string, contentWidth int, showBadge bool, th the
 	if showBadge {
 		badge = headerStyle(th.AccentAttention, th, colourless).Bold(true).Render(editModeIndicator)
 	} else {
-		// Reserve the badge's slot as blank so the header is the same width either way.
 		badge = headerCanvasBg(th, colourless).Render(strings.Repeat(" ", badgeWidth))
 	}
 	return lipgloss.JoinHorizontal(lipgloss.Top, left, spacer, badge)
 }
 
-// editModalBodyRows assembles the three field blocks (NAME input / ALIASES chips /
-// TAGS chips), each a label row followed by its control rows, separated by a single
-// blank spacer row (the body's vertical rhythm). Every appended element is a SINGLE
-// line — the multi-row boxes are split into their constituent rows so the joined
-// panel's per-row inset + side borders wrap each line exactly (a multi-line content
-// "row" would defeat panelInsetRow's single-line padding and let the box overrun the
-// panel frame).
+// Every appended element must be a single line — a multi-line row would defeat
+// panelInsetRow's per-line padding and overrun the panel frame.
 func (m Model) editModalBodyRows(th theme.Theme, colourless bool) []string {
 	var rows []string
 	rows = append(rows, m.editFieldLabelRow(editLabelName, editFieldName, th, colourless))
@@ -309,8 +184,6 @@ func (m Model) editModalBodyRows(th theme.Theme, colourless bool) []string {
 	return rows
 }
 
-// editFieldLabelRow renders a field label: the focused field's label in
-// accent.primary, the others in text.muted.
 func (m Model) editFieldLabelRow(label string, field editField, th theme.Theme, colourless bool) string {
 	token := th.TextMuted
 	if m.editFocus == field {
@@ -319,10 +192,6 @@ func (m Model) editFieldLabelRow(label string, field editField, th theme.Theme, 
 	return headerStyle(token, th, colourless).Render(label)
 }
 
-// editNameInputRows renders the NAME input as a ROUNDED bordered box: grey
-// border when unfocused, accent.primary when focused (navigate),
-// accent.attention + a live cursor when editing. The value is the persisted
-// name in navigate mode, the live editBuffer while editing.
 func (m Model) editNameInputRows(th theme.Theme, colourless bool) []string {
 	focused := m.editFocus == editFieldName
 	editing := focused && m.editMode == editModeEdit
@@ -337,9 +206,6 @@ func (m Model) editNameInputRows(th theme.Theme, colourless bool) []string {
 	return renderInputBox(content, boxStateFor(focused, editing), true, editNameInnerWidth, th, colourless)
 }
 
-// boxStateFor resolves a bordered box's state from its focus/edit flags —
-// shared by the NAME input and every chip: editing wins (orange + cursor), then
-// focused (violet), else idle/normal (grey).
 func boxStateFor(focused, editing bool) inputBoxState {
 	switch {
 	case editing:
@@ -351,26 +217,16 @@ func boxStateFor(focused, editing bool) inputBoxState {
 	}
 }
 
-// editChipFieldRows renders one chip field as THREE single-line rows (top edges /
-// values + `+ add` / bottom edges): each chip a SQUARE bordered box (grey/violet/
-// orange per state, no fill, no ✕) laid out horizontally, followed by the faint
-// `+ add` slot. A zero-chip field shows only the `+ add` slot. The one live element
-// (a focused chip being edited, or a brand-new chip on the + add slot) reads the
-// editBuffer. Returning three discrete single-line rows (rather than one multi-line
-// string) lets the joined panel inset + border-wrap each line so the boxes stay
-// inside the panel frame.
 func (m Model) editChipFieldRows(field editField, chips []string, cursor int, th theme.Theme, colourless bool) []string {
 	focused := m.editFocus == field
 	editing := focused && m.editMode == editModeEdit
 
-	// Each segment is a 3-element slice (top / middle / bottom row of one box or the
-	// + add slot). The rows are then transposed and joined column-wise into 3 lines.
+	// Each segment is a 3-row slice (top/middle/bottom of one box); the
+	// segments are transposed and joined column-wise into 3 bands.
 	segments := make([][]string, 0, len(chips)+2)
 	for i, chip := range chips {
 		chipFocused := focused && cursor == i && m.editMode == editModeNavigate
 		chipEditing := editing && cursor == i && !m.editIsNewChip
-		// While editing an existing chip its box shows the live editBuffer (the
-		// in-progress text), not the persisted value.
 		value := chip
 		if chipEditing {
 			value = m.editBuffer
@@ -378,8 +234,6 @@ func (m Model) editChipFieldRows(field editField, chips []string, cursor int, th
 		segments = append(segments, m.chipBoxRows(value, chipFocused, chipEditing, th, colourless))
 	}
 
-	// A brand-new chip being edited (spawned on the + add slot) renders as an extra
-	// editing chip box BEFORE the + add slot, showing the live editBuffer.
 	if editing && m.editIsNewChip && cursor == len(chips) {
 		segments = append(segments, m.chipBoxRows(m.editBuffer, false, true, th, colourless))
 	}
@@ -389,19 +243,11 @@ func (m Model) editChipFieldRows(field editField, chips []string, cursor int, th
 	return joinChipRowBands(segments, th, colourless)
 }
 
-// chipBoxRows renders one chip as its three constituent box rows (top edge / value
-// row / bottom edge), in the state's border colour (no fill, no ✕). When editing,
-// the chip's value carries a live cursor.
 func (m Model) chipBoxRows(value string, focused, editing bool, th theme.Theme, colourless bool) []string {
 	content := editChipContent(value, editing, m.editCursor, th, colourless)
 	return renderInputBox(content, boxStateFor(focused, editing), false, -1, th, colourless)
 }
 
-// addSlotRows renders the trailing `+ add` slot as three rows — inline faint text
-// (text.faint) on the MIDDLE row so it aligns with the chip boxes' value row, blank
-// canvas rows above and below. It is NOT a bordered box (the reference shows a bare
-// faint slot). When focused in navigate mode it shows in accent.primary so the cursor
-// is visible on it.
 func (m Model) addSlotRows(focused bool, th theme.Theme, colourless bool) []string {
 	token := th.TextFaint
 	if focused {
@@ -413,10 +259,6 @@ func (m Model) addSlotRows(focused bool, th theme.Theme, colourless bool) []stri
 	return []string{blank, slot, blank}
 }
 
-// joinChipRowBands transposes the per-segment 3-row slices into three single-line
-// rows (top band / middle band / bottom band), inserting a single canvas-painted
-// spacer column between adjacent segments on every band so the chips align with a
-// one-cell gap.
 func joinChipRowBands(segments [][]string, th theme.Theme, colourless bool) []string {
 	if len(segments) == 0 {
 		return nil
@@ -436,15 +278,6 @@ func joinChipRowBands(segments [][]string, th theme.Theme, colourless bool) []st
 	return bands
 }
 
-// editModalFooterRow renders the contextual footer for the current mode/focus
-// with key glyphs in accent.key and labels in text.muted. The ⏎ glyph is U+23CE
-// (NOT the legacy ↵); ⇥ tab, ←→ arrows, esc.
-//
-// The editing-in-place footer is the one exception to the left-packed ` · ` layout:
-// its trailing `empty on save = delete` consequence note is RIGHT-aligned to the far
-// right of the panel content width (matching the reference frame), using the same
-// fixed-content-width row + flexible-spacer technique as the header badge. The
-// name-focused and chip-focused footers stay left-packed.
 func (m Model) editModalFooterRow(th theme.Theme, colourless bool) string {
 	groups := m.editFooterGroups()
 	if m.editMode == editModeEdit {
@@ -453,12 +286,6 @@ func (m Model) editModalFooterRow(th theme.Theme, colourless bool) string {
 	return joinFooterGroups(groups, th, colourless)
 }
 
-// editModalEditingFooterRow lays out the editing-in-place footer as a fixed
-// full-content-width row: the left hint group (` · `-joined as usual) left-aligned,
-// then a flexible canvas spacer, then the consequence note (the trailing key-less
-// group) RIGHT-aligned in the far corner — the SAME spacer technique as
-// editModalHeaderRow, using the same editPanelContentWidth() so the footer pins the
-// note to the panel's right edge without changing the panel width.
 func (m Model) editModalEditingFooterRow(groups []footerHintGroup, th theme.Theme, colourless bool) string {
 	left, right := splitConsequenceGroup(groups)
 
@@ -471,11 +298,6 @@ func (m Model) editModalEditingFooterRow(groups []footerHintGroup, th theme.Them
 	return lipgloss.JoinHorizontal(lipgloss.Top, leftSeg, spacer, rightSeg)
 }
 
-// splitConsequenceGroup partitions the editing footer groups into the left hint
-// group and the trailing key-less consequence group (`empty on save = delete`). The
-// consequence note is the sole right-aligned group; everything before it stays in the
-// left-packed group. A footer with no trailing key-less group returns an empty right
-// partition (the left-packed render is unchanged).
 func splitConsequenceGroup(groups []footerHintGroup) (left, right []footerHintGroup) {
 	if n := len(groups); n > 0 && groups[n-1].key == "" {
 		return groups[:n-1], groups[n-1:]
@@ -483,9 +305,6 @@ func splitConsequenceGroup(groups []footerHintGroup) (left, right []footerHintGr
 	return groups, nil
 }
 
-// joinFooterGroups renders the given footer hint groups left-packed, ` · `-joined —
-// the standard footer layout shared by every footer variant (and the left/right
-// partitions of the editing footer).
 func joinFooterGroups(groups []footerHintGroup, th theme.Theme, colourless bool) string {
 	if len(groups) == 0 {
 		return ""
@@ -505,13 +324,6 @@ func joinFooterGroups(groups []footerHintGroup, th theme.Theme, colourless bool)
 	return lipgloss.JoinHorizontal(lipgloss.Top, parts...)
 }
 
-// editFooterGroups resolves the contextual footer hint groups for the current
-// mode/focus:
-//
-//   - Name focused (navigate):  ⏎/e edit · ⇥ next field · esc close
-//   - Chip focused (navigate):  ⏎/e edit · x remove · ←→ move · ⇥ next field · esc close
-//   - Editing in place:         ⏎ save · esc discard · ←→ cursor · empty on save = delete
-//
 // The + add slot (a chip field but not a removable chip) uses the name-focused
 // variant — there is nothing to remove or move.
 func (m Model) editFooterGroups() []footerHintGroup {

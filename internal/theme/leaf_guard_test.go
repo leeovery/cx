@@ -14,34 +14,14 @@ import (
 	"github.com/leeovery/portal/internal/sourceguard"
 )
 
-// themePkg is the import path of the package under test.
 const themePkg = "github.com/leeovery/portal/internal/theme"
 
-// xdgPkg is the config-path-resolution package internal/theme must never reach.
 const xdgPkg = "github.com/leeovery/portal/internal/xdg"
 
-// themesDirEnvVar is the themes-directory env var. cmd/config.go's
-// themesDirPath owns it; internal/theme must not know the name exists.
 const themesDirEnvVar = "PORTAL_THEMES_DIR"
 
-// TestThemePackage_ResolvesNoPaths asserts internal/theme contains no
-// path-resolution code: it neither depends on internal/xdg nor reads the
-// themes-directory env var or the home directory itself.
-//
-// The loader takes its directory as an INJECTED value. That is what keeps the
-// embedded built-in set reachable with no path at all — internal/capture uses
-// only the built-in lookup, and its no-real-config import guard forbids
-// reaching config — and what keeps portal doctor and portal theme export free
-// of config discovery they must not perform. A loader that grew its own lookup
-// would break all three silently, so the invariant is guarded rather than
-// documented.
-//
-// Modelled on internal/prefs' leaf guard (a go list -deps walk), with a source
-// scan added for the two lookups that need no import to write.
 func TestThemePackage_ResolvesNoPaths(t *testing.T) {
 	t.Run("does not depend on internal/xdg", func(t *testing.T) {
-		// Anchored at the import path (not a relative dir) so it resolves
-		// regardless of the test binary's runtime CWD.
 		out, err := exec.Command("go", "list", "-deps", themePkg).CombinedOutput()
 		if err != nil {
 			t.Fatalf("go list -deps %s: %v\n%s", themePkg, err, out)
@@ -86,19 +66,6 @@ func TestThemePackage_ResolvesNoPaths(t *testing.T) {
 	})
 }
 
-// TestThemePackage_DeclaresNoHexLiterals asserts no production file in
-// internal/theme declares a `#RRGGBB` value.
-//
-// Every colour Portal renders lives in a `.theme` file, built-in or drop-in
-// — there is no Go-side palette, no compiled-in last-resort values
-// beneath the built-in fallback (the build-time guarantee replaces exactly
-// that crutch), and no hex constant a test could quietly diverge from the
-// shipped files. This is also what retires the `internal/tui` colour-literal
-// guard's exemption for the token layer: with the values out of Go entirely,
-// the rule "no raw hex at a call site" holds with no carve-out.
-//
-// Only string literals are scanned. A `#RRGGBB` in prose — a doc comment naming
-// the value domain, or a rejection example — is documentation, not a value.
 func TestThemePackage_DeclaresNoHexLiterals(t *testing.T) {
 	hexLiteral := regexp.MustCompile(`#[0-9a-fA-F]{6}`)
 
@@ -121,22 +88,6 @@ func TestThemePackage_DeclaresNoHexLiterals(t *testing.T) {
 	}
 }
 
-// TestThemePackage_HasNoInitFunction asserts the package does no work when it
-// is loaded.
-//
-// The build-time guarantee is explicit that validation is NOT startup-eager: nothing walks the
-// embedded set at init, because the build-time test already proves the set and
-// re-proving it on every launch buys nothing on a cold path this feature
-// otherwise adds no cost to. Embedding the built-ins is what makes that worth
-// guarding — a set of files sitting in a package variable is a standing
-// invitation to "just validate them once at init", which would put a parse of
-// every built-in on the startup path of `portal open`, `portal doctor` and
-// every other verb alike.
-//
-// Both halves are structural, because both routes into init exist: a declared
-// func init(), and a package-level var whose initialiser calls something. The
-// second is the subtler one — `var builtins = mustParseAll()` runs before main
-// with no init() in sight.
 func TestThemePackage_HasNoInitFunction(t *testing.T) {
 	for _, source := range parseThemeSources(t) {
 		for _, decl := range source.File.Decls {
@@ -154,13 +105,6 @@ func TestThemePackage_HasNoInitFunction(t *testing.T) {
 	}
 }
 
-// requireNoCallingInitialiser fails the test for any package-level var in the
-// declaration whose initialiser calls a function.
-//
-// A package-level var may hold a value; it may not COMPUTE one. That is the
-// checkable form of "nothing walks the embedded set at init" — the embedded
-// filesystem itself is a plain declaration with no initialiser at all, and a
-// var that called anything would be running that call before main.
 func requireNoCallingInitialiser(t *testing.T, source parsedThemeSource, decl *ast.GenDecl) {
 	t.Helper()
 
@@ -183,16 +127,12 @@ func requireNoCallingInitialiser(t *testing.T, source parsedThemeSource, decl *a
 	}
 }
 
-// parsedThemeSource is one production file of the package, parsed, with the
-// file set its positions resolve against.
 type parsedThemeSource struct {
 	Name string
 	Fset *token.FileSet
 	File *ast.File
 }
 
-// parseThemeSources parses every production file of the package, so the source
-// guards above scan a syntax tree rather than text.
 func parseThemeSources(t *testing.T) []parsedThemeSource {
 	t.Helper()
 
@@ -209,9 +149,6 @@ func parseThemeSources(t *testing.T) []parsedThemeSource {
 	return sources
 }
 
-// themeSourceFiles enumerates every non-test production .go file in the
-// internal/theme package directory. It is the whole directory rather than a
-// hand-maintained list so a file added later is covered automatically.
 func themeSourceFiles(t *testing.T) []string {
 	t.Helper()
 	files, err := sourceguard.PackageGoFiles(".", false)

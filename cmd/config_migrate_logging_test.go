@@ -10,10 +10,6 @@ import (
 	"github.com/leeovery/portal/internal/logtest"
 )
 
-// installMigrateCapture swaps the shared logtest.Sink into the process-wide log
-// indirection for the duration of the test and returns it. The migrateConfigFile
-// tests assert on the owning component and the per-call attr values via the
-// sink's shared accessors.
 func installMigrateCapture(t *testing.T) *logtest.Sink {
 	t.Helper()
 	sink := &logtest.Sink{}
@@ -21,8 +17,6 @@ func installMigrateCapture(t *testing.T) *logtest.Sink {
 	return sink
 }
 
-// seedOldFile creates the old macOS-path file with the given filename under
-// tmpDir and returns oldPath, newPath (the latter not yet created).
 func seedOldFile(t *testing.T, tmpDir, filename, content string) (oldPath, newPath string) {
 	t.Helper()
 	oldDir := filepath.Join(tmpDir, "Library", "Application Support", "portal")
@@ -64,7 +58,6 @@ func TestMigrateConfigFileLogging(t *testing.T) {
 		if got := rec.AttrString(t, "path"); got != newPath {
 			t.Errorf("path = %q, want %q", got, newPath)
 		}
-		// Whole-file move has no entry key (decision a): no hook_key attr.
 		if rec.HasAttr("hook_key") {
 			t.Errorf("migrate line must not carry a hook_key attr: %+v", rec.Attrs)
 		}
@@ -144,8 +137,8 @@ func TestMigrateConfigFileLogging(t *testing.T) {
 		tmpDir := t.TempDir()
 		oldPath, _ := seedOldFile(t, tmpDir, "projects.json", "old")
 
-		// Make the parent of newPath unreadable so os.Stat(newPath) returns a
-		// permission error (not "not exist") — the stat-error early return.
+		// An unreadable parent makes os.Stat(newPath) return a permission error
+		// rather than "not exist", hitting the stat-error early return.
 		newDir := filepath.Join(tmpDir, ".config", "portal")
 		if err := os.MkdirAll(newDir, 0o755); err != nil {
 			t.Fatalf("failed to create new dir: %v", err)
@@ -169,8 +162,8 @@ func TestMigrateConfigFileLogging(t *testing.T) {
 		tmpDir := t.TempDir()
 		oldPath, _ := seedOldFile(t, tmpDir, "projects.json", "data")
 
-		// Create the target directory read+execute-only so MkdirAll succeeds
-		// (dir already exists) but os.Rename into it fails.
+		// Read+execute-only, so MkdirAll succeeds on the existing dir but the
+		// rename into it fails.
 		newDir := filepath.Join(tmpDir, ".config", "portal")
 		if err := os.MkdirAll(newDir, 0o755); err != nil {
 			t.Fatalf("failed to create new dir: %v", err)
@@ -211,7 +204,6 @@ func TestMigrateConfigFileLogging(t *testing.T) {
 			t.Errorf("WARN record missing error attr: %+v", rec.Attrs)
 		}
 
-		// Old file should still exist after the failed rename.
 		if _, err := os.Stat(oldPath); err != nil {
 			t.Errorf("old file should still exist after failed rename: %v", err)
 		}
@@ -221,8 +213,8 @@ func TestMigrateConfigFileLogging(t *testing.T) {
 		tmpDir := t.TempDir()
 		oldPath, _ := seedOldFile(t, tmpDir, "projects.json", "data")
 
-		// Place newPath's parent under a read-only directory so MkdirAll of the
-		// (not-yet-existing) parent fails with permission denied.
+		// A read-only grandparent makes MkdirAll of the missing parent fail with
+		// permission denied.
 		roDir := filepath.Join(tmpDir, "ro")
 		if err := os.Mkdir(roDir, 0o555); err != nil {
 			t.Fatalf("failed to create read-only dir: %v", err)
@@ -268,8 +260,7 @@ func TestMigrateConfigFileLogging(t *testing.T) {
 		if recs := sink.Records(); len(recs) != 0 {
 			t.Errorf("expected no log records for empty component, got %d: %+v", len(recs), recs)
 		}
-		// The move itself must still have happened (best-effort migration runs
-		// regardless of whether it can be logged).
+		// The best-effort migration still runs even when it cannot be logged.
 		if _, err := os.Stat(newPath); err != nil {
 			t.Errorf("file should still migrate when component is empty: %v", err)
 		}

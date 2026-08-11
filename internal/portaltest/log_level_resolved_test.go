@@ -1,7 +1,3 @@
-// White-box tests for the log-level propagation assertion helper.
-// findLogLevelResolved holds all the parsing logic and is exercised
-// directly here; AssertLogLevelResolved is a thin file-reading wrapper
-// whose only non-trivial seam (symlink-follow read) gets its own test.
 package portaltest
 
 import (
@@ -11,9 +7,8 @@ import (
 	"testing"
 )
 
-// resolvedLine renders a process: log-level resolved line in the exact
-// text-mode shape emitted by internal/log's handler, so the parser is
-// tested against the real on-disk format.
+// Renders the exact text-mode shape the log handler emits, so the parser is
+// exercised against the real on-disk format.
 func resolvedLine(resolved, source, raw string, pid int) string {
 	return fmt.Sprintf(
 		"2026-05-30T14:00:00Z INFO process: log-level resolved resolved=%s source=%s raw=%q pid=%d version=0.5.0 process_role=daemon",
@@ -36,7 +31,6 @@ func TestFindLogLevelResolved_SelectsByPIDAmongMultipleProcesses(t *testing.T) {
 		t.Errorf("source = %q, want %q", source, "env")
 	}
 
-	// And the other process selects its own distinct line.
 	resolved, source, found = findLogLevelResolved(content, 111)
 	if !found {
 		t.Fatalf("expected to find the line for pid=111")
@@ -59,8 +53,6 @@ func TestFindLogLevelResolved_NotFoundWhenNoLineForPID(t *testing.T) {
 }
 
 func TestFindLogLevelResolved_IgnoresNonResolvedLines(t *testing.T) {
-	// A process: start line for the same pid must not be mistaken for the
-	// resolved line.
 	startLine := fmt.Sprintf(
 		"2026-05-30T14:00:00Z INFO process: start cmd=portal args=open pid=%d version=0.5.0 process_role=daemon",
 		222,
@@ -86,8 +78,6 @@ func TestFindLogLevelResolved_HappyPathReturnsResolvedAndSource(t *testing.T) {
 }
 
 func TestFindLogLevelResolved_ToleratesBaselineAttrOrdering(t *testing.T) {
-	// Non-standard ordering: pid before resolved/source, baselines interleaved.
-	// The parser must key off attr names, not positions.
 	line := "2026-05-30T14:00:00Z INFO process: log-level resolved pid=777 version=0.5.0 source=env process_role=daemon resolved=debug raw=\"DEBUG\""
 	content := line + "\n"
 
@@ -101,8 +91,6 @@ func TestFindLogLevelResolved_ToleratesBaselineAttrOrdering(t *testing.T) {
 }
 
 func TestFindLogLevelResolved_StripsQuotesFromQuotedValues(t *testing.T) {
-	// raw is rendered quoted by the handler; resolved/source are single tokens
-	// but the parser must strip surrounding quotes uniformly if present.
 	line := "2026-05-30T14:00:00Z INFO process: log-level resolved resolved=\"debug\" source=\"env\" raw=\"DEBUG\" pid=888 version=0.5.0 process_role=daemon"
 	content := line + "\n"
 
@@ -115,11 +103,6 @@ func TestFindLogLevelResolved_StripsQuotesFromQuotedValues(t *testing.T) {
 	}
 }
 
-// TestAssertLogLevelResolved_FollowsSymlinkToCurrentDayFile writes a real day
-// file plus a portal.log symlink pointing at it, points logPath at the symlink,
-// and asserts the helper reads through it. Uses a fresh sub-T so a failure here
-// would surface as a real test failure (the line is present and correct, so the
-// helper must NOT fail).
 func TestAssertLogLevelResolved_FollowsSymlinkToCurrentDayFile(t *testing.T) {
 	dir := t.TempDir()
 	dayFile := filepath.Join(dir, "portal-2026-05-30.bin")
@@ -132,6 +115,5 @@ func TestAssertLogLevelResolved_FollowsSymlinkToCurrentDayFile(t *testing.T) {
 		t.Fatalf("symlink: %v", err)
 	}
 
-	// This must pass cleanly (no t.Errorf/Fatalf fired on the real T).
 	AssertLogLevelResolved(t, symlink, 1234, "debug")
 }

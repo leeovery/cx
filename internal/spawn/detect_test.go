@@ -9,18 +9,14 @@ import (
 	"github.com/leeovery/portal/internal/logtest"
 )
 
-// Expected spawn closed-event-catalog message strings. Declared independently
-// of the production constants so the test locks the catalog wording rather than
-// tautologically mirroring it.
+// Declared independently of the production constants so the test locks the
+// catalog wording rather than mirroring it.
 const (
 	wantMsgResolved   = "detection resolved host terminal"
 	wantMsgNullBundle = "detection resolved no host-local terminal"
 	wantMsgTransient  = "detection transient failure"
 )
 
-// phase1ForbiddenAttrKeys are the spawn attr keys reserved for later phases
-// (adapter resolution / burst). No Phase-1 detection record may carry any of
-// them — only terminal, bundle_id, and the opaque detail are in scope.
 var phase1ForbiddenAttrKeys = []string{"resolution", "session", "ack", "opened", "total", "batch"}
 
 func assertNoWarn(t *testing.T, sink *logtest.Sink) {
@@ -39,7 +35,7 @@ func TestDetectorDetect(t *testing.T) {
 			insideTmux: func() bool { return false },
 			getenv:     mapGetenv(map[string]string{"__CFBundleIdentifier": "com.apple.Terminal"}),
 			selfPID:    100,
-			walker:     failWalker{t}, // env fast-path resolves; the walk must not run
+			walker:     failWalker{t},
 			reader:     failReader{t},
 			logger:     logger,
 		}
@@ -75,8 +71,8 @@ func TestDetectorDetect(t *testing.T) {
 			insideTmux:     func() bool { return true },
 			currentSession: func() (string, error) { return "dev", nil },
 			lister: &fakeClientLister{clients: []ClientActivity{
-				{PID: 601, Activity: 100}, // mosh — walks to NULL
-				{PID: 602, Activity: 200}, // mosh — walks to NULL
+				{PID: 601, Activity: 100},
+				{PID: 602, Activity: 200},
 			}},
 			walker: walker,
 			reader: reader,
@@ -140,11 +136,10 @@ func TestDetectorDetect(t *testing.T) {
 		d := &Detector{
 			insideTmux:     func() bool { return true },
 			currentSession: func() (string, error) { return "", sessionFailure },
-			// The session read fails first, so the client-walk seams must never run.
-			lister: &fakeClientLister{},
-			walker: failWalker{t},
-			reader: failReader{t},
-			logger: logger,
+			lister:         &fakeClientLister{},
+			walker:         failWalker{t},
+			reader:         failReader{t},
+			logger:         logger,
 		}
 
 		got := d.Detect()
@@ -259,9 +254,7 @@ func TestDetectorDetect(t *testing.T) {
 }
 
 func TestNewDetectorWiresProductionSeams(t *testing.T) {
-	// NewDetector must compile against a real *tmux.Client and wire every seam.
-	// A typed-nil client is a valid *tmux.Client for construction (no method is
-	// invoked here), so this exercises the wiring without a live tmux server.
+	// A typed-nil client is valid here: construction invokes no method on it.
 	d := NewDetector(nil)
 
 	if d == nil {

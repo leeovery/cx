@@ -4,16 +4,6 @@ import (
 	"testing"
 )
 
-// TestInjectSGRResets covers the pure helper that appends '\x1b[0m' (SGR
-// reset) to every non-empty line of the scrollback body before frame
-// composition, protecting the preview frame's right border from
-// unterminated SGR sequences bleeding into the border colour. See
-// specification.md § SGR reset injection.
-//
-// Empty lines (including the trailing empty element produced by a
-// terminating newline) are left untouched. The helper is idempotent in
-// observable behaviour because terminals collapse '\x1b[0m\x1b[0m' to a
-// single reset.
 func TestInjectSGRResets(t *testing.T) {
 	cases := []struct {
 		name  string

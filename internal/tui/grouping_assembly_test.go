@@ -77,8 +77,6 @@ func TestAssembleGroups(t *testing.T) {
 			}
 		}
 
-		// assembleGroups now interleaves a header before each group: "a" (2 rows)
-		// then "b" (1 row).
 		headers := headerRows(got)
 		wantHeaders := []struct {
 			key   string
@@ -115,7 +113,6 @@ func TestAssembleGroups(t *testing.T) {
 		if si.GroupHeading == "Heading" {
 			t.Errorf("unexpected catch-all heading %q; should be suppressed", "Heading")
 		}
-		// No catch-all header either — empty-suppression holds at the header layer.
 		for _, h := range headerRows(got) {
 			if h.Heading == "Heading" {
 				t.Errorf("unexpected catch-all header %q; should be suppressed", "Heading")
@@ -151,8 +148,6 @@ func TestAssembleGroups(t *testing.T) {
 			t.Errorf("row[2] = %+v, want catch-all charlie stamped with Heading", third)
 		}
 
-		// Two headers: the resolved Zulu group (1 row) then the catch-all
-		// "Heading" group (2 rows) pinned last.
 		headers := headerRows(got)
 		if len(headers) != 2 {
 			t.Fatalf("len(headers) = %d, want 2", len(headers))

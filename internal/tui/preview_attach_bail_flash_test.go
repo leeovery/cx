@@ -8,18 +8,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// Tests for Phase 2 task 2-5: previewAttachBailMsg handler must emit an
-// inline flash with the spec-exact wording, schedule a tick capturing the
-// post-bump flashGen, and batch the flash tick alongside the existing
-// sessions-list refresh from a single Update return.
-//
-// Spec § Session-killed-externally bail path > Behaviour pins the wording
-// as `session "<name>" no longer exists` (literal double quotes, no
-// trailing punctuation, no paraphrase).
-
-// drainBatchCmds invokes cmd and, if it produces a tea.BatchMsg, returns
-// the slice of contained Cmds. If cmd is nil or produces a non-batch msg,
-// returns nil for callers to detect and react.
 func drainBatchCmds(cmd tea.Cmd) []tea.Cmd {
 	if cmd == nil {
 		return nil
@@ -32,9 +20,6 @@ func drainBatchCmds(cmd tea.Cmd) []tea.Cmd {
 	return []tea.Cmd(batch)
 }
 
-// findFlashTickMsg invokes each cmd and returns the first flashTickMsg it
-// finds, plus true. Returns zero/false when no cmd produces one. Skips
-// nil cmds defensively.
 func findFlashTickMsg(cmds []tea.Cmd) (flashTickMsg, bool) {
 	for _, c := range cmds {
 		if c == nil {
@@ -47,8 +32,6 @@ func findFlashTickMsg(cmds []tea.Cmd) (flashTickMsg, bool) {
 	return flashTickMsg{}, false
 }
 
-// findRefreshedMsg invokes each cmd and returns the first
-// previewSessionsRefreshedMsg it finds, plus true. Skips nil cmds.
 func findRefreshedMsg(cmds []tea.Cmd) (previewSessionsRefreshedMsg, bool) {
 	for _, c := range cmds {
 		if c == nil {
@@ -85,9 +68,6 @@ func TestPreviewAttachBail_FlashUsesLiteralDoubleQuotesAroundName(t *testing.T) 
 
 	got, _ := pressSpaceThenBail(t, m, "alpha")
 
-	// Guard against accidental %q which would escape special characters or
-	// use Go-style quoting. The flash must contain the raw double-quote
-	// bytes wrapping the name.
 	if !strings.Contains(got.flashText, `"alpha"`) {
 		t.Errorf("flash must contain literal-double-quoted name `\"alpha\"`, got %q", got.flashText)
 	}
@@ -106,7 +86,6 @@ func TestPreviewAttachBail_FlashHasNoTrailingPunctuation(t *testing.T) {
 	if last == '.' || last == '!' || last == '?' || last == ',' || last == ';' || last == ':' {
 		t.Errorf("flashText must not end with punctuation, got %q (last byte %q)", got.flashText, string(last))
 	}
-	// Belt-and-braces: full-string equality is the canonical spec check.
 	if got.flashText != `session "foo" no longer exists` {
 		t.Errorf("flashText must equal exact spec wording, got %q", got.flashText)
 	}
@@ -156,11 +135,6 @@ func TestPreviewAttachBail_ReturnsBatchWithRefreshAndTick(t *testing.T) {
 }
 
 func TestPreviewAttachBail_TickCapturesPostBumpFlashGen(t *testing.T) {
-	// The tick must capture m.flashGen AFTER the setFlash bump so that on
-	// fire it matches the live gen (which would still be 1 if no further
-	// flash supersedes it). Capturing pre-bump (e.g. 0) would let any tick
-	// scheduled with the stale gen mismatch and silently drop, defeating
-	// the auto-clear behaviour.
 	sessions := []tmux.Session{{Name: "foo", Windows: 1, Attached: false}}
 	enum := newSinglePaneEnumerator()
 	reader := &recordingReader{bytes: []byte("hi")}
@@ -186,11 +160,6 @@ func TestPreviewAttachBail_TickCapturesPostBumpFlashGen(t *testing.T) {
 }
 
 func TestPreviewAttachBail_FlashVisibleBeforeRefreshResolves(t *testing.T) {
-	// Spec § Render-frame ordering: visible response first. The flash must
-	// be present in the rendered View immediately after the bail Update —
-	// without dispatching/resolving the refresh batch. The killed-session
-	// row may still appear in this stale frame; the flash text is what
-	// matters for the immediate response.
 	sessions := []tmux.Session{
 		{Name: "foo", Windows: 1, Attached: false},
 		{Name: "bar", Windows: 1, Attached: false},
@@ -213,9 +182,6 @@ func TestPreviewAttachBail_FlashVisibleBeforeRefreshResolves(t *testing.T) {
 }
 
 func TestPreviewAttachBail_SpecialCharsInNamePreservedVerbatim(t *testing.T) {
-	// Names with non-trivial characters (spaces, dashes, dots, unicode)
-	// must be embedded verbatim — no escaping, no quoting beyond the
-	// literal surrounding double quotes.
 	const weird = "my session-1.2 名字"
 	sessions := []tmux.Session{{Name: weird, Windows: 1, Attached: false}}
 	enum := newSinglePaneEnumerator()
@@ -232,8 +198,6 @@ func TestPreviewAttachBail_SpecialCharsInNamePreservedVerbatim(t *testing.T) {
 }
 
 func TestPreviewAttachBail_EmptySessionNameDoesNotPanic(t *testing.T) {
-	// Defensive: empty msg.Session must not panic. The flash will read
-	// `session "" no longer exists` — odd, but well-formed and safe.
 	defer func() {
 		if r := recover(); r != nil {
 			t.Fatalf("bail with empty session panicked: %v", r)
@@ -253,7 +217,6 @@ func TestPreviewAttachBail_EmptySessionNameDoesNotPanic(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("expected non-nil cmd even with empty session")
 	}
-	// And the flash text is well-formed (empty name slotted in).
 	want := `session "" no longer exists`
 	if got.flashText != want {
 		t.Errorf("flashText with empty name: want %q, got %q", want, got.flashText)
@@ -261,10 +224,6 @@ func TestPreviewAttachBail_EmptySessionNameDoesNotPanic(t *testing.T) {
 }
 
 func TestPreviewAttachBail_BailHandlerNotUsingTeaSequence(t *testing.T) {
-	// Discriminator: tea.Batch emits a tea.BatchMsg containing a slice of
-	// Cmds. tea.Sequence emits a tea.sequenceMsg (unexported) shaped
-	// differently. By asserting the returned cmd produces a tea.BatchMsg
-	// we lock the implementation to tea.Batch composition.
 	sessions := []tmux.Session{{Name: "foo", Windows: 1, Attached: false}}
 	enum := newSinglePaneEnumerator()
 	reader := &recordingReader{bytes: []byte("hi")}

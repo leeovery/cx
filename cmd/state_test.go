@@ -1,4 +1,3 @@
-// Tests in this file mutate package-level state via Cobra and MUST NOT use t.Parallel.
 package cmd
 
 import (
@@ -11,9 +10,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// availableCommandNames parses Cobra help output and returns the set of names
-// listed under the "Available Commands:" section. Each listed line begins with
-// two-space indentation followed by the command name.
 func availableCommandNames(help string) map[string]bool {
 	names := make(map[string]bool)
 	inSection := false
@@ -34,8 +30,6 @@ func availableCommandNames(help string) map[string]bool {
 	return names
 }
 
-// resetStateCmdFlags resets flag values and Changed state on the state subcommands
-// so successive test invocations are independent.
 func resetStateCmdFlags() {
 	for _, name := range []string{"fifo", "file", "hook-key"} {
 		if f := stateHydrateCmd.Flags().Lookup(name); f != nil {
@@ -60,11 +54,6 @@ func TestStateCommandRegistration(t *testing.T) {
 	})
 
 	t.Run("state is an internal group absent from portal --help", func(t *testing.T) {
-		// After the cli-verb-surface redesign, every `state` child is hidden
-		// plumbing (spec § Command Surface Summary → Hidden). With no user-facing
-		// child and no Run, Cobra stops surfacing `state` in `portal --help`
-		// Available Commands — it stays registered and invocable (proven by the
-		// sibling subtest above), but it is no longer a visible public verb.
 		buf := new(bytes.Buffer)
 		resetRootCmd()
 		rootCmd.SetOut(buf)
@@ -90,22 +79,17 @@ func TestStateCommandRegistration(t *testing.T) {
 		}
 		listed := availableCommandNames(buf.String())
 
-		// status was removed (subsumed by `portal doctor`); cleanup was removed
-		// (replaced by `portal uninstall`). After the cli-verb-surface redesign,
-		// state has NO user-facing children — every remaining child is hidden.
 		for _, removed := range []string{"status", "cleanup"} {
 			if listed[removed] {
 				t.Errorf("portal state --help must not list removed subcommand %q; got %v", removed, listed)
 			}
 		}
-		// hidden subcommands must never appear
 		hidden := []string{"daemon", "notify", "signal-hydrate", "hydrate", "migrate-rename", "commit-now"}
 		for _, h := range hidden {
 			if listed[h] {
 				t.Errorf("portal state --help must not list hidden subcommand %q; got %v", h, listed)
 			}
 		}
-		// only Cobra's built-in `help` / `completion` may remain
 		for name := range listed {
 			if name == "help" || name == "completion" {
 				continue
@@ -125,9 +109,6 @@ func TestStateCommandRegistration(t *testing.T) {
 		}
 		listed := availableCommandNames(buf.String())
 
-		// hidden subcommands of state must not surface at root. (state itself is
-		// no longer a visible top-level command — see the internal-group subtest
-		// above — so we only assert its hidden plumbing children never leak up.)
 		hidden := []string{"signal-hydrate", "migrate-rename", "hydrate", "notify"}
 		for _, h := range hidden {
 			if listed[h] {
@@ -147,8 +128,6 @@ func TestStateBareInvocationPrintsHelp(t *testing.T) {
 		t.Fatalf("portal state should exit 0, got error: %v", err)
 	}
 	out := buf.String()
-	// Cobra default help output for a parent command includes the "Usage:"
-	// section and the state Short description even when every child is hidden.
 	if !strings.Contains(out, "Usage:") && !strings.Contains(out, "Manage Portal session resurrection state") {
 		t.Errorf("portal state did not print help output:\n%s", out)
 	}
@@ -168,11 +147,8 @@ func TestStateInternalSubcommandsAcceptValidArgv(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Isolate every subtest against a fresh per-subtest temp state
-			// dir so notify / signal-hydrate / hydrate / migrate-rename never
-			// mutate (or fail to create) the developer's real
-			// ~/.config/portal/state. The daemon case additionally needs the
-			// run-func stub and lock-file reset.
+			// A fresh per-subtest state dir so notify / signal-hydrate / hydrate /
+			// migrate-rename never touch the developer's real state.
 			t.Setenv("PORTAL_STATE_DIR", t.TempDir())
 			if len(tt.args) >= 2 && tt.args[0] == "state" && tt.args[1] == "daemon" {
 				prev := daemonRunFunc
@@ -181,8 +157,8 @@ func TestStateInternalSubcommandsAcceptValidArgv(t *testing.T) {
 				withDaemonLockFileReset(t)
 			}
 
-			// state hydrate's RunE blocks on a real FIFO; stub the run-func so
-			// the command returns immediately for argv-only assertions.
+			// state hydrate's RunE blocks on a real FIFO; stub it out for the
+			// argv-only assertions.
 			if len(tt.args) >= 2 && tt.args[0] == "state" && tt.args[1] == "hydrate" {
 				prev := hydrateRunFunc
 				hydrateRunFunc = func(_ hydrateConfig) error { return nil }
@@ -256,8 +232,7 @@ func TestStateHydrateRequiresAllFlags(t *testing.T) {
 	}
 }
 
-// stateChildCommands is the canonical list of the six hidden `state` children,
-// referenced by their package-level command vars so a rename or a dropped
+// Referenced by their package-level command vars so a rename or a dropped
 // registration is a compile error rather than a silent miss.
 var stateChildCommands = []*cobra.Command{
 	stateDaemonCmd,
@@ -268,11 +243,6 @@ var stateChildCommands = []*cobra.Command{
 	stateMigrateRenameCmd,
 }
 
-// TestStateParentIsHidden locks the parent stateCmd as Hidden so the entire
-// `state` subtree drops out of `portal --help` and generated completions in one
-// move, independent of any future child. Hiding marks visibility only — every
-// child stays fully argv-invocable (see TestStateChildrenRemainInvocableByArgv
-// and TestStateInternalSubcommandsAcceptValidArgv).
 func TestStateParentIsHidden(t *testing.T) {
 	if !stateCmd.Hidden {
 		t.Error("stateCmd.Hidden = false; want true (the whole state subtree must be hidden)")
@@ -291,10 +261,6 @@ func TestStateHiddenSubcommandsAreHidden(t *testing.T) {
 		}
 	})
 
-	// Every registered child must be hidden plumbing. Iterating the live child
-	// set (which contains only the six real children — cobra adds no help /
-	// completion command under a subcommand) means a future child added without
-	// Hidden fails loudly here.
 	t.Run("every registered state child is Hidden", func(t *testing.T) {
 		children := stateCmd.Commands()
 		if len(children) != len(stateChildCommands) {
@@ -308,10 +274,6 @@ func TestStateHiddenSubcommandsAreHidden(t *testing.T) {
 	})
 }
 
-// TestStateChildrenRemainInvocableByArgv proves Hidden marks visibility only, not
-// execution: every child still resolves through rootCmd.Find and would dispatch.
-// The daemon, the hydrate helpers, and reboot hook-firing all invoke these by
-// argv, so this invariant is load-bearing.
 func TestStateChildrenRemainInvocableByArgv(t *testing.T) {
 	names := []string{"daemon", "hydrate", "signal-hydrate", "notify", "commit-now", "migrate-rename"}
 	for _, name := range names {
@@ -329,11 +291,10 @@ func TestStateChildrenRemainInvocableByArgv(t *testing.T) {
 }
 
 func TestStateHiddenSubcommandsAbsentFromShellCompletions(t *testing.T) {
-	// All six hidden children plus the parent must be gone from every shell.
 	hidden := []string{"daemon", "notify", "signal-hydrate", "hydrate", "migrate-rename", "commit-now"}
-	// Whole-word matcher for the parent `state` entry: the completion boilerplate
-	// contains the word "statement(s)", so a bare substring check for "state"
-	// false-positives. \bstate\b matches only a standalone `state` command entry.
+	// The completion boilerplate contains the word "statement(s)", so a bare
+	// substring check for "state" false-positives; \bstate\b matches only a
+	// standalone command entry.
 	wholeState := regexp.MustCompile(`\bstate\b`)
 
 	shells := []struct {

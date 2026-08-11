@@ -94,10 +94,8 @@ func TestIsProcessAlive(t *testing.T) {
 	})
 
 	t.Run("reports a clearly-unused PID as dead", func(t *testing.T) {
-		// 99999999 is well above typical PID ranges and effectively guaranteed
-		// to be unused. Using an unused PID is a deterministic substitute for
-		// the "freshly-reaped child" case, which is racy because the OS may
-		// recycle PIDs.
+		// An unused pid stands in deterministically for a freshly-reaped child,
+		// which is racy because the OS recycles pids.
 		if state.IsProcessAlive(99999999) {
 			t.Errorf("IsProcessAlive(99999999) = true; want false")
 		}
@@ -115,9 +113,7 @@ func TestIsProcessAlive(t *testing.T) {
 		if err := cmd.Wait(); err != nil {
 			t.Fatalf("cmd.Wait: %v", err)
 		}
-		// After Wait, the kernel has reaped the child. signal(0) should
-		// return ESRCH unless the OS has very quickly recycled the PID; we
-		// accept the latter as a known-flaky case rather than failing.
+		// A very fast pid recycle can make this report alive; accepted as flaky.
 		if state.IsProcessAlive(cmd.Process.Pid) {
 			t.Logf("IsProcessAlive(%d) = true after reap; PID may have been recycled", cmd.Process.Pid)
 		}

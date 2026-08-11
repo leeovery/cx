@@ -11,8 +11,6 @@ import (
 	"github.com/leeovery/portal/internal/state"
 )
 
-// makeIndex returns a minimal valid Index referencing the supplied scrollback
-// relative paths via a single session/window with one pane per path.
 func makeIndex(t *testing.T, scrollbackPaths ...string) state.Index {
 	t.Helper()
 	panes := make([]state.Pane, 0, len(scrollbackPaths))
@@ -46,7 +44,6 @@ func makeIndex(t *testing.T, scrollbackPaths ...string) state.Index {
 	}
 }
 
-// writeOrphan creates an orphan .bin file under scrollback/ in dir.
 func writeOrphan(t *testing.T, dir, name string, contents []byte) string {
 	t.Helper()
 	sb := state.ScrollbackDir(dir)
@@ -97,17 +94,16 @@ func TestCommit_SkipsWriteAndGCOnZeroChangeCycle(t *testing.T) {
 		t.Fatalf("stat sessions.json: %v", err)
 	}
 
-	// Pre-populate an orphan AFTER the first commit so we can assert that the
-	// no-op second Commit does NOT GC it.
+	// Order matters: the orphan lands after the first commit, so the no-op
+	// second commit must leave it alone.
 	orphan := writeOrphan(t, dir, "orphan.bin", []byte("orphan"))
 
-	// Sleep briefly so any mtime change would be observable on filesystems
-	// with second-resolution mtimes. We assert mtime *unchanged* below.
+	// Enough of a pause that an mtime change would be observable even on a
+	// second-resolution filesystem.
 	time.Sleep(10 * time.Millisecond)
 
-	// Second commit: identical idx (modulo SavedAt). Should be a no-op.
 	idx2 := makeIndex(t, "scrollback/work__0.0.bin")
-	idx2.SavedAt = idx.SavedAt.Add(time.Hour) // SavedAt is ignored by delta
+	idx2.SavedAt = idx.SavedAt.Add(time.Hour)
 	if err := state.Commit(dir, idx2, false, logger); err != nil {
 		t.Fatalf("second Commit: %v", err)
 	}
@@ -169,7 +165,6 @@ func TestCommit_WritesWhenScrollbackChangedButStructureUnchanged(t *testing.T) {
 	}
 	time.Sleep(10 * time.Millisecond)
 
-	// Same structural content, but anyScrollbackChanged=true forces the write.
 	idx2 := makeIndex(t, "scrollback/work__0.0.bin")
 	if err := state.Commit(dir, idx2, true, logger); err != nil {
 		t.Fatalf("second Commit: %v", err)
@@ -180,8 +175,6 @@ func TestCommit_WritesWhenScrollbackChangedButStructureUnchanged(t *testing.T) {
 		t.Fatalf("stat after: %v", err)
 	}
 	if infoAfter.ModTime().Equal(infoBefore.ModTime()) {
-		// On filesystems with coarse mtime resolution this could spuriously fail.
-		// As a fallback, also check that the file still parses (it must — we wrote it).
 		t.Logf("sessions.json mtime did not advance (low-resolution fs?); before=%v after=%v",
 			infoBefore.ModTime(), infoAfter.ModTime())
 	}
@@ -191,7 +184,6 @@ func TestCommit_RemovesOrphanBinFiles(t *testing.T) {
 	dir := t.TempDir()
 	logger, _ := openTempLogger(t)
 
-	// Pre-populate scrollback with an orphan and a referenced file.
 	writeOrphan(t, dir, "orphan.bin", []byte("orphan"))
 	referenced := writeOrphan(t, dir, "work__0.0.bin", []byte("kept"))
 
@@ -261,7 +253,6 @@ func TestCommit_ToleratesMissingScrollbackDir(t *testing.T) {
 	dir := t.TempDir()
 	logger, _ := openTempLogger(t)
 
-	// No scrollback/ subdir at all. Commit must still succeed.
 	idx := makeIndex(t, "scrollback/work__0.0.bin")
 	if err := state.Commit(dir, idx, false, logger); err != nil {
 		t.Fatalf("Commit: %v", err)
@@ -278,7 +269,6 @@ func TestCommit_ReturnsWrappedErrorWhenAtomicWriteFailsAndPreservesPriorFile(t *
 	dir := t.TempDir()
 	logger, _ := openTempLogger(t)
 
-	// First commit succeeds and produces sessions.json.
 	idx1 := makeIndex(t, "scrollback/work__0.0.bin")
 	if err := state.Commit(dir, idx1, false, logger); err != nil {
 		t.Fatalf("first Commit: %v", err)
@@ -288,13 +278,12 @@ func TestCommit_ReturnsWrappedErrorWhenAtomicWriteFailsAndPreservesPriorFile(t *
 		t.Fatalf("read prior: %v", err)
 	}
 
-	// Make the state directory read-only so AtomicWrite cannot create a temp file.
+	// Read-only, so AtomicWrite cannot create its temp file.
 	if err := os.Chmod(dir, 0o500); err != nil {
 		t.Fatalf("chmod 0500: %v", err)
 	}
 	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
 
-	// Second commit with structurally-different idx — must attempt write and fail.
 	idx2 := makeIndex(t, "scrollback/work__0.0.bin", "scrollback/work__0.1.bin")
 	err = state.Commit(dir, idx2, false, logger)
 	if err == nil {
@@ -304,7 +293,7 @@ func TestCommit_ReturnsWrappedErrorWhenAtomicWriteFailsAndPreservesPriorFile(t *
 		t.Errorf("expected wrapped 'write sessions.json' error; got %v", err)
 	}
 
-	// Restore perms so we can read the file.
+	// Restore permissions so the file is readable again.
 	if err := os.Chmod(dir, 0o700); err != nil {
 		t.Fatalf("restore chmod: %v", err)
 	}
@@ -324,12 +313,11 @@ func TestCommit_DoesNotReturnErrorWhenGCFails(t *testing.T) {
 	dir := t.TempDir()
 	logger, sink := openTempLogger(t)
 
-	// Pre-populate an orphan to give GC something to remove.
 	writeOrphan(t, dir, "orphan.bin", []byte("orphan"))
 	writeOrphan(t, dir, "work__0.0.bin", []byte("kept"))
 
-	// Make scrollback dir read-only AFTER files exist, so ReadDir succeeds but
-	// Remove fails with EACCES.
+	// Order matters: the files exist before the directory goes read-only, so
+	// ReadDir succeeds and Remove fails.
 	sb := state.ScrollbackDir(dir)
 	if err := os.Chmod(sb, 0o500); err != nil {
 		t.Fatalf("chmod scrollback: %v", err)
@@ -341,7 +329,6 @@ func TestCommit_DoesNotReturnErrorWhenGCFails(t *testing.T) {
 		t.Errorf("Commit returned error despite GC failure: %v", err)
 	}
 
-	// Logger should record a warn about gc.
 	log := sink.Body()
 	if !strings.Contains(log, "WARN") {
 		t.Errorf("expected WARN entry in log; got %q", log)
@@ -376,7 +363,6 @@ func TestCommit_ToleratesUnreadablePriorSessionsJSON(t *testing.T) {
 	dir := t.TempDir()
 	logger, _ := openTempLogger(t)
 
-	// Write a corrupt prior sessions.json — DecodeIndex should fail, treated as changed.
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
@@ -389,7 +375,6 @@ func TestCommit_ToleratesUnreadablePriorSessionsJSON(t *testing.T) {
 		t.Fatalf("Commit: %v", err)
 	}
 
-	// New sessions.json must replace the corrupt one.
 	data, err := os.ReadFile(state.SessionsJSON(dir))
 	if err != nil {
 		t.Fatalf("read: %v", err)

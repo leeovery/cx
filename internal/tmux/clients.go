@@ -6,31 +6,19 @@ import (
 	"strings"
 )
 
-// ClientInfo is one tmux client attached to a session: the client's process id
-// and its last-activity timestamp (tmux's #{client_activity}, epoch seconds).
-// PID is the walk entry point for inside-tmux host-terminal detection; Activity
-// is the cross-client winner-selection signal — the most-active client is the
-// burst's trigger, and only that winner's locality is walked.
 type ClientInfo struct {
-	PID      int
+	PID int
+	// Activity is tmux's #{client_activity}, in epoch seconds.
 	Activity int64
 }
 
-// ListClients enumerates the tmux clients attached to the named session,
-// returning each client's pid and last-activity timestamp.
-//
-// It runs "list-clients -t <session> -F '#{client_pid} #{client_activity}'"
-// via the Commander seam. Mirroring ListSessions' no-server tolerance, a
-// command error (the canonical "no server / no clients attached" signal, where
-// tmux exits non-zero) collapses to an empty slice and a nil error rather than
-// surfacing a spurious failure; a genuine parse failure (a malformed line)
-// returns an error. The session target is routed through exactTarget so a
-// prefix collision cannot mis-resolve to a different session.
+// ListClients enumerates the tmux clients attached to the named session. A
+// failing invocation yields an empty slice and a nil error — it is the no-server
+// / no-clients signal — and only a malformed line returns an error.
 func (c *Client) ListClients(session string) ([]ClientInfo, error) {
 	output, err := c.cmd.Run("list-clients", "-t", exactTarget(session), "-F", "#{client_pid} #{client_activity}")
 	if err != nil {
-		// A list-clients error is the "no server / no clients" signal; collapse
-		// it to the valid zero-clients state (see ListSessions' rationale).
+		// Swallowed deliberately: the error is the zero-clients signal.
 		return []ClientInfo{}, nil
 	}
 

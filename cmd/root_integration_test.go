@@ -12,10 +12,8 @@ import (
 	"github.com/leeovery/portal/internal/portalbintest"
 )
 
-// buildPortalBinary delegates to the canonical portalbintest builder (which
-// compiles with -tags integration — see buildPortalBinaryInto) so every
-// test-staged binary carries the daemon-pgrep sandbox. The former inlined
-// `go build` here was the one build site the sandbox tag did not cover.
+// Delegates to portalbintest, which compiles with -tags integration so every
+// test-staged binary carries the daemon-pgrep sandbox.
 func buildPortalBinary(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()

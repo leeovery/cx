@@ -187,7 +187,6 @@ func TestEncodeIndex_SerialisesEmptyEnvironmentAsObjectNotNull(t *testing.T) {
 		Sessions: []state.Session{
 			{
 				Name: "work",
-				// Environment intentionally nil
 				Windows: []state.Window{
 					{
 						Index: 0,
@@ -292,7 +291,6 @@ func TestEncodeIndex_UsesTwoSpaceIndent(t *testing.T) {
 		t.Fatalf("EncodeIndex: unexpected error: %v", err)
 	}
 
-	// First indented line should start with exactly two spaces.
 	lines := strings.Split(string(data), "\n")
 	if len(lines) < 2 {
 		t.Fatalf("expected indented output; got:\n%s", data)
@@ -439,14 +437,12 @@ func TestCanonicalize_ReplacesNilSlicesAndMaps(t *testing.T) {
 		Sessions: []state.Session{
 			{
 				Name: "work",
-				// Environment nil, Windows nil
 			},
 			{
 				Name: "play",
 				Windows: []state.Window{
-					{Index: 0, Name: "main"}, // Panes nil
+					{Index: 0, Name: "main"},
 				},
-				// Environment nil
 			},
 		},
 	}

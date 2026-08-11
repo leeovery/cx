@@ -10,17 +10,8 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// nextPaneKey is the §9.3 pane-nav key shape: `Tab` cycles forward through panes
-// (wrapping). This REPLACES the former `Ctrl+←`/`Ctrl+→` pair — `Ctrl+←/→` is
-// hijacked by macOS Mission Control Spaces switching, so pane reverts to the
-// pre-rebuild `Tab` forward-cycle.
 var nextPaneKey = tea.KeyPressMsg{Code: tea.KeyTab}
 
-// newPreviewModelForTab constructs a previewModel directly (bypassing the
-// initial-open enumeration / read in NewPreviewModel) wired with a reader and
-// a sized viewport so nav handling can be exercised against curated groups.
-// The constructor's initial Tail call is intentionally not made here — call
-// counts on the reader thus reflect *only* the operations under test.
 func newPreviewModelForTab(session string, groups []tmux.WindowGroup, windowIdx, paneIdx int, reader ScrollbackReader, width, height int) previewModel {
 	return previewModel{
 		session:   session,
@@ -149,7 +140,6 @@ func TestPreviewPaneNav_TriggersExactlyOneTailCallWithNewlyFocusedPaneKey(t *tes
 }
 
 func TestPreviewPaneNav_ResetsViewportScrollPositionToTail(t *testing.T) {
-	// Build content larger than the viewport so AtBottom is non-trivial.
 	var b strings.Builder
 	for range 50 {
 		b.WriteString("line\n")
@@ -159,8 +149,6 @@ func TestPreviewPaneNav_ResetsViewportScrollPositionToTail(t *testing.T) {
 	}
 	reader := &recordingReader{bytes: []byte(b.String())}
 	m := newPreviewModelForTab("work", groups, 0, 0, reader, 80, 10)
-	// Pre-load some content and scroll to top so a successful pane nav must
-	// explicitly call GotoBottom to satisfy AtBottom().
 	m.viewport.SetContent("stale\nstale\nstale\n")
 	m.viewport.GotoTop()
 	if !m.viewport.AtTop() {
@@ -181,8 +169,6 @@ func TestPreviewPaneNav_DoesNotModifyWindowIdx(t *testing.T) {
 		{WindowIndex: 2, WindowName: "third", PaneIndices: []int{0, 1}},
 	}
 	reader := &recordingReader{bytes: []byte("content")}
-	// Start on the middle window, last pane — Tab should wrap pane within
-	// this window, *not* advance to the next window.
 	m := newPreviewModelForTab("work", groups, 1, 2, reader, 80, 24)
 
 	updated, _ := m.Update(nextPaneKey)
@@ -196,10 +182,6 @@ func TestPreviewPaneNav_DoesNotModifyWindowIdx(t *testing.T) {
 }
 
 func TestPreviewPaneNav_InterceptedBeforeViewportSeesIt(t *testing.T) {
-	// Pin the contract that the pane-nav branch lands BEFORE the default
-	// viewport delegation: paneIdx advanced (proof of interception) and the
-	// viewport state matches the post-read GotoBottom contract. Tab must never
-	// be swallowed by the embedded viewport.
 	var b strings.Builder
 	for range 50 {
 		b.WriteString("line\n")

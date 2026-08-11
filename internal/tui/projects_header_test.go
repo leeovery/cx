@@ -9,19 +9,8 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// The §6 / §3.2 / §13.6 Projects section header: `Projects` (state.positive) + a
-// text.muted count at the SAME cap-height as the label (dim by colour, not a
-// smaller glyph), with a right-aligned `/ to filter` hint (text.muted). These
-// tests pin the colour roles in exact mode-resolved SGR, the same-cap-height count
-// (a plain run, no superscript), the persistent hint, and the §2.7 narrow degrade —
-// matching testdata/vhs/reference/projects-mv.png.
-
 const projectsHeaderWidth = 90
 
-// TestProjectsHeader_LabelGreenCountDetail asserts the label renders in
-// state.positive and the count in text.muted — at the same font size (no
-// smaller/superscript glyph), distinguished only by colour (§13.6). Both are plain
-// runs so the count digits sit on the same baseline/cap-height as the label.
 func TestProjectsHeader_LabelGreenCountDetail(t *testing.T) {
 	forEachBuiltinTheme(t, func(t *testing.T, th theme.Theme) {
 		header := renderProjectsSectionHeader(14, projectsHeaderWidth, th, false)
@@ -32,12 +21,9 @@ func TestProjectsHeader_LabelGreenCountDetail(t *testing.T) {
 		if !strings.Contains(ansi.Strip(header), "14") {
 			t.Errorf("Projects header missing the count %q:\n%s", "14", header)
 		}
-		// Label is state.positive.
 		if seq := tokenFgSeq(t, th.StatePositive); !strings.Contains(header, seq) {
 			t.Errorf("Projects header missing the state.green label role sequence %q", seq)
 		}
-		// The count VALUE renders verbatim inside its own text.muted run (so it is
-		// byte-identical and dim, at the same cap-height as the label).
 		countRun := headerStyle(th.TextMuted, th, false).Render("14")
 		if !strings.Contains(header, countRun) {
 			t.Errorf("Projects header missing the exact count 14 in a text.detail run:\n%s", header)
@@ -45,9 +31,6 @@ func TestProjectsHeader_LabelGreenCountDetail(t *testing.T) {
 	})
 }
 
-// TestProjectsHeader_RightAlignedFilterHint asserts a `/ to filter` hint renders in
-// text.muted, right-aligned (left cluster + flex spacer + hint to the content
-// width), and the row is exactly the content width.
 func TestProjectsHeader_RightAlignedFilterHint(t *testing.T) {
 	header := renderProjectsSectionHeader(8, projectsHeaderWidth, testDarkTheme(t), false)
 	if !strings.Contains(header, sectionFilterHint) {
@@ -63,10 +46,6 @@ func TestProjectsHeader_RightAlignedFilterHint(t *testing.T) {
 	}
 }
 
-// TestProjectsHeader_AlignsWithWordmark is the cross-element alignment guard: the
-// Projects header's `Projects` label must start at the SAME column as the PORTAL
-// wordmark — the content's left edge (col 0 of the inset region), with no leading
-// indent.
 func TestProjectsHeader_AlignsWithWordmark(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		const w = projectsHeaderWidth
@@ -82,8 +61,6 @@ func TestProjectsHeader_AlignsWithWordmark(t *testing.T) {
 	}
 }
 
-// TestProjectsHeader_NarrowDegradeDropsHint asserts the §2.7 narrow degrade: below
-// the threshold the right `/ to filter` hint drops and the row never overflows.
 func TestProjectsHeader_NarrowDegradeDropsHint(t *testing.T) {
 	wide := renderProjectsSectionHeader(5, projectsHeaderWidth, testDarkTheme(t), false)
 	if !strings.Contains(wide, sectionFilterHint) {
@@ -101,9 +78,6 @@ func TestProjectsHeader_NarrowDegradeDropsHint(t *testing.T) {
 	}
 }
 
-// TestProjectsHeader_ColourlessDropsHueAndCanvas asserts the NO_COLOR carve-out
-// (§2.5): a colourless Projects header carries no canvas background SGR and no
-// foreground hue — structure (label, count, hint) intact.
 func TestProjectsHeader_ColourlessDropsHueAndCanvas(t *testing.T) {
 	header := renderProjectsSectionHeader(6, projectsHeaderWidth, testDarkTheme(t), true)
 	if !strings.Contains(ansi.Strip(header), "Projects") || !strings.Contains(ansi.Strip(header), "6") || !strings.Contains(header, sectionFilterHint) {

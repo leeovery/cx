@@ -9,22 +9,6 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// The §6.3 condensed Projects footer gate. These tests pin the restyled Projects
-// footer: the exact §6.3 condensed copy as a single row's left cluster, a
-// right-aligned `? help`, and the per-glyph colour roles (key glyphs accent.key,
-// labels text.muted, the ? glyph accent.primary) — rendered through the SHARED
-// condensed-footer machinery (renderProjectsFooter), NOT the legacy three-column
-// renderKeymapFooter. Asserted with exact mode-resolved SGR like the Sessions
-// footer tests, so a token swap is caught, not merely the glyph presence.
-//
-// No t.Parallel() — the package's shared canvas/mock helpers make parallelism
-// unsafe across these tests.
-
-// TestProjectsFooter_CondensedCopyExact asserts the §6.3 condensed Projects footer
-// renders EXACTLY `⏎ new session` · `x sessions` · `e edit` · `/ filter` · `t theme`
-// as the left cluster, with a right-aligned `? help` pinned to the width. `t theme`
-// is §14.2's addition to this page — theme is a GLOBAL setting (§9.6) — and is
-// asserted here so a dropped entry fails the test that names itself CopyExact.
 func TestProjectsFooter_CondensedCopyExact(t *testing.T) {
 	footer := renderProjectsFooter(projectsKeymap(), referenceFooterWidth, testDarkTheme(t), false)
 	lines := strings.Split(footer, "\n")
@@ -41,8 +25,6 @@ func TestProjectsFooter_CondensedCopyExact(t *testing.T) {
 		}
 	}
 
-	// The ? help is right-aligned: it is the trailing entry, and the left-cluster
-	// entries all precede it.
 	helpIdx := strings.Index(keyRow, "? help")
 	filterIdx := strings.Index(keyRow, "/ filter")
 	if helpIdx < 0 || filterIdx < 0 {
@@ -52,8 +34,6 @@ func TestProjectsFooter_CondensedCopyExact(t *testing.T) {
 		t.Errorf("? help (idx %d) must be right of / filter (idx %d):\n%s", helpIdx, filterIdx, keyRow)
 	}
 
-	// Right-aligned to the width: the key row is exactly w cells, and ? help ends
-	// flush at the right edge.
 	if got := lipgloss.Width(lines[1]); got != referenceFooterWidth {
 		t.Errorf("Projects key row width = %d, want exactly %d (right-aligned to width)", got, referenceFooterWidth)
 	}
@@ -62,9 +42,6 @@ func TestProjectsFooter_CondensedCopyExact(t *testing.T) {
 	}
 }
 
-// TestProjectsFooter_NoLegacySwitchViewOrAttach asserts the Projects footer is the
-// §6.3 condensed copy and NOT the Sessions footer copy: it must not leak Sessions
-// labels (`attach`, `switch view`, `preview`, `projects`).
 func TestProjectsFooter_NoLegacySessionsCopy(t *testing.T) {
 	keyRow := footerVisible(renderProjectsFooter(projectsKeymap(), referenceFooterWidth, testDarkTheme(t), false))
 	for _, banned := range []string{"attach", "switch view", "preview", "navigate", "projects"} {
@@ -74,10 +51,6 @@ func TestProjectsFooter_NoLegacySessionsCopy(t *testing.T) {
 	}
 }
 
-// TestProjectsFooter_TokenColours asserts key glyphs render in accent.key, labels
-// in text.muted, and the ? glyph specifically in accent.primary, over a 1px
-// footer top rule — every colour via its role token (matching the
-// reference's per-glyph footer colours).
 func TestProjectsFooter_TokenColours(t *testing.T) {
 	forEachBuiltinTheme(t, func(t *testing.T, th theme.Theme) {
 		footer := renderProjectsFooter(projectsKeymap(), referenceFooterWidth, th, false)
@@ -88,20 +61,15 @@ func TestProjectsFooter_TokenColours(t *testing.T) {
 		if seq := tokenFgSeq(t, th.TextMuted); !strings.Contains(footer, seq) {
 			t.Errorf("Projects footer missing text.detail label role sequence %q", seq)
 		}
-		// The ? glyph specifically is accent.primary (the right-aligned help anchor).
 		if seq := tokenFgSeq(t, th.AccentPrimary); !strings.Contains(footer, seq) {
 			t.Errorf("Projects footer missing accent.violet ? glyph role sequence %q", seq)
 		}
-		// 1px footer top rule present, drawn in the consolidated border token.
 		if seq := tokenFgSeq(t, th.Border); !strings.Contains(footer, seq) {
 			t.Errorf("Projects footer missing the border top-rule role sequence %q", seq)
 		}
 	})
 }
 
-// TestProjectsFooter_ColourlessDropsHueAndCanvas asserts the NO_COLOR carve-out
-// (§2.5): a colourless Projects footer carries no canvas background SGR and no
-// foreground hue — the §6.3 copy stays structurally intact.
 func TestProjectsFooter_ColourlessDropsHueAndCanvas(t *testing.T) {
 	footer := renderProjectsFooter(projectsKeymap(), referenceFooterWidth, testDarkTheme(t), true)
 	keyRow := footerVisible(strings.Split(footer, "\n")[1])
@@ -121,10 +89,6 @@ func TestProjectsFooter_ColourlessDropsHueAndCanvas(t *testing.T) {
 	}
 }
 
-// TestProjectsFooter_FilterAppliedSaysNewSessionNotAttach asserts the Projects
-// list-active (committed-filter) footer reads `↵ new session` — Enter on Projects
-// creates a session, it does NOT attach — and never leaks the Sessions `↵ attach`
-// copy. Filtering IS enabled on the Projects list, so this state is reachable.
 func TestProjectsFooter_FilterAppliedSaysNewSessionNotAttach(t *testing.T) {
 	footer := renderProjectsFilterAppliedFooter(referenceFooterWidth, testDarkTheme(t), false)
 	keyRow := footerVisible(strings.Split(footer, "\n")[1])
@@ -141,9 +105,6 @@ func TestProjectsFooter_FilterAppliedSaysNewSessionNotAttach(t *testing.T) {
 	}
 }
 
-// TestProjectsFooter_NarrowDegradeKeepsHelpAnchor asserts the §2.7 narrow degrade:
-// at a width too small for the full left cluster the row truncates on ONE line
-// (never wraps) and the ? help right anchor survives, the row never overflowing.
 func TestProjectsFooter_NarrowDegradeKeepsHelpAnchor(t *testing.T) {
 	const narrow = 24
 	footer := renderProjectsFooter(projectsKeymap(), narrow, testDarkTheme(t), false)

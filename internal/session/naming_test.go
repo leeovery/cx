@@ -10,10 +10,7 @@ import (
 )
 
 func TestNanoIDAlphabet_MatchesExpectedCharset(t *testing.T) {
-	// NanoIDAlphabet is the single shared option-name-safe charset consumed by
-	// both session-name generation and the spawn ack-id scheme. It must equal
-	// the historical literal exactly and must exclude ".", ":", "-", and space
-	// (the absence of "-" is load-bearing for the "<batch>-<token>" marker split).
+	// The absence of "-" is load-bearing for the "<batch>-<token>" marker split.
 	const want = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	if session.NanoIDAlphabet != want {
 		t.Errorf("NanoIDAlphabet = %q, want %q", session.NanoIDAlphabet, want)

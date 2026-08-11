@@ -1,4 +1,3 @@
-// Tests in this file mutate package-level state and MUST NOT use t.Parallel.
 package cmd
 
 import (
@@ -15,10 +14,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// hookCleanupDeps assembles the minimal daemonDeps the throttled hooks-cleanup
-// gate (maybeRunHookCleanup) reads: the tmux Client (as the AllPaneLister), the
-// HookStore, and the Logger. lastCleanup is left at its zero value for the
-// caller to drive to a controlled instant.
 func hookCleanupDeps(fc *daemonFakeCommander, store *hooks.Store, logger *slog.Logger) *daemonDeps {
 	return &daemonDeps{
 		Client:    tmux.NewClient(fc),
@@ -27,8 +22,6 @@ func hookCleanupDeps(fc *daemonFakeCommander, store *hooks.Store, logger *slog.L
 	}
 }
 
-// discardDaemonLogger returns a no-op *slog.Logger for gate tests that assert on
-// store/commander side effects rather than log output.
 func discardDaemonLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
@@ -41,12 +34,11 @@ func TestMaybeRunHookCleanup_DoesNotRunBeforeInterval(t *testing.T) {
 	fc := &daemonFakeCommander{panesOut: "live:0.0"}
 	deps := hookCleanupDeps(fc, store, discardDaemonLogger())
 
-	anchor := time.Now() // NOT elapsed: time.Since(anchor) < hookCleanupInterval
+	anchor := time.Now()
 	deps.lastCleanup = anchor
 
 	maybeRunHookCleanup(deps)
 
-	// (a) the stale entry survives — cleanup never ran.
 	postRun, err := store.Load()
 	if err != nil {
 		t.Fatalf("store.Load: %v", err)
@@ -55,12 +47,10 @@ func TestMaybeRunHookCleanup_DoesNotRunBeforeInterval(t *testing.T) {
 		t.Errorf("stale entry reaped before interval elapsed; hooks=%v", keysOf(postRun))
 	}
 
-	// (b) ListAllPanes was never invoked (no list-panes call recorded).
 	if got := fc.callsContaining("list-panes"); len(got) != 0 {
 		t.Errorf("list-panes invoked before interval elapsed: %v", got)
 	}
 
-	// (c) lastCleanup is untouched.
 	if !deps.lastCleanup.Equal(anchor) {
 		t.Errorf("lastCleanup advanced before interval elapsed: got %v, want %v", deps.lastCleanup, anchor)
 	}
@@ -75,7 +65,7 @@ func TestMaybeRunHookCleanup_RunsAndResetsOnceIntervalElapsed(t *testing.T) {
 	fc := &daemonFakeCommander{panesOut: "live:0.0"}
 	deps := hookCleanupDeps(fc, store, discardDaemonLogger())
 
-	deps.lastCleanup = time.Now().Add(-hookCleanupInterval - time.Second) // elapsed
+	deps.lastCleanup = time.Now().Add(-hookCleanupInterval - time.Second)
 	beforeCall := time.Now()
 
 	maybeRunHookCleanup(deps)
@@ -91,7 +81,6 @@ func TestMaybeRunHookCleanup_RunsAndResetsOnceIntervalElapsed(t *testing.T) {
 		t.Errorf("live entry wrongly reaped; hooks=%v", keysOf(postRun))
 	}
 
-	// lastCleanup advanced to ~now (on or after the pre-call instant).
 	if deps.lastCleanup.Before(beforeCall) {
 		t.Errorf("lastCleanup not advanced after cleanup: got %v, want >= %v", deps.lastCleanup, beforeCall)
 	}
@@ -105,9 +94,6 @@ func TestMaybeRunHookCleanup_FiresAtIntervalBoundary(t *testing.T) {
 	fc := &daemonFakeCommander{panesOut: "live:0.0"}
 	deps := hookCleanupDeps(fc, store, discardDaemonLogger())
 
-	// Exactly the interval: time.Since(lastCleanup) is >= hookCleanupInterval
-	// (some wall time always elapses before the check), proving the >= boundary
-	// is inclusive.
 	deps.lastCleanup = time.Now().Add(-hookCleanupInterval)
 
 	maybeRunHookCleanup(deps)
@@ -122,9 +108,8 @@ func TestMaybeRunHookCleanup_FiresAtIntervalBoundary(t *testing.T) {
 }
 
 func TestMaybeRunHookCleanup_LogsWarnAndSwallowsCleanupError(t *testing.T) {
-	// Force a store.Load error (EISDIR) by pointing the store at a directory —
-	// hooks.Store.Load returns an empty map (not an error) for malformed JSON,
-	// so the directory trick is the reliable way to make CleanStale's Load fail.
+	// hooks.Store.Load returns an empty map (not an error) for malformed JSON, so
+	// pointing it at a directory is the only reliable way to force a Load failure.
 	dir := t.TempDir()
 	bogusPath := filepath.Join(dir, "hooks.json")
 	if err := os.MkdirAll(bogusPath, 0o755); err != nil {
@@ -132,35 +117,27 @@ func TestMaybeRunHookCleanup_LogsWarnAndSwallowsCleanupError(t *testing.T) {
 	}
 	store := hooks.NewStore(bogusPath)
 
-	// Non-empty panesOut so the mass-deletion guard is NOT the branch taken —
-	// Load fails first, exercising the returned-error path.
+	// Non-empty panesOut keeps the mass-deletion guard off the path, so Load fails
+	// first and the returned-error branch is the one exercised.
 	fc := &daemonFakeCommander{panesOut: "live:0.0"}
 	logger, sink := newCaptureLoggerForComponent(t, "daemon")
 	deps := hookCleanupDeps(fc, store, logger)
 
-	deps.lastCleanup = time.Now().Add(-hookCleanupInterval - time.Second) // elapsed
+	deps.lastCleanup = time.Now().Add(-hookCleanupInterval - time.Second)
 	beforeCall := time.Now()
 
-	// Must not panic or exit.
 	maybeRunHookCleanup(deps)
 
 	if got := sink.Body(); !strings.Contains(got, "hooks stale-cleanup failed") {
 		t.Errorf("expected gate WARN 'hooks stale-cleanup failed' under daemon component; got:\n%s", got)
 	}
 
-	// lastCleanup still advances after a failing cleanup (retry next cadence,
-	// not every tick).
 	if deps.lastCleanup.Before(beforeCall) {
 		t.Errorf("lastCleanup not advanced after failing cleanup: got %v, want >= %v", deps.lastCleanup, beforeCall)
 	}
 }
 
 func TestMaybeRunHookCleanup_ListPanesErrorSwallowedNoReap(t *testing.T) {
-	// A ListAllPanes error is Warn-and-continue: the cleanup logs its own WARN,
-	// returns nil (no gate WARN), and reaps nothing.
-	// onRemoved=nil is exercised (without panic) by the reap path in
-	// TestMaybeRunHookCleanup_RunsAndResetsOnceIntervalElapsed; lister/store are
-	// proven by the reap / no-reap behaviour across these tests.
 	seed := `{
   "stale:0.0": {"on-resume": "cmd-stale"}
 }`
@@ -169,14 +146,11 @@ func TestMaybeRunHookCleanup_ListPanesErrorSwallowedNoReap(t *testing.T) {
 	logger, sink := newCaptureLoggerForComponent(t, "daemon")
 	deps := hookCleanupDeps(fc, store, logger)
 
-	deps.lastCleanup = time.Now().Add(-hookCleanupInterval - time.Second) // elapsed
+	deps.lastCleanup = time.Now().Add(-hookCleanupInterval - time.Second)
 	beforeCall := time.Now()
 
-	// Must not panic or crash on the ListAllPanes error.
 	maybeRunHookCleanup(deps)
 
-	// ListAllPanes error → no reap (cleanup short-circuits after the
-	// list-panes WARN, before CleanStale).
 	postRun, err := store.Load()
 	if err != nil {
 		t.Fatalf("store.Load: %v", err)
@@ -185,66 +159,53 @@ func TestMaybeRunHookCleanup_ListPanesErrorSwallowedNoReap(t *testing.T) {
 		t.Errorf("entry reaped despite ListAllPanes error; hooks=%v", keysOf(postRun))
 	}
 
-	// The error was swallowed inside runHookStaleCleanup (returned nil), so the
-	// gate's own WARN must NOT fire.
 	if got := sink.Body(); strings.Contains(got, "hooks stale-cleanup failed") {
 		t.Errorf("gate WARN fired despite swallowed ListAllPanes error; got:\n%s", got)
 	}
 
-	// lastCleanup still advances.
 	if deps.lastCleanup.Before(beforeCall) {
 		t.Errorf("lastCleanup not advanced after swallowed list error: got %v, want >= %v", deps.lastCleanup, beforeCall)
 	}
 }
 
 func TestMaybeRunHookCleanup_NilStoreNoOps(t *testing.T) {
-	// A nil HookStore means loadHookStore() failed at daemon startup and cleanup
-	// is disabled (task 4-2). The gate must then be a pure no-op: no capture-path
-	// tmux work, no throttle mutation, no panic — even when the throttle interval
-	// has elapsed (the branch that WOULD run cleanup if a store were present).
+	// A nil HookStore is what daemon startup leaves behind when loadHookStore fails.
 	fc := &daemonFakeCommander{panesOut: "live:0.0"}
 	logger, sink := newCaptureLoggerForComponent(t, "daemon")
-	deps := hookCleanupDeps(fc, nil, logger) // nil store — cleanup disabled
+	deps := hookCleanupDeps(fc, nil, logger)
 
-	anchor := time.Now().Add(-hookCleanupInterval - time.Second) // elapsed
+	anchor := time.Now().Add(-hookCleanupInterval - time.Second)
 	deps.lastCleanup = anchor
 
-	// Must not panic on a nil store.
 	maybeRunHookCleanup(deps)
 
-	// Capture path untouched — ListAllPanes (list-panes) never invoked.
 	if got := fc.callsContaining("list-panes"); len(got) != 0 {
 		t.Errorf("list-panes invoked with a nil store: %v", got)
 	}
 
-	// lastCleanup untouched — a disabled-cleanup no-op must not advance the throttle.
 	if !deps.lastCleanup.Equal(anchor) {
 		t.Errorf("lastCleanup mutated with a nil store: got %v, want %v", deps.lastCleanup, anchor)
 	}
 
-	// No gate WARN — nothing ran, so there is nothing to warn about.
 	if got := sink.Body(); strings.Contains(got, "hooks stale-cleanup failed") {
 		t.Errorf("gate WARN fired with a nil store; got:\n%s", got)
 	}
 }
 
 func TestMaybeRunHookCleanup_ReusesMassDeletionGuard(t *testing.T) {
-	// Elapsed throttle + non-empty hooks + zero live panes → the shared helper's
-	// mass-deletion hazard guard defers (never wipes) and logs its hazard WARN.
 	seed := `{
   "a:0.0": {"on-resume": "cmd-a"},
   "b:0.0": {"on-resume": "cmd-b"}
 }`
 	store, _ := newTempHooksStore(t, seed)
-	fc := &daemonFakeCommander{panesOut: ""} // zero live panes
+	fc := &daemonFakeCommander{panesOut: ""}
 	logger, sink := newCaptureLoggerForComponent(t, "daemon")
 	deps := hookCleanupDeps(fc, store, logger)
 
-	deps.lastCleanup = time.Now().Add(-hookCleanupInterval - time.Second) // elapsed
+	deps.lastCleanup = time.Now().Add(-hookCleanupInterval - time.Second)
 
 	maybeRunHookCleanup(deps)
 
-	// No entry reaped — the guard defers rather than wiping.
 	postRun, err := store.Load()
 	if err != nil {
 		t.Fatalf("store.Load: %v", err)
@@ -253,7 +214,6 @@ func TestMaybeRunHookCleanup_ReusesMassDeletionGuard(t *testing.T) {
 		t.Errorf("mass-deletion guard did not defer; post-run hooks=%v", keysOf(postRun))
 	}
 
-	// Hazard WARN logged by the shared helper (via deps.Logger).
 	if got := sink.Body(); !strings.Contains(got, "mass-deletion hazard") {
 		t.Errorf("expected mass-deletion hazard WARN; got:\n%s", got)
 	}

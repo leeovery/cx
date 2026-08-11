@@ -1,16 +1,5 @@
 package tui
 
-// Task spectrum-tui-design-5-5 — VISUAL loading-screen render (§10.3).
-//
-// These tests pin the honest loading screen: the locked 5-row bold solid-block
-// PORTAL wordmark + a flush 5-row violet caret bar, a thick violet progress bar
-// on the bg.subtle track, and a real 5-row tick-list that ticks off
-// done/active/pending from the live LoadingProgress accumulator (task 5-4) with
-// the §2.9 token+weight mapping and the spaced `N / M` counter on the active
-// "Restoring sessions" row. They also pin the narrow/short degrade, the NO_COLOR
-// carve-out, the first-paint canvas gate, and the warm-path "no loading screen"
-// gate.
-
 import (
 	"strings"
 	"testing"
@@ -21,11 +10,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// midRestoreProgress builds the reference mid-restore accumulator state: steps
-// 1–2 done (Started tmux server, Registered hooks), "Restoring sessions" active
-// with an 8/12 counter, the trailing labels pending. It folds the real
-// BootstrapProgressMsg sequence through the accumulator so the test exercises the
-// same path the live channel does.
 func midRestoreProgress() LoadingProgress {
 	var p LoadingProgress
 	p = p.Apply(BootstrapProgressMsg{Index: 1})
@@ -37,41 +21,29 @@ func midRestoreProgress() LoadingProgress {
 	return p
 }
 
-// TestLoadingScreen_RendersBlockBannerCaretBarAndList asserts the §10.3
-// composition: the 5-row bold solid-block PORTAL banner, a flush 5-row violet
-// caret bar to its right, a thick violet bar on the bg.subtle track, and the 5-row
-// step-list.
 func TestLoadingScreen_RendersBlockBannerCaretBarAndList(t *testing.T) {
 	view := midRestoreProgress().View()
 	out := renderLoadingScreen(view, 80, 24, testDarkTheme(t), false)
 	visible := ansi.Strip(out)
 
-	// The five locked banner rows are present verbatim (the wordmark segments).
-	// Rows 0–3 are right-padded at render time to the common max width, so assert
-	// the trimmed segment is present (the trailing pad is whitespace).
 	for i, row := range loadingWordmark {
 		if !strings.Contains(visible, strings.TrimRight(row, " ")) {
 			t.Errorf("loading screen missing block banner row %d %q:\n%s", i, row, visible)
 		}
 	}
 
-	// All five friendly labels render as real rows.
 	for _, label := range labelOrder {
 		if !strings.Contains(visible, label) {
 			t.Errorf("loading screen missing step-list label %q:\n%s", label, visible)
 		}
 	}
 
-	// The three tick glyphs are present (done ✓ ×2, active ◐, pending · ×2).
 	for _, glyph := range []string{loadingGlyphDone, loadingGlyphActive, loadingGlyphPending} {
 		if !strings.Contains(visible, glyph) {
 			t.Errorf("loading screen missing tick glyph %q:\n%s", glyph, visible)
 		}
 	}
 
-	// The wordmark block letters carry text.primary; the caret bar carries
-	// accent.primary; the filled bar carries the accent.primary background; the
-	// track carries the bg.subtle background.
 	if !strings.Contains(out, tokenFgSeq(t, testDarkTheme(t).TextPrimary)) {
 		t.Error("loading screen does not paint the wordmark in text.primary")
 	}
@@ -83,17 +55,11 @@ func TestLoadingScreen_RendersBlockBannerCaretBarAndList(t *testing.T) {
 	}
 }
 
-// blockLeadingPad returns the count of leading spaces on a rendered line after
-// ANSI stripping — the left offset of the line's first visible cell within the
-// JoinVertical block. Used to assert element centring (a narrower element is
-// padded with leading spaces by JoinVertical(Center)).
 func blockLeadingPad(line string) int {
 	stripped := ansi.Strip(line)
 	return len(stripped) - len(strings.TrimLeft(stripped, " "))
 }
 
-// firstLineContaining returns the first block line whose stripped form contains
-// sub, or "" if none. Used to pick out an element's row from the composed block.
 func firstLineContaining(lines []string, sub string) string {
 	for _, line := range lines {
 		if strings.Contains(ansi.Strip(line), sub) {
@@ -103,9 +69,6 @@ func firstLineContaining(lines []string, sub string) string {
 	return ""
 }
 
-// firstBarLine returns the first block line that is the thick progress bar — a
-// contiguous run of block glyphs (filled + track, both █) with no internal
-// spaces, distinct from the wordmark's spaced █ letterforms.
 func firstBarLine(lines []string) string {
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(ansi.Strip(line))
@@ -126,11 +89,6 @@ func firstBarLine(lines []string) string {
 	return ""
 }
 
-// TestLoadingScreen_BarWidthEqualsWordmarkWidth pins the layout-correction
-// invariant: the thick progress bar spans the FULL width of the rendered block
-// wordmark (no longer a fixed 30 that hangs off the wide wordmark's left edge).
-// The bar's rendered width must equal the block wordmark's rendered width so the
-// bar reads as the logo's full-length underline.
 func TestLoadingScreen_BarWidthEqualsWordmarkWidth(t *testing.T) {
 	wordmark := renderBlockWordmark(testDarkTheme(t), false)
 	wordmarkW := lipgloss.Width(wordmark)
@@ -143,13 +101,6 @@ func TestLoadingScreen_BarWidthEqualsWordmarkWidth(t *testing.T) {
 	}
 }
 
-// TestLoadingScreen_BlockColumnIsCentered pins the §10.3 centring: the wordmark,
-// bar, and tick-list block are centred as a COLUMN relative to each other (each
-// element's horizontal centre aligns), not left-flushed to the widest element.
-// The wordmark and bar are the widest (equal width) so they sit flush at the
-// block's left edge; the narrower tick-list is padded with leading spaces by
-// JoinVertical(Center) so its centre aligns with theirs — i.e. it is NOT
-// left-flush.
 func TestLoadingScreen_BlockColumnIsCentered(t *testing.T) {
 	block := composeLoadingBlock(midRestoreProgress().View(), 80, 24, testDarkTheme(t), false)
 	lines := strings.Split(block, "\n")
@@ -162,7 +113,6 @@ func TestLoadingScreen_BlockColumnIsCentered(t *testing.T) {
 		t.Fatalf("could not locate all three elements in the block:\n%s", ansi.Strip(block))
 	}
 
-	// The wordmark and bar are the widest elements (equal width) → flush left.
 	if pad := blockLeadingPad(wordmarkLine); pad != 0 {
 		t.Errorf("wordmark line is not flush at the block left edge: leading pad = %d", pad)
 	}
@@ -170,10 +120,6 @@ func TestLoadingScreen_BlockColumnIsCentered(t *testing.T) {
 		t.Errorf("bar line is not flush at the block left edge: leading pad = %d", pad)
 	}
 
-	// The list is narrower → JoinVertical(Center) pads it with leading spaces so
-	// its centre aligns with the wordmark/bar centre. Assert it is centred (left
-	// pad ≈ (blockWidth - listWidth)/2), NOT left-flush (pad 0 would be the old
-	// Left-join bug).
 	listWidth := lipgloss.Width(ansi.Strip(strings.TrimRight(listLine, " ")))
 	wantPad := (blockWidth - listWidth) / 2
 	gotPad := blockLeadingPad(listLine)
@@ -185,17 +131,10 @@ func TestLoadingScreen_BlockColumnIsCentered(t *testing.T) {
 	}
 }
 
-// TestLoadingScreen_SectionGapsAreTwoRows pins the §10.3 2-row section gaps: at a
-// height with room to spare there are exactly two blank rows between the wordmark
-// and the bar, and two between the bar and the list (the design's ~34px gap ≈ 2
-// terminal rows, up from the former 1-row gap).
 func TestLoadingScreen_SectionGapsAreTwoRows(t *testing.T) {
 	block := composeLoadingBlock(midRestoreProgress().View(), 80, 24, testDarkTheme(t), false)
 	lines := strings.Split(block, "\n")
 
-	// The bar is the unique row that is a CONTIGUOUS run of block glyphs (filled +
-	// track, both █) with no internal spaces — distinct from the wordmark rows,
-	// which are █ letterforms separated by single-space gaps. isBarRow detects it.
 	isBarRow := func(line string) bool {
 		trimmed := strings.TrimSpace(ansi.Strip(line))
 		if trimmed == "" {
@@ -209,7 +148,6 @@ func TestLoadingScreen_SectionGapsAreTwoRows(t *testing.T) {
 		return true
 	}
 
-	// Locate the last wordmark row, the bar row, and the first list row by index.
 	barIdx, listIdx := -1, -1
 	lastWordmarkIdx := -1
 	for i, line := range lines {
@@ -228,20 +166,14 @@ func TestLoadingScreen_SectionGapsAreTwoRows(t *testing.T) {
 		t.Fatalf("could not locate wordmark/bar/list rows in block:\n%s", ansi.Strip(block))
 	}
 
-	// Two blank rows between the wordmark's last row and the bar.
 	if gap := barIdx - lastWordmarkIdx - 1; gap != 2 {
 		t.Errorf("wordmark→bar gap = %d rows, want 2", gap)
 	}
-	// Two blank rows between the bar and the first list row.
 	if gap := listIdx - barIdx - 1; gap != 2 {
 		t.Errorf("bar→list gap = %d rows, want 2", gap)
 	}
 }
 
-// TestLoadingScreen_TickRowsLeftAlignedWithinList pins that the tick-list rows
-// stay LEFT-aligned within the (centred) list block: the ✓/◐/·/✗ glyph slots line
-// up down a common left column. Measured on the list element alone (renderTickList)
-// so it is independent of the outer centring.
 func TestLoadingScreen_TickRowsLeftAlignedWithinList(t *testing.T) {
 	view := midRestoreProgress().View()
 	list := renderTickList(view.Labels, 80, testDarkTheme(t), false)
@@ -252,29 +184,18 @@ func TestLoadingScreen_TickRowsLeftAlignedWithinList(t *testing.T) {
 	}
 }
 
-// errorFrameView builds the §10.5 fatal error-frame view: step 1 done, a fatal at
-// step 3 (Registered hooks → ✗), the wide one-line message, the trailing labels
-// pending.
 func errorFrameView() LoadingProgressView {
 	var p LoadingProgress
 	p = p.Apply(BootstrapProgressMsg{Index: 1})
 	return p.FailedView(3, "Portal failed to set @portal-restoring marker: permission denied")
 }
 
-// TestLoadingScreen_ErrorFrameCentredComposition pins the §10.5 layout fix: the
-// message + hint are SEPARATE centred elements (not folded into the left-joined
-// list), so the wide message becomes a centred caption and the compact steps-block
-// stays centred — no element sticks out asymmetrically. With the message as the
-// widest element, the wordmark/bar/steps-list all centre relative to it; the
-// steps-list rows are therefore NOT left-flush (they were yanked left by the long
-// message in the pre-fix Left join).
 func TestLoadingScreen_ErrorFrameCentredComposition(t *testing.T) {
 	view := errorFrameView()
 	block := composeLoadingBlock(view, 80, 24, testDarkTheme(t), false)
 	lines := strings.Split(block, "\n")
 	blockWidth := lipgloss.Width(block)
 
-	// The message is the widest element → flush at the block left edge (pad 0).
 	msgLine := firstLineContaining(lines, "Portal failed to set")
 	if msgLine == "" {
 		t.Fatalf("error block missing the fatal message:\n%s", ansi.Strip(block))
@@ -283,7 +204,6 @@ func TestLoadingScreen_ErrorFrameCentredComposition(t *testing.T) {
 		t.Errorf("message caption is not flush at the block left edge: leading pad = %d", pad)
 	}
 
-	// The steps-list rows are centred (padded), NOT left-flush against the message.
 	listLine := firstLineContaining(lines, LabelStartedTmuxServer)
 	if listLine == "" {
 		t.Fatalf("error block missing the step-list:\n%s", ansi.Strip(block))
@@ -292,8 +212,6 @@ func TestLoadingScreen_ErrorFrameCentredComposition(t *testing.T) {
 		t.Error("step-list row is left-flush in the error frame — the long message yanked it left (regression)")
 	}
 
-	// The quit hint is centred beneath the message: its leading and trailing pad
-	// within the block width are equal (±1), and it is not flush at col 0.
 	hintLine := firstLineContaining(lines, "q quit")
 	if hintLine == "" {
 		t.Fatalf("error block missing the quit hint:\n%s", ansi.Strip(block))
@@ -309,9 +227,6 @@ func TestLoadingScreen_ErrorFrameCentredComposition(t *testing.T) {
 	}
 }
 
-// TestLoadingScreen_ErrorFrameNeverOverflowsHeight pins that the error frame —
-// with its extra message + hint + spacer rows — still never overflows the content
-// height across the short-terminal range (the footer is budget-shed first).
 func TestLoadingScreen_ErrorFrameNeverOverflowsHeight(t *testing.T) {
 	view := errorFrameView()
 	for _, h := range []int{24, 14, 12, 9, 7, 6} {
@@ -322,14 +237,6 @@ func TestLoadingScreen_ErrorFrameNeverOverflowsHeight(t *testing.T) {
 	}
 }
 
-// TestLoadingScreen_CentredPaddingCarriesCanvasNoIslands pins the §1 owned-canvas
-// invariant after the centring change: JoinVertical(Center) pads narrower
-// elements (the tick-list, the quit hint) with bare spaces on BOTH sides, and
-// those padding cells must carry the canvas background once the production
-// fillCanvas pipeline (backfill + trailing pad) runs — no terminal-bg island sits
-// beside the bar/list. Checked in LIGHT mode where an unpainted island would be
-// glaring against the light canvas. Walks every content row and asserts no
-// printable cell is rendered with the background dropped to the terminal default.
 func TestLoadingScreen_CentredPaddingCarriesCanvasNoIslands(t *testing.T) {
 	for _, frame := range []struct {
 		name string
@@ -348,7 +255,6 @@ func TestLoadingScreen_CentredPaddingCarriesCanvasNoIslands(t *testing.T) {
 			canvas := lipgloss.NewStyle().Background(th.Canvas.Color())
 
 			for i, raw := range strings.Split(placed, "\n") {
-				// Mirror the production fillCanvas per-line treatment.
 				bf := backfillCanvasBackground(raw, canvasBg, parser)
 				padded := padLineToCanvasWidth(bf, 80, canvas)
 				if island := bareCanvasRun(padded); island != "" {
@@ -359,9 +265,6 @@ func TestLoadingScreen_CentredPaddingCarriesCanvasNoIslands(t *testing.T) {
 	}
 }
 
-// bareCanvasRun decodes a rendered line and returns the first printable run
-// rendered with NO background SGR active (a terminal-bg island), or "" if every
-// printable cell carries a background.
 func bareCanvasRun(line string) string {
 	parser := ansi.NewParser()
 	src := []byte(line)
@@ -384,12 +287,6 @@ func bareCanvasRun(line string) string {
 	return string(run)
 }
 
-// TestLoadingScreen_CaretIsFlushAcrossBannerRows pins the review-fix invariant:
-// the violet caret is a single FLUSH 5-row vertical bar, not a per-row appended
-// glyph that jogs on the ragged-width bottom row (the broken-comma regression).
-// The block banner is built by right-padding all rows to a common width and
-// joining ONE 5-row caret column horizontally — so the caret glyph must land on
-// the SAME column on every one of the five banner rows.
 func TestLoadingScreen_CaretIsFlushAcrossBannerRows(t *testing.T) {
 	block := ansi.Strip(renderBlockWordmark(testDarkTheme(t), false))
 	lines := strings.Split(block, "\n")
@@ -397,18 +294,12 @@ func TestLoadingScreen_CaretIsFlushAcrossBannerRows(t *testing.T) {
 		t.Fatalf("block banner has %d rows, want %d", len(lines), len(loadingWordmark))
 	}
 
-	// The caret is the LAST solid block on each row (the wordmark letters precede
-	// it, then a one-space gap, then the caret column). Find the caret's column as
-	// the index of the final caret glyph on each row; it must be identical on all
-	// five rows (a flush vertical bar).
 	caretCol := -1
 	for i, line := range lines {
 		col := strings.LastIndex(line, loadingCaretGlyph)
 		if col < 0 {
 			t.Fatalf("banner row %d has no caret glyph %q: %q", i, loadingCaretGlyph, line)
 		}
-		// Convert the byte index to a rune column so multi-byte block glyphs count
-		// as one cell each.
 		runeCol := len([]rune(line[:col]))
 		if caretCol == -1 {
 			caretCol = runeCol
@@ -420,13 +311,9 @@ func TestLoadingScreen_CaretIsFlushAcrossBannerRows(t *testing.T) {
 	}
 }
 
-// TestLoadingScreen_TickStatesUseSpecdTokens asserts each step row uses the
-// §10.3 glyph + label token for its done/active/pending state, driven from live
-// LoadingProgress.
 func TestLoadingScreen_TickStatesUseSpecdTokens(t *testing.T) {
 	view := midRestoreProgress().View()
 
-	// Sanity: the accumulator produced the expected mid-restore states.
 	wantStates := map[string]LabelState{
 		LabelStartedTmuxServer:     LabelDone,
 		LabelRegisteredHooks:       LabelDone,
@@ -440,7 +327,6 @@ func TestLoadingScreen_TickStatesUseSpecdTokens(t *testing.T) {
 		}
 	}
 
-	// Each row is rendered with the matching glyph + label token.
 	doneRow := renderTickRow(LoadingLabel{Text: LabelStartedTmuxServer, State: LabelDone}, testDarkTheme(t), false)
 	if !strings.Contains(ansi.Strip(doneRow), loadingGlyphDone) {
 		t.Errorf("done row missing %q glyph: %q", loadingGlyphDone, ansi.Strip(doneRow))
@@ -475,9 +361,6 @@ func TestLoadingScreen_TickStatesUseSpecdTokens(t *testing.T) {
 	}
 }
 
-// TestLoadingScreen_CounterSpacedOnlyOnActiveRestore asserts the spaced `N / M`
-// counter renders ONLY on the active "Restoring sessions" row, in text.muted,
-// and never on any other label.
 func TestLoadingScreen_CounterSpacedOnlyOnActiveRestore(t *testing.T) {
 	view := midRestoreProgress().View()
 	out := renderLoadingScreen(view, 80, 24, testDarkTheme(t), false)
@@ -486,25 +369,20 @@ func TestLoadingScreen_CounterSpacedOnlyOnActiveRestore(t *testing.T) {
 	if !strings.Contains(visible, "8 / 12") {
 		t.Errorf("active restore row missing spaced counter %q:\n%s", "8 / 12", visible)
 	}
-	// The un-spaced form from the accumulator must NOT leak through verbatim.
 	if strings.Contains(visible, "8/12") {
 		t.Errorf("loading screen rendered the un-spaced counter %q; want %q", "8/12", "8 / 12")
 	}
 	if !strings.Contains(out, tokenFgSeq(t, testDarkTheme(t).TextMuted)) {
 		t.Error("counter not painted text.detail")
 	}
-	// Exactly one counter on the whole screen (only the active restore row).
 	if n := strings.Count(visible, "8 / 12"); n != 1 {
 		t.Errorf("counter rendered %d times, want exactly 1 (active restore row only)", n)
 	}
 }
 
-// TestLoadingScreen_SuppressesCounterWhenM0 asserts the M=0 empty-restore case
-// renders no counter on the "Restoring sessions" row (task 5-4 suppresses it).
 func TestLoadingScreen_SuppressesCounterWhenM0(t *testing.T) {
 	var p LoadingProgress
 	for i := 1; i <= totalBootstrapSteps; i++ {
-		// Step 6 completes with RestoreM==0 (no per-session events) — empty restore.
 		p = p.Apply(BootstrapProgressMsg{Index: i})
 	}
 	out := renderLoadingScreen(p.View(), 80, 24, testDarkTheme(t), false)
@@ -515,9 +393,6 @@ func TestLoadingScreen_SuppressesCounterWhenM0(t *testing.T) {
 	}
 }
 
-// TestLoadingScreen_IsRealListNotInPlaceSwap asserts the tick-list is a real list
-// of multiple distinct rows (every label on its own line), not a single in-place
-// text swap.
 func TestLoadingScreen_IsRealListNotInPlaceSwap(t *testing.T) {
 	view := midRestoreProgress().View()
 	out := renderLoadingScreen(view, 80, 24, testDarkTheme(t), false)
@@ -541,20 +416,12 @@ func TestLoadingScreen_IsRealListNotInPlaceSwap(t *testing.T) {
 	}
 }
 
-// TestViewLoading_PaintsCanvasFromFrameOneGated asserts the loading page paints
-// the resolved (pinned/dark-fallback) canvas from frame one and is held behind
-// the §2.6 detect-or-timeout first-paint gate — no paint-then-flip. Until the
-// gate resolves the loading page shows the neutral blank frame; once resolved it
-// paints the canvas-backed loading screen.
 func TestViewLoading_PaintsCanvasFromFrameOneGated(t *testing.T) {
 	m := New(fakeLister{}, WithServerStarted(true), WithThemeNomination(testBuiltinPair(t)))
-	// Arm the adaptive gate so the first-paint window is OPEN (a constant has
-	// nothing to detect, so its gate never opens).
 	m.armAppearanceDetection()
 	var model tea.Model = m
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 
-	// Window open: the loading page must NOT paint the canvas yet (neutral blank).
 	held := model.(Model)
 	if held.modeResolved() {
 		t.Fatal("gate resolved prematurely; expected the first-paint window to be open")
@@ -563,8 +430,6 @@ func TestViewLoading_PaintsCanvasFromFrameOneGated(t *testing.T) {
 		t.Error("loading page painted the canvas before the gate resolved (paint-then-flip risk)")
 	}
 
-	// Resolve via the timeout (dark fallback) — now the loading screen paints the
-	// dark canvas from this, its first real frame.
 	model, _ = model.Update(appearanceTimeoutMsg{})
 	resolved := model.(Model)
 	if !resolved.modeResolved() {
@@ -575,9 +440,6 @@ func TestViewLoading_PaintsCanvasFromFrameOneGated(t *testing.T) {
 	}
 }
 
-// TestLoading_TransitionDualGated asserts the loading page stays until BOTH the
-// terminal BootstrapCompleteMsg AND LoadingMinElapsedMsg arrive — neither alone
-// dismisses it.
 func TestLoading_TransitionDualGated(t *testing.T) {
 	t.Run("complete-then-elapsed", func(t *testing.T) {
 		m := New(fakeLister{}, WithServerStarted(true))
@@ -609,12 +471,6 @@ func TestLoading_TransitionDualGated(t *testing.T) {
 	})
 }
 
-// TestLoadingScreen_DegradesNarrowWithoutOverflow asserts the loading screen
-// degrades on a narrow terminal — 5-row block banner → single-row letter-spaced
-// wordmark → compact wordmark — and never emits a row wider than the content
-// width (no overflow). The block-banner threshold is now ~37 cells (the wider
-// 5-row solid-block art + gap + caret), so a width below that degrades to the
-// single-row form.
 func TestLoadingScreen_DegradesNarrowWithoutOverflow(t *testing.T) {
 	view := midRestoreProgress().View()
 	for _, w := range []int{80, 37, 30, 18, 12, 8} {
@@ -626,12 +482,8 @@ func TestLoadingScreen_DegradesNarrowWithoutOverflow(t *testing.T) {
 		}
 	}
 
-	// The block banner's first row, trimmed of its render-time right-pad, is the
-	// signature substring used to detect "the block banner is on screen".
 	blockSignature := strings.TrimRight(loadingWordmark[0], " ")
 
-	// At/above the ~37-cell block width the 5-row banner is used; below it the
-	// single-row wordmark; narrower still the compact wordmark.
 	wide := ansi.Strip(renderLoadingScreen(view, 80, 24, testDarkTheme(t), false))
 	if !strings.Contains(wide, blockSignature) {
 		t.Error("wide terminal should render the 5-row block banner")
@@ -660,13 +512,6 @@ func TestLoadingScreen_DegradesNarrowWithoutOverflow(t *testing.T) {
 	}
 }
 
-// TestLoadingScreen_ShortNoOverflow asserts a short terminal never overflows its
-// height — the composed block fits within the content height. The bar (1 row) +
-// the 5-row tick-list is the irreducible floor (6 rows); below that the terminal
-// is below minimum support. The height degrade drops the two 2-row inter-section
-// gaps first (saving 2×2 rows), then the (taller, 5-row) block banner — collapsing
-// it to the single-row form and finally dropping the wordmark entirely — so the
-// step-list never overflows.
 func TestLoadingScreen_ShortNoOverflow(t *testing.T) {
 	view := midRestoreProgress().View()
 	for _, h := range []int{24, 13, 12, 8, 6} {
@@ -676,8 +521,6 @@ func TestLoadingScreen_ShortNoOverflow(t *testing.T) {
 		}
 	}
 
-	// At a short-but-fits height the wordmark is dropped (the bar + list floor),
-	// but the step-list still renders all five rows.
 	short := ansi.Strip(renderLoadingScreen(view, 80, 6, testDarkTheme(t), false))
 	for _, label := range labelOrder {
 		if !strings.Contains(short, label) {
@@ -686,14 +529,10 @@ func TestLoadingScreen_ShortNoOverflow(t *testing.T) {
 	}
 }
 
-// TestLoadingScreen_ColourlessNoCanvasGlyphDistinct asserts the NO_COLOR
-// carve-out: no canvas/hue is painted, but the state stays distinguishable by
-// glyph (✓/◐/·) so the screen is usable colourless.
 func TestLoadingScreen_ColourlessNoCanvasGlyphDistinct(t *testing.T) {
 	view := midRestoreProgress().View()
 	out := renderLoadingScreen(view, 80, 24, testDarkTheme(t), true)
 
-	// No canvas background and no hue SGR survive the colourless path.
 	if strings.Contains(out, tokenBgSeq(t, testDarkTheme(t).Canvas)) {
 		t.Error("colourless loading screen painted the canvas background")
 	}
@@ -704,7 +543,6 @@ func TestLoadingScreen_ColourlessNoCanvasGlyphDistinct(t *testing.T) {
 		t.Error("colourless loading screen painted the violet bar fill")
 	}
 
-	// State stays glyph-distinct.
 	visible := ansi.Strip(out)
 	for _, glyph := range []string{loadingGlyphDone, loadingGlyphActive, loadingGlyphPending} {
 		if !strings.Contains(visible, glyph) {
@@ -713,8 +551,6 @@ func TestLoadingScreen_ColourlessNoCanvasGlyphDistinct(t *testing.T) {
 	}
 }
 
-// TestWarmPath_NoLoadingScreen asserts the warm path never lands on PageLoading
-// (task 5-1 gates this on serverStarted), so viewLoading is never rendered.
 func TestWarmPath_NoLoadingScreen(t *testing.T) {
 	m := New(fakeLister{})
 	if m.ActivePage() == PageLoading {

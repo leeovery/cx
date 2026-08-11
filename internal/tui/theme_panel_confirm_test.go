@@ -13,69 +13,9 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// The picker idiom's SLOT-FROM-CONSTANT CONFIRM: the one gate in the panel, and the only place
-// a keypress the user was told is inert can silently cost them a setting they
-// chose.
-//
-// On `"theme": "nord"`, pressing `l` clears the constant, the untouched dark slot
-// falls back to the shipped default, and `Esc` in a dark terminal lands on
-// `tokyo-night` rather than `nord`. The picker idiom puts a confirm in front of exactly that,
-// and three of its properties are what make the tests below more than a yes/no
-// prompt:
-//
-//   - IT IS KEY-EXCLUSIVE WITHIN THE PANEL. An arrow that moved the cursor
-//     mid-question would re-theme the screen while the user is answering about a
-//     row that has just stopped being the previewed one — so every key but the
-//     three answers and `Ctrl-C` is swallowed, and the swallow table below carries
-//     a POSITIVE CONTROL per key: a key that does nothing anyway proves nothing.
-//   - `Esc` CANCELS RATHER THAN CLOSES. The innermost thing resolves first, the
-//     same nesting rule the panel already applies over multi-select, so the
-//     assertion is made against the CLOSE path's own observable effects rather than
-//     against the `open` flag alone.
-//   - NOTHING IS WRITTEN UNTIL `y`. A cancel leaves the preview, the cursor, the
-//     badges and the row set exactly as they were, and a forced close drops
-//     the question with no partial state behind it.
-//
-// No t.Parallel() — the package-level mock convention makes parallelism unsafe
-// across this package's tests.
-
-// The confirm's three resolving inputs, in every shape that can reach the dispatch —
-// the ones a terminal actually delivers plus one defensive pin — and the two
-// near-misses that must NOT resolve it.
-//
-// AN UPPERCASE ANSWER ALWAYS CARRIES ModShift, on BOTH paths. A legacy byte is
-// decoded by parseUtf8 into the base rune `y` with the original in ShiftedCode, the
-// text "Y" and ModShift set (decoder.go:1097-1102); under the Kitty keyboard protocol
-// the same keypress reports that same base rune with shift on the modifier parameter
-// and the text repopulated to "Y". confirmYesShift/confirmNoShift are therefore what a
-// terminal ACTUALLY sends for `Y`/`N` — and why a matcher requiring `Mod == 0` would
-// leave the picker idiom's uppercase answer dead on EVERY terminal, not on a subset of them.
-//
-// confirmYesUpper/confirmNoUpper ARE THE DEFENSIVE `Mod == 0` SHAPE, not a second
-// terminal encoding: no path in this stack hands the dispatch an uppercase Code with
-// an empty modifier field for a shift-typed letter. They stay because they pin the
-// matcher's EqualFold independently of its modifier mask — a case-sensitive matcher
-// kills them and leaves the shift rows to the mask.
-//
-// CAPS LOCK IS THE OTHER ENCODING OF THAT SAME ANSWER. The Kitty decoder reports it
-// as the base rune carrying ModCapsLock with the shifted text, so a matcher
-// forgiving shift ALONE rejects a caps-lock user's `y` — the picker idiom's answer key, dead
-// for the one class of user most likely to be typing capitals.
-//
-// NUM LOCK RIDES ALONG ON A PLAIN LOWERCASE `y`. It is not another encoding of the
-// uppercase answer — it is the ordinary one, wearing a modifier the decoder strips
-// from a local copy before repopulating the text and never from the event it emits
-// (see themeConfirmAnswer's note on decoder.go:1474-1478). So Portal sees
-// {Text:"y", Mod:ModNumLock}, and a mask forgiving only shift and caps lock kills `y`
-// outright for anyone typing with num lock on.
-//
-// `Ctrl-Y` AND `Alt-N` CARRY NO Text. bubbletea documents Key.Text as empty for
-// "key combos with modifier keys", and ultraviolet enforces it on every path (the
-// Esc-prefixed alt path clears it, control bytes decode to a bare Code plus ModCtrl,
-// and the Kitty repopulation gate skips anything past shift and the locks). So these
-// two press shapes are what a terminal ACTUALLY delivers, and what the swallow table
-// pins is the dispatch refusing them — the matcher's modifier mask is the
-// belt-and-braces half of that refusal rather than the load-bearing one.
+// Uppercase always carries ModShift on both terminal paths; the `*Upper` pair is
+// the defensive `Mod == 0` shape. Caps and num lock ride on the base rune with a
+// lock modifier, and bubbletea gives modifier combos an empty Key.Text.
 var (
 	confirmYes         = tea.KeyPressMsg{Code: 'y', Text: "y"}
 	confirmYesUpper    = tea.KeyPressMsg{Code: 'Y', Text: "Y"}
@@ -91,29 +31,18 @@ var (
 	confirmCtrlC       = tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}
 )
 
-// slotConfirmRows is the confirm fixture's union: six selectable rows, each with
-// its own palette, so a cursor move is observable as a whole-frame colour change
-// and the paging fixture below has three pages to move between.
 func slotConfirmRows(t *testing.T) []theme.Row {
 	t.Helper()
 	return arrowValidRows(t, 6)
 }
 
-// newSlotConfirmModel opens the panel over a CONSTANT (rows[0]) with the cursor
-// ARROWED OFF the persisted row, which is the only shape in which the pending
-// slug and the constant being cleared are distinguishable strings.
-//
-// The persister is attached through the production option after the open, exactly
-// as the recompute fixture attaches its own: the open itself must not write, so a
-// seam wired before it would be recording an event this suite never wants to see.
+// The cursor is arrowed off the persisted row, so the pending slug and the
+// constant being cleared are distinguishable strings.
 func newSlotConfirmModel(t *testing.T) (Model, *fakeThemePersister) {
 	t.Helper()
 	return newSlotConfirmModelAt(t, arrowTermH)
 }
 
-// newSlotConfirmModelAt is newSlotConfirmModel at a chosen terminal HEIGHT — the
-// one input the panel's page size is a function of, which the swallow table needs
-// so `Ctrl+↑`/`Ctrl+↓` have somewhere to move.
 func newSlotConfirmModelAt(t *testing.T, termH int) (Model, *fakeThemePersister) {
 	t.Helper()
 
@@ -121,9 +50,8 @@ func newSlotConfirmModelAt(t *testing.T, termH int) (Model, *fakeThemePersister)
 	m := newArrowPanelModelAt(t, rows, rows[0].Slug, termH)
 	persister := &fakeThemePersister{}
 	WithThemePersister(persister)(&m)
-	// The swallow table's `k` control needs a killer to reach the confirm modal with
-	// the panel closed; a nil one makes the key a no-op for a reason that has nothing
-	// to do with the panel.
+	// The `k` control needs a killer to reach the confirm modal with the panel
+	// closed; a nil one makes the key a no-op for an unrelated reason.
 	m.sessionKiller = keymapParityKiller{}
 
 	m = arrowToThemeRow(t, m, slotConfirmTarget())
@@ -136,49 +64,30 @@ func newSlotConfirmModelAt(t *testing.T, termH int) (Model, *fakeThemePersister)
 	return m, persister
 }
 
-// slotConfirmConstant / slotConfirmTarget are the fixture's persisted constant and
-// the row the cursor is parked on — the two slugs every assertion below tells
-// apart.
 func slotConfirmConstant() string { return arrowSlug(0) }
 func slotConfirmTarget() string   { return arrowSlug(2) }
 
-// slotConfirmCopy is the confirm as these assertions read it: the pinned leading
-// phrase carrying as much of the slug as ANY width leaves, since the slug is the one
-// element the ladder truncates and the floor guarantees three of its characters.
-//
-// The trailing keys are asserted separately (slotConfirmAnswerKeys), so the two
-// halves of the pinned frame are checked either side of the element that moves.
-// Composing the whole line through the production composer instead would move with
-// the ladder — and would hold just as readily if that composer produced nothing at
-// all.
+// The leading phrase plus as much of the slug as any width leaves — the slug is
+// what the ladder truncates, and the floor guarantees three characters. Composed
+// here rather than through the production composer, which would hold vacuously.
 func slotConfirmCopy(slug string) string {
 	runes := []rune(slug)
 	return "clear constant " + string(runes[:min(themeRowLabelFloor-1, len(runes))])
 }
 
-// slotConfirmAnswerKeys is the tail of the pinned confirm — the half that says how
-// to answer it, and the half no width truncates.
 const slotConfirmAnswerKeys = "?  y / n"
 
-// slotConfirmLine is the whole confirm line as the panel composes it at the width
-// the model is rendering, for the assertions that compare the message row for
-// EQUALITY — where the composer's own output is a legitimate expectation, since an
-// empty one would fail against a rendered row rather than pass silently.
+// For equality comparisons only — this one does go through the production
+// composer, whose empty output fails against a rendered row rather than passing.
 func slotConfirmLine(m Model, slug string) string {
 	return themePanelConfirmText(slug, themePanelInnerWidth(m.themePanel.width))
 }
 
-// raiseSlotConfirmForTest drives a slot key through the live Update and fails
-// unless it raised the confirm, so a test whose subject is the ANSWER does not
-// silently start from an un-raised panel.
 func raiseSlotConfirmForTest(t *testing.T, m Model, press tea.KeyPressMsg, member theme.Member) Model {
 	t.Helper()
 	return raiseSlotConfirmForTestAt(t, m, press, themeSlotConfirm{slug: slotConfirmTarget(), member: member})
 }
 
-// raiseSlotConfirmForTestAt is raiseSlotConfirmForTest for a fixture whose pending
-// assignment is not this file's standard one — the nil-persister model, which is
-// built from the COMMIT fixture's rows rather than the confirm fixture's.
 func raiseSlotConfirmForTestAt(t *testing.T, m Model, press tea.KeyPressMsg, pending themeSlotConfirm) Model {
 	t.Helper()
 
@@ -190,33 +99,27 @@ func raiseSlotConfirmForTestAt(t *testing.T, m Model, press tea.KeyPressMsg, pen
 	return raised
 }
 
-// pressConfirmKey drives one key through the live Update while the confirm is up.
 func pressConfirmKey(t *testing.T, m Model, press tea.KeyPressMsg) (Model, tea.Cmd) {
 	t.Helper()
 	updated, cmd := m.Update(press)
 	return updated.(Model), cmd
 }
 
-// requireConfirmLive fails unless the panel is holding the picker idiom's confirm for the
-// pending assignment: the message slot naming the PERSISTED constant, the pending
-// slug and typed slot recorded, and the panel still open.
 func requireConfirmLive(t *testing.T, m Model, pending themeSlotConfirm) {
 	t.Helper()
 
 	want := themePanelMessage{Kind: themeMessageConfirm, Slug: m.themeState.keys.Theme}
 	if got := m.themePanel.message; got != want {
-		t.Errorf("the message slot holds %+v, want %+v — the confirm names the CONSTANT being cleared (§9.2)", got, want)
+		t.Errorf("the message slot holds %+v, want %+v — the confirm names the CONSTANT being cleared", got, want)
 	}
 	if got := m.themePanel.pending; got != pending {
 		t.Errorf("the panel holds the pending assignment %+v, want %+v", got, pending)
 	}
 	if !m.themePanel.open {
-		t.Error("the confirm closed the panel; it is inline, not a modal, and `Esc` is the only close (§9.2)")
+		t.Error("the confirm closed the panel; it is inline, not a modal, and `Esc` is the only close")
 	}
 }
 
-// requireConfirmResolved fails unless the confirm is gone AND the slot is empty —
-// the ordinary resolution, where nothing took the row the question vacated.
 func requireConfirmResolved(t *testing.T, m Model) {
 	t.Helper()
 
@@ -226,13 +129,6 @@ func requireConfirmResolved(t *testing.T, m Model) {
 	}
 }
 
-// requireConfirmGone fails unless the confirm itself is gone — the question and the
-// pending assignment, which are raised and cleared as one act.
-//
-// It is separate from requireConfirmResolved because the failed-commit line
-// legitimately takes the slot the question vacated: the confirm is resolved there
-// too, and asserting an EMPTY slot would read that report as a confirm still
-// standing.
 func requireConfirmGone(t *testing.T, m Model) {
 	t.Helper()
 
@@ -243,30 +139,18 @@ func requireConfirmGone(t *testing.T, m Model) {
 		t.Errorf("the resolved confirm left the pending assignment %+v, want the zero value", got)
 	}
 	if !m.themePanel.open {
-		t.Error("resolving the confirm closed the panel; only `Esc` with NO confirm live closes it (§9.2)")
+		t.Error("resolving the confirm closed the panel; only `Esc` with NO confirm live closes it")
 	}
 }
 
-// slotConfirmPanelText is the panel as a user reads it: rendered at the height it
-// is composited into, with every SGR sequence stripped.
 func slotConfirmPanelText(m Model) string {
 	return ansi.Strip(renderRecomputePanel(m))
 }
 
-// slotConfirmPanelCopy reduces the whole rendered panel to one whitespace-collapsed
-// reading, so a footer row's fixed key column and pad-to-width collapse away and
-// the pinned phrases can be matched verbatim (themePanelFooterCopy's rule
-// applied to the block).
 func slotConfirmPanelCopy(m Model) string {
 	return themePanelFooterCopy(slotConfirmPanelText(m))
 }
 
-// requireConfirmFooter fails unless the panel is rendering the picker idiom's NESTED CONFIRM
-// SCOPE — `y confirm` / `n cancel` — and none of the standing scope's four rows.
-//
-// The standing footer advertises four keys of which NONE would act during a
-// confirm, and the footer rule is firm that advertising a key that will not act is the dead
-// end a proactive block exists to prevent.
 func requireConfirmFooter(t *testing.T, m Model) {
 	t.Helper()
 
@@ -278,13 +162,11 @@ func requireConfirmFooter(t *testing.T, m Model) {
 	}
 	for _, gone := range themePanelFooterPinnedRows() {
 		if strings.Contains(footer, gone) {
-			t.Errorf("the panel footer still advertises %q while the confirm is live; none of the standing keys would act (§9.2)\n%s", gone, slotConfirmPanelText(m))
+			t.Errorf("the panel footer still advertises %q while the confirm is live; none of the standing keys would act\n%s", gone, slotConfirmPanelText(m))
 		}
 	}
 }
 
-// requireStandingFooter fails unless the panel is back on the pinned copy's four-row footer
-// with no trace of the confirm's substituted rows.
 func requireStandingFooter(t *testing.T, m Model) {
 	t.Helper()
 
@@ -301,13 +183,6 @@ func requireStandingFooter(t *testing.T, m Model) {
 	}
 }
 
-// TestSlotConfirm_RaisedByDAndLOverAConstant: it raises the confirm on a constant.
-//
-// The picker idiom: "**Assigning a slot while a constant is set asks for confirmation
-// first.** This is the one place a keypress described as inert can silently cost
-// the user a setting they chose." So the keypress writes NOTHING, records what it
-// would write, names the constant it would clear, and swaps the footer to the
-// question's own keys.
 func TestSlotConfirm_RaisedByDAndLOverAConstant(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
@@ -325,7 +200,7 @@ func TestSlotConfirm_RaisedByDAndLOverAConstant(t *testing.T) {
 			m, cmd := pressSlotKey(t, m, tc.press)
 
 			if len(persister.slugs) != 0 {
-				t.Errorf("%q wrote %v while raising the confirm; nothing is written until `y` (§9.2)", tc.name, persister.slugs)
+				t.Errorf("%q wrote %v while raising the confirm; nothing is written until `y`", tc.name, persister.slugs)
 			}
 			requireConfirmLive(t, m, themeSlotConfirm{slug: slotConfirmTarget(), member: tc.member})
 			requireConstantKeys(t, m, slotConfirmConstant())
@@ -348,27 +223,13 @@ func TestSlotConfirm_RaisedByDAndLOverAConstant(t *testing.T) {
 	}
 }
 
-// TestSlotConfirm_UnselectableRowAsksNothing: it asks nothing on a non-selectable
-// row.
-//
-// The same DEFENSIVE guard `Enter` carries, at the site where it decides
-// the most: the slug the raise records is what a question the user has ALREADY
-// ANSWERED goes on to write. An unguarded raise here would ask "clear constant X?"
-// about an empty slug and, on `y`, clear the constant AND write an empty slot value
-// — the silent loss the picker idiom's confirm exists to prevent, arrived at THROUGH the
-// confirm.
-//
-// STRUCTURALLY UNREACHABLE, exactly as it is for `Enter`: the arrows skip
-// unselectable rows and the open-time anchor lands on a selectable one.
-// The cursor is therefore placed DIRECTLY, bypassing both.
+// Structurally unreachable, so the cursor is placed directly.
 func TestSlotConfirm_UnselectableRowAsksNothing(t *testing.T) {
-	// requireNothingAsked fails unless the keypress left NO question on screen and
-	// nothing pending for a later `y` to write.
 	requireNothingAsked := func(t *testing.T, m Model, p *fakeThemePersister, rows []theme.Row) {
 		t.Helper()
 
 		if got := m.themePanel.message; got.Kind != themeMessageNone {
-			t.Errorf("`d` raised the message %+v on a row it cannot commit; an empty slug is not a setting to ask about (§9.2)", got)
+			t.Errorf("`d` raised the message %+v on a row it cannot commit; an empty slug is not a setting to ask about", got)
 		}
 		if got := m.themePanel.pending; got != (themeSlotConfirm{}) {
 			t.Errorf("`d` recorded the pending assignment %+v, want the zero value — a `y` would go on to write it", got)
@@ -410,8 +271,6 @@ func TestSlotConfirm_UnselectableRowAsksNothing(t *testing.T) {
 		requireNothingAsked(t, m, persister, rows)
 	})
 
-	// Positive control: the same keypress on a SELECTABLE row DOES ask, so the two
-	// refusals above are a guard rather than an unwired arm.
 	t.Run("a selectable row does ask", func(t *testing.T) {
 		rows := []theme.Row{arrowValidRow(t, arrowSlug(0), 0), arrowInvalidRow(arrowSlug(1))}
 		m, persister := newCommitPanelModel(t, rows, rows[0].Slug)
@@ -423,17 +282,6 @@ func TestSlotConfirm_UnselectableRowAsksNothing(t *testing.T) {
 	})
 }
 
-// TestSlotConfirm_ConfirmsOnEitherCase: it commits on y and Y.
-//
-// The picker idiom: "`y` or `Y` confirms — the constant is cleared and the slot written, in
-// one atomic prefs write." Both cases are asserted, and the uppercase one in every shape
-// that can reach the dispatch (see the press vars): the ModShift shape BOTH terminal
-// paths converge on, the caps-lock shape — dead on a matcher forgiving shift alone,
-// for the very users most likely to be typing capitals — and the bare `Mod == 0`
-// shape the mask is defensive against, which pins the EqualFold on its own. The
-// num-lock row is the LOWERCASE answer with a stray lock modifier the decoder emits
-// but does not mean, and it is here for the same reason as the caps-lock one: a lock
-// key must never make an answer key dead.
 func TestSlotConfirm_ConfirmsOnEitherCase(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
@@ -462,11 +310,6 @@ func TestSlotConfirm_ConfirmsOnEitherCase(t *testing.T) {
 	}
 }
 
-// TestSlotConfirm_CancelsOnThreeInputs: it cancels on n, N and Esc.
-//
-// The picker idiom: "`n`, `N` or `Esc` cancels, leaving the panel open and nothing written."
-// The uppercase shapes ride along for the same reason `Y`'s do — confirmNoShift is
-// what a terminal sends, confirmNoUpper the defensive `Mod == 0` pin on EqualFold.
 func TestSlotConfirm_CancelsOnThreeInputs(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
@@ -485,7 +328,7 @@ func TestSlotConfirm_CancelsOnThreeInputs(t *testing.T) {
 			m, cmd := pressConfirmKey(t, m, tc.press)
 
 			if len(persister.slugs) != 0 {
-				t.Errorf("%q wrote %v; a cancel writes nothing (§9.2)", tc.name, persister.slugs)
+				t.Errorf("%q wrote %v; a cancel writes nothing", tc.name, persister.slugs)
 			}
 			if m.themeState.keys != keys {
 				t.Errorf("%q left keys %+v, want the untouched %+v", tc.name, m.themeState.keys, keys)
@@ -499,17 +342,6 @@ func TestSlotConfirm_CancelsOnThreeInputs(t *testing.T) {
 	}
 }
 
-// TestSlotConfirm_EscCancelsNotCloses: it does not close the panel on Esc.
-//
-// The picker idiom: "`Esc` cancels the confirm rather than closing the panel, because the
-// innermost thing resolves first — the same nesting rule the entry-condition rule applies to
-// the panel over multi-select."
-//
-// The `open` flag alone is a weak statement (a close that reopened would satisfy
-// it), so this is asserted against the CLOSE path's own observable effects: the
-// re-read-on-open rule's retained enumeration, the union, the badge table, the sized list —
-// and the PREVIEW, which the close discards in favour of the resolved persisted state. The
-// enumeration is still retained, so the next `Esc` does the close it did not do.
 func TestSlotConfirm_EscCancelsNotCloses(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
@@ -527,16 +359,16 @@ func TestSlotConfirm_EscCancelsNotCloses(t *testing.T) {
 	m, cmd := pressConfirmKey(t, m, confirmEsc)
 
 	if !m.themePanel.open {
-		t.Fatal("`Esc` closed the panel while the confirm was live; the innermost thing resolves first (§9.2)")
+		t.Fatal("`Esc` closed the panel while the confirm was live; the innermost thing resolves first")
 	}
 	if got := m.themePanel.enumeration; len(got.Entries) == 0 || got.DirPath != dir {
-		t.Errorf("the cancel discarded the enumeration (%d entries from %q), want the retained read of %q — that is the close's own effect (§5.8)", len(got.Entries), got.DirPath, dir)
+		t.Errorf("the cancel discarded the enumeration (%d entries from %q), want the retained read of %q — that is the close's own effect", len(got.Entries), got.DirPath, dir)
 	}
 	if len(m.themePanel.union.Rows) == 0 || m.themePanel.badges == nil || len(m.themePanel.list.Items()) == 0 || m.themePanel.width == 0 {
 		t.Errorf("the cancel discarded panel state %+v, want everything the close would have dropped left in place", m.themePanel)
 	}
 	if m.themeState.active != previewed {
-		t.Errorf("the cancel rendered canvas %s, want the previewed %s — the close is what discards a preview (§9.2)", m.themeState.active.Canvas.Value, previewed.Canvas.Value)
+		t.Errorf("the cancel rendered canvas %s, want the previewed %s — the close is what discards a preview", m.themeState.active.Canvas.Value, previewed.Canvas.Value)
 	}
 	if len(persister.slugs) != 0 {
 		t.Errorf("the cancel wrote %v, want nothing", persister.slugs)
@@ -545,9 +377,6 @@ func TestSlotConfirm_EscCancelsNotCloses(t *testing.T) {
 		t.Errorf("the cancel scheduled %T, want nothing", cmd)
 	}
 
-	// The control: with no confirm live the SAME key takes the close it just
-	// declined to take, so the assertions above are the nesting rule rather than an
-	// `Esc` that stopped working.
 	m = closeThemePanelForTest(t, m)
 	if m.themePanel.open {
 		t.Fatal("control: `Esc` with no confirm live did not close the panel")
@@ -560,11 +389,6 @@ func TestSlotConfirm_EscCancelsNotCloses(t *testing.T) {
 	}
 }
 
-// TestSlotConfirm_CtrlCQuits: it keeps Ctrl-C live.
-//
-// The picker idiom: "`Ctrl-C` quits Portal, per the entry-condition rule. It is not a cancel;
-// it stays live everywhere" — swallowing it would take away the user's exit key inside a
-// settings surface. It is also not a write: the question was never answered.
 func TestSlotConfirm_CtrlCQuits(t *testing.T) {
 	m, persister := newSlotConfirmModel(t)
 	m = raiseSlotConfirmForTest(t, m, slotDarkPress, theme.MemberDark)
@@ -582,22 +406,8 @@ func TestSlotConfirm_CtrlCQuits(t *testing.T) {
 	}
 }
 
-// TestSlotConfirm_SwallowsEverythingElse: it swallows every other key.
-//
-// The picker idiom: "Every other key is swallowed — arrows, `Enter`, the other slot key, all
-// of it. The confirm persists until one of the three above resolves it."
-//
-// EVERY ROW CARRIES A POSITIVE CONTROL, because a key that does nothing anyway
-// proves nothing about a swallow: the panel already swallows the page's own keys,
-// so `k`, `x`, `m`, `/` and `?` are driven with the panel CLOSED and the
-// panel's own keys with it OPEN and no confirm live. What is asserted of the live
-// case is the whole frame, byte for byte, plus the confirm still standing — any
-// effect a key could have had is a change to one of those.
-//
-// THE SECOND `l` IS DELIBERATELY IN THE TABLE ALONGSIDE `d`. A re-raise of the SAME
-// key with the same cursor is state-identical by construction, so what that row
-// pins is that it neither commits nor resolves the question; the OTHER slot key is
-// where a re-raise is observable, since it would flip the pending slot.
+// A re-raise of the same slot key is state-identical by construction, so the
+// OTHER slot key is where a re-raise would be observable.
 func TestSlotConfirm_SwallowsEverythingElse(t *testing.T) {
 	cursorMoved := func(before, after Model) bool {
 		return after.themePanel.list.Index() != before.themePanel.list.Index()
@@ -615,10 +425,8 @@ func TestSlotConfirm_SwallowsEverythingElse(t *testing.T) {
 			return effect(closed, pressPanelKey(t, closed, press))
 		}
 	}
-	// answerControl is the control the two MODIFIED answer letters need: their
-	// control is not the same key elsewhere but the UNMODIFIED letter here, which
-	// does resolve the confirm. It is driven against a confirm raised on the base
-	// model, which is the only state in which either letter means anything at all.
+	// The control for a modified answer letter is the UNMODIFIED letter, not the
+	// same key elsewhere.
 	answerControl := func(answer tea.KeyPressMsg, effect func(before, after Model) bool) func(*testing.T, Model, tea.KeyPressMsg) bool {
 		return func(t *testing.T, base Model, _ tea.KeyPressMsg) bool {
 			t.Helper()
@@ -728,9 +536,8 @@ func TestSlotConfirm_SwallowsEverythingElse(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			// The PAGING height is what gives `Ctrl+↑`/`Ctrl+↓` somewhere to move: at
-			// the standard fixture height every row fits on one page and the two would
-			// be inert for a reason that has nothing to do with the confirm.
+			// The paging height gives `Ctrl+↑`/`Ctrl+↓` somewhere to move; at the
+			// standard height they are inert for an unrelated reason.
 			base, _ := newSlotConfirmModelAt(t, arrowPagingTermH)
 			requireArrowPanelPageSize(t, base, arrowPagingPerPage)
 
@@ -746,13 +553,13 @@ func TestSlotConfirm_SwallowsEverythingElse(t *testing.T) {
 
 			requireConfirmLive(t, got, themeSlotConfirm{slug: slotConfirmTarget(), member: theme.MemberLight})
 			if len(persister.slugs) != 0 {
-				t.Errorf("%v wrote %v while the confirm was live; only `y` writes (§9.2)", tc.press, persister.slugs)
+				t.Errorf("%v wrote %v while the confirm was live; only `y` writes", tc.press, persister.slugs)
 			}
 			if got.themeState.keys != live.themeState.keys {
 				t.Errorf("%v left keys %+v, want the untouched %+v", tc.press, got.themeState.keys, live.themeState.keys)
 			}
 			if index, want := got.themePanel.list.Index(), live.themePanel.list.Index(); index != want {
-				t.Errorf("%v moved the cursor to row %d, want it left on %d — an arrow mid-question would re-theme the screen behind the answer (§9.2)", tc.press, index, want)
+				t.Errorf("%v moved the cursor to row %d, want it left on %d — an arrow mid-question would re-theme the screen behind the answer", tc.press, index, want)
 			}
 			if got.themeState.active != live.themeState.active {
 				t.Errorf("%v rendered canvas %s, want the previewed %s left alone", tc.press, got.themeState.active.Canvas.Value, live.themeState.active.Canvas.Value)
@@ -771,16 +578,6 @@ func TestSlotConfirm_SwallowsEverythingElse(t *testing.T) {
 	}
 }
 
-// TestSlotConfirm_CancelIsInert: it leaves everything untouched on cancel.
-//
-// The picker idiom: a cancel leaves "the panel open and nothing written". The panel the user
-// is left looking at must therefore be the panel they were looking at before they
-// pressed the key — preview, cursor, badges and row set — which is asserted here as
-// the composed frame byte for byte plus each of those four values.
-//
-// The RAISE is the control for the frame comparison: it genuinely changes the frame
-// (message slot in, footer swapped), so "the frame came back" is a restoration
-// rather than a keypress that never rendered anything.
 func TestSlotConfirm_CancelIsInert(t *testing.T) {
 	m, persister := newSlotConfirmModel(t)
 	keys := m.themeState.keys
@@ -820,18 +617,8 @@ func TestSlotConfirm_CancelIsInert(t *testing.T) {
 	}
 }
 
-// TestSlotConfirm_AtomicConstantClearPlusSlot: it clears the constant and writes
-// the slot atomically.
-//
-// The picker idiom: "the constant is cleared and the slot written, in ONE atomic prefs write",
-// which prefs.SaveThemeSlot performs. What the confirm owes it is
-// that the panel asks for it ONCE — no second call to clear the constant — and that
-// the recompute then moves the badges: the constant's bare `●` is gone and the
-// committed slot's `●` is on the row the cursor was parked on.
-//
-// The fixture runs over a REAL loader and a REAL directory, for the recompute's reason:
-// a stub seam answering with a fixed union would make every row and every `●` a
-// statement about the fixture rather than about the derivation the commit drives.
+// A real loader: a stub seam answering with a fixed union would make every row
+// and every `●` a statement about the fixture.
 func TestSlotConfirm_AtomicConstantClearPlusSlot(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
@@ -847,39 +634,21 @@ func TestSlotConfirm_AtomicConstantClearPlusSlot(t *testing.T) {
 
 	requireSlotCommits(t, persister, slotCommit{slug: "nord", member: theme.MemberLight})
 	if len(persister.slugs) != 1 {
-		t.Errorf("the answer made %d seam call(s) (%v), want the single atomic slot write (§8.2)", len(persister.slugs), persister.slugs)
+		t.Errorf("the answer made %d seam call(s) (%v), want the single atomic slot write", len(persister.slugs), persister.slugs)
 	}
 	requirePairKeys(t, m, "nord", "")
 	requireConfirmResolved(t, m)
 	requireStandingFooter(t, m)
 	requireBadge(t, m, "nord", theme.BadgeLight)
 	requireBadge(t, m, "aurora", theme.BadgeNone)
-	// The dark slot was never set, so the row-rendering rule's third badge row puts its `●` on
-	// the shipped default — and the constant's bare `●` is gone from the panel entirely.
 	requireBadge(t, m, theme.DefaultDarkSlug, theme.BadgeDark)
 	requireBadgeText(t, m, 0, 1, 1)
 
-	// The mid-session conversion rule's other half is a FILE rather than an answer: the slot the
-	// user did not assign was never loaded at construction and becomes live on this keypress.
-	// That load is the newly-live slot's, reached from the one arm that can create the state.
 	if got := themePanelSeamCallers(t, "loadNewlyLiveSlot"); !slices.Equal(got, []string{"confirmSlotAssignment"}) {
-		t.Errorf("the newly-live-slot seam is called from %v, want exactly [confirmSlotAssignment] — §8.4's load has one route in", got)
+		t.Errorf("the newly-live-slot seam is called from %v, want exactly [confirmSlotAssignment] — the slot load has one route in", got)
 	}
 }
 
-// TestSlotConfirm_FailedCommitKeepsTheConstant: it keeps the constant in memory
-// when the write fails.
-//
-// The failed-commit rule: a failed commit "does not move the `●` — the marker means 'what is
-// persisted' and would be lying if it moved". The mechanism is that nothing is
-// mutated: the constant is cleared in the WRITE, and this write did not
-// land, so the panel still marks it with the bare `●`.
-//
-// The confirm itself resolves EITHER WAY — the question has been answered, so the
-// footer comes back — and the failed-commit rule's line then takes the slot the question
-// vacated. That ordering is what makes the panel layout's two contenders mutually exclusive on
-// this path: the confirm gates the write, so by the time a write can fail it has already
-// resolved.
 func TestSlotConfirm_FailedCommitKeepsTheConstant(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
@@ -897,42 +666,33 @@ func TestSlotConfirm_FailedCommitKeepsTheConstant(t *testing.T) {
 
 	requireSlotCommits(t, persister, slotCommit{slug: "nord", member: theme.MemberDark})
 	if m.themeState.keys != keys {
-		t.Errorf("a failed commit left keys %+v, want the untouched %+v — §8.2 clears the constant in the WRITE, and this write did not land", m.themeState.keys, keys)
+		t.Errorf("a failed commit left keys %+v, want the untouched %+v — the constant is cleared in the WRITE, and this write did not land", m.themeState.keys, keys)
 	}
 	if got := m.themePanel.badges; !maps.Equal(got, badges) {
-		t.Errorf("a failed commit left badges %v, want the untouched %v — a failed commit does not move the `●` (§9.13)", got, badges)
+		t.Errorf("a failed commit left badges %v, want the untouched %v — a failed commit does not move the `●`", got, badges)
 	}
 	requireBadge(t, m, "aurora", theme.BadgeConstant)
 	if got := themePanelRowLabels(m); !slices.Equal(got, labels) {
-		t.Errorf("a failed commit left rows %v, want the untouched %v — only a SUCCESSFUL commit recomputes (§9.2)", got, labels)
+		t.Errorf("a failed commit left rows %v, want the untouched %v — only a SUCCESSFUL commit recomputes", got, labels)
 	}
 	requireConfirmGone(t, m)
 	requireStandingFooter(t, m)
 	if m.themeState.active != previewed {
-		t.Errorf("a failed commit rendered canvas %s, want the previewed %s — §9.13 KEEPS the theme applied in memory", m.themeState.active.Canvas.Value, previewed.Canvas.Value)
+		t.Errorf("a failed commit rendered canvas %s, want the previewed %s — a failed commit KEEPS the theme applied in memory", m.themeState.active.Canvas.Value, previewed.Canvas.Value)
 	}
 	if cmd != nil {
 		t.Errorf("a failed commit scheduled %T, want nothing", cmd)
 	}
 
-	// The REPORT itself, which is the confirm's whole share of the failed-commit rule: the
-	// question is down, the standing footer is back, and the failed-commit line is what the slot
-	// now holds.
 	requireCommitFailedMessage(t, m)
 	if !m.themeState.commitFailed {
-		t.Error("a failed confirmed commit left no outstanding failure; the state runs until a commit SUCCEEDS (§9.13)")
+		t.Error("a failed confirmed commit left no outstanding failure; the state runs until a commit SUCCEEDS")
 	}
 
-	// And it is the SHARED path's report rather than a second copy of the semantics:
-	// the confirm writes through commitSlot, which is one of the two routes into the
-	// handler that owns them.
 	if got := themePanelSeamCallers(t, "applyCommitResult"); !slices.Equal(got, []string{"commitConstant", "commitSlot"}) {
-		t.Errorf("§9.13's result handler is called from %v, want exactly [commitConstant commitSlot] — the failure semantics live in one place", got)
+		t.Errorf("the commit-failure result handler is called from %v, want exactly [commitConstant commitSlot] — the failure semantics live in one place", got)
 	}
 
-	// The control: the same fixture with the write landing DOES clear the constant
-	// and move the `●`, so the untouched state above is the failure path rather than
-	// a confirm that never committed.
 	landed, _, _ := newRecomputePanelModel(t, dir, theme.RawKeys{Theme: "aurora"})
 	landed = arrowToThemeRow(t, landed, "nord")
 	landed, _ = pressSlotKey(t, landed, slotDarkPress)
@@ -941,28 +701,6 @@ func TestSlotConfirm_FailedCommitKeepsTheConstant(t *testing.T) {
 	requireBadge(t, landed, "aurora", theme.BadgeNone)
 }
 
-// TestSlotConfirm_NilPersisterIsInert: it tolerates a nil persister, and reaches
-// no newly-live-slot load.
-//
-// A fixture or `capturetool` model carries NO persister, so `y` during a
-// capture writes nowhere. It is the ABSENCE OF A WRITER rather than a failed write
-// — the same rule commitConstant/commitSlot state — so the confirm still comes down
-// and nothing else moves at all.
-//
-// AND IT MUST NOT REACH the mid-session conversion rule's OTHER HALF. commitSlot returns nil
-// for BOTH a landed write and this early return, and the nil-persister one returns BEFORE the
-// mirror and the recompute. The construction-time load rule's load runs on mirrored keys, off
-// which it decides which slug the opposite slot now names; run here it would read keys still
-// holding the CONSTANT — whose slot slugs are both EMPTY — resolve the per-slot
-// fallback for one of them, and report a commit-time `theme: loaded` for a write that
-// never happened.
-//
-// THAT REFUSAL IS ASSERTED BEHAVIOURALLY, not structurally. While the seam was an
-// empty no-op no observation could tell a call that happened from one that did not,
-// so the guard was pinned by an AST scan for the early return; now that the seam has
-// a body the emitted line and the joined nomination are both observable, and the
-// scan is retired rather than kept alongside — it pinned one SHAPE of the guard,
-// while this pins the property the guard exists for.
 func TestSlotConfirm_NilPersisterIsInert(t *testing.T) {
 	t.Run("the answer writes and moves nothing", func(t *testing.T) {
 		rows := arrowValidRows(t, 4)
@@ -1027,17 +765,6 @@ func TestSlotConfirm_NilPersisterIsInert(t *testing.T) {
 	})
 }
 
-// TestSlotConfirm_ForcedCloseCancels: it is cancelled silently by a forced close.
-//
-// The geometry rule: "A live slot-from-constant confirm is silently cancelled by a forced
-// close. Nothing has been written at that point, so there is no partial state to
-// leave behind — but it is stated because the confirm is otherwise specified as
-// resolvable only by a keypress."
-//
-// So the close takes the ordinary `Esc` path exactly (everything the panel retained is
-// discarded, the resolved persisted state is rendered), the pending assignment goes
-// with it, nothing is written, and the flash is the geometry event's own pinned copy —
-// the confirm raises none of its own.
 func TestSlotConfirm_ForcedCloseCancels(t *testing.T) {
 	m := newGeometryPanelModel(t, geometryWideW, geometryContentH)
 	persister := &fakeThemePersister{}
@@ -1051,7 +778,7 @@ func TestSlotConfirm_ForcedCloseCancels(t *testing.T) {
 	contentW, contentH := geometryBelowHeightFloor()
 	m = resizeForTest(t, m, contentW, contentH)
 
-	requireForcedClose(t, m, specShortClosedFlash)
+	requireForcedClose(t, m, wantShortClosedFlash)
 	if got := m.themePanel.pending; got != (themeSlotConfirm{}) {
 		t.Errorf("the forced close retained the pending assignment %+v, want it cancelled with the panel", got)
 	}
@@ -1059,24 +786,13 @@ func TestSlotConfirm_ForcedCloseCancels(t *testing.T) {
 		t.Errorf("the forced close retained the message %+v, want the slot empty", got)
 	}
 	if len(persister.slugs) != 0 {
-		t.Errorf("the forced close wrote %v; nothing has been written at that point (§9.8)", persister.slugs)
+		t.Errorf("the forced close wrote %v; nothing has been written at that point", persister.slugs)
 	}
 	if m.themeState.keys != keys {
 		t.Errorf("the forced close left keys %+v, want the untouched %+v", m.themeState.keys, keys)
 	}
 }
 
-// TestSlotConfirm_NotRaisedByEnter: it is not raised by Enter.
-//
-// The picker idiom: "**The reverse direction needs no confirm.** `Enter` on a theme while a
-// pair is set clears both slots — but `Enter` visibly does what it says: you get
-// the theme you are looking at, and it is the theme already previewing behind the
-// panel. The asymmetry is the point: the confirm guards the case where the RESOLVED
-// theme changes as a side effect of a write the user was told is inert."
-//
-// Asserted over BOTH settings, because `Enter` is unconditional: over a pair (the
-// direction the picker idiom names) and over a constant (where the neighbouring `d`/`l` DO
-// ask).
 func TestSlotConfirm_NotRaisedByEnter(t *testing.T) {
 	t.Run("over a pair", func(t *testing.T) {
 		rows := arrowValidRows(t, 4)
@@ -1101,19 +817,6 @@ func TestSlotConfirm_NotRaisedByEnter(t *testing.T) {
 	})
 }
 
-// TestSlotConfirm_HandEditedFileNamesTheConstant: it names the constant on a
-// theme-wins file.
-//
-// The constant-or-pair rule: a hand-edited file may carry all three keys, and `theme` wins —
-// so the slots are not read at all and the panel shows one bare `●`. "The one visible
-// consequence: on such a file, `d`/`l` clears the constant and the OTHER stale
-// hand-edited slot becomes live in the same keypress. The picker idiom confirm names the
-// constant being cleared, which is the change the user initiated; the stale slot
-// surfacing is then plainly visible in the panel's badges the moment the confirm
-// resolves."
-//
-// So the copy is NOT extended to mention the stale slot, and the badge that appears
-// on `y` is what tells the user about it.
 func TestSlotConfirm_HandEditedFileNamesTheConstant(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
@@ -1129,19 +832,17 @@ func TestSlotConfirm_HandEditedFileNamesTheConstant(t *testing.T) {
 	rendered := slotConfirmPanelText(m)
 	for _, want := range []string{slotConfirmCopy("aurora"), slotConfirmAnswerKeys} {
 		if !strings.Contains(rendered, want) {
-			t.Errorf("the confirm does not read %q — it names the CONSTANT being cleared (§8.2)\n%s", want, rendered)
+			t.Errorf("the confirm does not read %q — it names the CONSTANT being cleared\n%s", want, rendered)
 		}
 	}
 	if strings.Contains(rendered, "ghost") {
-		t.Errorf("the confirm mentions the stale light slug; the copy is not extended for it (§8.2)\n%s", rendered)
+		t.Errorf("the confirm mentions the stale light slug; the copy is not extended for it\n%s", rendered)
 	}
 
 	m, _ = pressConfirmKey(t, m, confirmYes)
 
 	requireSlotCommits(t, persister, slotCommit{slug: "nord", member: theme.MemberDark})
 	requirePairKeys(t, m, "ghost", "nord")
-	// The stale light slot is live the moment the confirm resolves: the union rule gives its
-	// unresolvable slug a row of its own, and the row-rendering rule puts the `● light` on it.
 	requireRowLabels(t, m, "aurora", "ghost", "nord", theme.DefaultDarkSlug, theme.DefaultLightSlug)
 	requireBadge(t, m, "ghost", theme.BadgeLight)
 	requireBadge(t, m, "nord", theme.BadgeDark)
@@ -1151,19 +852,6 @@ func TestSlotConfirm_HandEditedFileNamesTheConstant(t *testing.T) {
 	}
 }
 
-// TestSlotConfirm_ResizesTheListForTheSwappedLayout: it re-sizes the list when the
-// message slot changes.
-//
-// The message slot and the picker idiom's nested confirm scope BOTH move the panel's vertical
-// budget — the slot costs a row, the two-row confirm footer hands two back — and
-// renderThemePanel sizes its per-frame copy from the message it is handed. A model
-// whose list keeps the PRE-MESSAGE page derives `Ctrl+↑`/`Ctrl+↓` from a page the
-// screen is not showing, which no rendered frame reveals (the same class
-// resizeThemePanel re-sizes for, and the same one the main screen's
-// resyncPageLayouts answers on every band raise/clear).
-//
-// It is asserted at the WRITERS rather than at this call site, so the failed-commit rule's
-// failed-commit line — which persists with arrows LIVE — inherits it.
 func TestSlotConfirm_ResizesTheListForTheSwappedLayout(t *testing.T) {
 	m, _ := newSlotConfirmModelAt(t, arrowPagingTermH)
 	requireArrowPanelPageSize(t, m, arrowPagingPerPage)
@@ -1185,9 +873,6 @@ func TestSlotConfirm_ResizesTheListForTheSwappedLayout(t *testing.T) {
 	}
 }
 
-// requireThemePanelListSized fails unless the MODEL's list is sized to the same
-// body the renderer sizes its per-frame copy to — the page the user scrolls and the
-// page the model pages through being one page.
 func requireThemePanelListSized(t *testing.T, m Model, when string) {
 	t.Helper()
 
@@ -1200,9 +885,6 @@ func requireThemePanelListSized(t *testing.T, m Model, when string) {
 	}
 }
 
-// themePanelSeamCallers returns the name of every production function containing a
-// call to the named function, sorted and deduplicated — the structural half of "the
-// seam has one route in", which a no-op body cannot state behaviourally.
 func themePanelSeamCallers(t *testing.T, name string) []string {
 	t.Helper()
 

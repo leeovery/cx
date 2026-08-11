@@ -1,11 +1,5 @@
 package cmd
 
-// Tests for the read-only classify engine resolveOpenSurfaces. They call the
-// engine directly with read-only resolver fakes (reusing testSessionLister /
-// testAliasLookup / testZoxideQuerier / testDirValidator from open_test.go), never
-// through cobra — the engine takes a *resolver.QueryResolver + []Target and returns
-// ordered surfaces + collected misses. MUST NOT use t.Parallel (package cmd).
-
 import (
 	"errors"
 	"log/slog"
@@ -19,9 +13,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// newSurfaceResolver builds a QueryResolver from read-only fakes for the engine
-// tests. Path targets stat the real filesystem via ResolvePath, so -p tests pass
-// real temp dirs; the DirValidator fake backs only alias/zoxide validation.
+// newSurfaceResolver builds a QueryResolver from read-only fakes. Path targets
+// stat the real filesystem, so -p tests must pass real temp dirs; the
+// DirValidator fake backs only alias and zoxide validation.
 func newSurfaceResolver(names []string, aliases map[string]string, zoxideResult string, zoxideErr error, existing map[string]bool) *resolver.QueryResolver {
 	return resolver.NewQueryResolver(
 		&testSessionLister{names: names},
@@ -32,8 +26,6 @@ func newSurfaceResolver(names []string, aliases map[string]string, zoxideResult 
 }
 
 func TestResolveOpenSurfaces_MixedOrderedSet(t *testing.T) {
-	// A mixed ordered target set resolves to ordered attach/mint surfaces in the
-	// exact target order — one surface per single-result target.
 	dir := t.TempDir()
 
 	qr := newSurfaceResolver(
@@ -70,8 +62,6 @@ func TestResolveOpenSurfaces_MixedOrderedSet(t *testing.T) {
 }
 
 func TestResolveOpenSurfaces_SessionGlobExpandsInPlace(t *testing.T) {
-	// A bare session glob expands to K attach surfaces that JOIN THE LIST IN PLACE,
-	// between the surfaces of the targets around it.
 	qr := newSurfaceResolver(
 		[]string{"lead", "tail", "api-1", "api-2"},
 		map[string]string{},
@@ -103,11 +93,6 @@ func TestResolveOpenSurfaces_SessionGlobExpandsInPlace(t *testing.T) {
 }
 
 func TestResolveOpenSurfaces_SessionPinSurface(t *testing.T) {
-	// The -s session-pin domain in isolation (Domain:"session"): an exact hit is a
-	// single attach surface, and a miss is a COLLECTED miss (a *MissResult, NOT the
-	// single-pin "No session found" hard error — ResolveSessionPinAll's documented
-	// divergence for the multi-target pre-flight). Mirrors the path/alias
-	// single-domain surface tests for the previously-uncovered session surface.
 	qr := newSurfaceResolver(
 		[]string{"dev"},
 		map[string]string{},
@@ -142,8 +127,6 @@ func TestResolveOpenSurfaces_SessionPinSurface(t *testing.T) {
 }
 
 func TestResolveOpenSurfaces_AliasKeyGlobExpandsToMints(t *testing.T) {
-	// A -a key glob expands to K mint surfaces, each reduced to the aliased literal
-	// dir. Keys() is sorted, so order is deterministic.
 	qr := newSurfaceResolver(
 		nil,
 		map[string]string{"workflow-a": "/code/wa", "workflow-b": "/code/wb", "blog": "/code/blog"},
@@ -169,8 +152,6 @@ func TestResolveOpenSurfaces_AliasKeyGlobExpandsToMints(t *testing.T) {
 }
 
 func TestResolveOpenSurfaces_OverlappingGlobsDuplicate(t *testing.T) {
-	// Overlapping globs may produce a duplicate surface; it is honored, never
-	// deduped (spec § No dedup).
 	qr := newSurfaceResolver(
 		[]string{"api-1", "api-2"},
 		map[string]string{},
@@ -200,8 +181,6 @@ func TestResolveOpenSurfaces_OverlappingGlobsDuplicate(t *testing.T) {
 }
 
 func TestResolveOpenSurfaces_MintReducedToLiteralDir(t *testing.T) {
-	// A mint surface's Value is the resolved literal dir, never the alias key /
-	// zoxide query / -p input — the query never travels to the spawned window.
 	qr := newSurfaceResolver(
 		nil,
 		map[string]string{"myapp": "/code/myapp"},
@@ -224,7 +203,6 @@ func TestResolveOpenSurfaces_MintReducedToLiteralDir(t *testing.T) {
 		{Kind: spawn.SurfaceMint, Value: "/code/zoxide-prj"},
 	}
 	assertSurfaces(t, surfaces, want)
-	// Explicitly assert the query strings did NOT travel as surface values.
 	for _, s := range surfaces {
 		if s.Value == "myapp" || s.Value == "prj" {
 			t.Errorf("surface value %q is the raw query — mint must reduce to the literal dir", s.Value)
@@ -233,9 +211,6 @@ func TestResolveOpenSurfaces_MintReducedToLiteralDir(t *testing.T) {
 }
 
 func TestResolveOpenSurfaces_GlobNamedDir_BareIsMiss_PathIsMint(t *testing.T) {
-	// A directory whose name contains glob metacharacters is UNREACHABLE as a bare
-	// positional (glob pre-check → zero session matches → miss), reachable only via
-	// -p (ResolvePathPin stats the literal path → mint).
 	tmp := t.TempDir()
 	globDir := filepath.Join(tmp, "foo[1]")
 	if err := os.Mkdir(globDir, 0o755); err != nil {
@@ -270,9 +245,6 @@ func TestResolveOpenSurfaces_GlobNamedDir_BareIsMiss_PathIsMint(t *testing.T) {
 }
 
 func TestResolveOpenSurfaces_ZoxideNotInstalled_ImmediateHardError(t *testing.T) {
-	// ErrZoxideNotInstalled is an environment fault: it aborts the WHOLE resolve
-	// immediately (returns the error), with nil surfaces and nil misses — even
-	// though an earlier target resolved.
 	qr := newSurfaceResolver(
 		[]string{"dev"},
 		map[string]string{},
@@ -302,10 +274,6 @@ func TestResolveOpenSurfaces_ZoxideNotInstalled_ImmediateHardError(t *testing.T)
 }
 
 func TestResolveOpenSurfaces_CollectedMisses(t *testing.T) {
-	// -z no-match, -p non-existent dir, and -p non-directory file are all COLLECTED
-	// MISSES (raw target appended to misses), NOT immediate hard errors — only
-	// ErrZoxideNotInstalled aborts. The non-directory -p folding is this task's
-	// documented classification decision.
 	tmp := t.TempDir()
 	filePath := filepath.Join(tmp, "file.txt")
 	if err := os.WriteFile(filePath, []byte("x"), 0o644); err != nil {
@@ -339,9 +307,6 @@ func TestResolveOpenSurfaces_CollectedMisses(t *testing.T) {
 }
 
 func TestResolveOpenSurfaces_ReadOnly_NoMintOrAttach(t *testing.T) {
-	// The engine is strictly read-only: it produces surfaces but never opens/mints.
-	// Guard by making the outcome funcs fatal-if-called; resolving a mixed set must
-	// not invoke either.
 	origPath := openPathFunc
 	openPathFunc = func(_ *cobra.Command, _ string, _ []string) error {
 		t.Fatal("openPathFunc must not be called during a read-only resolve")
@@ -381,8 +346,6 @@ func TestResolveOpenSurfaces_ReadOnly_NoMintOrAttach(t *testing.T) {
 }
 
 func TestResolveOpenSurfaces_ResolveLog_BareNonGlobOnly(t *testing.T) {
-	// Exactly one resolve decision line per bare non-glob (guessing-chain) target —
-	// including a bare miss (domain=miss). Pins and globs emit NO line.
 	h := newCapturingHandler()
 	log.SetTestHandler(t, h)
 
@@ -395,12 +358,12 @@ func TestResolveOpenSurfaces_ResolveLog_BareNonGlobOnly(t *testing.T) {
 	)
 
 	targets := []Target{
-		{Value: "dev", Domain: "session"}, // pin: no line
-		{Value: "dev", Domain: "bare"},    // bare session hit: line
-		{Value: "api-*", Domain: "bare"},  // bare glob: no line
-		{Value: "web", Domain: "session"}, // pin: no line
-		{Value: "blog", Domain: "bare"},   // bare alias mint: line
-		{Value: "gone", Domain: "bare"},   // bare total miss: line
+		{Value: "dev", Domain: "session"},
+		{Value: "dev", Domain: "bare"},
+		{Value: "api-*", Domain: "bare"},
+		{Value: "web", Domain: "session"},
+		{Value: "blog", Domain: "bare"},
+		{Value: "gone", Domain: "bare"},
 	}
 
 	_, _, _, err := resolveOpenSurfaces(qr, targets)
@@ -431,13 +394,9 @@ func TestResolveOpenSurfaces_ResolveLog_BareNonGlobOnly(t *testing.T) {
 }
 
 func TestResolveOpenSurfaces_DegenerateSingle_ThreadsTrueResultDomain(t *testing.T) {
-	// The engine retains the originating resolver.QueryResult alongside each
-	// surface (results[i] produced surfaces[i]). For the degenerate
-	// single-surviving-surface case, dispatchOpenBurst forwards results[0]
-	// VERBATIM into openResolved, so results[0] IS the value at the openResolved
-	// boundary. It must carry the TRUE resolver Domain provenance — a glob
-	// expansion is DomainGlob (attach) / DomainAlias (mint), never a fabricated
-	// DomainSession / DomainPath.
+	// results[i] produced surfaces[i], and dispatchOpenBurst forwards results[0]
+	// verbatim into openResolved, so it must carry the true resolver provenance
+	// rather than a fabricated domain.
 
 	t.Run("session glob to one attach carries DomainGlob", func(t *testing.T) {
 		qr := newSurfaceResolver([]string{"api-1"}, map[string]string{}, "", resolver.ErrNoMatch, map[string]bool{})
@@ -490,7 +449,6 @@ func TestResolveOpenSurfaces_DegenerateSingle_ThreadsTrueResultDomain(t *testing
 	})
 }
 
-// assertSurfaces asserts got equals want, element by element, in order.
 func assertSurfaces(t *testing.T, got, want []spawn.Surface) {
 	t.Helper()
 	if len(got) != len(want) {

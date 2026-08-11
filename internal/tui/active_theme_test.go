@@ -7,16 +7,11 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-// testDarkThemeCanvas / testLightThemeCanvas are the two built-ins' canvas values,
-// restated here so the table above can name an expectation without a *testing.T.
-// They are asserted against the loaded built-ins by TestBuiltinCanvasValuesPinned.
 const (
 	testDarkThemeCanvas  = "#0B0C14"
 	testLightThemeCanvas = "#E1E2E7"
 )
 
-// TestBuiltinCanvasValuesPinned keeps the two constants above honest against the
-// embedded files they restate.
 func TestBuiltinCanvasValuesPinned(t *testing.T) {
 	if got := testDarkTheme(t).Canvas.Value; got != testDarkThemeCanvas {
 		t.Errorf("dark built-in canvas = %q, want %q", got, testDarkThemeCanvas)
@@ -26,9 +21,6 @@ func TestBuiltinCanvasValuesPinned(t *testing.T) {
 	}
 }
 
-// assertActiveTheme asserts the model's active palette is the built-in carrying
-// wantCanvas, and that the rendered frame actually paints that canvas — a model
-// holding the right Theme but rendering from somewhere else would otherwise pass.
 func assertActiveTheme(t *testing.T, m Model, wantCanvas string) {
 	t.Helper()
 	if got := m.themeState.active.Canvas.Value; got != wantCanvas {
@@ -40,12 +32,6 @@ func assertActiveTheme(t *testing.T, m Model, wantCanvas string) {
 	}
 }
 
-// TestFooterTopRule_UsesBorderToken pins the border consolidation: the separate
-// footer-rule role once named `border.footer` was removed from the vocabulary, so
-// the footer rule renders with the SAME token as the title rule. The accepted
-// visual change is that the dark footer rule becomes marginally more prominent —
-// #292E42 rather than #20232E — and the shade that removed name carried must
-// appear nowhere in the frame.
 func TestFooterTopRule_UsesBorderToken(t *testing.T) {
 	dark := testDarkTheme(t)
 	rule := footerTopRule(referenceFooterWidth, dark, false)
@@ -57,8 +43,6 @@ func TestFooterTopRule_UsesBorderToken(t *testing.T) {
 		t.Errorf("dark border token = %q, want #292E42 (the consolidated title/footer rule)", got)
 	}
 
-	// The shade the removed `border.footer` role carried must not survive
-	// anywhere in the frame.
 	retired := sgrParams(t, lipgloss.NewStyle().Foreground(lipgloss.Color("#20232E")))
 	frame := renderSessionsFooter(sessionsKeymap(), referenceFooterWidth, dark, false)
 	if strings.Contains(frame, retired) {

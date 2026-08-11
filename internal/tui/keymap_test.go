@@ -2,31 +2,10 @@ package tui
 
 import "testing"
 
-// TestSessionsKeymap locks the Sessions keymap descriptor (§12.1, post the §14
-// footer revision) as the single declarative source for the footer (task 2-4) and
-// the ? help modal (Phase 3, §8.5). The descriptor enumerates exactly the §12.1
-// Sessions bindings, classifies the footer-core keys (Core=true) against the
-// help-only remainder (Core=false), and marks ? help as the sole right-aligned
-// entry. No rendering happens here — the descriptor is pure data.
-//
-// §15.1 NAMES §14 AS THE AMENDMENT to the MV spec's §12.2 keymap revision, so the
-// goldens below moved with it rather than regressing: nav loses Core, `t` and `m`
-// gain it, `m`'s footer label shortens to `multi`, and the tail order becomes
-// … x → t → m → ?.
 func TestSessionsKeymap(t *testing.T) {
 	entries := sessionsKeymap()
 
-	t.Run("it enumerates exactly the §12.1 Sessions bindings in the reference help order", func(t *testing.T) {
-		// Nav-first order, as the §8.5 help reference
-		// (testdata/vhs/reference/sessions-help-modal-mv.png) established:
-		// ↑/↓ → ^↑/↓ (page) → ⏎ → / → ␣ → s → n → r → k → q → x → t → m, then ? last.
-		// ONLY THE TAIL MOVED under §14: `m` relocated from after `s` to after the new
-		// `t`, because the footer renders Core entries in descriptor order and §14.2's
-		// row is pinned. The help body's order moves with it.
-		// Post the §3.4 footer-glyph switch the footer reads the glyph Key forms
-		// (nav "↑↓", attach "⏎", preview "␣"); the help body keeps the slashed nav
-		// via the HelpKey override "↑/↓" while page reads its Key "^↑/↓" directly.
-		// The Core relative order is ⏎ · / · ␣ · s · x · t · m · ?.
+	t.Run("it enumerates exactly the Sessions bindings in the reference help order", func(t *testing.T) {
 		want := []keymapEntry{
 			{Key: "↑↓", HelpKey: "↑/↓", Action: "navigate", HelpAction: "Move selection"},
 			{Key: "^↑/↓", Action: "page", HelpAction: "Next / prev page"},
@@ -53,7 +32,7 @@ func TestSessionsKeymap(t *testing.T) {
 		}
 	})
 
-	t.Run("it marks the §14.2 core-footer keys as Core and the rest as help-only", func(t *testing.T) {
+	t.Run("it marks the core-footer keys as Core and the rest as help-only", func(t *testing.T) {
 		core := map[string]bool{}
 		for _, e := range entries {
 			core[e.Key] = e.Core
@@ -64,8 +43,6 @@ func TestSessionsKeymap(t *testing.T) {
 				t.Errorf("key %q should be Core (footer), got Core=false", k)
 			}
 		}
-		// §14.1 moves the nav entry into this set: arrows in a list are a given, and
-		// they are the entry that genuinely deserves non-core status.
 		wantHelpOnly := []string{"↑↓", "n", "r", "k", "q", "^↑/↓"}
 		for _, k := range wantHelpOnly {
 			if core[k] {
@@ -83,11 +60,7 @@ func TestSessionsKeymap(t *testing.T) {
 		}
 	})
 
-	t.Run("it carries the §14.2 Core relative order the footer reads", func(t *testing.T) {
-		// The footer renders only Core entries in DESCRIPTOR order, so §14.2's pinned
-		// row (⏎ attach · / filter · ␣ preview · s switch view · x projects · t theme ·
-		// m multi + right-aligned ? help) is exactly this sequence. It is why the
-		// descriptor's tail was reordered rather than `t`/`m` appended wherever.
+	t.Run("it carries the Core relative order the footer reads", func(t *testing.T) {
 		var coreKeys []string
 		for _, e := range entries {
 			if e.Core {
@@ -100,18 +73,12 @@ func TestSessionsKeymap(t *testing.T) {
 		}
 		for i, k := range wantCoreOrder {
 			if coreKeys[i] != k {
-				t.Errorf("Core entry %d = %q, want %q (§14.2's row is pinned)", i, coreKeys[i], k)
+				t.Errorf("Core entry %d = %q, want %q (the row is pinned)", i, coreKeys[i], k)
 			}
 		}
 	})
 
 	t.Run("the help body keeps the slashed nav via HelpKey while page reads Key directly", func(t *testing.T) {
-		// Post the §3.4 footer-glyph switch the footer Key forms are glyphs. The
-		// help body diverges only on nav, where its reference frame shows the slashed
-		// "↑/↓" — so nav carries a HelpKey override (footer "↑↓" vs help "↑/↓").
-		// The attach/preview entries keep a HelpKey too, but it now coincides with
-		// their glyph Key ("⏎"/"␣"). Page reads its Key "^↑/↓" directly, and every
-		// remaining entry has an empty HelpKey so the help modal falls back to Key.
 		wantHelpKey := map[string]string{"↑↓": "↑/↓", "⏎": "⏎", "␣": "␣"}
 		for _, e := range entries {
 			if want, ok := wantHelpKey[e.Key]; ok {
@@ -134,20 +101,12 @@ func TestSessionsKeymap(t *testing.T) {
 		}
 		for _, e := range entries {
 			if banned[e.Key] {
-				t.Errorf("descriptor contains banned key %q (§12.2: no vim/uppercase/page-jump aliases)", e.Key)
+				t.Errorf("descriptor contains banned key %q (no vim/uppercase/page-jump aliases)", e.Key)
 			}
 		}
 	})
 }
 
-// TestNavKeymapEntries locks the shared nav/page pair as the ONE declaration the
-// three list descriptors lead with. Sessions, Projects and the theme panel all open
-// on the same two rows, so a copy edit to the arrow glyph or its help label must be
-// a single edit — three restatements of the same literal is how one surface silently
-// starts disagreeing with the others about the arrows.
-//
-// previewKeymap is deliberately NOT in scope: its page entry carries a different
-// HelpAction ("Page up / down"), so it is not the same row.
 func TestNavKeymapEntries(t *testing.T) {
 	shared := navKeymapEntries()
 

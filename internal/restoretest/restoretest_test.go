@@ -1,10 +1,5 @@
 //go:build integration
 
-// Package restoretest tests — verify the small pure helpers that the
-// integration round-trip tests across cmd/bootstrap and internal/restore
-// share. The build tag matches the package itself so this file is only
-// compiled under `go test -tags=integration`.
-
 package restoretest_test
 
 import (
@@ -14,9 +9,6 @@ import (
 	"github.com/leeovery/portal/internal/restoretest"
 )
 
-// TestSortedKeySet covers the ordering guarantee of SortedKeySet across
-// the cases the round-trip diagnostics actually exercise: empty, single
-// key, already-sorted, reverse-sorted, and unsorted input.
 func TestSortedKeySet(t *testing.T) {
 	tests := []struct {
 		name string
@@ -54,7 +46,7 @@ func TestSortedKeySet(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := restoretest.SortedKeySet(tt.in)
 			if len(got) == 0 && len(tt.want) == 0 {
-				return // both empty — reflect.DeepEqual treats nil != []string{}
+				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("SortedKeySet(%v) = %v; want %v", tt.in, got, tt.want)

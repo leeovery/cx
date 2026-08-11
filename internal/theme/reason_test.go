@@ -7,17 +7,8 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// A rejection is returned as a concrete *Rejection everywhere in this package,
-// but it satisfies error so a caller that only wants to propagate one can.
 var _ error = (*theme.Rejection)(nil)
 
-// TestReason_LabelsAreTheTerseVocabulary pins the reason vocabulary's seven reject classes and
-// the exact string each carries. These values are user-facing copy, not internal
-// identifiers: the panel row renders the label verbatim behind the pinned copy's "⚠ "
-// prefix, so rewording a constant is a UI change and has to be a deliberate one.
-//
-// The constants are listed here in the reason vocabulary's short-circuit ladder order, with
-// `not found` — which is outside the ladder — last.
 func TestReason_LabelsAreTheTerseVocabulary(t *testing.T) {
 	got := []theme.Reason{
 		theme.ReasonBadName,
@@ -44,10 +35,6 @@ func TestReason_LabelsAreTheTerseVocabulary(t *testing.T) {
 	}
 }
 
-// TestRejection_ErrorRendersReasonAndDetail pins the error string, which is the
-// generic propagation form — the surfaces that matter (the panel row, doctor,
-// the theme log component) read Reason and Detail directly rather than parsing
-// this back apart.
 func TestRejection_ErrorRendersReasonAndDetail(t *testing.T) {
 	tests := []struct {
 		name      string

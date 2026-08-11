@@ -7,9 +7,6 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// TestValidSlug_AcceptsCharsetAndAnchors pins the slug charset rule's `^[a-z0-9][a-z0-9-]*$`
-// from the accepting side, including the two edges the anchoring deliberately
-// leaves legal: a single character, and a trailing hyphen.
 func TestValidSlug_AcceptsCharsetAndAnchors(t *testing.T) {
 	tests := []struct {
 		name string
@@ -33,18 +30,12 @@ func TestValidSlug_AcceptsCharsetAndAnchors(t *testing.T) {
 	}
 }
 
-// TestValidSlug_RejectsIllegalForms pins the rule from the rejecting side.
-//
-// `../evil` is the case the validate-before-use rule exists for: a persisted slug is used
-// verbatim as a path component on a by-name lookup that deliberately does not enumerate, so
-// the charset check is what stops a hand-edited prefs.json from escaping the
-// themes directory.
 func TestValidSlug_RejectsIllegalForms(t *testing.T) {
 	tests := []struct {
 		name string
 		slug string
 	}{
-		{name: "empty — the unset sentinel of §8.1, never a slug", slug: ""},
+		{name: "empty — the unset sentinel, never a slug", slug: ""},
 		{name: "path traversal", slug: "../evil"},
 		{name: "path separator", slug: "nord/evil"},
 		{name: "leading hyphen — reads as a flag", slug: "-nord"},
@@ -64,12 +55,6 @@ func TestValidSlug_RejectsIllegalForms(t *testing.T) {
 	}
 }
 
-// TestValidSlug_NoLengthBound pins the slug charset rule's "there is no length bound": the
-// slug is an identity, and the row-rendering rule/the geometry rule's truncation is a display
-// concern that must not silently become a validity rule.
-//
-// Both surfaces are checked, because the rule is that no length bound exists
-// anywhere in the name rules — not merely that the charset check has none.
 func TestValidSlug_NoLengthBound(t *testing.T) {
 	long := strings.Repeat("a", 300)
 
@@ -86,8 +71,6 @@ func TestValidSlug_NoLengthBound(t *testing.T) {
 	}
 }
 
-// TestSlugFromFilename_DerivesStem pins the filename-is-identity rule: the filename minus its
-// extension IS the slug. Nothing is added, trimmed or rearranged on the accepting path.
 func TestSlugFromFilename_DerivesStem(t *testing.T) {
 	tests := []struct {
 		name string
@@ -114,14 +97,6 @@ func TestSlugFromFilename_DerivesStem(t *testing.T) {
 	}
 }
 
-// TestSlugFromFilename_RejectsNonLowercaseExtension pins the enumeration rule: only the exact
-// lowercase `.theme` is ACCEPTED. Enumeration matches the extension
-// case-insensitively so the file is still visible, but a non-exact extension
-// never contributes a slug — which is what keeps the filename-is-identity rule's structural
-// uniqueness true without a precedence rule.
-//
-// `Nord.THEME` is refused the same way, and reports the slug cause: its stem is
-// illegal too, so the single fix its message names is the stem.
 func TestSlugFromFilename_RejectsNonLowercaseExtension(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -156,18 +131,6 @@ func TestSlugFromFilename_RejectsNonLowercaseExtension(t *testing.T) {
 	}
 }
 
-// TestSlugFromFilename_ExtensionCauseOnlyWhenStemIsLegal pins which cause a
-// wrong-cased extension reports, which is what decides the single fix doctor
-// names.
-//
-// The extension message asserts something specific — that the slug portion is
-// already legal and only the extension is not — so it is claimed only where the
-// stem has been checked and passed. A name that is wrong in two ways gets the
-// general slug message instead, which asserts nothing that the name falsifies.
-//
-// The stem is judged by stripping the extension case-insensitively, which is a
-// judgement and never a derivation: no slug is minted from a non-exact
-// extension, so every rejecting row returns the empty slug.
 func TestSlugFromFilename_ExtensionCauseOnlyWhenStemIsLegal(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -214,9 +177,6 @@ func TestSlugFromFilename_ExtensionCauseOnlyWhenStemIsLegal(t *testing.T) {
 	}
 }
 
-// TestFileExtension_IsWhatSlugFromFilenameAccepts pins the exported extension to
-// the comparison it names: a slug composed with FileExtension round-trips, and an
-// uppercased FileExtension is rejected as a bad extension.
 func TestFileExtension_IsWhatSlugFromFilenameAccepts(t *testing.T) {
 	const slug = "nord-lee"
 
@@ -238,13 +198,6 @@ func TestFileExtension_IsWhatSlugFromFilenameAccepts(t *testing.T) {
 	}
 }
 
-// TestSlugFromFilename_CausesAreDistinct pins the discrimination the pinned copy needs: one
-// reason class, two causes, so doctor can render `slug must be lowercase
-// letters, digits and hyphens` and `extension must be lowercase .theme` from
-// the same `bad name` reason.
-//
-// The zero value is checked too — a rejection that is not a bad-name one
-// carries no cause, so a caller can read the field unconditionally.
 func TestSlugFromFilename_CausesAreDistinct(t *testing.T) {
 	_, badSlug := theme.SlugFromFilename("Nord.theme")
 	_, badExtension := theme.SlugFromFilename("nord.THEME")
@@ -273,12 +226,6 @@ func TestSlugFromFilename_CausesAreDistinct(t *testing.T) {
 	}
 }
 
-// TestSlugFromFilename_NeverNormalisesCase pins the slug charset rule's reject-never-normalise
-// rule, which is a safety property rather than a style choice: lowercasing
-// `Nord.theme` to `nord` would let a user file shadow the built-in that is the
-// the per-slot fallback rule fallback, so a typo'd drop-in could break the very thing Portal
-// falls back to. Rejecting instead is also what keeps the reserved-slug rule's reserved-name
-// check exact string equality.
 func TestSlugFromFilename_NeverNormalisesCase(t *testing.T) {
 	tests := []struct {
 		name string
@@ -306,10 +253,6 @@ func TestSlugFromFilename_NeverNormalisesCase(t *testing.T) {
 	}
 }
 
-// TestSlugFromFilename_EmptyStemRejected pins the one edge the anchoring closes
-// on the file side: a file named exactly `.theme` has a legal extension and an
-// empty stem, and the empty string stays unambiguously the on-disk prefs shape's unset
-// sentinel rather than becoming a selectable theme with no name.
 func TestSlugFromFilename_EmptyStemRejected(t *testing.T) {
 	got, rejection := theme.SlugFromFilename(".theme")
 
@@ -324,9 +267,6 @@ func TestSlugFromFilename_EmptyStemRejected(t *testing.T) {
 	}
 }
 
-// TestSlugFromFilename_RejectsLeadingHyphenStem pins the other anchor on the
-// file side: a leading hyphen reads as a flag in every context a slug is typed
-// into, so `-nord.theme` yields no slug even though its extension is exact.
 func TestSlugFromFilename_RejectsLeadingHyphenStem(t *testing.T) {
 	tests := []struct {
 		name string
@@ -351,13 +291,6 @@ func TestSlugFromFilename_RejectsLeadingHyphenStem(t *testing.T) {
 	}
 }
 
-// TestStripControl_RemovesAnsiEscapes pins that a whole escape SEQUENCE goes,
-// not merely its ESC byte.
-//
-// Stripping the ESC alone would leave `[31m` behind — printable, so it survives
-// any control-character pass, and it would then be echoed into the pinned copy's message as
-// if the user had typed it. The sequence is the unit, which is why this composes
-// the terminal-grammar parser rather than filtering bytes.
 func TestStripControl_RemovesAnsiEscapes(t *testing.T) {
 	tests := []struct {
 		name string
@@ -367,11 +300,6 @@ func TestStripControl_RemovesAnsiEscapes(t *testing.T) {
 		{name: "an SGR colour sequence", in: "\x1b[31mnord\x1b[0m", want: "nord"},
 		{name: "a cursor-move sequence", in: "no\x1b[2Krd", want: "nord"},
 		{name: "an OSC sequence", in: "\x1b]0;title\x07nord", want: "nord"},
-		// A trailing ESC has nothing to terminate it, so it is the one shape
-		// that isolates the byte itself. An ESC anywhere else is deliberately
-		// NOT tested as a lone byte: `\x1br` is a complete two-byte escape
-		// sequence, so a parser that removed only the ESC and kept the `r`
-		// would be the wrong one — the sequence is the unit.
 		{name: "a trailing escape", in: "nord\x1b", want: "nord"},
 	}
 
@@ -384,13 +312,6 @@ func TestStripControl_RemovesAnsiEscapes(t *testing.T) {
 	}
 }
 
-// TestStripControl_RemovesControlCharacters pins the other half: the bare C0
-// characters a paste carries, which an escape-sequence parser leaves in place
-// because they open no sequence.
-//
-// The newline is the one that matters most — the pinned copy's frames are single lines, and
-// a value carrying one would split a refusal in two, with the second half
-// looking like a message Portal never wrote.
 func TestStripControl_RemovesControlCharacters(t *testing.T) {
 	tests := []struct {
 		name string
@@ -414,13 +335,6 @@ func TestStripControl_RemovesControlCharacters(t *testing.T) {
 	}
 }
 
-// TestStripControl_LeavesEverythingElseAlone pins the negative half: stripping
-// is not normalising.
-//
-// A value that is merely WRONG — the wrong case, an illegal punctuation mark, a
-// traversal attempt — must reach the charset check unaltered, so it is reported
-// as the thing the user typed rather than as a quietly corrected version of it.
-// Only what cannot be echoed is removed.
 func TestStripControl_LeavesEverythingElseAlone(t *testing.T) {
 	tests := []struct {
 		name string

@@ -7,26 +7,13 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-// These tests pin the §9.1 header compartment's width cascade at the spec's tier
-// thresholds. The argument is the joined panel's content width (the body width);
-// the header cascade fits within it. The cascade (re-styled from the prior single
-// top-bar cascade — counters/session degrade, the hints moved to the footer):
-//   - Tier 1: marker + full session + counters.
-//   - Tier 2: marker + truncated session + counters.
-//   - Tier 3: drop counters; marker + full session.
-//   - Tier 4: drop counters; marker + hard-truncated session.
+const testSessionName = "nvim-editor"
 
-const testSessionName = "nvim-editor" // 11 display cells
-
-// chl composes the §9.1 stripped header at content width w for the single-window
-// single-pane counter fixture → counters "Window 1/1 · Pane 1/1".
 func chl(t *testing.T, w int, name string) string {
 	t.Helper()
 	return stripANSI(composePreviewHeaderRow(w, 0, 1, 0, 1, name, testDarkTheme(t), false))
 }
 
-// TestComposePreviewHeaderRow_NoEmbeddedNewlines guards the single-row invariant
-// across every cascade tier — the header is exactly one compartment row.
 func TestComposePreviewHeaderRow_NoEmbeddedNewlines(t *testing.T) {
 	for _, w := range []int{200, 80, 60, 40, 25, 15, 10, 4, 1, 0} {
 		got := composePreviewHeaderRow(w, 0, 1, 0, 1, testSessionName, testDarkTheme(t), false)
@@ -36,10 +23,6 @@ func TestComposePreviewHeaderRow_NoEmbeddedNewlines(t *testing.T) {
 	}
 }
 
-// TestComposePreviewHeaderRow_FitsWithinContentWidth pins that the cascaded
-// header never exceeds the supplied content width at any tier — so the joined
-// panel stays exactly the terminal width (the body, not the header, sets the
-// width).
 func TestComposePreviewHeaderRow_FitsWithinContentWidth(t *testing.T) {
 	for _, w := range []int{200, 80, 60, 40, 25, 18, 13, 12, 11, 8, 4, 2, 1} {
 		got := composePreviewHeaderRow(w, 0, 1, 0, 1, testSessionName, testDarkTheme(t), false)
@@ -49,7 +32,6 @@ func TestComposePreviewHeaderRow_FitsWithinContentWidth(t *testing.T) {
 	}
 }
 
-// Tier 1 — wide width: marker + full session + counters.
 func TestComposePreviewHeaderRow_Tier1FullAtWideWidth(t *testing.T) {
 	got := chl(t, 200, testSessionName)
 	for _, want := range []string{previewMarker, testSessionName, "Window 1/1 · Pane 1/1"} {
@@ -62,7 +44,6 @@ func TestComposePreviewHeaderRow_Tier1FullAtWideWidth(t *testing.T) {
 	}
 }
 
-// Tier 1 boundary — the smallest width at which everything fits whole.
 func TestComposePreviewHeaderRow_Tier1BoundaryFullFit(t *testing.T) {
 	counters := "Window 1/1 · Pane 1/1"
 	fullW := lipgloss.Width(previewMarker) + 1 + lipgloss.Width(testSessionName) + 1 + lipgloss.Width(counters)
@@ -78,11 +59,10 @@ func TestComposePreviewHeaderRow_Tier1BoundaryFullFit(t *testing.T) {
 	}
 }
 
-// Tier 2 — session truncated, counters retained.
 func TestComposePreviewHeaderRow_Tier2TruncatesSessionKeepsCounters(t *testing.T) {
 	counters := "Window 1/1 · Pane 1/1"
 	fullW := lipgloss.Width(previewMarker) + 1 + lipgloss.Width(testSessionName) + 1 + lipgloss.Width(counters)
-	w := fullW - 1 // one cell short of full session fit
+	w := fullW - 1
 	got := chl(t, w, testSessionName)
 	if !strings.Contains(got, "…") {
 		t.Errorf("tier 2 w %d: expected truncated session with ellipsis; got=%q", w, got)
@@ -92,10 +72,7 @@ func TestComposePreviewHeaderRow_Tier2TruncatesSessionKeepsCounters(t *testing.T
 	}
 }
 
-// Tier 3 — counters dropped, marker + full session.
 func TestComposePreviewHeaderRow_Tier3DropsCountersKeepsFullSession(t *testing.T) {
-	// Width that cannot fit counters at tier 2 (session budget < min) but fits
-	// marker + full session.
 	w := lipgloss.Width(previewMarker) + 1 + lipgloss.Width(testSessionName)
 	got := chl(t, w, testSessionName)
 	if strings.Contains(got, "Window") {
@@ -109,10 +86,7 @@ func TestComposePreviewHeaderRow_Tier3DropsCountersKeepsFullSession(t *testing.T
 	}
 }
 
-// Tier 4 — counters dropped, session hard-truncated to fit.
 func TestComposePreviewHeaderRow_Tier4TruncatesSessionNoCounters(t *testing.T) {
-	// One cell below the tier-3 full-session fit forces a truncation, still no
-	// counters.
 	w := lipgloss.Width(previewMarker) + 1 + lipgloss.Width(testSessionName) - 1
 	got := chl(t, w, testSessionName)
 	if strings.Contains(got, "Window") {
@@ -126,9 +100,6 @@ func TestComposePreviewHeaderRow_Tier4TruncatesSessionNoCounters(t *testing.T) {
 	}
 }
 
-// TestComposePreviewHeaderRow_AlwaysCarriesMarker pins that the `◉ preview`
-// marker is present at every non-degenerate width (the marker never drops — only
-// counters and the session truncate).
 func TestComposePreviewHeaderRow_AlwaysCarriesMarker(t *testing.T) {
 	for _, w := range []int{200, 60, 30, 18, 13, 11} {
 		got := chl(t, w, testSessionName)

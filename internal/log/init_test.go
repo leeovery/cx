@@ -12,10 +12,6 @@ import (
 	"time"
 )
 
-// snapshotInitState captures the package-private Init-owned state (handler +
-// startTime) and returns a restore func so Init-exercising tests do not leak
-// state into siblings. setHandler is restored via the shared snapshotHandler;
-// startTime is restored directly because it is package-private to this _test.go.
 func snapshotInitState(t *testing.T) {
 	t.Helper()
 	restoreHandler := snapshotHandler()
@@ -29,7 +25,6 @@ func snapshotInitState(t *testing.T) {
 func TestInit_RoutesPreInitCachedLoggerToConfiguredHandler(t *testing.T) {
 	snapshotInitState(t)
 
-	// Cache a logger BEFORE Init, mirroring package-init binding.
 	cached := For("daemon")
 
 	dir := t.TempDir()
@@ -87,7 +82,6 @@ func TestInit_SecondInitRePointsHandlerWithoutPanic(t *testing.T) {
 		t.Fatalf("first Init returned error: %v", err)
 	}
 
-	// Second Init with a different process_role must re-point without panicking.
 	dir2 := t.TempDir()
 	if err := Init(dir2, "0.5.0", "daemon"); err != nil {
 		t.Fatalf("second Init returned error: %v", err)
@@ -133,8 +127,7 @@ func TestInit_SecondInitResetsStartTime(t *testing.T) {
 	}
 	first := startTime
 
-	// Force an observable gap, then re-Init.
-	startTime = time.Time{}.Add(time.Hour) // sentinel distinct from any real now
+	startTime = time.Time{}.Add(time.Hour)
 	if err := Init(dir, "0.5.0", "tui"); err != nil {
 		t.Fatalf("second Init returned error: %v", err)
 	}
@@ -147,6 +140,8 @@ func TestInit_SecondInitResetsStartTime(t *testing.T) {
 	}
 }
 
+// Returning normally is the assertion: an os.Exit inside Close would kill the
+// test binary instead.
 func TestClose_ReturnsWithoutTerminatingProcess(t *testing.T) {
 	snapshotInitState(t)
 
@@ -155,24 +150,16 @@ func TestClose_ReturnsWithoutTerminatingProcess(t *testing.T) {
 		t.Fatalf("Init returned error: %v", err)
 	}
 
-	// If Close called os.Exit, this test process would terminate and this test
-	// would be reported as failed-to-complete (its t.Cleanup would not run, and
-	// every sibling test would be skipped). Returning normally from the test
-	// function is itself the proof that Close owns no control flow.
 	Close(0)
 }
 
 func TestClose_SafeBeforeAnyInit(t *testing.T) {
 	snapshotInitState(t)
 
-	// Capture the now-real Close emission so it does not leak to the pre-Init
-	// stderr default; the no-panic contract is what this test asserts.
 	SetTestHandler(t, &recordingHandler{})
 
-	// Reset startTime to its zero value to model a never-Init'd process.
 	startTime = time.Time{}
 
-	// Must not panic.
 	Close(0)
 }
 
@@ -191,8 +178,6 @@ func TestInit_WritesThroughDateAwareSinkToDatedFileAndSymlink(t *testing.T) {
 
 	cached.Info("dated")
 
-	// The record must land in the date-keyed file, proving Init wired the
-	// date-aware rotating sink (not the Phase-1 plain portal.log open).
 	datedPath := filepath.Join(dir, "portal.log.2026-05-29")
 	b, err := os.ReadFile(datedPath)
 	if err != nil {
@@ -202,7 +187,6 @@ func TestInit_WritesThroughDateAwareSinkToDatedFileAndSymlink(t *testing.T) {
 		t.Errorf("expected record in dated file, got: %q", string(b))
 	}
 
-	// portal.log must be the live-target symlink pointing at today's file.
 	target, err := os.Readlink(filepath.Join(dir, "portal.log"))
 	if err != nil {
 		t.Fatalf("readlink portal.log: %v", err)
@@ -215,21 +199,17 @@ func TestInit_WritesThroughDateAwareSinkToDatedFileAndSymlink(t *testing.T) {
 func TestInit_FallsBackToStderrAndReturnsErrorOnOpenFailure(t *testing.T) {
 	snapshotInitState(t)
 
-	// A stateDir that cannot hold the day file (a regular file in the path)
-	// forces the eager open probe to fail; Init must surface the error
-	// advisorily and still install a usable (stderr-fallback) handler.
 	parent := t.TempDir()
 	blocker := filepath.Join(parent, "blocker")
 	if err := os.WriteFile(blocker, []byte("x"), 0o600); err != nil {
 		t.Fatalf("seed blocker: %v", err)
 	}
-	badDir := filepath.Join(blocker, "state") // path component is a regular file.
+	badDir := filepath.Join(blocker, "state")
 
 	if err := Init(badDir, "0.5.0", "tui"); err == nil {
 		t.Error("expected advisory open error from Init on an unwritable stateDir, got nil")
 	}
 
-	// The handler must still be usable (no panic) even after the open failure.
 	For("daemon").Info("after-failure")
 }
 
@@ -277,8 +257,6 @@ func TestInit_EmitsProcessStartThenLogLevelResolvedInOrder(t *testing.T) {
 		t.Fatalf("got %d process:log-level resolved lines, want exactly 1", len(resolved))
 	}
 
-	// Order: start is the FIRST process line and log-level resolved is immediately
-	// after it (no other process line between them).
 	if lines[0].message != "start" {
 		t.Errorf("first process line message = %q, want start", lines[0].message)
 	}
@@ -314,8 +292,6 @@ func TestInit_EmitsProcessStartThenLogLevelResolvedInOrder(t *testing.T) {
 
 func TestInit_LogLevelResolvedSourceDefaultWhenUnset(t *testing.T) {
 	snapshotInitState(t)
-	// Empty resolves identically to unset (os.Getenv yields "" for both), and
-	// t.Setenv restores cleanly without leaking env state into sibling tests.
 	t.Setenv("PORTAL_LOG_LEVEL", "")
 
 	dir := t.TempDir()
@@ -357,9 +333,6 @@ func TestInit_LogLevelResolvedSourceFallbackEmitsBootstrapWarn(t *testing.T) {
 		t.Errorf("raw = %q, want trace (verbatim invalid value)", got)
 	}
 
-	// Fallback ALSO emits the bootstrap-component invalid-value WARN. It is NOT a
-	// lifecycle-bypass line, but source==fallback => resolved level is info, so the
-	// configured handler (at INFO) renders the WARN (slog WARN >= INFO).
 	if !strings.Contains(raw, " bootstrap: invalid PORTAL_LOG_LEVEL raw=trace resolved=info ") {
 		t.Errorf("expected bootstrap invalid PORTAL_LOG_LEVEL WARN line, got:\n%s", raw)
 	}
@@ -408,7 +381,6 @@ func TestInit_BothProcessLinesVisibleAtWarnLevel(t *testing.T) {
 	if len(resolved) != 1 {
 		t.Errorf("process:log-level resolved must be visible at PORTAL_LOG_LEVEL=warn (level-filter bypass)")
 	}
-	// At warn level the resolved line is still INFO semantically, bypassing the gate.
 	if len(resolved) == 1 && resolved[0].level != "INFO" {
 		t.Errorf("log-level resolved level = %q, want INFO (semantically INFO, bypass is the mechanism)", resolved[0].level)
 	}
@@ -431,8 +403,6 @@ func TestInit_ProcessLinesCarryAutoInjectedBaselinesNotDoubleEmitted(t *testing.
 			if !strings.Contains(line, want) {
 				t.Errorf("%q line missing auto-injected baseline %q: %q", msg, want, line)
 			}
-			// Auto-injected exactly once — not double-emitted by the call site also
-			// passing pid/version/process_role.
 			if n := strings.Count(line, want); n != 1 {
 				t.Errorf("%q line carries baseline %q %d times, want exactly 1 (call site must NOT pass baselines)", msg, want, n)
 			}
@@ -449,8 +419,6 @@ func TestInit_SecondInitReEmitsBothProcessLines(t *testing.T) {
 		t.Fatalf("first Init returned error: %v", err)
 	}
 
-	// Second Init into a FRESH dir re-emits both process lines (the most recent
-	// Init defines the logical start). Use a fresh dir so the count is unambiguous.
 	dir2 := t.TempDir()
 	if err := Init(dir2, "0.5.0", "daemon"); err != nil {
 		t.Fatalf("second Init returned error: %v", err)
@@ -465,15 +433,6 @@ func TestInit_SecondInitReEmitsBothProcessLines(t *testing.T) {
 	}
 }
 
-// TestInit_MidnightRollWithRetentionDeletionDoesNotDeadlock is the regression
-// test for the 2026-07-06 live-daemon freeze: a long-lived process whose
-// logging crosses a calendar-day boundary while an aged-out rotated file is
-// deletable. The retention sweep's "deleted" breadcrumb re-enters the sink via
-// the configured handler; before the fix the sweeps fired under the sink mutex,
-// so that re-entry self-deadlocked — freezing every subsequent log call (and
-// the daemon's capture loop with it). This drives the EXACT production wiring
-// (Init's handler writing into Init's sink) and fails fast on a hang instead of
-// wedging the suite.
 func TestInit_MidnightRollWithRetentionDeletionDoesNotDeadlock(t *testing.T) {
 	snapshotInitState(t)
 	t.Setenv("PORTAL_LOG_RETENTION_DAYS", "30")
@@ -484,9 +443,6 @@ func TestInit_MidnightRollWithRetentionDeletionDoesNotDeadlock(t *testing.T) {
 		t.Fatalf("Init: %v", err)
 	}
 
-	// Seed the aged-out file AFTER Init so the first-of-day sweep cannot consume
-	// it; it must survive until the midnight roll below. cutoff on 2026-05-30
-	// with 30-day retention is 2026-04-30; this predates it.
 	old := touchFile(t, dir, "portal.log.2026-01-01")
 
 	set(mustDate(2026, 5, 30))
@@ -506,8 +462,6 @@ func TestInit_MidnightRollWithRetentionDeletionDoesNotDeadlock(t *testing.T) {
 		t.Errorf("aged file %s still present (stat err = %v); the midnight roll must run the retention sweep", filepath.Base(old), err)
 	}
 
-	// The crossing record and the deletion breadcrumb both land in the NEW
-	// day's file through the configured handler.
 	day2 := readDayFile(t, dir, "2026-05-30")
 	if !strings.Contains(day2, " daemon: cross-midnight tick ") {
 		t.Errorf("crossing record missing from day-two file:\n%s", day2)
@@ -516,27 +470,18 @@ func TestInit_MidnightRollWithRetentionDeletionDoesNotDeadlock(t *testing.T) {
 		t.Errorf("retention deletion breadcrumb missing from day-two file:\n%s", day2)
 	}
 
-	// Logging stays live after the roll — the pre-fix symptom was every
-	// subsequent call blocking forever on the wedged mutex.
 	For("daemon").Info("post-roll tick")
 	if !strings.Contains(readDayFile(t, dir, "2026-05-30"), " daemon: post-roll tick ") {
 		t.Error("post-roll record missing; logging did not stay live after the day roll")
 	}
 }
 
-// TestInit_FirstOfDaySweepBreadcrumbLandsInPortalLog pins the breadcrumb half
-// of the day-roll fix: the first-of-day sweep queued by Init's probe fires on
-// the FIRST record through the CONFIGURED handler (process: start), so its
-// deletion breadcrumb lands in portal.log. Before the fix the probe fired the
-// sweep before setHandler, routing the breadcrumb to the pre-Init stderr
-// default — the deletion audit trail never reached the file.
 func TestInit_FirstOfDaySweepBreadcrumbLandsInPortalLog(t *testing.T) {
 	snapshotInitState(t)
 	t.Setenv("PORTAL_LOG_RETENTION_DAYS", "30")
 	fixedClock(t, mustDate(2026, 5, 30))
 
 	dir := t.TempDir()
-	// cutoff on 2026-05-30 with 30-day retention is 2026-04-30; this predates it.
 	old := touchFile(t, dir, "portal.log.2026-01-01")
 
 	if err := Init(dir, "0.5.0", "tui"); err != nil {
@@ -551,15 +496,12 @@ func TestInit_FirstOfDaySweepBreadcrumbLandsInPortalLog(t *testing.T) {
 	if !strings.Contains(raw, " log-rotate: deleted ") {
 		t.Errorf("deletion breadcrumb missing from portal.log (must route through the configured handler, not pre-Init stderr):\n%s", raw)
 	}
-	// process: start stays the FIRST record — the queued sweep fires after it.
 	lines := strings.Split(strings.TrimRight(raw, "\n"), "\n")
 	if len(lines) == 0 || !strings.Contains(lines[0], " process: start ") {
 		t.Errorf("first portal.log record = %q, want process: start (sweep fires after it)", lines[0])
 	}
 }
 
-// readDayFile reads the dated day file portal.log.<date> under dir, failing
-// the test if it is missing.
 func readDayFile(t *testing.T, dir, date string) string {
 	t.Helper()
 	b, err := os.ReadFile(filepath.Join(dir, "portal.log."+date))
@@ -569,7 +511,6 @@ func readDayFile(t *testing.T, dir, date string) string {
 	return string(b)
 }
 
-// processLinesByMessage returns the parsed process lines whose message equals msg.
 func processLinesByMessage(lines []logLine, msg string) []logLine {
 	var out []logLine
 	for _, l := range lines {
@@ -580,8 +521,6 @@ func processLinesByMessage(lines []logLine, msg string) []logLine {
 	return out
 }
 
-// singleProcessLine parses raw and returns the sole process line for msg,
-// failing the test if there is not exactly one.
 func singleProcessLine(t *testing.T, raw, msg string) logLine {
 	t.Helper()
 	got := processLinesByMessage(parseProcessLines(t, raw), msg)
@@ -591,7 +530,6 @@ func singleProcessLine(t *testing.T, raw, msg string) logLine {
 	return got[0]
 }
 
-// singleProcessLineRaw returns the raw text of the sole "process: <msg>" line.
 func singleProcessLineRaw(t *testing.T, raw, msg string) string {
 	t.Helper()
 	prefix := " " + processComponent + ": " + msg + " "
@@ -607,7 +545,6 @@ func singleProcessLineRaw(t *testing.T, raw, msg string) string {
 	return found[0]
 }
 
-// bootstrapWarnLines returns parsed bootstrap-component lines whose message equals msg.
 func bootstrapWarnLines(t *testing.T, raw, msg string) []logLine {
 	t.Helper()
 	var out []logLine
@@ -624,7 +561,6 @@ func bootstrapWarnLines(t *testing.T, raw, msg string) []logLine {
 			continue
 		}
 		rest := fields[3:]
-		// "invalid PORTAL_LOG_LEVEL" is the two-word-plus message; match by prefix.
 		if !strings.HasPrefix(strings.Join(rest, " "), msg) {
 			continue
 		}
@@ -633,8 +569,6 @@ func bootstrapWarnLines(t *testing.T, raw, msg string) []logLine {
 	return out
 }
 
-// logLine is a parsed portal.log text-mode record: its level, component
-// prefix, message, and key=value attrs (with quoteIfMultiWord quoting removed).
 type logLine struct {
 	level     string
 	component string
@@ -642,12 +576,6 @@ type logLine struct {
 	attrs     map[string]string
 }
 
-// parseProcessLines extracts every "process:" component line from the raw
-// portal.log text-mode output, in file order. It splits the
-// "<time> <LEVEL> <component>: <msg> <attrs...>" shape, recognising the closed
-// process lifecycle messages ("start", "log-level resolved") so the multi-word
-// message is captured intact, then parses the trailing space-separated
-// key=value attrs (unquoting quoteIfMultiWord values).
 func parseProcessLines(t *testing.T, raw string) []logLine {
 	t.Helper()
 	var out []logLine
@@ -659,15 +587,11 @@ func parseProcessLines(t *testing.T, raw string) []logLine {
 		if len(fields) < 3 {
 			continue
 		}
-		// fields[0]=time, fields[1]=LEVEL, fields[2]=<component>: (prefix).
 		comp, ok := strings.CutSuffix(fields[2], ":")
 		if !ok || comp != processComponent {
 			continue
 		}
 		rest := fields[3:]
-		// Identify the message: the longest lifecycleBypassMsgs key that is a
-		// space-joined prefix of the remaining tokens. The known process messages
-		// here are single-word ("start") or two-word ("log-level resolved").
 		msg, attrStart := matchProcessMessage(rest)
 		out = append(out, logLine{
 			level:     fields[1],
@@ -679,9 +603,6 @@ func parseProcessLines(t *testing.T, raw string) []logLine {
 	return out
 }
 
-// matchProcessMessage returns the process message formed from the leading tokens
-// and the index of the first attr token. It recognises the two-word
-// "log-level resolved" and otherwise treats the single leading token as the msg.
 func matchProcessMessage(tokens []string) (msg string, attrStart int) {
 	if len(tokens) >= 2 && tokens[0] == "log-level" && tokens[1] == "resolved" {
 		return "log-level resolved", 2
@@ -692,10 +613,6 @@ func matchProcessMessage(tokens []string) (msg string, attrStart int) {
 	return "", 0
 }
 
-// parseAttrs parses trailing key=value attr tokens into a map, unquoting values
-// that quoteIfMultiWord wrapped in double quotes. A quoted value that spans
-// multiple whitespace-split tokens (e.g. args="open .") is rejoined from the
-// original line rather than the pre-split tokens.
 func parseAttrs(t *testing.T, line string, tokens []string) map[string]string {
 	t.Helper()
 	attrs := map[string]string{}
@@ -705,11 +622,8 @@ func parseAttrs(t *testing.T, line string, tokens []string) map[string]string {
 			continue
 		}
 		if strings.HasPrefix(val, `"`) && (len(val) < 2 || !strings.HasSuffix(val, `"`)) {
-			// Quoted value split across tokens: recover the full quoted run from
-			// the raw line via the key="..." anchor.
 			if recovered, ok := recoverQuotedAttr(line, key); ok {
 				attrs[key] = recovered
-				// Skip the remaining tokens of this quoted value.
 				for i+1 < len(tokens) && !strings.HasSuffix(tokens[i], `"`) {
 					i++
 				}
@@ -721,8 +635,6 @@ func parseAttrs(t *testing.T, line string, tokens []string) map[string]string {
 	return attrs
 }
 
-// recoverQuotedAttr extracts the unquoted value of a key="..." attr from the raw
-// line, used when the value contains spaces (quoteIfMultiWord quoting).
 func recoverQuotedAttr(line, key string) (string, bool) {
 	anchor := " " + key + `="`
 	idx := strings.Index(line, anchor)
@@ -737,8 +649,6 @@ func recoverQuotedAttr(line, key string) (string, bool) {
 	return line[start : start+end], true
 }
 
-// readPortalLog reads the portal.log written under dir, failing the test if it
-// is missing or empty. Returns the full file contents.
 func readPortalLog(t *testing.T, dir string) string {
 	t.Helper()
 	b, err := os.ReadFile(filepath.Join(dir, "portal.log"))

@@ -25,13 +25,6 @@ func TestSessionItem(t *testing.T) {
 	t.Run("implements list.Item interface", func(t *testing.T) {
 		var _ list.Item = tui.SessionItem{}
 	})
-
-	// The session name, window-count label, and attached badge are produced
-	// solely by the live render path (SessionDelegate.Render → renderSessionRow);
-	// the former SessionItem.Title()/Description() projection methods were dead
-	// (no production caller, list.Item needs only FilterValue) and are gone. Their
-	// vocabulary is asserted against the live render in TestSessionDelegate (name,
-	// "N window(s)", and the "● attached" marker sourced from attachedMarker).
 }
 
 func TestSessionItemGroupMetadata(t *testing.T) {
@@ -63,9 +56,6 @@ func TestSessionItemGroupMetadata(t *testing.T) {
 	})
 
 	t.Run("the live render emits the session name regardless of group fields", func(t *testing.T) {
-		// Group metadata is build-layer only; the live render path
-		// (SessionDelegate.Render) draws the session name irrespective of
-		// GroupKey/GroupHeading/CatchAll.
 		item := tui.SessionItem{
 			Session:      tmux.Session{Name: "dev", Windows: 3, Attached: true},
 			GroupKey:     "/home/me/project",
@@ -224,7 +214,6 @@ func TestSessionDelegate(t *testing.T) {
 			tui.SessionItem{Session: tmux.Session{Name: "second", Windows: 2, Attached: false}},
 		}
 		m := list.New(items, d, 80, 10)
-		// m.Index() defaults to 0, so index 0 is selected
 
 		var selectedBuf bytes.Buffer
 		d.Render(&selectedBuf, m, 0, items[0])
@@ -234,18 +223,15 @@ func TestSessionDelegate(t *testing.T) {
 		d.Render(&unselectedBuf, m, 1, items[1])
 		unselectedOutput := unselectedBuf.String()
 
-		// Selected item has the ▌ selector-bar glyph (§3.3).
 		if !strings.Contains(selectedOutput, "▌") {
 			t.Errorf("selected item should contain selector bar glyph '▌': %q", selectedOutput)
 		}
-		// Unselected item has no selector bar.
 		if strings.Contains(unselectedOutput, "▌") {
 			t.Errorf("unselected item should not contain selector bar glyph '▌': %q", unselectedOutput)
 		}
 	})
 
 	t.Run("short session name renders in full", func(t *testing.T) {
-		// A name well within the flex width at this row width renders untruncated.
 		name := "my-project"
 		d := tui.SessionDelegate{}
 		items := []list.Item{
@@ -266,17 +252,9 @@ func TestSessionDelegate(t *testing.T) {
 	})
 }
 
-// groupSeparator is the heading separator glyph (U+00B7 MIDDLE DOT ×3) used by
-// the delegate in the "Heading ··· N" form. Duplicated here so the test pins the
-// exact rendered glyph independently of the implementation constant.
 const groupSeparator = "···"
 
 func TestSessionDelegateGroupHeadings(t *testing.T) {
-	// Group headings are now real, separate HeaderItem list rows (no longer a
-	// line injected inside a SessionItem's Render). The delegate type-switches:
-	// a HeaderItem renders the dimmed "Heading ··· N" separator; a SessionItem
-	// renders only its own row.
-
 	t.Run("renders a HeaderItem as the dimmed 'Heading ··· N' separator", func(t *testing.T) {
 		d := tui.SessionDelegate{}
 		header := tui.HeaderItem{Heading: "Work", Count: 1, Key: "/p/work"}
@@ -294,8 +272,6 @@ func TestSessionDelegateGroupHeadings(t *testing.T) {
 	})
 
 	t.Run("a SessionItem renders only its own row, never a heading line", func(t *testing.T) {
-		// A SessionItem carrying group metadata renders just its session row —
-		// the heading is now a separate HeaderItem, not prefixed in-delegate.
 		d := tui.SessionDelegate{}
 		item := tui.SessionItem{Session: tmux.Session{Name: "a", Windows: 1}, GroupKey: "/p/portal", GroupHeading: "Portal"}
 		m := list.New([]list.Item{item}, d, 80, 10)
@@ -321,10 +297,6 @@ func TestSessionDelegateGroupHeadings(t *testing.T) {
 		d := tui.SessionDelegate{}
 		m := list.New(nil, d, 80, 10)
 
-		// The §5.1 reskin renders the heading word (text.muted) and the "··· N"
-		// count (text.subtle) as TWO separately-styled SGR runs, so the contiguous
-		// "Heading ··· N" string spans the VISIBLE (ANSI-stripped) output rather
-		// than the raw bytes — strip before asserting the visible text.
 		var portal bytes.Buffer
 		d.Render(&portal, m, 0, tui.HeaderItem{Heading: "Portal", Count: 2, Key: "/p/portal"})
 		if vis := ansi.Strip(portal.String()); !strings.Contains(vis, "Portal "+groupSeparator+" 2") {
@@ -339,8 +311,6 @@ func TestSessionDelegateGroupHeadings(t *testing.T) {
 	})
 
 	t.Run("renders a per-tag count of 1 for each of a multi-tag session's headers", func(t *testing.T) {
-		// One live session 'dev' materialised under two tags (Pattern B). Each
-		// tag heading is its own HeaderItem with Count 1.
 		d := tui.SessionDelegate{}
 		m := list.New(nil, d, 80, 10)
 
@@ -365,7 +335,6 @@ func TestSessionDelegateGroupHeadings(t *testing.T) {
 		}
 		m := list.New(items, d, 80, 10)
 
-		// Expected output is the legacy session line: cursor + name + "  " + detail.
 		for index := range items {
 			var buf bytes.Buffer
 			d.Render(&buf, m, index, items[index])
@@ -391,8 +360,6 @@ func TestSessionDelegateGroupHeadings(t *testing.T) {
 	})
 
 	t.Run("FilterValue is empty so the built-in filter drops headers", func(t *testing.T) {
-		// Headers vanish during filtering (flatten-on-filter) because their
-		// FilterValue is "" — the built-in filter never matches them.
 		var _ list.Item = tui.HeaderItem{}
 		if got := (tui.HeaderItem{Heading: "Portal", Count: 2}).FilterValue(); got != "" {
 			t.Errorf("HeaderItem.FilterValue() = %q, want empty", got)
@@ -400,14 +367,7 @@ func TestSessionDelegateGroupHeadings(t *testing.T) {
 	})
 }
 
-// TestSessionDelegateFlattenOnFilter pins the new flatten-on-filter mechanism.
-// Group headings are now real HeaderItem list rows whose FilterValue is "", so
-// the built-in filter drops them the moment a query is typed — leaving a flat
-// hit list of session rows. (Previously the delegate suppressed in-line
-// headings by inspecting the model's FilterState; that mechanism is gone.)
 func TestSessionDelegateFlattenOnFilter(t *testing.T) {
-	// projectItems mirrors what buildByProject emits: a HeaderItem before each
-	// group's session rows.
 	projectItems := func() []list.Item {
 		return []list.Item{
 			tui.HeaderItem{Heading: "Portal", Count: 2, Key: "/p/portal"},
@@ -418,8 +378,6 @@ func TestSessionDelegateFlattenOnFilter(t *testing.T) {
 		}
 	}
 
-	// tagItems mirrors what buildByTag emits for a single multi-tag session
-	// (Pattern B): one (header, row) pair per tag.
 	tagItems := func() []list.Item {
 		return []list.Item{
 			tui.HeaderItem{Heading: "personal", Count: 1, Key: "personal"},
@@ -429,7 +387,6 @@ func TestSessionDelegateFlattenOnFilter(t *testing.T) {
 		}
 	}
 
-	// countHeaders / countSessions classify the post-filter visible items.
 	countHeaders := func(items []list.Item) int {
 		n := 0
 		for _, it := range items {
@@ -452,7 +409,7 @@ func TestSessionDelegateFlattenOnFilter(t *testing.T) {
 	t.Run("the built-in filter drops all headers in By Project mode", func(t *testing.T) {
 		d := tui.SessionDelegate{}
 		m := list.New(projectItems(), d, 80, 10)
-		m.SetFilterText("a") // matches session row "a"
+		m.SetFilterText("a")
 
 		visible := m.VisibleItems()
 		if countHeaders(visible) != 0 {
@@ -488,13 +445,10 @@ func TestSessionDelegateFlattenOnFilter(t *testing.T) {
 		if countHeaders(restored) != 2 {
 			t.Errorf("expected the 2 group headers to return on clear, got %d", countHeaders(restored))
 		}
-		// And the dimmed headings render once more for the restored headers.
 		var buf bytes.Buffer
 		for i := range restored {
 			d.Render(&buf, m, i, restored[i])
 		}
-		// The heading word and the "···" count are two separate SGR runs (§5.1), so
-		// "Heading ···" spans the VISIBLE (stripped) output, not the raw bytes.
 		out := ansi.Strip(buf.String())
 		if !strings.Contains(out, "Portal "+groupSeparator) || !strings.Contains(out, "Work "+groupSeparator) {
 			t.Errorf("expected By Project headings to render again on clear, got: %q", out)
@@ -532,8 +486,6 @@ func TestSessionDelegateFlattenOnFilter(t *testing.T) {
 		for i := range restored {
 			d.Render(&buf, m, i, restored[i])
 		}
-		// Heading word + "···" count are two separate SGR runs (§5.1) — assert on
-		// the VISIBLE (stripped) output.
 		out := ansi.Strip(buf.String())
 		if !strings.Contains(out, "personal "+groupSeparator) {
 			t.Errorf("expected By Tag heading 'personal' to return on clear, got: %q", out)

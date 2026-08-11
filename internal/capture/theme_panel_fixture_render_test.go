@@ -13,41 +13,16 @@ import (
 	"github.com/leeovery/portal/internal/themetest"
 )
 
-// The FRAME-level half of the harness contract's panel fixtures: what the two setting-state
-// captures actually render.
-//
-// The reference frames identify the panel's slot half as the part with NO PRIOR ART ANYWHERE
-// — assigning a theme to a light/dark slot from inside a picker was found in no
-// surveyed tool, so `d`/`l` and the `● dark` / `● light` / `● both` vocabulary
-// have no established shape to borrow, and these frames plus the Paper artboards
-// are the only reference that exists. That is why the badges are asserted here
-// rather than left to the eye at the visual gate: the gate judges COLOUR, and a
-// badge on the wrong row is not a colour question.
-//
-// These assertions read the RENDERED frame rather than model internals, because
-// internal/tui exports no panel accessor — and because the frame is what the
-// tapes screenshot, so a divergence between the two would be invisible.
-
-// panelEntryRefusalCopy is the pinned blocked-entry copy for the two render
-// floor dimensions. A frame carrying either is a frame where `t` REFUSED, which
-// on a fixture means the render size never cleared the panel's entry gate.
 var panelEntryRefusalCopy = []string{
 	"terminal too narrow for the theme picker",
 	"terminal too short for the theme picker",
 }
 
-// panelFixtureFrame renders one panel fixture at the guard's pinned size, driven
-// through its own captureKeys by ModelAt — the identical drive a tape performs.
 func panelFixtureFrame(t *testing.T, fixture string, palette theme.Theme) string {
 	t.Helper()
 	return panelFrameAt(t, fixture, palette, harnessWidth, harnessHeight)
 }
 
-// registeredPanelFixtureNames is every `theme-panel-*` fixture the registry
-// holds, which is the set an assertion about the panel fixtures as a class ranges
-// over: a frame added to the catalogue is covered without being enrolled again by
-// hand. What that set must EQUAL is stated separately, against
-// allPanelFixtureNames().
 func registeredPanelFixtureNames() []string {
 	var names []string
 	for _, name := range capture.FixtureNames() {
@@ -58,13 +33,6 @@ func registeredPanelFixtureNames() []string {
 	return names
 }
 
-// stageDecoyConfig points config discovery at a fresh directory holding one
-// observable decoy drop-in, and returns that directory.
-//
-// The decoy is a VALID theme file, so a fixture that reached the real themes
-// directory would list it as a SELECTABLE ROW rather than as a rejection — which
-// a reader could mistake for correct behaviour on precisely the frames that are
-// about rejections.
 func stageDecoyConfig(t *testing.T) (configDir string) {
 	t.Helper()
 
@@ -82,13 +50,8 @@ func stageDecoyConfig(t *testing.T) (configDir string) {
 	return dir
 }
 
-// decoySlug is the drop-in stageDecoyConfig plants — a slug no fixture declares,
-// so its appearance on a frame can only mean the real directory was read.
 const decoySlug = "decoy-drop-in"
 
-// requireConfigUntouched asserts the two halves of the no-config claim over a
-// rendered frame: the decoy is listed nowhere, and the staged tree is still the
-// only thing in the config directory.
 func requireConfigUntouched(t *testing.T, configDir, frame string) {
 	t.Helper()
 
@@ -104,17 +67,6 @@ func requireConfigUntouched(t *testing.T, configDir, frame string) {
 	}
 }
 
-// TestPanelFixture_NoConfigAccess: every panel fixture reaches no config.
-//
-// Fixture data is not config discovery, which is the same reasoning that
-// admits `--theme <path>` — so the built-in-is-a-file rule's import guard is untouched and
-// this is the runtime half of the same claim: a panel fixture renders its whole frame with
-// the themes directory and prefs.json pointed somewhere observable, reads
-// neither, and creates nothing.
-//
-// It ranges over the WHOLE panel set rather than over one task's frames, so a
-// fixture added to the registry is covered by the claim without a second test
-// being written to carry it.
 func TestPanelFixture_NoConfigAccess(t *testing.T) {
 	for _, name := range registeredPanelFixtureNames() {
 		t.Run(name, func(t *testing.T) {
@@ -124,20 +76,7 @@ func TestPanelFixture_NoConfigAccess(t *testing.T) {
 	}
 }
 
-// TestPanelFixture_AdaptivePairBadges: it renders the adaptive-pair badges.
-//
-// The primary reference frame for the badge vocabulary: two
-// slot badges live at once, on different rows, with the cursor on the row the DARK
-// slot names — because capturetool runs no light/dark gate, so the standing
-// no-answer fallback selects dark.
-//
-// It is unreachable from `--theme` alone, which is exactly why the harness contract separates
-// the raw keys from the palette: capturetool always passes the CONSTANT shape,
-// and the constant-or-pair rule makes a non-empty `theme` render a bare `●` with no slot
-// badges.
 func TestPanelFixture_AdaptivePairBadges(t *testing.T) {
-	// The coherent pairing the fixture's doc comment states: `--theme` names the
-	// theme under the cursor, which at open is the dark slot's.
 	rows := panelRows(t, panelFixtureFrame(t, "theme-panel-adaptive-pair", themetest.Builtin(t, "nord")))
 
 	t.Run("the light slot's row carries ● light", func(t *testing.T) {
@@ -154,7 +93,7 @@ func TestPanelFixture_AdaptivePairBadges(t *testing.T) {
 
 	t.Run("the cursor is on the in-force dark slot's row", func(t *testing.T) {
 		if !rows["nord"].cursor {
-			t.Error("the cursor is not on nord; §9.2 puts it on the theme actually rendering, which under a pair with no gate is the dark slot's")
+			t.Error("the cursor is not on nord; the cursor belongs on the theme actually rendering, which under a pair with no gate is the dark slot's")
 		}
 		if rows["tokyo-night-day"].cursor {
 			t.Error("the cursor is on tokyo-night-day as well; only ONE row may carry the cursor bar")
@@ -170,19 +109,7 @@ func TestPanelFixture_AdaptivePairBadges(t *testing.T) {
 	})
 }
 
-// TestPanelFixture_ConstantWhilePreviewing: it renders a bare dot while
-// previewing another row.
-//
-// The reference frames: "the constant frame completes the panel's specification because the
-// two setting states never coexist on screen". It is the picker idiom made visible —
-// the `●` is what is PERSISTED, the cursor plus the canvas is what is PREVIEWED,
-// and `Esc` would restore the marked one.
-//
-// The constant-or-pair rule is what makes the bare `●` correct: a non-empty `theme` wins and
-// the slots are NOT READ AT ALL, so there is no slot to qualify the marker with.
 func TestPanelFixture_ConstantWhilePreviewing(t *testing.T) {
-	// The coherent pairing the fixture's doc comment states: `--theme` names the
-	// PREVIEWED theme, deliberately not the marked constant.
 	rows := panelRows(t, panelFixtureFrame(t, "theme-panel-constant-previewing", themetest.Builtin(t, theme.DefaultLightSlug)))
 
 	t.Run("the constant's row carries a bare ●", func(t *testing.T) {
@@ -194,7 +121,7 @@ func TestPanelFixture_ConstantWhilePreviewing(t *testing.T) {
 	t.Run("no slot badge appears on any list row", func(t *testing.T) {
 		for _, label := range panelUnionSlugs() {
 			if badge := rows[label].badge; badge != "" && badge != "●" {
-				t.Errorf("the %s row carries badge %q; under a constant the slots are not read at all, so the only badge available is the bare ● (§8.2)", label, badge)
+				t.Errorf("the %s row carries badge %q; under a constant the slots are not read at all, so the only badge available is the bare ●", label, badge)
 			}
 		}
 	})
@@ -209,18 +136,6 @@ func TestPanelFixture_ConstantWhilePreviewing(t *testing.T) {
 	})
 }
 
-// TestPanelFixture_CursorSeedDoesNotApplyATheme: it treats the cursor seed as
-// placement only.
-//
-// The seed moves the cursor and NOTHING ELSE. Applying the seeded row's palette
-// would make `capturetool --theme <slug|path>` inert on precisely the frames a
-// drop-in author most wants to check — the panel's own — which is the one thing
-// the harness contract says the flag exists for.
-//
-// It is driven with a DELIBERATELY INCOHERENT pairing: the fixture seeds its
-// cursor onto tokyo-night-day while `--theme` names nord. A coherent frame cannot
-// tell the two apart, because the seeded row and the flag would name the same
-// palette.
 func TestPanelFixture_CursorSeedDoesNotApplyATheme(t *testing.T) {
 	pinned := themetest.Builtin(t, "nord")
 	seeded := themetest.Builtin(t, theme.DefaultLightSlug)
@@ -238,17 +153,6 @@ func TestPanelFixture_CursorSeedDoesNotApplyATheme(t *testing.T) {
 	}
 }
 
-// TestPanelFixture_PaletteFollowsTheThemeFlag: it takes its palette from the
-// theme flag.
-//
-// The two inputs are separate by the construction-time load rule's own construction —
-// `--theme` pins the PALETTE, while the badges and the marked rows derive from the RAW KEYS —
-// so a fixture's declared keys must not move when the flag does, and the colours must.
-//
-// Asserted by rendering ONE fixture under two `--theme` values and diffing, which
-// is the only form that can fail for a fixture whose palette is hard-coded
-// somewhere inside it: a single render under a single flag agrees with a
-// hard-coded palette exactly as often as it agrees with a threaded one.
 func TestPanelFixture_PaletteFollowsTheThemeFlag(t *testing.T) {
 	first, second := themetest.Builtin(t, "nord"), themetest.Builtin(t, theme.DefaultLightSlug)
 	if first.Canvas.Value == second.Canvas.Value {
@@ -280,9 +184,6 @@ func TestPanelFixture_PaletteFollowsTheThemeFlag(t *testing.T) {
 				}
 			}
 
-			// The rows are fixture data, not palette data, so they must be identical
-			// either side of the swap — which is what makes the colour diff above a
-			// statement about the palette rather than about the frame's content.
 			if got, want := labelSet(panelRows(t, a)), labelSet(panelRows(t, b)); !slices.Equal(got, want) {
 				t.Errorf("the panel lists %v under one palette and %v under the other; the row set is fixture data and must not follow the flag", got, want)
 			}
@@ -290,8 +191,6 @@ func TestPanelFixture_PaletteFollowsTheThemeFlag(t *testing.T) {
 	}
 }
 
-// labelSet is a parsed panel's row labels, sorted — the palette-independent half
-// of a frame.
 func labelSet(rows map[string]panelRow) []string {
 	labels := make([]string, 0, len(rows))
 	for label := range rows {
@@ -301,8 +200,6 @@ func labelSet(rows map[string]panelRow) []string {
 	return labels
 }
 
-// capturePanelFixtureNames is the setting-state pair, an input to the specified
-// set allPanelFixtureNames() states.
 func capturePanelFixtureNames() []string {
 	return []string{
 		panelFixtureNamePrefix + "adaptive-pair",
@@ -310,35 +207,10 @@ func capturePanelFixtureNames() []string {
 	}
 }
 
-// panelUnionSlugs is the union's row set both panel fixtures declare — the three
-// built-ins plus one valid drop-in.
-//
-// Assertions about badges range over THIS rather than over every parsed row,
-// because the parser reads the whole slide-over: the vertical keymap footer's own
-// rows are `d set as dark` and `l set as light`, which a naive scan for the badge
-// vocabulary matches on the footer the panel always renders.
 func panelUnionSlugs() []string {
 	return []string{"catppuccin-latte", "nord", theme.DefaultDarkSlug, theme.DefaultLightSlug}
 }
 
-// TestPanelFixture_Registered: every panel fixture is registered in both lists
-// and driven by the swap-and-diff guard.
-//
-// FixtureByName's switch and FixtureNames()'s slice are two hand-maintained
-// lists, and a fixture present in one and absent from the other is INVISIBLE to
-// the enumerating completeness guard — it exists, it renders, and nothing ever swaps
-// it. Absence reads as coverage, which is the shape the fixture drift check exists to
-// close. A name that is enumerated but does not resolve fails here, named; the
-// reverse omission is carried by the exact-set claim against allPanelFixtureNames().
-//
-// The guard NEVER NAMES A FIXTURE — it iterates the registry — so the third leg is
-// that a panel fixture arrives in the set the guard's assertions range over with no
-// edit to the guard itself.
-//
-// It ranges over the registry rather than over any task's hand-written list, so a
-// frame added to the catalogue is covered without a further test being written to
-// carry it. That the registry holds exactly the specified set is a separate claim,
-// stated against allPanelFixtureNames().
 func TestPanelFixture_Registered(t *testing.T) {
 	guarded := make([]string, 0, len(capture.FixtureNames()))
 	for _, fx := range guardedFixtures(t) {
@@ -360,21 +232,6 @@ func TestPanelFixture_Registered(t *testing.T) {
 	}
 }
 
-// TestPanelFixture_PanelIsCompositedUnderTheGuard: it composites the panel under
-// the guard's pinned size.
-//
-// PROVEN, NOT ASSUMED. The completeness guard renders every enumerated fixture at the
-// single pinned render size and drives it through ModelAt, which replays
-// captureKeys — so a panel fixture's `t` passes through the panel's entry gate
-// there exactly as it does under a tape. If that constant failed the panel's
-// floor (width below the panel minimum, or height below header + footer + one
-// list row + one message row), the guard would render a PANEL-LESS frame carrying
-// a blocked-`t` flash and EVERY ASSERTION WOULD STILL PASS: the panel's own
-// bubbles/list instance would be covered by nothing while reading as covered.
-//
-// So the A-frame must carry the panel's left border and its `Themes` header. If
-// this fails, RAISE the pinned render size rather than weakening the assertion,
-// and record the panel floor among the reasons the value is what it is.
 func TestPanelFixture_PanelIsCompositedUnderTheGuard(t *testing.T) {
 	a, b := syntheticPalettes(t)
 

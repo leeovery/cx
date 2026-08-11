@@ -8,11 +8,6 @@ import (
 	"github.com/leeovery/portal/internal/themetest"
 )
 
-// TestSyntheticPalette_FillsEveryTokenInCanonicalOrder pins the three properties
-// every guard probing with this palette rests on: every token in the vocabulary
-// carries a value (a zero token can neither be diffed nor detected as stale), no
-// two tokens share one (a swap that missed a site must be distinguishable), and
-// the values are the ones the ramp defines, in the canonical table order.
 func TestSyntheticPalette_FillsEveryTokenInCanonicalOrder(t *testing.T) {
 	const red = 0x6E
 
@@ -39,9 +34,6 @@ func TestSyntheticPalette_FillsEveryTokenInCanonicalOrder(t *testing.T) {
 	}
 }
 
-// TestSyntheticPalette_ChannelsAreThreeDecimalDigits pins the substring property
-// the "the stale colour is absent" half of every probe rests on: a rendered SGR
-// core is fixed-width, so one token's run can never be a substring of another's.
 func TestSyntheticPalette_ChannelsAreThreeDecimalDigits(t *testing.T) {
 	for _, red := range []uint8{0x64, 0xAA, 0xFF} {
 		for _, tok := range themetest.SyntheticPalette(t, red).All() {
@@ -58,9 +50,6 @@ func TestSyntheticPalette_ChannelsAreThreeDecimalDigits(t *testing.T) {
 	}
 }
 
-// TestSyntheticPair_SharesNoTokenValue pins what makes a pair usable as a
-// before/after probe: no value survives the swap legitimately, so any theme-A
-// value found in a theme-B frame is a site that never got the new theme.
 func TestSyntheticPair_SharesNoTokenValue(t *testing.T) {
 	a, b := themetest.SyntheticPair(t, 0x6E, 0xD2)
 

@@ -1,13 +1,9 @@
-// Package capture provides the in-memory fakes and deterministic fixtures used
-// ONLY by the offline visual-capture harness (cmd/capturetool). It implements
-// every tmux seam the TUI model depends on with canned, deterministic data so a
-// capture never opens a tmux server, never spawns a daemon, and never touches
-// the real ~/.config/portal.
+// Package capture provides the in-memory fakes and deterministic fixtures the
+// offline visual-capture harness (cmd/capturetool) renders. Every tmux seam the
+// TUI model depends on is canned, and nothing here discovers config, so a capture
+// never opens a tmux server, spawns a daemon or reads the real ~/.config/portal.
 //
-// This package MUST NOT be imported by the shipped portal binary — an import
-// guard test (cmd/capturetool/import_guard_test.go) enforces that the portal
-// binary's transitive dependency set excludes it, keeping harness scaffolding
-// out of production.
+// The shipped portal binary must not import this package.
 package capture
 
 import (
@@ -19,17 +15,8 @@ import (
 	"github.com/leeovery/portal/internal/tui"
 )
 
-// loadingProgressReceiver builds a §10.2 progress-channel receiver tea.Cmd that
-// streams a fixed sequence of BootstrapProgressMsg events into the loading page
-// then BLOCKS forever — it never emits the terminal BootstrapCompleteMsg. The
-// model folds each event into its loadingProgress accumulator (the real Update
-// path), so the loading-screen capture renders the seeded mid-restore state, and
-// because the terminal event never arrives the dual-gate never dismisses the
-// page — the capture stays deterministically parked on PageLoading.
-//
-// Each invocation pops one event off the buffered channel (the standard single-
-// blocking-receive-re-issued pattern); once the seeded events are drained the
-// receive blocks, freezing the loading page for the screenshot.
+// Blocks forever once the seeded events drain — BootstrapCompleteMsg never
+// arrives, so the capture stays parked on the loading page.
 func loadingProgressReceiver(events []tui.BootstrapProgressMsg) tea.Cmd {
 	ch := make(chan tui.BootstrapProgressMsg, len(events))
 	for _, e := range events {
@@ -40,18 +27,8 @@ func loadingProgressReceiver(events []tui.BootstrapProgressMsg) tea.Cmd {
 	}
 }
 
-// loadingFatalReceiver builds the §10.5 fatal-frame receiver: it streams the
-// seeded progress events (the steps that completed before the abort) then emits
-// the terminal tui.BootstrapFatalMsg (the failed step + one-line message) and
-// BLOCKS forever. The model folds each progress event into its accumulator (the
-// real Update path) then enters the error state on the fatal — so the
-// loading-error capture renders the §10.5 frame (failed step ✗ in
-// state.destructive + message + quit hint) deterministically, never
-// transitioning to the picker.
-//
-// Each invocation pops one queued tea.Msg; once drained the receive blocks,
-// freezing the error frame for the screenshot. The fatal is mocked here (§10.5 —
-// there is no Paper oracle), so the capture IS the implementation mock.
+// Blocks forever after the fatal, so the error frame never transitions to the
+// picker.
 func loadingFatalReceiver(events []tui.BootstrapProgressMsg, fatal tui.BootstrapFatalMsg) tea.Cmd {
 	ch := make(chan tea.Msg, len(events)+1)
 	for _, e := range events {
@@ -63,38 +40,29 @@ func loadingFatalReceiver(events []tui.BootstrapProgressMsg, fatal tui.Bootstrap
 	}
 }
 
-// fakeLister is the canned SessionLister seam — it returns a fixed session set
-// with no tmux server contact.
 type fakeLister struct {
 	sessions []tmux.Session
 }
 
 func (f *fakeLister) ListSessions() ([]tmux.Session, error) {
-	// Return a copy so a consumer mutating the slice cannot perturb the fixture's
-	// determinism across rebuilds within the same process.
+	// Copy: a caller mutating the slice must not perturb the fixture across rebuilds.
 	out := make([]tmux.Session, len(f.sessions))
 	copy(out, f.sessions)
 	return out, nil
 }
 
-// fakeKiller is a no-op SessionKiller — the harness must never kill a session.
 type fakeKiller struct{}
 
 func (fakeKiller) KillSession(string) error { return nil }
 
-// fakeRenamer is a no-op SessionRenamer.
 type fakeRenamer struct{}
 
 func (fakeRenamer) RenameSession(string, string) error { return nil }
 
-// fakeCreator is a no-op SessionCreator — it never creates a tmux session.
 type fakeCreator struct{}
 
 func (fakeCreator) CreateFromDir(string, []string) (string, error) { return "", nil }
 
-// fakeProjectStore returns a fixed project set with no JSON file contact. It
-// satisfies tui.ProjectStore. CleanStale is a no-op (returns the same set) and
-// Remove is a no-op (the harness never mutates projects.json).
 type fakeProjectStore struct {
 	projects []project.Project
 }
@@ -109,11 +77,6 @@ func (f *fakeProjectStore) CleanStale() ([]project.Project, error) { return nil,
 
 func (f *fakeProjectStore) Remove(string, string) error { return nil }
 
-// fakeProjectEditor satisfies tui.ProjectEditor for the edit-project modal capture.
-// Every mutation is an in-memory no-op (the harness never touches projects.json);
-// the capture only needs the modal to OPEN and render its seeded state, so the
-// edit-key nil-guard (model.go handleEditProjectKey) is satisfied without any real
-// persistence side effect.
 type fakeProjectEditor struct{}
 
 func (fakeProjectEditor) Rename(string, string, string) error { return nil }
@@ -122,10 +85,6 @@ func (fakeProjectEditor) AddTag(string, string) error { return nil }
 
 func (fakeProjectEditor) RemoveTag(string, string) error { return nil }
 
-// fakeAliasEditor satisfies tui.AliasEditor for the edit-project modal capture. It
-// holds a canned alias→path map so Load() returns the seeded aliases that render as
-// chips for the matching project; the mutating SetAndSave/DeleteAndSave are
-// in-memory no-ops (the harness never touches the aliases file).
 type fakeAliasEditor struct {
 	aliases map[string]string
 }
@@ -140,10 +99,6 @@ func (fakeAliasEditor) SetAndSave(string, string, string) error { return nil }
 
 func (fakeAliasEditor) DeleteAndSave(string, string) (bool, error) { return true, nil }
 
-// fakeEnumerator returns canned window/pane structure for the preview page so a
-// capture can drive into Preview without a tmux server. `groups`, when set,
-// overrides the default multi-window shape so a fixture can pin a specific
-// Window/Pane counter shape (e.g. the single 1/1 preview-screen capture).
 type fakeEnumerator struct {
 	groups []tmux.WindowGroup
 }
@@ -158,12 +113,8 @@ func (e fakeEnumerator) ListWindowsAndPanesInSession(string) ([]tmux.WindowGroup
 	}, nil
 }
 
-// fakeScrollbackReader returns a fixed scrollback snippet for the preview page.
-// The three-shape Tail contract is honoured: this always returns canned bytes.
-// `content`, when non-empty, overrides the default snippet so a fixture can seed
-// realistic scrollback (e.g. the preview-screen capture). The seeded content is
-// GENERIC example terminal output — Portal's preview is tool-agnostic, so no
-// fixture references any specific tool/model.
+// Seeded content stays generic terminal output — Portal's preview is
+// tool-agnostic, so no fixture references any specific tool.
 type fakeScrollbackReader struct {
 	content string
 }

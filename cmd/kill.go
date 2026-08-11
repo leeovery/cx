@@ -6,21 +6,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// killDeps holds injectable dependencies for the kill command.
-// When nil, real implementations are used.
 var killDeps *KillDeps
 
-// SessionKiller kills a tmux session by name.
 type SessionKiller interface {
 	KillSession(name string) error
 }
 
-// SessionValidator checks whether a tmux session exists by name.
 type SessionValidator interface {
 	HasSession(name string) bool
 }
 
-// KillDeps allows injecting dependencies for testing.
 type KillDeps struct {
 	Killer    SessionKiller
 	Validator SessionValidator
@@ -43,9 +38,6 @@ var killCmd = &cobra.Command{
 	},
 }
 
-// buildKillDeps returns the appropriate killer and validator for the kill command.
-// When killDeps is set (testing), uses injected dependencies.
-// Otherwise, builds real implementations.
 func buildKillDeps(cmd *cobra.Command) (SessionKiller, SessionValidator) {
 	if killDeps != nil {
 		return killDeps.Killer, killDeps.Validator
@@ -56,9 +48,8 @@ func buildKillDeps(cmd *cobra.Command) (SessionKiller, SessionValidator) {
 }
 
 func init() {
-	// Tab completion (spec § Tab Completion): kill's single positional completes
-	// session names via the shared completer. kill is ExactArgs(1), so once the
-	// first positional is present there is nothing more to complete.
+	// kill takes exactly one positional, so there is nothing left to complete
+	// once it is present.
 	killCmd.ValidArgsFunction = func(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		if len(args) > 0 {
 			return nil, cobra.ShellCompDirectiveNoFileComp

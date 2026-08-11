@@ -1,17 +1,5 @@
 package cmd
 
-// Task spectrum-tui-design-5-1/5-2 — the cold/TUI concurrent route through
-// PersistentPreRunE → openTUI (the 5-1 gate decides it, 5-2 implements it).
-//
-// On the cold + TUI path PersistentPreRunE must DEFER bootstrap (NOT run the
-// orchestrator synchronously) and hand a deferred runner to openTUI, which runs
-// it in a goroutine streaming progress over the channel. The warm/CLI path keeps
-// the synchronous runBootstrap + serverStartedKey context + sync.Once memo
-// byte-for-byte.
-//
-// Tests mutate package-level state (bootstrapDeps, openTUIFunc, rootCmd) and
-// MUST NOT use t.Parallel.
-
 import (
 	"context"
 	"testing"
@@ -20,26 +8,17 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// coldCommander is a recordingCommander whose "info" probe fails and whose
-// @portal-bootstrapped read returns an empty (non-version) value, so the latch
-// reads as NOT satisfied — the full-bootstrap signal. (The "info" failure is
-// retained for any residual ServerRunning() callers; the routing decision is now
-// driven by the latch verdict, not ServerRunning().)
 func coldCommander() *recordingCommander {
 	return &recordingCommander{
 		RunFunc: func(args ...string) (string, error) {
 			if len(args) > 0 && args[0] == "info" {
-				return "", context.DeadlineExceeded // any non-nil error == server not running
+				return "", context.DeadlineExceeded
 			}
 			return "", nil
 		},
 	}
 }
 
-// TestPersistentPreRunE_ColdTUI_DefersBootstrap proves the orchestrator is NOT
-// run synchronously by PersistentPreRunE on the cold + TUI path — it is deferred
-// to openTUI's goroutine. The recordingRunner must see zero calls from
-// PersistentPreRunE; openTUI must observe the deferred route.
 func TestPersistentPreRunE_ColdTUI_DefersBootstrap(t *testing.T) {
 	resetBootstrapOnce(t)
 
@@ -51,7 +30,6 @@ func TestPersistentPreRunE_ColdTUI_DefersBootstrap(t *testing.T) {
 	var deferredSeen bool
 	origFunc := openTUIFunc
 	openTUIFunc = func(cmd *cobra.Command, _ string, _ []string, _ bool) error {
-		// On the deferred route, the runner has NOT run yet inside PersistentPreRunE.
 		if runner.calls != 0 {
 			t.Errorf("orchestrator ran synchronously (%d calls) on the cold/TUI path; want deferred", runner.calls)
 		}
@@ -71,18 +49,10 @@ func TestPersistentPreRunE_ColdTUI_DefersBootstrap(t *testing.T) {
 	}
 }
 
-// TestPersistentPreRunE_LatchedTUI_TakesAbridgedPath proves a latch-satisfied
-// TUI open takes the ABRIDGED path: the full orchestrator is never run
-// (runner.calls == 0), serverStarted=false is threaded to openTUI (no loading
-// page -> instant picker), and NO deferred bootstrap is stashed. The latch
-// verdict computed once upstream in PersistentPreRunE diverts satisfied
-// commands before the concurrent route is ever consulted.
 func TestPersistentPreRunE_LatchedTUI_TakesAbridgedPath(t *testing.T) {
 	resetBootstrapOnce(t)
 	resetBootstrapWarnings(t)
 
-	// Satisfied latch (@portal-bootstrapped == running version) + a live saver,
-	// so the abridged saver-liveness probe is a no-op.
 	client := tmux.NewClient(satisfiedLatchAliveSaverCommander())
 	runner := &recordingRunner{started: false}
 	bootstrapDeps = &BootstrapDeps{Orchestrator: runner, Client: client}
@@ -115,9 +85,6 @@ func TestPersistentPreRunE_LatchedTUI_TakesAbridgedPath(t *testing.T) {
 	}
 }
 
-// TestPersistentPreRunE_ColdCLI_RunsSynchronously proves the cold CLI/direct-path
-// (a non-TUI command) is NOT routed concurrent even when the server is cold — the
-// flip is scoped to the TUI path only.
 func TestPersistentPreRunE_ColdCLI_RunsSynchronously(t *testing.T) {
 	resetBootstrapOnce(t)
 

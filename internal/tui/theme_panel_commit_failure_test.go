@@ -13,43 +13,6 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// The failed-commit rule's FAILED COMMIT WRITE: the one genuinely dangerous state the picker
-// idiom buys protection from — "applied but not persisted" — turned from SILENT into
-// REPORTED.
-//
-// Four rules are individually easy and collectively easy to get wrong, and each is
-// a named test below:
-//
-//   - THE THEME STAYS APPLIED and the `●` DOES NOT MOVE. The marker means "what is
-//     persisted" and would be lying if it moved, which is what forces the failure
-//     path to skip the key mutation AND the recompute.
-//   - THE MESSAGE PERSISTS UNTIL THE NEXT KEYPRESS rather than timing out. It
-//     reports a state the user must act on, and in a surface whose only other
-//     feedback is the `●` deliberately NOT moving, a message that vanishes on its
-//     own can be missed — so it takes none of the flash lifecycle.
-//   - "OUTSTANDING" IS A STATE, NOT A MESSAGE. Arrowing away dismisses the message
-//     and leaves the state, which is what stops the very next `Esc` reinstating the
-//     silent revert the failed-commit rule exists to close.
-//   - A SUCCESSFUL COMMIT DISCHARGES IT, so a `d` that fails followed by an `l`
-//     that succeeds reports nothing: the user is not told a theme was not saved
-//     when it was.
-//
-// No t.Parallel() — the package-level mock convention makes parallelism unsafe
-// across this package's tests.
-
-// newFailedCommitModel is this file's standard fixture: a REAL loader over a REAL
-// themes directory under an ADAPTIVE PAIR, the panel open, the cursor ARROWED OFF
-// the row the open anchored on, and the persister primed to fail.
-//
-// The loader is real wherever rows and badges are asserted, for the reason the
-// recompute suite's fixture is: a stub seam answers from declared values, so every
-// row and every `●` would be a statement about the fixture rather than about the
-// derivation a commit drives.
-//
-// The cursor is arrowed OFF the dark slot's own row because that is the only shape
-// in which a mutation is observable at all: committing the slug the slot already
-// holds leaves the keys and the badges byte-identical whether the write landed or
-// not.
 func newFailedCommitModel(t *testing.T) (Model, *fakeThemePersister) {
 	t.Helper()
 
@@ -58,9 +21,8 @@ func newFailedCommitModel(t *testing.T) (Model, *fakeThemePersister) {
 	return m, persister
 }
 
-// newCommitFailureFixture is newFailedCommitModel with the persister still
-// SUCCEEDING — the positive control every "nothing moved" assertion needs, and the
-// starting point for the cases that fail once and then succeed.
+// The cursor is arrowed off both slots' rows: committing a slug a slot already
+// holds leaves keys and badges identical whether the write landed or not.
 func newCommitFailureFixture(t *testing.T) (Model, *fakeThemePersister) {
 	t.Helper()
 
@@ -75,40 +37,25 @@ func newCommitFailureFixture(t *testing.T) (Model, *fakeThemePersister) {
 	return m, persister
 }
 
-// commitFailureTarget is the row the fixture's cursor is parked on — neither slot's
-// slug, so a mirror that ran would move a key and a recompute that ran would move a
-// `●`.
 const commitFailureTarget = "sunset"
 
-// requireCommitFailedMessage fails unless the panel is holding the failed-commit rule's line:
-// the slot's VALUE, and the row the user reads it on.
-//
-// Both halves are asserted because they fail independently — a value installed
-// without the slot rendering it reports nothing, and the copy is pinned VERBATIM
-// so a paraphrase at a call site is what the byte comparison catches.
 func requireCommitFailedMessage(t *testing.T, m Model) {
 	t.Helper()
 
 	if got, want := m.themePanel.message, (themePanelMessage{Kind: themeMessageCommitFailed}); got != want {
-		t.Errorf("the message slot holds %+v, want %+v — §9.13's line reports in §9.1's slot", got, want)
+		t.Errorf("the message slot holds %+v, want %+v — a failed commit reports in the panel's message slot", got, want)
 	}
 	if got := themePanelMessageRow(m); got != messageTestFailedCopy {
-		t.Errorf("the message slot reads %q, want §14A's %q", got, messageTestFailedCopy)
+		t.Errorf("the message slot reads %q, want %q", got, messageTestFailedCopy)
 	}
 }
 
-// themePanelMessageRow is the panel layout's message slot as a user reads it: the row directly
-// above the vertical keymap footer, stripped of its SGR and of the border-and-gutter
-// prefix every panel row opens with.
 func themePanelMessageRow(m Model) string {
 	lines := themePanelLines(renderRecomputePanel(m))
 	row := lines[len(lines)-themePanelFooterHeight(themePanelFooterScope(m.themePanel.message))-1]
 	return strings.TrimRight(strings.TrimPrefix(row, themePanelContentPrefix()), " ")
 }
 
-// badgeRows is every rendered panel row carrying a `●`, each prefixed with its row
-// INDEX — so a marker that moved to another row and a row whose text changed under
-// it both show up, which the badge map alone cannot say.
 func badgeRows(m Model) []string {
 	var rows []string
 	for i, line := range themePanelLines(renderRecomputePanel(m)) {
@@ -119,12 +66,6 @@ func badgeRows(m Model) []string {
 	return rows
 }
 
-// TestCommitFailure_MessageCopy: it renders the pinned message.
-//
-// The failed-commit rule: a failed write "reports in the panel's message slot — `⚠` plus a
-// terse statement that the theme could not be saved, glyph-backed per Portal's
-// convention". The pinned copy pins that copy verbatim, and the `⚠` is part of the STRING so
-// the report survives wherever the accent.attention hue does not.
 func TestCommitFailure_MessageCopy(t *testing.T) {
 	m, persister := newFailedCommitModel(t)
 
@@ -133,14 +74,12 @@ func TestCommitFailure_MessageCopy(t *testing.T) {
 	requireSlotCommits(t, persister, slotCommit{slug: commitFailureTarget, member: theme.MemberDark})
 	requireCommitFailedMessage(t, m)
 	if !m.themePanel.open {
-		t.Error("a failed commit closed the panel; `Esc` is the only way out (§9.2)")
+		t.Error("a failed commit closed the panel; `Esc` is the only way out")
 	}
 	if cmd != nil {
 		t.Errorf("a failed commit scheduled %T, want nothing", cmd)
 	}
 
-	// The control: the same fixture with the write LANDING raises nothing at all, so
-	// the line above is the failure rather than a slot that fills on every commit.
 	landed, landedPersister := newCommitFailureFixture(t)
 	landed, _ = pressSlotKey(t, landed, slotDarkPress)
 	requireSlotCommits(t, landedPersister, slotCommit{slug: commitFailureTarget, member: theme.MemberDark})
@@ -149,13 +88,6 @@ func TestCommitFailure_MessageCopy(t *testing.T) {
 	}
 }
 
-// TestCommitFailure_BadgeDoesNotMove: it does not move the marker.
-//
-// The failed-commit rule: a failed commit "does not move the `●` — the marker means 'what is
-// persisted' and would be lying if it moved". That forces the failure path to skip
-// BOTH the key mutation and the picker idiom's recompute, so the assertion is made on the
-// RENDERED rows rather than on the badge map alone: the map is what was derived,
-// the glyphs are what the user is told.
 func TestCommitFailure_BadgeDoesNotMove(t *testing.T) {
 	m, persister := newFailedCommitModel(t)
 	keys := m.themeState.keys
@@ -167,7 +99,7 @@ func TestCommitFailure_BadgeDoesNotMove(t *testing.T) {
 
 	requireSlotCommits(t, persister, slotCommit{slug: commitFailureTarget, member: theme.MemberDark})
 	if got := badgeRows(m); !slices.Equal(got, rendered) {
-		t.Errorf("a failed commit rendered the markers on %v, want the untouched %v — the `●` means what is PERSISTED (§9.13)", got, rendered)
+		t.Errorf("a failed commit rendered the markers on %v, want the untouched %v — the `●` means what is PERSISTED", got, rendered)
 	}
 	requireBadge(t, m, "aurora", theme.BadgeDark)
 	requireBadge(t, m, theme.DefaultLightSlug, theme.BadgeLight)
@@ -179,12 +111,9 @@ func TestCommitFailure_BadgeDoesNotMove(t *testing.T) {
 		t.Errorf("a failed commit left badges %v, want the untouched %v", got, badges)
 	}
 	if got := themePanelRowLabels(m); !slices.Equal(got, labels) {
-		t.Errorf("a failed commit left rows %v, want the untouched %v — only a SUCCESSFUL commit recomputes (§9.2)", got, labels)
+		t.Errorf("a failed commit left rows %v, want the untouched %v — only a SUCCESSFUL commit recomputes", got, labels)
 	}
 
-	// The control: the same fixture with the write LANDING does move the marker, so
-	// the untouched rows above are the failure path rather than a badge that never
-	// moves.
 	landed, _ := newCommitFailureFixture(t)
 	landed, _ = pressSlotKey(t, landed, slotDarkPress)
 	requireBadge(t, landed, commitFailureTarget, theme.BadgeDark)
@@ -193,17 +122,8 @@ func TestCommitFailure_BadgeDoesNotMove(t *testing.T) {
 	}
 }
 
-// TestCommitFailure_ThemeStaysApplied: it keeps the theme applied.
-//
-// The failed-commit rule "keeps the theme applied in memory", which is precisely what
-// recreates "applied but not persisted" — as a REPORTED state rather than a silent one. So
-// the previewed palette is still in force and the frame's colours are still that
-// palette's.
-//
-// THE FIXTURE IS THE STUB-BACKED PAIR, whose synthetic palettes carry a DISTINCT
-// value per token. The real-loader fixture writes one colour across every token of
-// a drop-in, which would make the message's own accent.attention run
-// indistinguishable from the canvas and the colour comparison below vacuous.
+// The stub-backed pair, whose synthetic palettes carry a distinct value per
+// token: the one-colour drop-ins would make the comparison below vacuous.
 func TestCommitFailure_ThemeStaysApplied(t *testing.T) {
 	rows := arrowValidRows(t, 4)
 	m, persister := newCommitPairPanelModel(t, rows)
@@ -220,7 +140,7 @@ func TestCommitFailure_ThemeStaysApplied(t *testing.T) {
 	requireSlotCommits(t, persister, slotCommit{slug: rows[2].Slug, member: theme.MemberDark})
 	requireCommitFailedMessage(t, m)
 	if m.themeState.active != previewed {
-		t.Errorf("a failed commit rendered %s, want the previewed %s — §9.13 KEEPS the theme applied in memory", themeLabel(m.themeState.active), themeLabel(previewed))
+		t.Errorf("a failed commit rendered %s, want the previewed %s — a failed commit KEEPS the theme applied in memory", themeLabel(m.themeState.active), themeLabel(previewed))
 	}
 
 	frame := m.View().Content
@@ -231,23 +151,18 @@ func TestCommitFailure_ThemeStaysApplied(t *testing.T) {
 	if gone := colourDiff(before, after); len(gone) != 0 {
 		t.Errorf("a failed commit dropped the colours %v from the frame", gone)
 	}
-	// The only colour it may ADD is the message slot's own accent.attention run:
-	// The panel layout gives that line the token and NO band, and nothing else on the frame
-	// moved. Its PRESENCE is asserted first, so the loop below is a statement about a frame
-	// that genuinely gained the report rather than an empty walk.
 	attention := tokenFgSeq(t, previewed.AccentAttention)
 	carries := func(seq string) bool { return strings.Contains(seq, attention) }
 	if !slices.ContainsFunc(after, carries) {
-		t.Errorf("the frame paints no accent.attention run; §9.13's line renders in that token (§9.1)")
+		t.Errorf("the frame paints no accent.attention run; the commit-failure line renders in that token")
 	}
 	for _, seq := range colourDiff(after, before) {
 		if !carries(seq) {
-			t.Errorf("a failed commit added the colour %q to the frame; only §9.13's own line may appear", escSeq(seq))
+			t.Errorf("a failed commit added the colour %q to the frame; only the commit-failure line may appear", escSeq(seq))
 		}
 	}
 }
 
-// colourDiff returns the SGR sequences in a that b does not carry.
 func colourDiff(a, b []string) []string {
 	var only []string
 	for _, seq := range a {
@@ -258,18 +173,6 @@ func colourDiff(a, b []string) []string {
 	return only
 }
 
-// TestCommitFailure_MessageClearsOnNextKeyAndFallsThrough: it persists until the
-// next keypress.
-//
-// The failed-commit rule: the line "persists until the next keypress rather than timing out
-// like a transient flash". The clear is the shape the main screen's actionable-key clear
-// already uses — ONE KEY, ONE INTENT — so the arrow that takes the message down also
-// moves the cursor and re-themes the frame, rather than being swallowed as a
-// dismissal.
-//
-// The keypress that RAISES the message is unaffected, because the clear runs ahead of
-// the dispatch and the raise happens inside it — asserted here by the message being
-// live after the failing keypress at all.
 func TestCommitFailure_MessageClearsOnNextKeyAndFallsThrough(t *testing.T) {
 	m, _ := newFailedCommitModel(t)
 
@@ -282,32 +185,22 @@ func TestCommitFailure_MessageClearsOnNextKeyAndFallsThrough(t *testing.T) {
 	m = pressPanelKey(t, m, arrowDown)
 
 	if got := m.themePanel.message; got.Kind != themeMessageNone {
-		t.Errorf("the next keypress left the message %+v, want the slot empty (§9.13)", got)
+		t.Errorf("the next keypress left the message %+v, want the slot empty", got)
 	}
 	if strings.Contains(themePanelMessageRow(m), messageTestFailedCopy) {
-		t.Errorf("the panel still renders §9.13's line after the next keypress:\n%s", renderRecomputePanel(m))
+		t.Errorf("the panel still renders the commit-failure line after the next keypress:\n%s", renderRecomputePanel(m))
 	}
 	if got := m.themePanel.list.Index(); got == index {
 		t.Errorf("the arrow left the cursor on row %d; the keystroke continues to its normal handler — one key, one intent", got)
 	}
 	if m.themeState.active == previewed {
-		t.Errorf("the arrow left %s painting the frame; it moved the cursor, so it previews the new row (§9.2)", themeLabel(previewed))
+		t.Errorf("the arrow left %s painting the frame; it moved the cursor, so it previews the new row", themeLabel(previewed))
 	}
 	if got := m.themePanel.list.Height(); got != body+1 {
-		t.Errorf("the list body is %d rows once the message cleared, want the row back (%d) — the slot is not reserved when empty (§9.1)", got, body+1)
+		t.Errorf("the list body is %d rows once the message cleared, want the row back (%d) — the slot is not reserved when empty", got, body+1)
 	}
 }
 
-// TestCommitFailure_MessageSurvivesWindowSize: it survives a non-key event.
-//
-// The lifetime is "until the next KEYPRESS", so an event that is not one leaves the
-// report standing — the same rule the main screen's flash follows, where a
-// WindowSizeMsg, a focus change or a session refresh never counts as the user
-// acknowledging anything.
-//
-// The resize is ABOVE the geometry rule's floor, so the panel degrades in place rather than
-// force-closing: the message has to survive the panel being re-sized, which is the
-// path that re-derives the slot's own vertical budget.
 func TestCommitFailure_MessageSurvivesWindowSize(t *testing.T) {
 	m, _ := newFailedCommitModel(t)
 
@@ -318,27 +211,17 @@ func TestCommitFailure_MessageSurvivesWindowSize(t *testing.T) {
 	m = updated.(Model)
 
 	if !m.themePanel.open {
-		t.Fatal("the resize force-closed the panel; the fixture must stay above §9.8's floor for this to assert anything")
+		t.Fatal("the resize force-closed the panel; the fixture must stay above the panel's render floor for this to assert anything")
 	}
 	requireCommitFailedMessage(t, m)
 	if !m.themeState.commitFailed {
-		t.Error("the resize discharged the outstanding failure; only a successful commit does (§9.13)")
+		t.Error("the resize discharged the outstanding failure; only a successful commit does")
 	}
 	if cmd != nil {
 		t.Errorf("the resize scheduled %T, want nothing", cmd)
 	}
 }
 
-// TestCommitFailure_MessageHasNoTickLifecycle: it does not auto-clear on a timer.
-//
-// The failed-commit rule is explicit that the line does NOT time out like a transient flash:
-// it reports a state the user must act on, and in a surface whose only other feedback is
-// the `●` deliberately not moving, a message that vanishes on its own can be missed.
-//
-// So the failure path takes NONE of the flash machinery — no flashTickCmd, no
-// generation bump, no main-screen flash text — and the clock is advanced the only way
-// it can be observed in a Bubble Tea model: by delivering the tick the 3s timer would
-// have fired.
 func TestCommitFailure_MessageHasNoTickLifecycle(t *testing.T) {
 	m, _ := newFailedCommitModel(t)
 	gen := m.flashGen
@@ -347,17 +230,15 @@ func TestCommitFailure_MessageHasNoTickLifecycle(t *testing.T) {
 
 	requireCommitFailedMessage(t, m)
 	if cmd != nil {
-		t.Errorf("a failed commit scheduled %T; §9.13's line takes no tick lifecycle", cmd)
+		t.Errorf("a failed commit scheduled %T; the commit-failure line takes no tick lifecycle", cmd)
 	}
 	if m.flashGen != gen {
 		t.Errorf("a failed commit bumped the flash generation to %d, want the untouched %d — it raises no flash", m.flashGen, gen)
 	}
 	if m.flashText != "" {
-		t.Errorf("a failed commit set the main-screen flash %q; §9.13 reports in the PANEL's slot", m.flashText)
+		t.Errorf("a failed commit set the main-screen flash %q; a failed commit reports in the PANEL's slot", m.flashText)
 	}
 
-	// The clock, advanced past flashAutoClearDuration: the tick a flash would have
-	// scheduled fires, and the panel's own message is untouched by it.
 	updated, tickCmd := m.Update(flashTickMsg{Gen: m.flashGen})
 	m = updated.(Model)
 
@@ -366,20 +247,10 @@ func TestCommitFailure_MessageHasNoTickLifecycle(t *testing.T) {
 		t.Errorf("the tick scheduled %T, want nothing", tickCmd)
 	}
 	if !m.themeState.commitFailed {
-		t.Error("the tick discharged the outstanding failure; only a successful commit does (§9.13)")
+		t.Error("the tick discharged the outstanding failure; only a successful commit does")
 	}
 }
 
-// TestCommitFailure_StateOutlivesTheMessage: it keeps the failure outstanding after
-// the message is dismissed.
-//
-// The failed-commit rule: "'outstanding' is a state, not a message... arrowing away does not
-// [clear it]: that dismisses the MESSAGE while leaving the state, which is what stops the
-// very next `Esc` reinstating the silent revert this section exists to close."
-//
-// The three keys below are the ones that take the message down without writing
-// anything: an arrow, a page, and a confirm raised and cancelled. None of them is a
-// commit, so none of them may discharge the state.
 func TestCommitFailure_StateOutlivesTheMessage(t *testing.T) {
 	t.Run("an arrow", func(t *testing.T) {
 		m, _ := newFailedCommitModel(t)
@@ -419,11 +290,9 @@ func TestCommitFailure_StateOutlivesTheMessage(t *testing.T) {
 		m, cmd := pressCommitKey(t, m)
 		requireCommitFailedMessage(t, m)
 		if cmd != nil {
-			t.Errorf("a failed `Enter` scheduled %T; §9.13's line takes no tick lifecycle on any commit key", cmd)
+			t.Errorf("a failed `Enter` scheduled %T; the commit-failure line takes no tick lifecycle on any commit key", cmd)
 		}
 
-		// The raise takes the message down and puts the QUESTION in its place — the panel layout's
-		// two contenders, one slot — and the cancel writes nothing at all.
 		m, _ = pressSlotKey(t, m, slotDarkPress)
 		requireConfirmLive(t, m, themeSlotConfirm{slug: "nord", member: theme.MemberDark})
 		if !m.themeState.commitFailed {
@@ -438,30 +307,17 @@ func TestCommitFailure_StateOutlivesTheMessage(t *testing.T) {
 	})
 }
 
-// requireOutstandingWithNoMessage fails unless the failed-commit rule's split holds: the
-// message gone, the state still outstanding.
 func requireOutstandingWithNoMessage(t *testing.T, m Model) {
 	t.Helper()
 
 	if got := m.themePanel.message; got.Kind == themeMessageCommitFailed {
-		t.Errorf("the message slot still holds %+v; it persists only until the next keypress (§9.13)", got)
+		t.Errorf("the message slot still holds %+v; it persists only until the next keypress", got)
 	}
 	if !m.themeState.commitFailed {
-		t.Error("the failure is no longer outstanding; dismissing the MESSAGE must leave the STATE, or the very next `Esc` reinstates the silent revert (§9.13)")
+		t.Error("the failure is no longer outstanding; dismissing the MESSAGE must leave the STATE, or the very next `Esc` reinstates the silent revert")
 	}
 }
 
-// TestCommitFailure_SuccessDischargesTheState: it clears the state on a later
-// successful commit.
-//
-// The failed-commit rule: "because a successful retry clears it, a `d` that fails followed by
-// an `l` that succeeds raises no flash — the user is not told a theme was not saved when it
-// was."
-//
-// The two keys are DIFFERENT on purpose: the state is about the SETTING rather than
-// about the key that failed, so a success on either commit key discharges it. The
-// landed write's own effects are asserted alongside, because a discharge that came
-// from a write which did not happen would be the same bug in the other direction.
 func TestCommitFailure_SuccessDischargesTheState(t *testing.T) {
 	m, persister := newFailedCommitModel(t)
 
@@ -480,15 +336,14 @@ func TestCommitFailure_SuccessDischargesTheState(t *testing.T) {
 		slotCommit{slug: commitFailureTarget, member: theme.MemberLight},
 	)
 	if got := m.themePanel.message; got.Kind != themeMessageNone {
-		t.Errorf("the successful commit left the message %+v, want the slot empty (§9.13)", got)
+		t.Errorf("the successful commit left the message %+v, want the slot empty", got)
 	}
 	if m.themeState.commitFailed {
-		t.Error("the successful commit left the failure outstanding; a `d` that fails followed by an `l` that succeeds reports nothing (§9.13)")
+		t.Error("the successful commit left the failure outstanding; a `d` that fails followed by an `l` that succeeds reports nothing")
 	}
 	if m.flashText != "" || m.flashGen != gen {
 		t.Errorf("the successful commit raised the flash %q (gen %d, want %d); there is nothing left to report", m.flashText, m.flashGen, gen)
 	}
-	// The write genuinely landed: the keys mirrored it and the recompute moved the `●`.
 	requirePairKeys(t, m, commitFailureTarget, "aurora")
 	requireBadge(t, m, commitFailureTarget, theme.BadgeLight)
 	requireBadge(t, m, theme.DefaultLightSlug, theme.BadgeNone)
@@ -497,16 +352,6 @@ func TestCommitFailure_SuccessDischargesTheState(t *testing.T) {
 	}
 }
 
-// TestCommitFailure_RetryIsJustPressingAgain: it retries on the same key.
-//
-// The failed-commit rule: "a commit is always re-attemptable. The commit keys are
-// unconditional writes, so pressing `d`/`l`/`Enter` again simply retries — no special retry
-// affordance, and no state to clear first."
-//
-// So the second press is another write rather than a no-op guarded by the
-// outstanding state, and the third — with the persister healthy — lands and clears
-// everything. The RECORDED CALLS are the assertion: a retry that never reached the
-// seam would leave the message looking identical.
 func TestCommitFailure_RetryIsJustPressingAgain(t *testing.T) {
 	m, persister := newFailedCommitModel(t)
 	failed := slotCommit{slug: commitFailureTarget, member: theme.MemberDark}
@@ -530,21 +375,12 @@ func TestCommitFailure_RetryIsJustPressingAgain(t *testing.T) {
 		t.Errorf("the successful retry left the message %+v, want the slot empty", got)
 	}
 	if m.themeState.commitFailed {
-		t.Error("the successful retry left the failure outstanding (§9.13)")
+		t.Error("the successful retry left the failure outstanding")
 	}
 	requirePairKeys(t, m, theme.DefaultLightSlug, commitFailureTarget)
 	requireBadge(t, m, commitFailureTarget, theme.BadgeDark)
 }
 
-// TestCommitFailure_ConfirmDrivenFailure: it lands identically on a confirmed
-// commit.
-//
-// The confirm has ALREADY RESOLVED by the time the write runs (it gates the
-// write), so the failure lands in a slot the question vacated and the footer is
-// already back on the standing scope. The constant is not cleared in memory either,
-// so the row-rendering rule's bare `●` is still on it: the failed-commit rule's "a failed
-// commit does not move the `●`" falls out of the keys being untouched rather than out of a
-// rule the confirm states for itself.
 func TestCommitFailure_ConfirmDrivenFailure(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
@@ -564,12 +400,10 @@ func TestCommitFailure_ConfirmDrivenFailure(t *testing.T) {
 	requireSlotCommits(t, persister, slotCommit{slug: "nord", member: theme.MemberDark})
 	requireCommitFailedMessage(t, m)
 	if !m.themeState.commitFailed {
-		t.Error("a failed confirmed commit left nothing outstanding (§9.13)")
+		t.Error("a failed confirmed commit left nothing outstanding")
 	}
 	requireConfirmGone(t, m)
 	requireStandingFooter(t, m)
-	// The constant is still in the in-memory keys, so the panel still marks it — and
-	// it is the ONLY `●` on the panel, which is what a cleared constant would not be.
 	requireConstantKeys(t, m, "aurora")
 	requireBadge(t, m, "aurora", theme.BadgeConstant)
 	requireBadgeText(t, m, 1, 0, 0)
@@ -577,7 +411,7 @@ func TestCommitFailure_ConfirmDrivenFailure(t *testing.T) {
 		t.Errorf("a failed confirmed commit left badges %v, want the untouched %v", got, badges)
 	}
 	if got := themePanelRowLabels(m); !slices.Equal(got, labels) {
-		t.Errorf("a failed confirmed commit left rows %v, want the untouched %v — only a SUCCESSFUL commit recomputes (§9.2)", got, labels)
+		t.Errorf("a failed confirmed commit left rows %v, want the untouched %v — only a SUCCESSFUL commit recomputes", got, labels)
 	}
 	if m.themeState.active != previewed {
 		t.Errorf("a failed confirmed commit rendered %s, want the previewed %s left alone", themeLabel(m.themeState.active), themeLabel(previewed))
@@ -587,14 +421,6 @@ func TestCommitFailure_ConfirmDrivenFailure(t *testing.T) {
 	}
 }
 
-// TestCommitFailure_NeverLiveWithTheConfirm: it never co-renders with the confirm.
-//
-// The panel layout's slot is a single-slot arbiter whose two contenders "can never be live at
-// once because a confirm resolves before any write happens". This drives that
-// through the one path where both are in play — a confirmed commit that fails, then
-// a second `d` over the constant the failure left standing — and asserts it at the
-// RENDER surface in both directions, which is where a slot that drew both would show
-// up.
 func TestCommitFailure_NeverLiveWithTheConfirm(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
@@ -608,19 +434,15 @@ func TestCommitFailure_NeverLiveWithTheConfirm(t *testing.T) {
 	m, _ = pressConfirmKey(t, m, confirmYes)
 	requireOnlySlotContender(t, m, messageTestFailedCopy)
 
-	// The other direction: the constant survived the failed write, so `d` asks again —
-	// and the question takes the slot the report was occupying.
 	m, _ = pressSlotKey(t, m, slotDarkPress)
 
 	requireOnlySlotContender(t, m, slotConfirmLine(m, "aurora"))
 	requireConfirmLive(t, m, themeSlotConfirm{slug: "nord", member: theme.MemberDark})
 	if !m.themeState.commitFailed {
-		t.Error("raising the confirm discharged the outstanding failure; only a successful commit does (§9.13)")
+		t.Error("raising the confirm discharged the outstanding failure; only a successful commit does")
 	}
 }
 
-// requireOnlySlotContender fails unless the rendered panel carries want in the panel layout's
-// message slot and no trace of the other contender anywhere.
 func requireOnlySlotContender(t *testing.T, m Model, want string) {
 	t.Helper()
 
@@ -632,20 +454,10 @@ func requireOnlySlotContender(t *testing.T, m Model, want string) {
 		other = "clear constant"
 	}
 	if rendered := slotConfirmPanelText(m); strings.Contains(rendered, other) {
-		t.Errorf("the panel renders %q alongside %q; §9.1's two contenders are never live at once\n%s", other, want, rendered)
+		t.Errorf("the panel renders %q alongside %q; the message slot's two contenders are never live at once\n%s", other, want, rendered)
 	}
 }
 
-// TestCommitFailure_PanelEmitsNoThemeRecord: it logs nothing from the panel.
-//
-// The `theme` log component's `theme: commit failed` is the PERSISTER's line and the
-// concurrent-write rule closes the `theme` component's emitters at three — loader,
-// translation, persister. A panel that logged its own report would double the event and make
-// internal/tui a fourth emitter, so the failure path writes to the screen and nowhere else.
-//
-// The sink is the PROCESS handler and the loader emits through the component, so the
-// open's own `theme: enumerated` is the non-vacuity control: the sink genuinely
-// receives this component's records, and the failing keypress adds none.
 func TestCommitFailure_PanelEmitsNoThemeRecord(t *testing.T) {
 	sink := &logtest.Sink{}
 	log.SetTestHandler(t, sink)
@@ -669,17 +481,10 @@ func TestCommitFailure_PanelEmitsNoThemeRecord(t *testing.T) {
 	requireSlotCommits(t, persister, slotCommit{slug: "nord", member: theme.MemberDark})
 	requireCommitFailedMessage(t, m)
 	if got := sink.Records(); len(got) != opened {
-		t.Errorf("the failure path emitted %d record(s):\n%s\nthe persister is the SINGLE site for `theme: commit failed` (§8.9)", len(got)-opened, sink.Body())
+		t.Errorf("the failure path emitted %d record(s):\n%s\nthe persister is the SINGLE site for `theme: commit failed`", len(got)-opened, sink.Body())
 	}
 }
 
-// TestCommitFailure_NilPersisterRaisesNothing: it treats a nil persister as inert.
-//
-// A fixture or `capturetool` model wires none, so a commit during a capture writes
-// nowhere. That is the ABSENCE OF A WRITER rather than a failed
-// write: there is no report to make and no outstanding state to hold, and the
-// discrimination is kept explicit so a capture model can never enter the reported
-// state — which would put the copy on a frame no user could have caused.
 func TestCommitFailure_NilPersisterRaisesNothing(t *testing.T) {
 	rows := arrowValidRows(t, 4)
 	m := openCommitPanel(t, commitPairPanelDeps(t, rows), PageSessions, rows[1].Slug)

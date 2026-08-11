@@ -7,54 +7,25 @@ import (
 	"github.com/leeovery/portal/internal/session"
 )
 
-// spawnAckTimeout is the per-window budget for a spawned window's token ack: the
-// wall-clock window the burster waits for one spawned window's
-// @portal-spawn-<batch>-<token> marker to appear before classifying that window
-// as a failed spawn.
-//
-// It must comfortably cover the whole spawn→confirm chain for a single window:
-//
-//	~260ms   the osascript open (measured: 4 sequential opens ~1.05s / ~260ms
-//	         each — see spec § Sequential vs parallel), plus
-//	         the spawned window's own abridged `portal open` (warm-command
-//	         fast-path, NO full bootstrap) up to the point it writes its token
-//	         marker just before exec.
-//
-// ~8s gives generous headroom over that sub-second path — the same spirit as the
-// documented daemon self-supervision hysteresis constant (a build-time budget
-// confirmed against real abridged-attach timing, not a hard SLA). It is
-// deliberately per-window: each window's timer starts at ITS OWN spawn, so the
-// cumulative delay of earlier sequential windows never eats a later window's
-// budget (see awaitToken / Burster.Run). Tunable — changing this one constant
-// changes every window's ack budget.
+// Per-window is deliberate: each timer starts at its own window's spawn, so the
+// cumulative delay of earlier windows never eats a later window's budget.
 const spawnAckTimeout = 8 * time.Second
 
-// defaultAckPoll is the interval between ack-marker Collect probes while awaiting
-// a window's token. Small relative to spawnAckTimeout so a token that lands early
-// is confirmed promptly, but coarse enough to keep the poll count bounded.
 const defaultAckPoll = 75 * time.Millisecond
 
-// AckOutcome is the closed per-window confirmation vocabulary the burster tags
-// each spawned window with — exactly the spec's `ack` attr values.
 type AckOutcome string
 
 const (
-	// AckConfirmed — the window's token marker appeared within its budget.
 	AckConfirmed AckOutcome = "confirmed"
-	// AckTimeout — the window opened but its token never appeared before the
-	// per-window spawnAckTimeout elapsed (a missing marker at timeout = a failed
-	// spawn).
+	// AckTimeout — the window opened but its token never appeared in time; a
+	// missing marker at timeout counts as a failed spawn.
 	AckTimeout AckOutcome = "timeout"
-	// AckFailed — the adapter itself reported no window opened, so there is
-	// nothing to await.
+	// AckFailed — the adapter reported no window opened, so nothing was awaited.
 	AckFailed AckOutcome = "failed"
 )
 
-// WindowResult is the outcome of attempting one external window: the target's
-// value (a session name for an attach surface, the literal dir for a mint
-// surface — carried in Session), its opaque per-window ack Token, the adapter's
-// Result, and the resolved token-ack classification (Ack). The burster returns
-// one per external surface, in list order.
+// WindowResult's Session holds the target's value: a session name for an attach
+// surface, the literal dir for a mint surface.
 type WindowResult struct {
 	Session string
 	Token   string
@@ -62,16 +33,8 @@ type WindowResult struct {
 	Ack     AckOutcome
 }
 
-// Burster is the N−1 external half of the spawn burst: it generates a batch id +
-// one opaque token per external window, opens each window sequentially through
-// Adapter, and confirms each by watching Ack for that window's token within a
-// per-window Timeout. The Nth self-attach is the caller's concern.
-//
-// Every seam is injectable so the whole flow is unit-testable under a fake clock
-// with no real time, tmux, or osascript: Ack (the read-side marker channel),
-// Exe/Getenv (attach-argv composition), NewID (raw id generator wrapped by
-// NewSpawnID per id), Timeout/Poll (the per-window ack budget + poll cadence),
-// and Now/Sleep (the clock). NewBurster applies production defaults.
+// Burster is the N−1 external half of the spawn burst, opening each window
+// sequentially. The Nth self-attach is the caller's concern.
 type Burster struct {
 	Adapter Adapter
 	Ack     AckCollector
@@ -84,10 +47,8 @@ type Burster struct {
 	Sleep   func(time.Duration)
 }
 
-// NewBurster wires a Burster to its adapter + ack channel + composition seams and
-// applies production defaults for the id generator, per-window timeout, poll
-// cadence, and clock. Production passes the resolved native adapter, the shared
-// server-option ack channel, os.Executable, and os.Getenv.
+// NewBurster applies production defaults for the id generator, timeout, poll
+// cadence and clock.
 func NewBurster(adapter Adapter, ack AckCollector, exe ExecutableResolver, getenv func(string) string) *Burster {
 	return &Burster{
 		Adapter: adapter,
@@ -102,44 +63,14 @@ func NewBurster(adapter Adapter, ack AckCollector, exe ExecutableResolver, geten
 	}
 }
 
-// Run opens one external host-terminal window per surface in external, in list
-// order, and returns the batch id plus one WindowResult per window. Each surface
-// carries the resolved open target (attach an existing session, or mint a fresh
-// session at a literal dir); the burster only SPAWNS each window's `open` argv —
-// minting happens in the window at exec time (via `open --path`), never here.
-//
-// The picker's own executable is resolved ONCE up front (an unresolvable
-// executable aborts the whole burst before any window opens: return "", nil,
-// err). ALL ids are generated up front too — the batch id and one token per
-// external surface — so a generation failure aborts before any window opens
-// (Task 3.1's "never an empty/malformed id" propagates here). Composing each
-// argv from the once-resolved exePath via the pure composeOpenArgv builder keeps
-// behaviour identical to resolving per window while avoiding a redundant
-// os.Executable read for every window.
-//
-// command (nil-tolerant) is the mint-only passthrough (spec § Command passthrough
-// rides mint windows only): the SAME command rides every MINT surface in the burst
-// (appended after --ack by composeOpenArgv), while ATTACH surfaces ignore it. It is
-// carried byte-identically — a single `-e "npm run dev"` string stays one unit — so
-// every spawned mint window and the trigger's local mint run identical commands.
-//
-// Each window is then, sequentially: composed, opened, and — if the adapter
-// reported success — awaited for its token via awaitToken (a per-window timer
-// starting at THIS window's spawn). A window the adapter could not open is
-// AckFailed and never awaited. The loop does not stop early on a failed or
-// timed-out window (every window that can open does open); the SOLE early-stop
-// is permission-required — the macOS Automation grant is per-(source, target),
-// so once window k hits the wall every later window would hit the identical
-// wall, and windows k+1…N−1 are never composed or handed to the adapter.
-//
-// progress (nil-tolerant) is invoked as progress(i+1, len(external)) after each
-// window's ack classification — the picker burst pipe streams it to the loading
-// UI, while the open burst passes nil (no live progress UI). ctx is
-// checked between windows AND inside awaitToken's poll loop (Task 6.8 drives the
-// cancel): on cancellation the burst stops iterating and returns what it has
-// collected so far (a nil error — a cancelled burst is a shutdown, not a
-// failure). A context.Background() ctx never cancels, so the open burst path is
-// unchanged.
+// Run opens one external window per surface, in list order, returning the batch
+// id and one WindowResult per window. It only spawns each window's `open` argv —
+// a mint surface is minted inside its own window at exec time. command
+// (nil-tolerant) rides every mint surface byte-identically and attach surfaces
+// ignore it; progress (nil-tolerant) fires after each ack classification. The
+// executable and every id resolve up front, so a failure there aborts before any
+// window opens. Cancelling ctx stops the burst and returns what it has collected
+// with a nil error.
 func (b *Burster) Run(ctx context.Context, external []Surface, command []string, progress func(done, total int)) (batch string, results []WindowResult, err error) {
 	exePath, err := b.Exe()
 	if err != nil {
@@ -162,8 +93,6 @@ func (b *Burster) Run(ctx context.Context, external []Surface, command []string,
 
 	results = make([]WindowResult, 0, len(external))
 	for i, surface := range external {
-		// Between-windows cancel check (Task 6.8): a cancelled burst stops before
-		// composing or opening the next window.
 		if ctx.Err() != nil {
 			break
 		}
@@ -181,9 +110,8 @@ func (b *Burster) Run(ctx context.Context, external []Surface, command []string,
 			progress(i+1, len(external))
 		}
 
-		// The sole early-stop: a permission wall on this window means every later
-		// window (same source → same target) would hit it too, so stop rather than
-		// grind through k+1…N−1. Timeout / spawn-failed do NOT break (Task 3.6).
+		// Early stop: the macOS Automation grant is per-(source, target), so
+		// every later window would hit the same permission wall.
 		if result.Outcome == OutcomePermissionRequired {
 			break
 		}
@@ -191,21 +119,8 @@ func (b *Burster) Run(ctx context.Context, external []Surface, command []string,
 	return batch, results, nil
 }
 
-// awaitToken polls b.Ack.Collect for token, returning AckConfirmed the moment it
-// appears and AckTimeout once b.Timeout elapses without it. The per-window timer
-// starts here (start := b.Now()), right after this window's OpenWindow — so the
-// cumulative sequential delay of earlier windows never eats this window's budget.
-//
-// A Collect error is treated as "token not present yet" (the loop is bounded by
-// the timer, so a persistently failing enumeration classifies as AckTimeout —
-// the same treatment as a genuinely missing marker). All timing flows through
-// the injected Now/Sleep/Poll/Timeout, so the loop is deterministic under a fake
-// clock.
-//
-// It also honours ctx cancellation (Task 6.8): a cancelled context ends the poll
-// immediately as AckTimeout (the caller's between-windows check then stops the
-// burst). A context.Background() ctx never cancels, so the open burst path polls
-// exactly as before.
+// A Collect error counts as "token not present yet": the loop is timer-bounded,
+// so a persistently failing enumeration classifies as AckTimeout.
 func awaitToken(ctx context.Context, b *Burster, batch, token string) AckOutcome {
 	start := b.Now()
 	for {

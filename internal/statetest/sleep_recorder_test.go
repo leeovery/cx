@@ -8,9 +8,6 @@ import (
 	"github.com/leeovery/portal/internal/statetest"
 )
 
-// TestRecordingSleep_FnAppendsEachDuration pins the recording contract: every
-// duration handed to the closure returned by Fn() must land in Durations in
-// invocation order, with no de-duplication or reordering.
 func TestRecordingSleep_FnAppendsEachDuration(t *testing.T) {
 	r := &statetest.RecordingSleep{}
 	sleep := r.Fn()
@@ -29,10 +26,6 @@ func TestRecordingSleep_FnAppendsEachDuration(t *testing.T) {
 	}
 }
 
-// TestRecordingSleep_ZeroValueStartsEmpty pins the zero-value contract: a
-// freshly-declared RecordingSleep has no recorded durations and produces a
-// usable Fn() without explicit initialisation. Callers rely on the zero-value
-// to drop the helper into a config struct without ceremony.
 func TestRecordingSleep_ZeroValueStartsEmpty(t *testing.T) {
 	r := &statetest.RecordingSleep{}
 	if len(r.Durations) != 0 {

@@ -23,9 +23,6 @@ func TestSetTestHandler_RestoresPriorHandlerViaCleanup(t *testing.T) {
 	before := currentHandler()
 
 	rec := &recordingHandler{}
-	// The inner subtest's t.Cleanup runs when t.Run returns, so the parent can
-	// then assert the handler was restored (testing.T cannot be hand-built for
-	// Cleanup).
 	t.Run("swap", func(t *testing.T) {
 		SetTestHandler(t, rec)
 		if got := currentHandler(); got != slog.Handler(rec) {
@@ -57,14 +54,11 @@ func TestSetTestHandler_RestoresNestedSwapsInLIFOOrder(t *testing.T) {
 			}
 		})
 
-		// Inner subtest returned: its cleanup must have restored the OUTER
-		// handler (LIFO), not the original.
 		if got := currentHandler(); got != slog.Handler(outer) {
 			t.Fatalf("after inner cleanup expected outer handler restored (LIFO), got %v", got)
 		}
 	})
 
-	// Outer subtest returned: its cleanup must have restored the original.
 	if got := currentHandler(); got != original {
 		t.Errorf("after outer cleanup expected original handler restored, got %v want %v", got, original)
 	}
@@ -76,7 +70,6 @@ func TestSetTestHandler_RestoresCleanlyWhenNeverLogged(t *testing.T) {
 	rec := &recordingHandler{}
 	t.Run("swap-no-log", func(t *testing.T) {
 		SetTestHandler(t, rec)
-		// Intentionally never log: cleanup must still restore without panicking.
 	})
 
 	if got := currentHandler(); got != before {

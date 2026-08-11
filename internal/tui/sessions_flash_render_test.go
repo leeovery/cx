@@ -8,14 +8,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// Tests for the Sessions-page inline-flash render contract (spec §
-// Inline flash — feature-local infrastructure > Render). The flash row
-// is conditionally inserted between the filter input (title row) and
-// the Sessions list. When flashText is empty no row is reserved; when
-// non-empty exactly one styled row carrying the verbatim text appears.
-
-// lineIndexContaining returns the first index in lines that contains
-// the given substring, or -1.
 func lineIndexContaining(lines []string, substr string) int {
 	for i, l := range lines {
 		if strings.Contains(l, substr) {
@@ -25,15 +17,11 @@ func lineIndexContaining(lines []string, substr string) int {
 	return -1
 }
 
-// renderedSessionLines returns the View output of m split on newlines.
 func renderedSessionLines(t *testing.T, m Model) []string {
 	t.Helper()
 	return strings.Split(m.View().Content, "\n")
 }
 
-// flashModelWithSessions builds a Model on the Sessions page seeded with
-// the given session names so the rendered list contains predictable
-// substrings the tests can locate.
 func flashModelWithSessions(names ...string) Model {
 	sessions := make([]tmux.Session, 0, len(names))
 	for _, n := range names {
@@ -46,18 +34,6 @@ func flashModelWithSessions(names ...string) Model {
 }
 
 func TestSessionsView_NoFlashRow_WhenFlashTextEmpty(t *testing.T) {
-	// Baseline contract: with flashText empty, the Sessions page renders
-	// the bubbles/list.View() output as the list section, with the §3.4
-	// condensed keymap footer (see renderSessionsFooter) composed below
-	// it via lipgloss.JoinVertical. No flash row is inserted and no
-	// existing list chrome is replaced; only the condensed footer is added.
-	//
-	// The composed view is then wrapped by the single outer canvas fill (§1) as
-	// the LAST layer in View(); the assertion compares against the same
-	// fillCanvas wrap so it pins "no flash row, footer composed below" without
-	// re-asserting the fill (covered by canvas_paint_test.go). The §3.1 header
-	// block is composed FIRST (above the list), so it is part of the expected
-	// composition.
 	m := flashModelWithSessions("alpha-row")
 	if m.flashText != "" {
 		t.Fatalf("setup invariant: want empty flashText, got %q", m.flashText)
@@ -65,10 +41,6 @@ func TestSessionsView_NoFlashRow_WhenFlashTextEmpty(t *testing.T) {
 
 	got := m.View().Content
 	header := m.renderHeader()
-	// The §3.2 / §4.2 section header replaces the plain bubbles/list title line in
-	// the composed view (applySectionHeader), so the expected list section is the
-	// list view with that same in-place title swap applied — no flash row, footer
-	// composed below.
 	listView := m.applySectionHeader(m.sessionList.View())
 	footer := renderSessionsFooter(m.sessionsHelpKeymap(), m.contentWidth(), m.themeState.active, m.colourless)
 	want := m.fillCanvas(lipgloss.JoinVertical(lipgloss.Left, header, listView, footer))
@@ -77,11 +49,6 @@ func TestSessionsView_NoFlashRow_WhenFlashTextEmpty(t *testing.T) {
 	}
 }
 
-// TestSessionsView_FlashRow_AppearsAboveSectionHeader asserts the §11 placement
-// convention: the transient flash band sits directly under the title separator,
-// ABOVE the section header (`Sessions`) — the section header + list shift down.
-// (Pre-§11 the flash inserted BELOW the title row; §11 moved it above the section
-// header as the shared notice-slot convention.)
 func TestSessionsView_FlashRow_AppearsAboveSectionHeader(t *testing.T) {
 	m := flashModelWithSessions("alpha-row")
 	const flash = "session \"alpha\" no longer exists"
@@ -100,7 +67,6 @@ func TestSessionsView_FlashRow_AppearsAboveSectionHeader(t *testing.T) {
 	if rowIdx < 0 {
 		t.Fatalf("session row not found in render:\n%s", strings.Join(lines, "\n"))
 	}
-	// §11: band ABOVE the section header, which is above the list rows.
 	if flashIdx >= titleIdx {
 		t.Errorf("flash index %d must be < section-header index %d (band above the section header)", flashIdx, titleIdx)
 	}
@@ -109,9 +75,6 @@ func TestSessionsView_FlashRow_AppearsAboveSectionHeader(t *testing.T) {
 	}
 }
 
-// TestSessionsView_FlashActivation_ShiftsListDownByTwo asserts the band slot
-// consumes TWO rows on activation — the band PLUS its blank breathing row beneath
-// it — so the list shifts down by two.
 func TestSessionsView_FlashActivation_ShiftsListDownByTwo(t *testing.T) {
 	m := flashModelWithSessions("alpha-row")
 
@@ -134,8 +97,6 @@ func TestSessionsView_FlashActivation_ShiftsListDownByTwo(t *testing.T) {
 	}
 }
 
-// TestSessionsView_FlashDeactivation_ShiftsListUpByTwo asserts the band slot
-// releases both rows (band + blank) on clear, so the list shifts back up by two.
 func TestSessionsView_FlashDeactivation_ShiftsListUpByTwo(t *testing.T) {
 	m := flashModelWithSessions("alpha-row")
 	m.setFlash("transient")
@@ -178,18 +139,11 @@ func TestSessionsView_OnlyOneFlashRowAdded(t *testing.T) {
 	m.setFlash(flash)
 	flashedLines := renderedSessionLines(t, m)
 
-	// The flash band is inserted as a single row whose height is absorbed by the
-	// list shrinking one row underneath the outer canvas fill (§1, the "list
-	// height recompute underneath the fill") — so the rendered frame height does
-	// NOT grow with the band; it re-pads to exactly termH. (Pre-canvas the band
-	// was additive and overflowed termH by one; that overflow is the bug class
-	// §3.5 / §4.1 forbids, so the frame height must stay constant now.)
 	if len(flashedLines) != len(baselineLines) {
 		t.Errorf("flash insertion must not change the frame height (band absorbed under the fill): baseline=%d flashed=%d",
 			len(baselineLines), len(flashedLines))
 	}
 
-	// The flash text itself appears on exactly one line — exactly one band row.
 	count := 0
 	for _, l := range flashedLines {
 		if strings.Contains(l, flash) {
@@ -201,25 +155,6 @@ func TestSessionsView_OnlyOneFlashRowAdded(t *testing.T) {
 	}
 }
 
-// TestProjectsPage_FlashRendered pins §14A's DELIBERATE REVERSAL of this test's
-// former assertion. It used to read `TestProjectsPage_FlashTextNotRendered` and
-// require the flash to stay off the Projects page, back when the notice band was a
-// Sessions-only arbiter. §9.6 binds `t` on Projects, §14.2 puts `t theme` in its
-// footer, and all six of §14A's theme flashes are reachable there — so suppressing
-// them made §9.10's proactive block a silent no-op and destroyed §9.13's
-// failed-commit report outright (closing the panel discharges that state whether
-// or not a flash rendered). Projects therefore has its own flash slot, and a flash
-// raised there RENDERS.
-//
-// The full Projects-slot contract — arbitration against the command-pending
-// banner, the height recompute, the shared clear rules — lives in
-// projects_flash_test.go. This test is the survey entry: the page renders it.
-//
-// It keeps its ORIGINAL set-flash-then-flip ordering. That is the window
-// TestProjectsFlash_PageEnteredByMessageIsSized covers directly — a flash raised on
-// one page and carried onto another by a message, with no keypress to clear it —
-// so the survey entry keeps touching it rather than sidestepping it by flipping
-// first.
 func TestProjectsPage_FlashRendered(t *testing.T) {
 	m := flashModelWithSessions("alpha-row")
 	const flash = "__PROJECTS_PAGE_FLASH__"
@@ -228,7 +163,7 @@ func TestProjectsPage_FlashRendered(t *testing.T) {
 
 	out := m.View().Content
 	if !strings.Contains(out, flash) {
-		t.Errorf("§14A: a flash raised on the Projects page must render there:\n%s", out)
+		t.Errorf("a flash raised on the Projects page must render there:\n%s", out)
 	}
 }
 
@@ -237,7 +172,6 @@ func TestLoadingPage_FlashTextNotRendered(t *testing.T) {
 	const flash = "__SHOULD_NOT_APPEAR_ON_LOADING__"
 	m.setFlash(flash)
 
-	// Switch to loading page; flash text must not appear there.
 	m.activePage = PageLoading
 	out := m.View().Content
 	if strings.Contains(out, flash) {

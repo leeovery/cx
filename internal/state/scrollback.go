@@ -13,35 +13,20 @@ import (
 	"github.com/leeovery/portal/internal/fileutil"
 )
 
-// HashMap holds the daemon's content-hash dedup state keyed by canonical
-// paneKey. Each value is the xxhash of the bytes most-recently committed to
-// disk for that pane. A missing entry means "no scrollback persisted for this
-// pane yet" — distinct from a zero hash (the hash of empty bytes is non-zero).
+// HashMap holds the xxhash of the bytes most recently committed for each
+// paneKey. A missing entry means nothing was persisted for that pane, which a
+// zero hash does not — empty bytes hash non-zero.
 type HashMap map[string]uint64
 
-// PaneCapturer is the narrow seam CaptureAndHashPane needs. Defining a
-// scrollback-local interface keeps state's tests free of *tmux.Client
-// construction and avoids importing internal/tmux. *tmux.Client satisfies it
-// implicitly via its CapturePane method.
-//
-// A different name from internal/state.CaptureClient (used by CaptureStructure)
-// is deliberate: that interface composes three structural methods, while this
-// one is single-method and shouldn't pretend to be a subset.
+// PaneCapturer is declared here so internal/state need not import internal/tmux.
 type PaneCapturer interface {
 	CapturePane(target string) (string, error)
 }
 
-// SeedHashMap rebuilds the dedup map from the on-disk scrollback directory at
-// daemon startup. Reading and hashing every existing `.bin` file means the
-// first capture cycle after a daemon restart skips every pane whose live
-// scrollback still matches what is on disk — avoiding a full rewrite of every
-// scrollback file each time the daemon restarts (which happens on every
-// `portal open` for `dev`/empty-version builds).
-//
-// Resilient by design: a missing scrollback directory yields an empty map
-// with no warning (legitimate first-run state); an unreadable directory or
-// individual file is logged at WARN and skipped so seeding always returns a
-// usable map.
+// SeedHashMap rebuilds the dedup map from the on-disk scrollback files, so the
+// first cycle after a daemon restart does not rewrite every pane. It always
+// returns a usable map: a missing directory is silent first-run state, and an
+// unreadable directory or file is logged and skipped.
 func SeedHashMap(dir string, logger *slog.Logger) HashMap {
 	logger = loggerOrDiscard(logger)
 	hm := HashMap{}
@@ -74,10 +59,6 @@ func SeedHashMap(dir string, logger *slog.Logger) HashMap {
 	return hm
 }
 
-// CaptureAndHashPane is a small composition over the supplied PaneCapturer
-// that returns both the captured bytes and their xxhash. Callers feed the
-// returned (bytes, hash) into WriteScrollbackIfChanged to commit only when
-// content actually changed.
 func CaptureAndHashPane(c PaneCapturer, target string) ([]byte, uint64, error) {
 	out, err := c.CapturePane(target)
 	if err != nil {
@@ -86,20 +67,8 @@ func CaptureAndHashPane(c PaneCapturer, target string) ([]byte, uint64, error) {
 	return []byte(out), xxhash.Sum64String(out), nil
 }
 
-// WriteScrollbackIfChanged is the dedup-aware writer for per-pane scrollback.
-// It commits data to `scrollback/<paneKey>.bin` via fileutil.AtomicWrite0600
-// only when the supplied newHash differs from the entry already stored in hm;
-// on hit (identical hash, paneKey present) it returns (false, nil) without
-// touching disk.
-//
-// The returned bool is "did we write?" — letting callers track whether the
-// surrounding save cycle has anything to commit at the index level. On a
-// successful write, hm[paneKey] is updated to newHash so subsequent calls in
-// the same cycle (and across ticks) keep the dedup map honest.
-//
-// AtomicWrite0600 atomically writes and chmods to 0600 so the scrollback
-// file's mode does not depend on the user's umask. Errors are wrapped with
-// the paneKey for traceable failure logs.
+// WriteScrollbackIfChanged writes only when newHash differs from hm's entry,
+// updating hm on a write. A dedup hit touches no disk and returns (false, nil).
 func WriteScrollbackIfChanged(dir, paneKey string, data []byte, newHash uint64, hm HashMap) (bool, error) {
 	if existing, ok := hm[paneKey]; ok && existing == newHash {
 		return false, nil

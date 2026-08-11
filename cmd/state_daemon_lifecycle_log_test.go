@@ -1,7 +1,3 @@
-// Tests in this file mutate package-level state via seams and MUST NOT use
-// t.Parallel. They cover the daemon lifecycle catalog events added in
-// portal-observability-layer Phase 5: the "lock acquired" subsystem milestone
-// and the normal-path "shutdown" event (reason + flush_completed).
 package cmd
 
 import (
@@ -16,8 +12,6 @@ import (
 	"github.com/leeovery/portal/internal/state"
 )
 
-// countLines returns the number of captured lines whose rendered text contains
-// every supplied substring.
 func countLines(sink *logtest.Sink, substrs ...string) int {
 	n := 0
 	for _, line := range sink.Lines() {
@@ -44,8 +38,8 @@ func TestDefaultDaemonRun_EmitsLockAcquiredWithTmuxPane(t *testing.T) {
 	}
 	withDaemonLockFileReset(t)
 
-	// Short-circuit the tick loop so defaultDaemonRun returns immediately after
-	// its startup write sequence (lock acquire + pidfile + versionfile).
+	// Short-circuits the tick loop so the run returns right after its startup
+	// write sequence.
 	prevLoop := daemonTickLoopFunc
 	daemonTickLoopFunc = func(_ context.Context, _ *daemonDeps) error { return nil }
 	t.Cleanup(func() { daemonTickLoopFunc = prevLoop })
@@ -134,8 +128,7 @@ func TestDefaultDaemonRun_NoLockAcquiredAndKeepsWarnOnLockError(t *testing.T) {
 	}
 }
 
-// errInjectedLockFailure is a non-ErrDaemonLockHeld error used to drive the
-// non-EWOULDBLOCK lock-error branch of defaultDaemonRun.
+// errInjectedLockFailure drives the non-EWOULDBLOCK lock-error branch.
 type errInjectedLockFailure struct{}
 
 func (errInjectedLockFailure) Error() string { return "injected lock failure" }
@@ -154,7 +147,6 @@ func TestDefaultShutdownFlush_EmitsShutdownSighupFlushCompletedTrueOnCleanFlush(
 		t.Fatalf("defaultShutdownFlush: %v", err)
 	}
 
-	// The flush ran (sessions.json committed).
 	if _, err := os.Stat(state.SessionsJSON(dir)); err != nil {
 		t.Errorf("clean flush did not write sessions.json: %v", err)
 	}
@@ -179,7 +171,6 @@ func TestDefaultShutdownFlush_EmitsShutdownFlushCompletedFalseOnRestoringSkip(t 
 		t.Fatalf("defaultShutdownFlush: %v", err)
 	}
 
-	// No flush ran when restoring.
 	if got := fc.callsContaining("list-sessions"); len(got) != 0 {
 		t.Errorf("flush ran list-sessions despite restoring marker: %v", got)
 	}
@@ -198,8 +189,7 @@ func TestDefaultShutdownFlush_EmitsShutdownFlushCompletedFalseWhenFinalCaptureEr
 	deps.Logger = logger
 	deps.recordShutdownSignal(syscall.SIGTERM)
 
-	// Force captureAndCommit failure: make sessions.json a directory so the
-	// commit's atomic rename cannot land.
+	// A directory in sessions.json's place makes the commit's rename fail.
 	if err := os.MkdirAll(state.SessionsJSON(dir), 0o700); err != nil {
 		t.Fatalf("create blocking dir: %v", err)
 	}
@@ -264,7 +254,6 @@ func TestShutdownReason_NoRecordedSignalRendersExitEndToEnd(t *testing.T) {
 	deps := makeDeps(t, dir, fc)
 	logger, sink := newCaptureLoggerForComponent(t, "daemon")
 	deps.Logger = logger
-	// No recordShutdownSignal — models a non-signal ctx cancel.
 
 	if err := defaultShutdownFlush(deps); err != nil {
 		t.Fatalf("defaultShutdownFlush: %v", err)
@@ -295,9 +284,6 @@ func TestDefaultShutdownFlush_EmitsExactlyOneShutdownLinePerInvocation(t *testin
 	}
 }
 
-// TestDefaultShutdownFlush_EmitsShutdownFlushCompletedFalseOnRestoringReadError
-// covers the read-error branch: IsRestoringSet errors, the WARN is kept, and a
-// shutdown INFO with flush_completed=false is emitted (conservatively skipped).
 func TestDefaultShutdownFlush_EmitsShutdownFlushCompletedFalseOnRestoringReadError(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
@@ -314,7 +300,6 @@ func TestDefaultShutdownFlush_EmitsShutdownFlushCompletedFalseOnRestoringReadErr
 		t.Fatalf("defaultShutdownFlush: %v", err)
 	}
 
-	// Conservative skip: no flush ran.
 	if got := fc.callsContaining("list-sessions"); len(got) != 0 {
 		t.Errorf("flush ran list-sessions despite restoring-read error: %v", got)
 	}

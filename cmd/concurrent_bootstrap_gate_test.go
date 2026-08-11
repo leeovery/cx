@@ -1,16 +1,5 @@
 package cmd
 
-// Tests in this file mutate package-level state (bootstrapDeps) and the
-// shared rootCmd, and MUST NOT use t.Parallel.
-//
-// The cold-vs-warm routing gate, re-keyed for skip-bootstrap-when-warm.
-// shouldRunConcurrentBootstrap now decides the concurrent + loading-screen route
-// off the caller-supplied latch verdict, NOT its own has-server probe: it fires
-// on the TUI path (`portal open`, zero args) with a non-nil client whenever the
-// latch is NOT satisfied — i.e. whenever a FULL bootstrap must run behind the
-// loading screen. The retired ServerRunning() probe is gone, so the decider
-// issues zero tmux round-trips.
-
 import (
 	"testing"
 
@@ -19,17 +8,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// openProbeCmd builds an "open"-named cobra command. The name "open" is
-// load-bearing: isTUIPath keys off cmd.Name() == "open".
+// The name "open" is load-bearing: isTUIPath keys off cmd.Name().
 func openProbeCmd() *cobra.Command {
 	return &cobra.Command{Use: "open"}
 }
 
-// openProbeCmdWithFlags builds an "open"-named cobra command carrying the same
-// -e/-f/-s/-p/-z/-a flag surface production registers (cmd/open.go's init), so
-// isTUIPath / anyOpenDomainPin can be probed with specific flags marked
-// Changed via Flags().Set. The domain pins (-s/-p/-z/-a) flip isTUIPath off;
-// -f/--filter and -e/--exec do NOT (they still launch the picker).
 func openProbeCmdWithFlags() *cobra.Command {
 	c := &cobra.Command{Use: "open"}
 	c.Flags().StringP("exec", "e", "", "")
@@ -41,12 +24,6 @@ func openProbeCmdWithFlags() *cobra.Command {
 	return c
 }
 
-// TestIsTUIPath locks the retire-attach routing fix (Phase 5, task 5-1): a bare
-// picker-launching `open` is the TUI path, but a domain-pin open
-// (-s/-p/-z/-a) is NOT — it dispatches a single resolved target directly and
-// must take the synchronous direct-path bootstrap (spec § attach — Retired:
-// "--session/--path never fall back to the TUI picker"). -f/--filter and
-// -e/--exec still launch the picker, so they remain TUI paths.
 func TestIsTUIPath(t *testing.T) {
 	t.Run("bare open (no args, no pins) is the TUI path", func(t *testing.T) {
 		if !isTUIPath(openProbeCmd(), []string{}) {
@@ -114,9 +91,8 @@ func TestIsTUIPath(t *testing.T) {
 	})
 }
 
-// probeClient returns a non-nil *tmux.Client for the decider unit tests. The
-// re-keyed decider issues ZERO tmux round-trips (the has-server probe is gone),
-// so the backing commander is never called — a plain recording commander suffices.
+// The decider issues zero tmux round-trips, so the backing commander is
+// never called.
 func probeClient() *tmux.Client {
 	return tmux.NewClient(&recordingCommander{})
 }
@@ -152,11 +128,9 @@ func TestShouldRunConcurrentBootstrap(t *testing.T) {
 		}
 	})
 
-	// Domain-pin opens dispatch a single resolved target directly (never the
-	// picker), so even on a cold/unlatched server they take the SYNCHRONOUS
-	// direct-path bootstrap — restore must run before ResolveSessionPin. This is
-	// the retire-attach routing fix: a bare positional attach (`attach NAME`) was
-	// always synchronous, so its replacement `open --session NAME` must be too.
+	// A domain-pin open dispatches one resolved target directly, so even on a
+	// cold/unlatched server it must take the synchronous bootstrap — restore has
+	// to run before ResolveSessionPin.
 	for _, flag := range []string{"session", "path", "zoxide", "alias"} {
 		t.Run("it routes non-concurrent for open --"+flag+" (domain pin, not satisfied)", func(t *testing.T) {
 			c := openProbeCmdWithFlags()
@@ -190,11 +164,6 @@ func TestShouldRunConcurrentBootstrap(t *testing.T) {
 	})
 }
 
-// TestShouldRunConcurrentBootstrap_IssuesNoProbe proves the re-keyed decider is
-// pure: the retired has-server `info` probe is gone, so it issues ZERO tmux
-// round-trips on EVERY path (the route is decided by the caller-supplied
-// latchSatisfied verdict, not by probing the client). Previously the TUI path
-// paid exactly one sanctioned `info` round-trip; now it pays none.
 func TestShouldRunConcurrentBootstrap_IssuesNoProbe(t *testing.T) {
 	cases := []struct {
 		name string
@@ -217,10 +186,6 @@ func TestShouldRunConcurrentBootstrap_IssuesNoProbe(t *testing.T) {
 	}
 }
 
-// TestWithServerStarted_GatesLoadingPage confirms the warm path
-// (serverStarted=false) NEVER lands on PageLoading — it goes straight to the
-// picker, exactly as today. The concurrent flip is scoped to cold only, so
-// this gating must remain intact.
 func TestWithServerStarted_GatesLoadingPage(t *testing.T) {
 	t.Run("warm (serverStarted=false) starts on PageSessions, never PageLoading", func(t *testing.T) {
 		m := tui.New(&mockSessionLister{}, tui.WithServerStarted(false))
@@ -242,14 +207,6 @@ func TestWithServerStarted_GatesLoadingPage(t *testing.T) {
 	})
 }
 
-// TestPersistentPreRunE_LatchedTUI_ReadsLatchExactlyOnce proves the latch
-// verdict is computed EXACTLY ONCE per PersistentPreRunE: a satisfied latch is
-// diverted to the abridged path after a single @portal-bootstrapped read
-// (show-option), and the verdict is never re-read — the retired ServerRunning()
-// probe is gone and shouldRunConcurrentBootstrap is never reached on the
-// satisfied path. openTUI is reached with serverStarted=false (instant picker)
-// and the full orchestrator never runs; the abridged saver-liveness probe
-// (list-panes) is the only other seam call.
 func TestPersistentPreRunE_LatchedTUI_ReadsLatchExactlyOnce(t *testing.T) {
 	resetBootstrapOnce(t)
 	resetBootstrapWarnings(t)

@@ -1,7 +1,5 @@
 package cmd
 
-// Tests in this file mutate package-level state (bootstrapDeps, listDeps) and MUST NOT use t.Parallel.
-
 import (
 	"bytes"
 	"context"
@@ -18,66 +16,57 @@ import (
 	"github.com/spf13/pflag"
 )
 
-// resetRootCmd resets the root command's output streams and subcommand flags for testing.
 func resetRootCmd() {
 	buf := new(bytes.Buffer)
 	rootCmd.SetOut(buf)
 	rootCmd.SetErr(buf)
-	// Reset any context PersistentPreRunE stashed on the root or a subcommand in
-	// a prior Execute(). Cobra reuses a child's existing ctx when non-nil
-	// (command.go: "if cmd.ctx == nil { cmd.ctx = c.ctx }"), so a stale context
-	// (e.g. a §10.2 deferredBootstrapKey set on `open`) would otherwise leak
-	// across tests. Setting a fresh background context on both root and children
-	// clears the stale value without the prior run's keys. The production binary
-	// starts a fresh process each run, so this is a test-harness concern only.
+	// Cobra reuses a child's existing ctx when non-nil, so a context a prior
+	// Execute stashed would otherwise leak across tests.
 	rootCmd.SetContext(context.Background())
 	for _, c := range rootCmd.Commands() {
 		c.SetContext(context.Background())
 	}
-	_ = initCmd.Flags().Set("cmd", "x")       // reset to default; value is always valid
-	_ = listCmd.Flags().Set("short", "false") // reset list flags
+	_ = initCmd.Flags().Set("cmd", "x")
+	_ = listCmd.Flags().Set("short", "false")
 	_ = listCmd.Flags().Set("long", "false")
-	if f := openCmd.Flags().Lookup("exec"); f != nil { // reset exec flag
+	if f := openCmd.Flags().Lookup("exec"); f != nil {
 		_ = f.Value.Set("")
 		f.Changed = false
 	}
-	if f := openCmd.Flags().Lookup("filter"); f != nil { // reset filter flag
+	if f := openCmd.Flags().Lookup("filter"); f != nil {
 		_ = f.Value.Set("")
 		f.Changed = false
 	}
-	if f := openCmd.Flags().Lookup("session"); f != nil { // reset -s/--session pin flag
+	if f := openCmd.Flags().Lookup("session"); f != nil {
 		_ = f.Value.Set("")
 		f.Changed = false
 	}
-	if f := openCmd.Flags().Lookup("path"); f != nil { // reset -p/--path pin flag
+	if f := openCmd.Flags().Lookup("path"); f != nil {
 		_ = f.Value.Set("")
 		f.Changed = false
 	}
-	if f := openCmd.Flags().Lookup("alias"); f != nil { // reset -a/--alias pin flag
+	if f := openCmd.Flags().Lookup("alias"); f != nil {
 		_ = f.Value.Set("")
 		f.Changed = false
 	}
-	if f := openCmd.Flags().Lookup("zoxide"); f != nil { // reset -z/--zoxide pin flag
+	if f := openCmd.Flags().Lookup("zoxide"); f != nil {
 		_ = f.Value.Set("")
 		f.Changed = false
 	}
-	if f := openCmd.Flags().Lookup("ack"); f != nil { // reset hidden --ack receiver flag
+	if f := openCmd.Flags().Lookup("ack"); f != nil {
 		_ = f.Value.Set("")
 		f.Changed = false
 	}
-	// pflag does not reset argsLenAtDash between Parse calls, and it stays stale
-	// on an empty-args Parse (an early return). A prior `open <t> -- cmd` Execute
-	// therefore leaves openCmd's dash index at a positive value; a later no-`--`
-	// Execute would then slice args[dashIdx:] out of range in parseCommandArgs.
-	// Re-Init restores argsLenAtDash to -1 without disturbing the defined flags
-	// (Init only resets name/errorHandling/argsLenAtDash). Production is immune —
-	// each portal invocation is a fresh process — so this is a harness-only reset.
+	// pflag never resets argsLenAtDash between Parse calls, so a prior
+	// `open <t> -- cmd` leaves a positive dash index that a later no-`--`
+	// Execute would slice out of range. Re-Init restores it to -1 without
+	// disturbing the defined flags.
 	openCmd.Flags().Init(openCmd.Name(), pflag.ContinueOnError)
-	if f := hooksSetCmd.Flags().Lookup("on-resume"); f != nil { // reset hooks set flags
+	if f := hooksSetCmd.Flags().Lookup("on-resume"); f != nil {
 		_ = f.Value.Set("")
 		f.Changed = false
 	}
-	if f := hooksRmCmd.Flags().Lookup("on-resume"); f != nil { // reset hooks rm flags
+	if f := hooksRmCmd.Flags().Lookup("on-resume"); f != nil {
 		_ = f.Value.Set("false")
 		f.Changed = false
 	}
@@ -85,7 +74,7 @@ func resetRootCmd() {
 		_ = f.Value.Set("")
 		f.Changed = false
 	}
-	if f := doctorCmd.Flags().Lookup("fix"); f != nil { // reset doctor --fix flag
+	if f := doctorCmd.Flags().Lookup("fix"); f != nil {
 		_ = f.Value.Set("false")
 		f.Changed = false
 	}
@@ -185,10 +174,6 @@ func TestOpenSubcommandIsRegistered(t *testing.T) {
 	}
 }
 
-// TestSpawnCommandIsRetired asserts `portal spawn` was removed outright — the
-// verb-surface redesign folds multi-window spawn into `open <t1> <t2> …` and
-// spawn --detect into `doctor`, with no back-compat alias. This is the light
-// registration check; the full retired-surface reachability guard is Task 5-3.
 func TestSpawnCommandIsRetired(t *testing.T) {
 	for _, c := range rootCmd.Commands() {
 		if c.Name() == "spawn" {
@@ -198,7 +183,6 @@ func TestSpawnCommandIsRetired(t *testing.T) {
 }
 
 func TestTmuxDependentCommandsSucceedWithTmux(t *testing.T) {
-	// Ensure tmux is actually available for this test
 	originalPath := os.Getenv("PATH")
 	if originalPath == "" {
 		t.Skip("PATH not set")
@@ -208,21 +192,15 @@ func TestTmuxDependentCommandsSucceedWithTmux(t *testing.T) {
 		name string
 		args []string
 	}{
-		// open is excluded: it launches a full-screen TUI requiring a TTY
+		// open is excluded: it launches a full-screen TUI requiring a TTY.
 		{name: "portal list succeeds with tmux", args: []string{"list"}},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// The invariant under test is that the tmux-availability
-			// precheck (CheckTmuxAvailable, which runs BEFORE any deps are
-			// consulted) passes when tmux is on PATH — NOT that the full
-			// production wiring runs. Everything downstream is injected:
-			// uninjected, this test ran a COMPLETE production bootstrap
-			// (hooks registration, orphan sweep, EnsureSaver) against the
-			// developer's REAL tmux server on every `go test ./cmd` — it
-			// was the creator of the phantom 0.8.3 saver daemons observed
-			// in the developer's portal.log.
+			// Everything downstream of the tmux-availability precheck must
+			// stay injected: uninjected, this ran a complete production
+			// bootstrap against the developer's real tmux server.
 			stub := &stubVersionChecker{}
 			installStubVersionChecker(t, stub)
 			bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
@@ -244,34 +222,22 @@ func TestTmuxDependentCommandsSucceedWithTmux(t *testing.T) {
 	}
 }
 
-// nopRunner satisfies bootstrap.Runner with a Run that does nothing and
-// returns (false, nil, nil). Substituted into BootstrapDeps.Orchestrator
-// for tests that don't care about bootstrap behaviour.
 type nopRunner struct{}
 
-// Run is a no-op for tests that don't care about bootstrap behaviour.
 func (nopRunner) Run(_ context.Context) (bool, []bootstrap.Warning, error) {
 	return false, nil, nil
 }
 
-// panicRunner satisfies bootstrap.Runner but panics on any Run
-// invocation. Used to prove PersistentPreRunE never reaches bootstrap
-// for skip-tmux commands or short-circuit paths.
 type panicRunner struct{}
 
-// Run panics; never expected to be called in tests using this fake.
 func (panicRunner) Run(_ context.Context) (bool, []bootstrap.Warning, error) {
 	panic("buildBootstrapDeps / Run must not be reached")
 }
 
-// errRunner returns the configured error from Run verbatim. Used by
-// tests asserting non-fatal bootstrap errors propagate without
-// wrapping.
 type errRunner struct {
 	err error
 }
 
-// Run returns (false, nil, r.err) verbatim.
 func (r *errRunner) Run(_ context.Context) (bool, []bootstrap.Warning, error) {
 	return false, nil, r.err
 }
@@ -319,33 +285,16 @@ func TestPersistentPreRunE_CallsEnsureServer(t *testing.T) {
 	})
 
 	t.Run("orchestrator Run not called for skipTmuxCheck commands", func(t *testing.T) {
-		// Canonical coverage site for the skipTmuxCheck allowlist contract:
-		// every command on the allowlist must execute without invoking the
-		// 10-step bootstrap orchestrator. The hook rows guard against
-		// regression of the hooks-skip-bootstrap spec
-		// (.workflows/hooks-skip-bootstrap/specification/...) which moved the
-		// resume-hook verb into the allowlist to eliminate the
-		// cascading-bootstrap ENOENT burst from Claude Code's SessionStart
-		// hook. The canonical verb is `hook`; the `hooks` alias rows prove the
-		// permanent silent back-compat alias BOTH resolves AND inherits the
-		// bootstrap exemption (skipTmuxCheck keys on cobra's canonical
-		// c.Name()=="hook", so the alias is covered by the single `hook`
-		// entry). The rm rows are included for symmetry — without them a
-		// refactor that special-cases `rm --pane-key` through bootstrap would
-		// silently regress the no-bootstrap contract for that path.
+		// skipTmuxCheck keys on cobra's canonical c.Name(), so the `hooks`
+		// alias rows exercise the alias resolving to the single `hook` entry.
 		tests := []struct {
 			name string
 			argv []string
 		}{
 			{name: "version", argv: []string{"version"}},
-			// __complete is the load-bearing bootstrap-exemption row: cobra's
-			// __complete command execute() runs the ROOT PersistentPreRunE
-			// (passing __complete as cmd), so WITHOUT __complete in
-			// skipTmuxCheck every TAB press fires the full 10-step bootstrap
-			// (starts tmux + restore). Name()=="__complete" is canonical for
-			// both __complete and __completeNoDesc. argv ["__complete","open",""]
-			// requests completion of open's bare positional — it must reach the
-			// completer without invoking the orchestrator.
+			// Load-bearing: cobra's __complete runs the root
+			// PersistentPreRunE, so without the exemption every TAB press
+			// fires the full bootstrap and starts tmux.
 			{name: "__complete open", argv: []string{"__complete", "open", ""}},
 			{name: "hook list", argv: []string{"hook", "list"}},
 			{name: "hook set", argv: []string{"hook", "set", "--on-resume", "true"}},
@@ -361,11 +310,8 @@ func TestPersistentPreRunE_CallsEnsureServer(t *testing.T) {
 				bootstrapDeps = &BootstrapDeps{Orchestrator: runner}
 				t.Cleanup(func() { bootstrapDeps = nil })
 
-				// hook/hooks set + rm need a TMUX_PANE, an injected
-				// KeyResolver, and an isolated hooks file so the command
-				// runs to completion without reaching real tmux or the
-				// developer's config dir. Keyed on the subcommand so both the
-				// canonical `hook` rows and the `hooks` alias rows get it.
+				// Without these the command reaches real tmux and the
+				// developer's config dir.
 				if len(tt.argv) >= 2 && (tt.argv[1] == "set" || tt.argv[1] == "rm") {
 					dir := t.TempDir()
 					hooksFile := filepath.Join(dir, "hooks.json")
@@ -376,7 +322,6 @@ func TestPersistentPreRunE_CallsEnsureServer(t *testing.T) {
 					hooksDeps = &HooksDeps{KeyResolver: resolver}
 					t.Cleanup(func() { hooksDeps = nil })
 
-					// Seed an entry for `hooks rm` to remove; harmless for `hooks set`.
 					writeHooksJSON(t, hooksFile, map[string]map[string]string{
 						"my-session:0.0": {"on-resume": "claude --resume abc123"},
 					})
@@ -403,7 +348,6 @@ func TestPersistentPreRunE_CallsEnsureServer(t *testing.T) {
 		bootstrapDeps = &BootstrapDeps{Orchestrator: runner}
 		t.Cleanup(func() { bootstrapDeps = nil })
 
-		// Create a test command that captures the context value from RunE
 		var gotStarted bool
 		testCmd := &cobra.Command{
 			Use: "testcmd",
@@ -461,9 +405,6 @@ func TestPersistentPreRunE_CallsEnsureServer(t *testing.T) {
 	})
 }
 
-// recordingHookRegistrar records every call to its Register method along
-// with the *tmux.Client argument it received. Substituted into BootstrapDeps
-// to assert PersistentPreRunE invokes hook registration after bootstrap.
 type recordingHookRegistrar struct {
 	calls   int
 	gotNil  bool
@@ -486,10 +427,8 @@ func (r *recordingHookRegistrar) Register(c *tmux.Client) error {
 func TestPersistentPreRunE_RegistersPortalHooks(t *testing.T) {
 	t.Run("RegisterHooks is called once after orchestrator for non-exempt commands", func(t *testing.T) {
 		runner := &recordingRunner{}
-		// Latch NOT satisfied so PersistentPreRunE takes the full-bootstrap path
-		// where RegisterHooks fires (a satisfied latch would divert to the
-		// abridged path, which deliberately skips hook registration). The client
-		// instance is preserved for the gotSame assertion below.
+		// An unsatisfied latch is what routes to the full-bootstrap path; the
+		// abridged path deliberately skips hook registration.
 		client := notSatisfiedLatchClient()
 		registrar := &recordingHookRegistrar{want: client}
 
@@ -560,9 +499,8 @@ func TestPersistentPreRunE_RegistersPortalHooks(t *testing.T) {
 
 	t.Run("RegisterHooks error propagates from PersistentPreRunE", func(t *testing.T) {
 		sentinel := errors.New("hook registration failed")
-		// Latch NOT satisfied so the full-bootstrap path runs and RegisterHooks
-		// is reached (the abridged path would skip it and never surface the
-		// sentinel).
+		// An unsatisfied latch is what routes to the full-bootstrap path; the
+		// abridged path would skip RegisterHooks entirely.
 		client := notSatisfiedLatchClient()
 		registrar := &recordingHookRegistrar{err: sentinel}
 
@@ -595,9 +533,6 @@ func TestPersistentPreRunE_RegistersPortalHooks(t *testing.T) {
 	})
 }
 
-// fatalRunner returns a pre-built *bootstrap.FatalError so tests can
-// drive the FatalError-propagation paths without spinning up the full
-// Orchestrator step graph.
 type fatalRunner struct {
 	fatal *bootstrap.FatalError
 }
@@ -714,7 +649,6 @@ func TestExecute_EmitsFatalUserMessageToStderr(t *testing.T) {
 	if got != wantOutput {
 		t.Errorf("stderr = %q, want %q (single line + newline)", got, wantOutput)
 	}
-	// Spec: single line. Reject any extra content.
 	if strings.Count(got, "\n") != 1 {
 		t.Errorf("stderr contained %d newlines; want exactly 1", strings.Count(got, "\n"))
 	}
@@ -723,9 +657,7 @@ func TestExecute_EmitsFatalUserMessageToStderr(t *testing.T) {
 func TestExecute_NonFatalErrorWritesNothingToFatalStream(t *testing.T) {
 	resetBootstrapOnce(t)
 
-	// Use a plain errRunner — its Run returns the configured error
-	// verbatim, without wrapping in FatalError. Verifies Execute writes
-	// nothing to fatalErrorStderr when the error is non-fatal.
+	// errRunner returns its error unwrapped, so nothing here is a FatalError.
 	runner := &errRunner{err: errors.New("transient")}
 	bootstrapDeps = &BootstrapDeps{Orchestrator: runner}
 	t.Cleanup(func() { bootstrapDeps = nil })

@@ -5,22 +5,15 @@ import (
 	"path/filepath"
 )
 
-// PreparedSession holds the intermediate result of the shared session-preparation pipeline.
-// Both SessionCreator and QuickStart consume this to perform their respective final steps.
 type PreparedSession struct {
-	// ResolvedDir is the git root directory resolved from the input path.
 	ResolvedDir string
-	// ProjectName is derived from filepath.Base of ResolvedDir.
 	ProjectName string
-	// SessionName is the generated tmux session name in {project}-{nanoid} format.
 	SessionName string
-	// ShellCmd is the constructed shell command string, empty when no command is provided.
-	ShellCmd string
+	ShellCmd    string
 }
 
-// PrepareSession executes the shared session-preparation pipeline:
-// (1) resolve git root, (2) derive project name, (3) generate session name,
-// (4) upsert project in store, (5) build shell command.
+// PrepareSession resolves the git root, derives the project and session names,
+// and registers the project.
 func PrepareSession(
 	path string,
 	command []string,
@@ -46,8 +39,6 @@ func PrepareSession(
 		return nil, fmt.Errorf("failed to generate session name: %w", err)
 	}
 
-	// via=internal: the session-creation pipeline is a code-driven mutation,
-	// not a user-facing config command.
 	if err := store.Upsert(resolvedDir, projectName, "internal"); err != nil {
 		return nil, fmt.Errorf("failed to upsert project: %w", err)
 	}

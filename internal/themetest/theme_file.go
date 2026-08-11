@@ -1,22 +1,9 @@
 // Package themetest supports Portal's theme tests: it authors `.theme` fixture
 // files, loads the embedded built-ins by slug, and builds the synthetic probe
-// palettes a swap guard diffs between.
+// palettes a swap guard diffs between. It defines the fixture format, so a
+// change to what the loader reads is one edit here.
 //
-// It is the single definition of the fixture format every consumer stages files
-// in — the loader's `key = value` shape, the canonical token order, and the one
-// mode fixture files are written with — so a change to what the loader reads is
-// one edit rather than a hunt across the packages that test against it.
-//
-// The helpers compose: Lines() is a complete, valid file, and WithValue /
-// WithoutKey / WithDuplicateKeyAt derive the broken variants from it (a bad
-// colour, a missing token, bad syntax), each returning a fresh slice so one base
-// can seed several fixtures. Write stages a set of lines as a file; Render is
-// the same bytes for a consumer that stages the file itself, and Body() is
-// Render over the whole valid file.
-//
-// Test-only: production code MUST NOT import this package (mirroring the
-// precedent for logtest / spawntest / transienttest). Enforcement is contributor
-// discipline plus the *testing.T parameter on Write.
+// Test-only: production code must not import this package.
 package themetest
 
 import (
@@ -30,18 +17,14 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// fixtureMode is the mode this package writes fixture theme files with. One
-// mode, so no test can come to depend on a permission difference that says
-// nothing about what it is testing.
+// One mode for every fixture, so no test depends on a permission difference that
+// says nothing about what it is testing.
 const fixtureMode = 0o600
 
 // Lines renders a complete, valid theme file: one `key = value` line per token,
-// in the canonical table order, each carrying a distinct value.
-//
-// The names come from theme.TokenNames() rather than a restatement, so a
-// vocabulary change moves every fixture with it. The values are LOWER case, so a
-// theme parsed from these lines proves the loader's canonicalisation rather than
-// merely echoing the file.
+// in canonical order, each carrying a distinct value. The values are lower case,
+// so a theme parsed from these lines proves the loader's canonicalisation rather
+// than merely echoing the file.
 func Lines() []string {
 	names := theme.TokenNames()
 	lines := make([]string, 0, len(names))
@@ -51,20 +34,19 @@ func Lines() []string {
 	return lines
 }
 
-// Body renders Lines() as one complete file body — the same bytes Write puts on
-// disk, for a consumer that stages the file itself.
+// Body renders Lines() as one complete file body — the same bytes Write puts
+// on disk.
 func Body() []byte {
 	return Render(Lines())
 }
 
-// Render renders lines as a file body — newline-separated, newline-terminated —
-// for a consumer that derived its own lines and stages the file itself.
+// Render renders lines as a file body: newline-separated, newline-terminated.
 func Render(lines []string) []byte {
 	return []byte(strings.Join(lines, "\n") + "\n")
 }
 
 // WithValue returns the lines with the named key's value replaced, in the same
-// file order. The input is left untouched.
+// file order, leaving the input untouched.
 func WithValue(lines []string, key, value string) []string {
 	replaced := slices.Clone(lines)
 	for i, line := range replaced {
@@ -76,7 +58,7 @@ func WithValue(lines []string, key, value string) []string {
 }
 
 // WithoutKey returns the lines with the named key's line removed — a file that
-// never declared it. The input is left untouched.
+// never declared it — leaving the input untouched.
 func WithoutKey(lines []string, key string) []string {
 	return slices.DeleteFunc(slices.Clone(lines), func(line string) bool {
 		return strings.HasPrefix(line, key+" = ")
@@ -84,13 +66,10 @@ func WithoutKey(lines []string, key string) []string {
 }
 
 // WithDuplicateKeyAt returns the lines with a copy of the named key's line
-// spliced in, so the duplicate is the at-th line (1-based) of the result — a
-// file the loader refuses for bad syntax, naming that line. Lines that declare
-// the key nowhere are returned unchanged. The input is left untouched.
-//
-// The position is a parameter because the rejection detail carries it: a
-// consumer pinning `line N: duplicate key <key>` has to choose N. Splicing
-// outside the result panics, which is a fixture that could not have been staged.
+// spliced in as the at-th line (1-based) of the result, leaving the input
+// untouched. Lines declaring the key nowhere come back unchanged; the position
+// is a parameter because the rejection detail names it, and splicing outside the
+// result panics.
 func WithDuplicateKeyAt(lines []string, key string, at int) []string {
 	spliced := slices.Clone(lines)
 	first := slices.IndexFunc(spliced, func(line string) bool {
@@ -102,7 +81,6 @@ func WithDuplicateKeyAt(lines []string, key string, at int) []string {
 	return slices.Insert(spliced, at-1, spliced[first])
 }
 
-// Write writes lines as a file named base inside dir and returns its path.
 func Write(t *testing.T, dir, base string, lines []string) string {
 	t.Helper()
 

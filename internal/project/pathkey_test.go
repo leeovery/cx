@@ -16,11 +16,9 @@ func TestCanonicalDirKey(t *testing.T) {
 	}
 
 	t.Run("it expands a leading tilde to the home directory", func(t *testing.T) {
-		// EvalSymlinks the expected home so the comparison is symlink-stable
-		// (the home dir itself may be a symlink on some platforms).
+		// The home dir may itself be a symlink, so resolve it too.
 		want, err := filepath.EvalSymlinks(filepath.Join(home, "code", "portal"))
 		if err != nil {
-			// Path may not exist on disk; fall back to the Clean(Abs) contract.
 			want = filepath.Clean(filepath.Join(home, "code", "portal"))
 		}
 
@@ -69,8 +67,6 @@ func TestCanonicalDirKey(t *testing.T) {
 		base := t.TempDir()
 		missing := filepath.Join(base, "does", "not", "exist")
 
-		// base exists and is canonical; EvalSymlinks will fail on the missing
-		// suffix, so we expect Clean(Abs(missing)).
 		abs, err := filepath.Abs(missing)
 		if err != nil {
 			t.Fatalf("Abs(%q) error = %v", missing, err)
@@ -84,11 +80,6 @@ func TestCanonicalDirKey(t *testing.T) {
 	})
 }
 
-// TestCanonicalDirKey_MatchesResolveGitRoot is the spec's build-time
-// lookup-key-matches-stored-path invariant: a directory resolved through
-// ResolveGitRoot (the source of Project.Path at upsert time) must produce a
-// CanonicalDirKey equal to the key derived from passing the same directory
-// through the stamp/fallback path.
 func TestCanonicalDirKey_MatchesResolveGitRoot(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not available")
@@ -101,7 +92,6 @@ func TestCanonicalDirKey_MatchesResolveGitRoot(t *testing.T) {
 
 	runner := &resolver.RealCommandRunner{}
 
-	// Project.Path source: the git root of a sub-directory.
 	subdir := filepath.Join(repo, "sub")
 	if err := os.Mkdir(subdir, 0o755); err != nil {
 		t.Fatalf("Mkdir(%q) error = %v", subdir, err)
@@ -112,8 +102,6 @@ func TestCanonicalDirKey_MatchesResolveGitRoot(t *testing.T) {
 	}
 
 	storedKey := CanonicalDirKey(gitRoot)
-	// Lookup-side key derived from the same repo directory (the stamp/fallback
-	// path stamps the resolved git root).
 	lookupKey := CanonicalDirKey(repo)
 
 	if storedKey != lookupKey {

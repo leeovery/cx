@@ -10,10 +10,6 @@ import (
 	"github.com/leeovery/portal/internal/log"
 )
 
-// withSeams installs test doubles for executeFunc/errOut and restores the
-// originals via t.Cleanup. The main-package seams are package-level mutable
-// state (mirroring the cmd-package DI idiom), so these tests must not use
-// t.Parallel().
 func withSeams(t *testing.T, execute func() error) *bytes.Buffer {
 	t.Helper()
 
@@ -74,7 +70,6 @@ func TestRun(t *testing.T) {
 		if panicked {
 			t.Error("panicked = true, want false")
 		}
-		// UsageError is not a silent-exit error: its message is printed.
 		if got := buf.String(); got != "bad usage\n" {
 			t.Errorf("stderr = %q, want %q", got, "bad usage\n")
 		}
@@ -93,7 +88,6 @@ func TestRun(t *testing.T) {
 		if panicked {
 			t.Error("panicked = true, want false")
 		}
-		// Execute already wrote the user message; main must not duplicate it.
 		if got := buf.String(); got != "" {
 			t.Errorf("stderr = %q, want empty (no duplication)", got)
 		}
@@ -116,9 +110,8 @@ func TestRun(t *testing.T) {
 	})
 
 	t.Run("it recovers a panic to code 2 and skips Close", func(t *testing.T) {
-		// Capture the process: panic emission so the recover block's new ERROR
-		// marker (Task 2-13) does not leak to the default stderr handler. The
-		// code=2/panicked=true contract is unchanged.
+		// Captures the recover block's ERROR marker so it does not reach the
+		// default stderr handler.
 		log.SetTestHandler(t, &captureHandler{})
 		withSeams(t, func() error { panic("kaboom") })
 

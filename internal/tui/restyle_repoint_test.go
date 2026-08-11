@@ -12,38 +12,11 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// This file is the executable half of the §11.2 init-time-derived-style sweep:
-// the hand-maintained list of colour-bearing values that are assigned ONCE —
-// at construction, not per frame — and must therefore be re-pointed explicitly
-// by the restyle path (applyCanvasMode → applyProjectCanvasMode +
-// styleFilterInput) or silently keep the previous theme's colours.
-//
-// §11.2 states the list in prose and calls it hand-maintained with no test. These
-// assertions ARE that test for each named member. They deliberately assert on the
-// LIVE cached value after the restyle path has run — not on the constructor that
-// would build it — because "the constructor is correct" is exactly the vacuous
-// pass a once-assigned cache produces.
-//
-// The swap is driven through Model.ApplyTheme — the live theme-swap entry point
-// the panel's arrow-preview, open and close use — so what is proven here is the
-// production mechanism §11.1 names, not a test-only setter.
-//
-// No standing structural guard lives here by design (§13.4): recognising "this is
-// a cached style" in the AST is not mechanically well-defined, so the protection
-// against the class returning is the behavioural swap-and-diff guard, not this
-// file.
-
-// probeRedBefore / probeRedAfter are the fixed red channel each probe palette is
-// generated from — the single byte that makes the pair disjoint.
 const (
 	probeRedBefore = 0xAA
 	probeRedAfter  = 0xBB
 )
 
-// probeThemeBefore / probeThemeAfter are the two disjoint palettes every
-// assertion in this file swaps between: the model is built and rendered under
-// "before" (which is what populates the once-assigned caches) and then restyled
-// to "after".
 func probeThemeBefore(t *testing.T) theme.Theme {
 	t.Helper()
 	return themetest.SyntheticPalette(t, probeRedBefore)
@@ -54,25 +27,11 @@ func probeThemeAfter(t *testing.T) theme.Theme {
 	return themetest.SyntheticPalette(t, probeRedAfter)
 }
 
-// newRestyleProbeModel builds a production-shaped model painted from `before`,
-// with enough sessions and projects for BOTH lists to paginate, and renders both
-// pages once.
-//
-// The render is not decoration: the caches under test are assigned at
-// construction, so a model that is only rendered AFTER the swap would pass
-// trivially. Rendering first is what makes the post-swap assertions meaningful.
 func newRestyleProbeModel(t *testing.T, before theme.Theme) Model {
 	t.Helper()
 	return populateRestyleProbe(t, Build(Deps{Lister: fakeLister{}, Theme: theme.ConstantNomination(before)}))
 }
 
-// populateRestyleProbe is the probe's shared body: size the model, fill both lists
-// with enough content to paginate, and render both pages under whatever palette the
-// caller built it from.
-//
-// It takes an already-built model so a probe needing extra seams — the panel's
-// enumerator, in newRestylePanelProbeModel — assembles its own Deps without this
-// file growing a second copy of the population.
 func populateRestyleProbe(t *testing.T, m Model) Model {
 	t.Helper()
 	const w, h = 120, 24
@@ -103,8 +62,8 @@ func populateRestyleProbe(t *testing.T, m Model) Model {
 		t.Fatalf("probe setup: want a multi-page project list, got TotalPages=%d", m.projectList.Paginator.TotalPages)
 	}
 
-	// Populate every construction-time cache by rendering both pages under the
-	// pre-swap palette.
+	// Render both pages: the caches under test are assigned at construction,
+	// and a model rendered only after the swap would pass trivially.
 	m.activePage = PageSessions
 	_ = m.viewSessionList()
 	m.activePage = PageProjects
@@ -114,24 +73,16 @@ func populateRestyleProbe(t *testing.T, m Model) Model {
 	return m
 }
 
-// restyleTo swaps the model's active palette through the PRODUCTION entry point,
-// ApplyTheme, which drives applyCanvasMode and its fan-out to
-// applyProjectCanvasMode and styleFilterInput. This is the mechanism §11.1 names
-// as the theme-swap path; nothing here is a test-only setter.
 func restyleTo(m *Model, after theme.Theme) {
 	m.ApplyTheme(after)
 }
 
-// probedList names one of the two PAGE bubbles/list instances the restyle path
-// owns.
 type probedList struct {
 	name string
 	list *list.Model
 }
 
-// probedLists returns the two page list instances the per-style probes run over.
-// The panel's third instance exists only while the panel is open, so it is probed
-// at the rendered-output granularity instead (restyledSurfaces).
+// The panel's third list exists only while it is open; restyledSurfaces covers it.
 func probedLists(m *Model) []probedList {
 	return []probedList{
 		{"sessions", &m.sessionList},
@@ -139,10 +90,6 @@ func probedLists(m *Model) []probedList {
 	}
 }
 
-// assertRepointed asserts a rendered run carries the post-swap SGR core and none
-// of the pre-swap one — the two halves of "this cache was re-pointed", stated
-// together so a run that lost its colour entirely cannot pass on the negative
-// alone.
 func assertRepointed(t *testing.T, what, rendered, want, stale string) {
 	t.Helper()
 	if !strings.Contains(rendered, want) {
@@ -153,11 +100,6 @@ func assertRepointed(t *testing.T, what, rendered, want, stale string) {
 	}
 }
 
-// TestRestylePath_RepointsListOwnedStyles proves every bubbles/list-owned style
-// §11.2 names is genuinely re-pointed by the restyle path: the help style, both
-// pagination dot STYLES, the two rendered Paginator dot STRINGS (which list.New
-// reads off those styles once at construction and never re-reads), the title bar
-// and the title box — on the Sessions and the Projects list alike.
 func TestRestylePath_RepointsListOwnedStyles(t *testing.T) {
 	before, after := probeThemeBefore(t), probeThemeAfter(t)
 	m := newRestyleProbeModel(t, before)
@@ -165,62 +107,43 @@ func TestRestylePath_RepointsListOwnedStyles(t *testing.T) {
 
 	for _, pl := range probedLists(&m) {
 		t.Run(pl.name, func(t *testing.T) {
-			// HelpStyle — the wrapper around the footer area, canvas-backed.
 			assertRepointed(t, pl.name+" Styles.HelpStyle",
 				pl.list.Styles.HelpStyle.Render("x"),
 				tokenBgSeq(t, after.Canvas), tokenBgSeq(t, before.Canvas))
 
-			// ActivePaginationDot — accent.primary over the canvas.
 			activeDot := pl.list.Styles.ActivePaginationDot.String()
 			assertRepointed(t, pl.name+" Styles.ActivePaginationDot foreground",
 				activeDot, tokenFgSeq(t, after.AccentPrimary), tokenFgSeq(t, before.AccentPrimary))
 			assertRepointed(t, pl.name+" Styles.ActivePaginationDot background",
 				activeDot, tokenBgSeq(t, after.Canvas), tokenBgSeq(t, before.Canvas))
 
-			// InactivePaginationDot — text.faint over the canvas.
 			inactiveDot := pl.list.Styles.InactivePaginationDot.String()
 			assertRepointed(t, pl.name+" Styles.InactivePaginationDot foreground",
 				inactiveDot, tokenFgSeq(t, after.TextFaint), tokenFgSeq(t, before.TextFaint))
 			assertRepointed(t, pl.name+" Styles.InactivePaginationDot background",
 				inactiveDot, tokenBgSeq(t, after.Canvas), tokenBgSeq(t, before.Canvas))
 
-			// The RENDERED dot strings the live paginator actually prints. These are
-			// the trap: list.New snapshots them from the styles above at construction,
-			// so re-pointing only the styles leaves the paginator printing the old
-			// theme's dots forever.
+			// list.New snapshots the dot strings from the styles at construction,
+			// so re-pointing only the styles leaves the old theme's dots forever.
 			assertRepointed(t, pl.name+" Paginator.ActiveDot",
 				pl.list.Paginator.ActiveDot, tokenFgSeq(t, after.AccentPrimary), tokenFgSeq(t, before.AccentPrimary))
 			assertRepointed(t, pl.name+" Paginator.InactiveDot",
 				pl.list.Paginator.InactiveDot, tokenFgSeq(t, after.TextFaint), tokenFgSeq(t, before.TextFaint))
 
-			// NoItems — the zero-items body bubbles/list renders ITSELF, out of its
-			// own hardcoded grey. It is reachable: viewProjectList only replaces the
-			// empty body when NOT command-pending, so the command-pending +
-			// zero-projects frame falls through to this style. No fixture renders that
-			// state, so the §13.4 swap-and-diff guard is blind to it — this assertion
-			// is its only cover.
 			noItems := pl.list.Styles.NoItems.Render("x")
 			assertRepointed(t, pl.name+" Styles.NoItems foreground",
 				noItems, tokenFgSeq(t, after.TextMuted), tokenFgSeq(t, before.TextMuted))
 			assertRepointed(t, pl.name+" Styles.NoItems background",
 				noItems, tokenBgSeq(t, after.Canvas), tokenBgSeq(t, before.Canvas))
 
-			// TitleBar — the canvas painted behind the section-header row and its
-			// trailing gap row.
 			assertRepointed(t, pl.name+" Styles.TitleBar",
 				pl.list.Styles.TitleBar.Render("x"),
 				tokenBgSeq(t, after.Canvas), tokenBgSeq(t, before.Canvas))
 
-			// PaginationStyle — the centred wrapper the dot row is laid into.
 			assertRepointed(t, pl.name+" Styles.PaginationStyle",
 				pl.list.Styles.PaginationStyle.Render("x"),
 				tokenBgSeq(t, after.Canvas), tokenBgSeq(t, before.Canvas))
 
-			// Title — the one list-owned style no token paints: the section-header
-			// surgery replaces the whole title line, so the correct end state is that
-			// it emits NO colour at all. Asserting "carries the new theme" would be
-			// wrong; asserting "carries no colour" is what keeps bubbles/list's own
-			// hardcoded default palette (and any pre-swap value) out of the model.
 			if titleRun := pl.list.Styles.Title.Render("x"); strings.ContainsRune(titleRun, '\x1b') {
 				t.Errorf("%s Styles.Title emits colour %q — nothing paints the title box (the section header replaces the row), so it must carry none", pl.name, escSeq(titleRun))
 			}
@@ -228,10 +151,6 @@ func TestRestylePath_RepointsListOwnedStyles(t *testing.T) {
 	}
 }
 
-// TestRestylePath_RepointsBothFilterInputs proves both bubbles/list FilterInputs
-// are re-pointed. Their styles are set through FilterInput.SetStyles — a
-// write-back of a whole struct read off the input — so a list left out of
-// styleFilterInput keeps typing in the previous theme's accent.
 func TestRestylePath_RepointsBothFilterInputs(t *testing.T) {
 	before, after := probeThemeBefore(t), probeThemeAfter(t)
 	m := newRestyleProbeModel(t, before)
@@ -253,14 +172,8 @@ func TestRestylePath_RepointsBothFilterInputs(t *testing.T) {
 	}
 }
 
-// TestRestylePath_RepointsBothDelegates proves both row delegates are re-pointed.
-// The assertion is on RENDERED rows rather than on the delegate struct:
-// bubbles/list keeps the delegate unexported, and a row is the only observation
-// that cannot pass while the cached delegate is stale.
-//
-// text.on-selection is the probe token because the two delegates are its only
-// consumers on these two screens, so a hit is unambiguously a delegate-painted
-// run rather than surrounding chrome.
+// bubbles/list keeps the delegate unexported, so a rendered row is the only
+// available observation.
 func TestRestylePath_RepointsBothDelegates(t *testing.T) {
 	before, after := probeThemeBefore(t), probeThemeAfter(t)
 	m := newRestyleProbeModel(t, before)
@@ -276,11 +189,6 @@ func TestRestylePath_RepointsBothDelegates(t *testing.T) {
 	assertRepointed(t, "ProjectDelegate selected-row name", m.viewProjectList(), wantSeq, staleSeq)
 }
 
-// TestRestylePath_RepointsPreviewChrome covers the offender the construction-time
-// half of the sweep found: previewModel.th is a whole palette copied onto the
-// preview once, in the Space handler that opens the page, and nothing re-points
-// it — so the preview's chrome would keep painting the theme that was active when
-// it was opened.
 func TestRestylePath_RepointsPreviewChrome(t *testing.T) {
 	before, after := probeThemeBefore(t), probeThemeAfter(t)
 	m := newRestyleProbeModel(t, before)
@@ -296,25 +204,12 @@ func TestRestylePath_RepointsPreviewChrome(t *testing.T) {
 		tokenFgSeq(t, after.AccentMode), tokenFgSeq(t, before.AccentMode))
 }
 
-// restylePanelProbeRows is the panel union size the probe below opens over: enough
-// rows that the panel's own list PAGINATES at the probe's terminal height, so the
-// rendered dot row — the exemplar of the once-assigned cache class, since
-// bubbles/list reads its dot strings out of the styles at construction — is on the
-// frame the scan reads.
+// Enough rows to paginate at the probe height: without the dot row on the
+// frame, the scan below finds nothing and passes vacuously.
 const restylePanelProbeRows = 20
 
-// newRestylePanelProbeModel is newRestyleProbeModel with the §9.1 slide-over OPEN
-// over it, so all THREE bubbles/list instances the restyle path owns hold caches
-// assigned under `before`.
-//
-// EVERY UNION ROW CARRIES `before`, which is what makes the open safe as set-up:
-// opening applies the cursor row's theme, so a row painted from anything else would
-// repaint the model off the palette the two page lists were just rendered under and
-// the swap below would no longer be a swap. The panel is opened through the
-// production `t` keypress rather than assembled here, and the closing View is the
-// panel's own A-render — the counterpart of the two page renders
-// populateRestyleProbe performs, and equally not optional: the caches under test are
-// assigned once, so a surface rendered only after the swap passes trivially.
+// Every union row carries `before`: opening applies the cursor row's theme, so
+// any other palette would repaint the model and the swap would not be a swap.
 func newRestylePanelProbeModel(t *testing.T, before theme.Theme) Model {
 	t.Helper()
 
@@ -339,19 +234,11 @@ func newRestylePanelProbeModel(t *testing.T, before theme.Theme) Model {
 	return m
 }
 
-// restyledSurface is one rendered surface the stale-colour scan runs over.
 type restyledSurface struct {
 	name     string
 	rendered string
 }
 
-// restyledSurfaces renders the three lists the restyle path owns, each through the
-// renderer production composes it with: the two page views, and the panel block at
-// the content height overlayThemePanelOnContent renders it at.
-//
-// They are rendered SEPARATELY rather than read off one composed frame so a
-// survivor names the surface it survived on; the composed frame would report only
-// that some cell somewhere kept the old palette.
 func restyledSurfaces(t *testing.T, m *Model) []restyledSurface {
 	t.Helper()
 
@@ -368,21 +255,6 @@ func restyledSurfaces(t *testing.T, m *Model) []restyledSurface {
 	}
 }
 
-// TestRestylePath_NoStaleColourSurvivesOnAnyList swaps the palette while the panel
-// is OPEN and asserts no value of the pre-swap one survives on any of the three
-// lists' rendered output.
-//
-// It is the file's per-style probes stated at the granularity §11.2's class
-// actually bites at — a whole rendered surface rather than one named cache — and
-// over all three instances rather than the two page lists: the panel's is the one
-// §11.2 calls the worst case, assigned once at open and re-themed on every arrow.
-// Every token of the pre-swap palette is scanned for, so a cache nobody thought to
-// name is caught by the same pass as the ones that are.
-//
-// THE SWAP IS ApplyTheme, the production entry point the panel's arrow-preview,
-// open and close all drive. A COMMIT is deliberately not it: a commit is a write,
-// not a navigation (§9.2) — it recomputes rows and badges and never re-themes — so
-// driving one here would assert over a frame nothing had swapped.
 func TestRestylePath_NoStaleColourSurvivesOnAnyList(t *testing.T) {
 	before, after := probeThemeBefore(t), probeThemeAfter(t)
 	m := newRestylePanelProbeModel(t, before)
@@ -407,12 +279,6 @@ func TestRestylePath_NoStaleColourSurvivesOnAnyList(t *testing.T) {
 	}
 }
 
-// staleRuns returns every token of the given palette whose foreground or
-// background run appears on the surface, named with the side it was found on.
-//
-// It scans the WHOLE palette rather than a list of named caches: a cache nobody
-// thought to name is exactly the member this class loses, so the scan must not be
-// derived from the same hand-maintained list it is meant to backstop.
 func staleRuns(t *testing.T, rendered string, palette theme.Theme) []string {
 	t.Helper()
 	var found []string

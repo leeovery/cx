@@ -6,32 +6,20 @@ import (
 	"strings"
 )
 
-// RecipeKind classifies a validated recipe's execution form. The zero value is
-// an explicit invalid/none sentinel, so a bare RecipeKind is never mistaken for
-// a valid form; a well-formed recipe is exactly one of RecipeArgv / RecipeScript.
+// RecipeKind's zero value is an explicit invalid sentinel, never a valid form.
 type RecipeKind int
 
 const (
-	// RecipeArgv is an argv-template recipe: the composed attach command
-	// substitutes into the {command} placeholder of at least one argv element.
+	// RecipeArgv substitutes the composed command into the {command} placeholder
+	// of at least one argv element.
 	RecipeArgv RecipeKind = iota + 1
-	// RecipeScript is a script recipe: Portal execs the user's script file with
-	// the composed command delivered structurally as $1 (never an embedded
-	// {command}).
+	// RecipeScript execs the user's script file with the composed command
+	// delivered structurally as $1, never an embedded {command}.
 	RecipeScript
 )
 
-// validateRecipe enforces the two structural rules a terminals.json `open`
-// recipe must satisfy and reports which form it is:
-//
-//   - exactly one of argv / script — neither or both is a config typo, and
-//   - an argv recipe must reference the {command} placeholder in at least one
-//     element (a window with no {command} would never run the attach).
-//
-// The {command}-presence rule is argv-only: a script recipe always receives
-// {command} as $1 from Portal — delivered structurally, not embedded — so it can
-// never structurally lack the command. Every rejection returns the zero
-// RecipeKind alongside a descriptive error.
+// The {command}-presence rule is argv-only: a script recipe always receives the
+// command as $1, so it cannot structurally lack it.
 func validateRecipe(r Recipe) (RecipeKind, error) {
 	hasArgv := len(r.Argv) > 0
 	hasScript := strings.TrimSpace(r.Script) != ""
@@ -51,8 +39,6 @@ func validateRecipe(r Recipe) (RecipeKind, error) {
 	}
 }
 
-// argvHasCommandPlaceholder reports whether some argv element embeds the
-// {command} placeholder token.
 func argvHasCommandPlaceholder(argv []string) bool {
 	for _, el := range argv {
 		if strings.Contains(el, "{command}") {
@@ -62,18 +48,8 @@ func argvHasCommandPlaceholder(argv []string) bool {
 	return false
 }
 
-// validRecipeForEntry extracts an entry's `open` recipe, structurally validates
-// it, and distinguishes two ok=false cases:
-//
-//   - no `open` capability configured (Open == nil) → forward-compat, not a
-//     typo (e.g. only a future introspect/place is set): ok=false with NO WARN,
-//     so the resolver simply falls through to native.
-//   - a configured-but-invalid recipe → exactly one spawn-component WARN naming
-//     the entry key, then ok=false.
-//
-// The key + reason ride in the opaque `detail` attr because the closed spawn
-// attr set has no dedicated entry-key attr. A valid recipe returns
-// (recipe, kind, true).
+// An entry with no `open` capability is forward-compat rather than a typo, so it
+// is rejected silently; only a configured-but-invalid recipe warns.
 func validRecipeForEntry(key string, e TerminalEntry) (Recipe, RecipeKind, bool) {
 	if e.Commands.Open == nil {
 		return Recipe{}, 0, false
@@ -86,27 +62,12 @@ func validRecipeForEntry(key string, e TerminalEntry) (Recipe, RecipeKind, bool)
 	return *e.Commands.Open, kind, true
 }
 
-// shellQuote wraps s in POSIX single quotes so it survives as a single word when
-// the rendered {command} string is later word-split by a shell — Ghostty's
-// `bash -c` on the native path, or a shell-based terminal recipe / the delivered
-// $1 on the config path. Inside single quotes every byte is literal except the
-// single quote itself, emitted as the standard close-escape-reopen sequence
-// ('\''). Without this, an argv element containing a space — e.g. a session name
-// from a spaced project directory, "My Project-abc123" (SanitiseProjectName
-// strips only "."/":", never spaces) — would be re-split into separate words and
-// the attach target shredded.
+// POSIX single quotes so an element survives as one word when a shell later
+// word-splits the rendered {command}; an embedded quote uses close-escape-reopen.
 func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
-// renderCommandString is the single canonical rendering of the composed attach
-// argv into the {command} string: each element is POSIX-single-quoted, then the
-// quoted elements are space-joined. Single-quoting preserves the argv element
-// boundaries across the shell word-split that ultimately runs the command, so a
-// multi-word element is reproduced intact rather than shredded. It is the SAME
-// rendering the native Ghostty embed (ghosttyEmbed) builds on, so a config
-// recipe and the native path render {command} identically. Consumed by the
-// argv/script recipe adapters (Tasks 4.4/4.5).
 func renderCommandString(command []string) string {
 	quoted := make([]string, len(command))
 	for i, el := range command {

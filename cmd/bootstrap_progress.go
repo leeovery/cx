@@ -1,69 +1,5 @@
 package cmd
 
-// §10.2 concurrent cold-boot bootstrap — progress channel + goroutine wrapper.
-//
-// On the cold + TUI path the ten-step orchestrator runs in a goroutine while
-// Bubble Tea renders the loading page from frame one. This file owns the seam
-// between the two: a buffered progress channel carrying serverStarted + one
-// per-step event + a terminal done/fatal marker, plus the receiver tea.Cmd the
-// model blocks on (the standard Bubble Tea external-channel pattern — a single
-// blocking receive re-issued preserves exact event order even under command
-// batching).
-//
-// The synchronous warm/CLI route never constructs a pipe: it keeps the
-// serverStartedKey context delivery and the sync.Once memo untouched. Only the
-// cold/TUI route routes serverStarted + progress over this channel (§10.2).
-//
-// ── §10.2 RESTORE/DAEMON RACE REVIEW (task spectrum-tui-design-5-8, Part A) ──
-//
-// This file is the site where Orchestrator.Run executes IN A GOROUTINE
-// concurrently with a LIVE Bubble Tea event loop (start() below). The prior
-// incident the spec flags — slow-open / empty-previews / zombie-session — was a
-// restore/daemon interaction against a live loop, so the four ordering
-// invariants the SYNCHRONOUS bootstrap guaranteed were traced against this
-// concurrent route. FINDING: all four HOLD, because every one of them is
-// internal to Orchestrator.Run's single goroutine — none depended on the TUI
-// being ABSENT; they depend only on the in-Run step ORDER, which is unchanged
-// (the orchestrator body is byte-for-byte identical on both routes — see
-// cmd/bootstrap/bootstrap.go). The containing property is that the TUI is INERT
-// during loading (no tmux/state mutation until the terminal complete event — see
-// internal/tui's loading-page key arm and TestInertDuringLoading_*), so there is
-// no concurrent tmux writer to interleave with Run's steps.
-//
-//  1. @portal-restoring suppression window (Set step 3 BEFORE Sweep/Saver/Restore;
-//     Clear step 8 BEFORE cleanup steps 9-10). HOLDS. Set and Clear are
-//     sequential statements inside Run on the orchestrator goroutine; the live
-//     loop never reads or writes the marker. The only concurrent reader of
-//     @portal-restoring is the SAVER-PANE DAEMON (spawned by step 5), and its
-//     per-tick IsRestoringSet check is exactly what the window is FOR — its
-//     concurrency with Run is identical on the synchronous route. The window's
-//     correctness has never depended on the TUI's presence/absence.
-//  2. Sweep-before-Saver (step 4 before step 5) so the new saver-pane daemon's
-//     first tick is uncontested. HOLDS. Both are sequential statements inside
-//     Run; goroutine-hosting Run does not reorder its body. The TUI issues no
-//     daemon/pgrep/sweep calls at all (loading or otherwise), so it cannot
-//     interleave a daemon between the sweep and the saver bootstrap.
-//  3. daemon.lock flock singleton + Component C daemon.pid pre-check
-//     (state.AcquireDaemonLock). HOLDS. The singleton is enforced at the OS
-//     (advisory flock) and filesystem (daemon.pid identity) layers by the daemon
-//     PROCESS, wholly independent of the TUI. The concurrent route changes WHEN
-//     EnsureSaver runs (in a goroutine) but not the daemon's own acquire
-//     ceremony. Two daemons still cannot both hold the lock regardless of who
-//     launched the saver.
-//  4. Daemon self-supervision hysteresis (3-tick eject; cmd/state_daemon.go).
-//     HOLDS. The hysteresis counter lives in the daemon process's tick loop and
-//     observes only tmux saver-pane membership — never the picker. The TUI is not
-//     a participant; a live loop during loading does not perturb the daemon's
-//     view of the saver pane.
-//
-// No genuine race was found, so nothing was fixed under Part A. The one REAL fix
-// in scope (Part B) is the cold-boot session-list STALENESS — orthogonal to the
-// daemon/marker ordering invariants above — handled in internal/tui
-// (refetchSessionsAfterRestore: a post-complete session re-enumeration so the
-// picker reflects post-restore tmux state, not the empty Init snapshot). Part D
-// pins the invariants end-to-end with concurrent-boot integration tests
-// (cmd/concurrent_coldboot_integration_test.go).
-
 import (
 	"context"
 	"errors"
@@ -73,98 +9,54 @@ import (
 	"github.com/leeovery/portal/internal/tui"
 )
 
-// bootstrapProgressBufferSize bounds the progress channel. Ten real steps
-// plus the terminal marker fit comfortably; a generous-but-bounded buffer means
-// a fast orchestrator never blocks on a slow render, while the bound prevents an
-// unbounded backlog. task 5-3 adds per-session restore events under the same
-// label — the buffer absorbs a burst without the orchestrator stalling on send.
 const bootstrapProgressBufferSize = 64
 
-// bootstrapProgress is the event shape carried on the progress channel. Exactly
-// one terminal event (Done) is sent, last, before the channel closes.
+// Exactly one terminal event (Done) is sent, last, before the channel closes.
 type bootstrapProgress struct {
-	// Step is the per-step progress event (Index 1..10, Name the closed
-	// StepName). Only Index reaches the wire message; the friendly §10.4 label is
-	// derived consumer-side (internal/tui/loading_progress.go), so no label is
-	// carried here. Zero on the terminal event.
 	Step bootstrap.StepEvent
 
-	// RestoreN / RestoreM are the restore per-session counter (current / total).
 	RestoreN int
 	RestoreM int
 
-	// Done marks the single terminal event. On the terminal event ServerStarted
-	// and Warnings carry the orchestrator's return, and Fatal (task 5-6) carries
-	// any fatal error. Non-terminal step events leave these zero/nil.
 	Done          bool
 	ServerStarted bool
 	Warnings      []bootstrap.Warning
-	Fatal         error // task 5-6 — fatal cold-boot step error
+	Fatal         error
 
-	// FailedStep is the 1-based index of the aborting fatal step (task 5-6),
-	// carried on the terminal event alongside Fatal. It is the last emitted step
-	// index + 1: a fatal step (1, 2, 3, or 8) emits no step-complete event for
-	// itself and nothing after, so the next un-emitted index is the one that
-	// failed. Zero on a successful run. Carried on the EVENT (a value copy) so the
-	// receiver reads it without touching the goroutine's struct fields — the 5-2
-	// carry-forward race-avoidance contract.
+	// FailedStep is the last emitted step index + 1: a fatal step emits no
+	// step-complete event for itself and nothing after, so the next un-emitted
+	// index is the one that failed. Zero on a successful run.
 	FailedStep int
 }
 
-// bootstrapChannelClosedMsg is returned by the receiver tea.Cmd once the
-// progress channel has been drained and closed. The model's progress arm
-// re-issues the receiver on each non-terminal event; this sentinel is the
-// receiver's reply once the goroutine has closed the channel, so a post-close
-// re-issue returns immediately rather than blocking — no goroutine leak, no
-// blocked receive after the program quits.
+// bootstrapChannelClosedMsg is the receiver's reply once the goroutine has
+// closed the channel, so a post-close re-issue returns instead of blocking.
 type bootstrapChannelClosedMsg struct{}
 
-// bootstrapProgressPipe owns the progress channel, the orchestrator goroutine,
-// and the orchestrator's terminal return (serverStarted / warnings / fatal).
-// The receiver tea.Cmd is handed to the loading-page model; start launches the
-// goroutine that runs the orchestrator with the emitter wired through the
-// context and closes the channel on return.
 type bootstrapProgressPipe struct {
 	ch chan bootstrapProgress
 
-	// Terminal return, set by the goroutine before close and read after the TUI
-	// program exits. Reads happen-after the channel close the receiver observed,
-	// so no additional synchronisation is required: the model only reads these
-	// post-program (single-threaded) once the terminal event has been ingested.
+	// Written by the goroutine before it closes the channel and read only after
+	// the program exits, so the close the receiver observed is the ordering edge
+	// and no further synchronisation is needed.
 	serverStarted bool
 	warnings      []bootstrap.Warning
 	err           error
 }
 
-// newBootstrapProgressPipe constructs a pipe with a bounded buffered channel.
 func newBootstrapProgressPipe() *bootstrapProgressPipe {
 	return &bootstrapProgressPipe{
 		ch: make(chan bootstrapProgress, bootstrapProgressBufferSize),
 	}
 }
 
-// start launches the orchestrator goroutine. It wires the context-carried
-// progress emitter so each completed step sends a non-terminal event, then sends
-// exactly one terminal Done event (carrying serverStarted / warnings / fatal)
-// and closes the channel — on success OR fatal — so the receiver always observes
-// a close and never leaks a blocked receive.
+// start closes the channel on success and fatal alike, so the receiver always
+// observes a close and never leaks a blocked receive.
 func (p *bootstrapProgressPipe) start(ctx context.Context, runner bootstrap.Runner) {
-	// lastStep tracks the highest step index emitted so far. A fatal step (1, 2,
-	// 3, or 8) emits no step-complete event for itself and nothing after, so on a
-	// fatal abort lastStep+1 is the index of the step that failed (task 5-6). It
-	// is written and read on the single orchestrator goroutine (the emitter runs
-	// synchronously inside Run, and the terminal-event read happens after Run
-	// returns on the same goroutine), so no synchronisation is required.
+	// Written and read only on the orchestrator goroutine — the emitter runs
+	// synchronously inside Run — so it needs no synchronisation.
 	lastStep := 0
 	emitCtx := bootstrap.WithProgressEmitter(ctx, func(ev bootstrap.StepEvent) {
-		// task 5-3: a restore per-session StepEvent carries RestoreN/M (Index 6 /
-		// "Restore"); other step events leave them zero. The friendly §10.4 label
-		// is derived consumer-side from Index (loading_progress.go), not here. The
-		// send is ctx-guarded (carry-forward from 5-2): with
-		// the per-session restore events 5-3 adds, a restore of >bufferSize
-		// sessions against a TUI that stopped draining (early Quit) would block
-		// the orchestrator goroutine forever on a naked send. The select makes the
-		// send abandon on cancellation so the goroutine always returns.
 		if ev.Index > lastStep {
 			lastStep = ev.Index
 		}
@@ -181,10 +73,6 @@ func (p *bootstrapProgressPipe) start(ctx context.Context, runner bootstrap.Runn
 		p.serverStarted = started
 		p.warnings = warnings
 		p.err = err
-		// On a fatal abort, the failed step is the first un-emitted index
-		// (lastStep+1). Carried on the EVENT so the receiver reads a value copy,
-		// never the goroutine's struct fields (the 5-2 carry-forward race-avoidance
-		// contract). Zero on success (err == nil).
 		failedStep := 0
 		if err != nil {
 			failedStep = lastStep + 1
@@ -199,13 +87,10 @@ func (p *bootstrapProgressPipe) start(ctx context.Context, runner bootstrap.Runn
 	}()
 }
 
-// send delivers one progress event, abandoning the send if ctx is cancelled.
-// The ctx-guarded select (carry-forward from task 5-2) keeps both the per-step
-// emit and the per-session restore emit (task 5-3) non-blocking on cancellation:
-// if the TUI stopped draining (early Quit cancels the program's context), a
-// burst of >bootstrapProgressBufferSize restore events would otherwise wedge the
-// orchestrator goroutine on a full channel forever. On cancellation the event is
-// dropped — the receiver is no longer consuming, so the drop is benign.
+// send abandons the event if ctx is cancelled. Without the guard, a restore
+// burst larger than the buffer against a TUI that stopped draining (early Quit)
+// wedges the goroutine on a full channel forever; the drop is benign, because
+// nothing is consuming.
 func (p *bootstrapProgressPipe) send(ctx context.Context, ev bootstrapProgress) {
 	select {
 	case p.ch <- ev:
@@ -213,14 +98,8 @@ func (p *bootstrapProgressPipe) send(ctx context.Context, ev bootstrapProgress) 
 	}
 }
 
-// receiver returns the tea.Cmd the loading-page model blocks on. It performs a
-// single blocking channel receive and maps the event onto a tea.Msg:
-//   - a non-terminal step event → tui.BootstrapProgressMsg (the model's arm
-//     re-issues this receiver, pulling the next event in order)
-//   - the terminal Done event → tui.BootstrapCompleteMsg (drives the gated
-//     transition; the model does NOT re-issue, so the next receive is never made
-//     by the model — but a defensive re-issue would still terminate, see below)
-//   - a closed channel → bootstrapChannelClosedMsg (stops the loop; no leak)
+// One blocking receive, re-issued per event: that is what preserves exact event
+// order even under Bubble Tea's command batching.
 func (p *bootstrapProgressPipe) receiver() tea.Cmd {
 	return func() tea.Msg {
 		ev, ok := <-p.ch
@@ -228,24 +107,15 @@ func (p *bootstrapProgressPipe) receiver() tea.Cmd {
 			return bootstrapChannelClosedMsg{}
 		}
 		if ev.Done {
-			// task 5-6 (§10.5): a fatal terminal event maps onto a
-			// tui.BootstrapFatalMsg so the loading-page model enters the error state
-			// (failed step ✗ + one-line message) and openTUI extracts ev.Fatal for
-			// the non-zero exit — NOT a BootstrapCompleteMsg (which would dismiss the
-			// page into the picker). The failed step + message ride the EVENT (value
-			// copies), not the pipe's struct fields, per the 5-2 carry-forward.
+			// A fatal must not become a BootstrapCompleteMsg, which would dismiss the
+			// loading page into the picker.
 			if ev.Fatal != nil {
 				return fatalMsgFromEvent(ev)
 			}
-			// task 5-7 rides soft warnings onto the terminal event. bootstrap.Warning
-			// and tui.BootstrapWarning are both aliases of warning.Warning, so the
-			// slice passes straight through with no copy.
 			return tui.BootstrapCompleteMsg{Warnings: ev.Warnings}
 		}
-		// Only Index (the stable §10.4 key the consumer maps) and the restore N/M
-		// counter ride the wire. The friendly label is derived consumer-side in
-		// loading_progress.go — the sole authority for the 10→5 mapping — so no
-		// label or raw StepName is copied here.
+		// Only the step index rides the wire; the friendly label is derived
+		// consumer-side, which owns that mapping.
 		return tui.BootstrapProgressMsg{
 			Index:    ev.Step.Index,
 			RestoreN: ev.RestoreN,
@@ -254,13 +124,9 @@ func (p *bootstrapProgressPipe) receiver() tea.Cmd {
 	}
 }
 
-// fatalMsgFromEvent builds the §10.5 loading-page fatal message from a terminal
-// fatal event. The one-line message is the FatalError.UserMessage (the single
-// user-facing line the spec mandates); on the off-chance ev.Fatal is not a
-// *bootstrap.FatalError (the orchestrator always wraps fatals, so this is
-// defensive), it falls back to err.Error(). The underlying error rides through on
-// Err so openTUI can errors.As it back to *bootstrap.FatalError for the code-1
-// exit classification.
+// fatalMsgFromEvent carries the underlying error through on Err so the caller
+// can errors.As it back for exit classification. The err.Error() branch is
+// defensive: the orchestrator always wraps fatals.
 func fatalMsgFromEvent(ev bootstrapProgress) tui.BootstrapFatalMsg {
 	message := ev.Fatal.Error()
 	var fatal *bootstrap.FatalError
@@ -274,15 +140,8 @@ func fatalMsgFromEvent(ev bootstrapProgress) tui.BootstrapFatalMsg {
 	}
 }
 
-// ServerStarted reports the orchestrator's serverStarted return, set by the
-// goroutine before the channel closed. Read post-program (cold/TUI route).
 func (p *bootstrapProgressPipe) ServerStarted() bool { return p.serverStarted }
 
-// Warnings reports the soft warnings the orchestrator accumulated (task 5-7
-// rides these through the terminal event; this accessor is the post-program
-// drain seam).
 func (p *bootstrapProgressPipe) Warnings() []bootstrap.Warning { return p.warnings }
 
-// Err reports the orchestrator's fatal error, if any (task 5-6 surfaces it as a
-// loading-page error state). Read post-program.
 func (p *bootstrapProgressPipe) Err() error { return p.err }

@@ -10,16 +10,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// These tests pin the §9.1 cyan "peek mode" preview chrome (the full-screen
-// joined panel): a `◉ preview` marker (accent.mode) + the session name
-// (text.primary) + `Window x/y · Pane x/y` counters (text.muted) in the header
-// compartment, the footer nav hints `←→ window  ⇥ pane  ⏎ attach  ␣ back`
-// (accent.key glyphs + text.muted labels), all framed by the accent.mode
-// border + dividers. The captured ANSI content stays untouched.
-
-// newPeekPreviewModel builds a previewModel with the given session name,
-// groups, and a canned ScrollbackReader payload at the canonical 80x24 size,
-// resolved in dark mode (the default canvas) and colourful (NO_COLOR off).
 func newPeekPreviewModel(t *testing.T, session string, groups []tmux.WindowGroup, payload []byte, width, height int) previewModel {
 	t.Helper()
 	enum := &stubEnumerator{groups: groups}
@@ -31,9 +21,6 @@ func newPeekPreviewModel(t *testing.T, session string, groups []tmux.WindowGroup
 	return m
 }
 
-// TestPreviewPeekChrome_HeaderAndFooterRenderMarkerSessionCountersAndHints pins
-// the §9.1 header content (marker + session + slash counters) and footer content
-// (the nav hints), stripped of styling.
 func TestPreviewPeekChrome_HeaderAndFooterRenderMarkerSessionCountersAndHints(t *testing.T) {
 	groups := []tmux.WindowGroup{
 		{WindowIndex: 0, WindowName: "editor", PaneIndices: []int{0, 1}},
@@ -55,9 +42,6 @@ func TestPreviewPeekChrome_HeaderAndFooterRenderMarkerSessionCountersAndHints(t 
 	}
 }
 
-// TestPreviewPeekChrome_OrdinalsAreOneBasedSlashTotals pins that the counters
-// render 1-based ordinals over the totals in slash form, never the raw tmux
-// indices.
 func TestPreviewPeekChrome_OrdinalsAreOneBasedSlashTotals(t *testing.T) {
 	groups := []tmux.WindowGroup{
 		{WindowIndex: 0, WindowName: "first", PaneIndices: []int{0}},
@@ -80,8 +64,6 @@ func TestPreviewPeekChrome_OrdinalsAreOneBasedSlashTotals(t *testing.T) {
 	}
 }
 
-// TestPreviewPeekChrome_MarkerStyledAccentCyan pins that the `◉ preview` marker
-// carries the accent.mode foreground SGR (the mode-resolved dark hex).
 func TestPreviewPeekChrome_MarkerStyledAccentCyan(t *testing.T) {
 	groups := []tmux.WindowGroup{
 		{WindowIndex: 0, WindowName: "editor", PaneIndices: []int{0}},
@@ -94,8 +76,6 @@ func TestPreviewPeekChrome_MarkerStyledAccentCyan(t *testing.T) {
 	}
 }
 
-// TestPreviewPeekChrome_SessionStyledTextPrimary pins that the session name
-// carries the text.primary foreground SGR.
 func TestPreviewPeekChrome_SessionStyledTextPrimary(t *testing.T) {
 	groups := []tmux.WindowGroup{
 		{WindowIndex: 0, WindowName: "editor", PaneIndices: []int{0}},
@@ -108,8 +88,6 @@ func TestPreviewPeekChrome_SessionStyledTextPrimary(t *testing.T) {
 	}
 }
 
-// TestPreviewPeekChrome_CountersStyledTextDetail pins that the counters carry
-// the text.muted foreground SGR.
 func TestPreviewPeekChrome_CountersStyledTextDetail(t *testing.T) {
 	groups := []tmux.WindowGroup{
 		{WindowIndex: 0, WindowName: "editor", PaneIndices: []int{0}},
@@ -122,9 +100,6 @@ func TestPreviewPeekChrome_CountersStyledTextDetail(t *testing.T) {
 	}
 }
 
-// TestPreviewPeekChrome_FooterGlyphsAccentBlueLabelsTextDetail pins the §9.1
-// footer colour roles: each nav-hint glyph carries the accent.key foreground
-// and each label the text.muted foreground.
 func TestPreviewPeekChrome_FooterGlyphsAccentBlueLabelsTextDetail(t *testing.T) {
 	groups := []tmux.WindowGroup{
 		{WindowIndex: 0, WindowName: "editor", PaneIndices: []int{0}},
@@ -140,16 +115,8 @@ func TestPreviewPeekChrome_FooterGlyphsAccentBlueLabelsTextDetail(t *testing.T) 
 	}
 }
 
-// segmentCarriesForeground reports whether the plain `segment` appears in `row`
-// preceded (on its line) by the colour's foreground SGR core. The chrome segments
-// set BOTH a foreground and the canvas background, so the emitted SGR is
-// `\x1b[38;2;R;G;B;48;2;…m` — a combined run. Matching the foreground CORE
-// (`38;2;R;G;B`) as a substring of the styled prefix tolerates the trailing
-// background bytes while still pinning the requested foreground colour.
 func segmentCarriesForeground(row, segment string, c color.Color) bool {
 	wantSGR := lipgloss.NewStyle().Foreground(c).Render("X")
-	// Extract the foreground core: strip the leading "\x1b[" and the trailing "m"
-	// from the fg-only open sequence, leaving "38;2;R;G;B".
 	open := wantSGR[:strings.Index(wantSGR, "X")]
 	core := strings.TrimSuffix(strings.TrimPrefix(open, "\x1b["), "m")
 	before, _, ok := strings.Cut(row, segment)
@@ -159,8 +126,6 @@ func segmentCarriesForeground(row, segment string, c color.Color) bool {
 	return strings.Contains(before, core)
 }
 
-// TestPreviewPeekChrome_ContentFramedByAccentCyanBorder pins that the content
-// frame border (corners + body) carries the accent.mode foreground.
 func TestPreviewPeekChrome_ContentFramedByAccentCyanBorder(t *testing.T) {
 	groups := []tmux.WindowGroup{
 		{WindowIndex: 0, WindowName: "editor", PaneIndices: []int{0}},
@@ -173,7 +138,6 @@ func TestPreviewPeekChrome_ContentFramedByAccentCyanBorder(t *testing.T) {
 		return s[:strings.Index(s, "X")]
 	}()
 
-	// Every corner glyph must be preceded on its line by the cyan foreground SGR.
 	for _, glyph := range []string{"╭", "╮", "╰", "╯"} {
 		idx := strings.Index(out, glyph)
 		if idx < 0 {
@@ -187,11 +151,6 @@ func TestPreviewPeekChrome_ContentFramedByAccentCyanBorder(t *testing.T) {
 	}
 }
 
-// TestPreviewPeekChrome_CapturedContentLeftUntouched pins that the captured
-// ANSI body is rendered verbatim — the chrome restyle never themes the
-// content. A distinctive raw SGR (`\x1b[41m`, red background) embedded in the
-// payload must survive into the output unchanged (the content is real ANSI,
-// not theme tokens).
 func TestPreviewPeekChrome_CapturedContentLeftUntouched(t *testing.T) {
 	groups := []tmux.WindowGroup{
 		{WindowIndex: 0, WindowName: "editor", PaneIndices: []int{0}},
@@ -204,9 +163,6 @@ func TestPreviewPeekChrome_CapturedContentLeftUntouched(t *testing.T) {
 	}
 }
 
-// TestPreviewPeekChrome_NavHintsInFooterCompartment pins that the §9.1 nav hints
-// live in their own FOOTER compartment (between the footer divider and the bottom
-// border), left-aligned and space-separated — NOT in the header.
 func TestPreviewPeekChrome_NavHintsInFooterCompartment(t *testing.T) {
 	groups := []tmux.WindowGroup{
 		{WindowIndex: 0, WindowName: "editor", PaneIndices: []int{0}},
@@ -218,36 +174,23 @@ func TestPreviewPeekChrome_NavHintsInFooterCompartment(t *testing.T) {
 	if foot := stripANSI(footerLine(view)); !strings.Contains(foot, hints) {
 		t.Errorf("footer nav hints %q not present; footer=%q", hints, foot)
 	}
-	// The hints must NOT appear in the header compartment.
 	if header := stripANSI(headerLine(view)); strings.Contains(header, "window") {
 		t.Errorf("nav hints leaked into the header; header=%q", header)
 	}
 }
 
-// TestPreviewPeekChrome_FullScreenOverlayNotBlankScreenModal pins that Space
-// on a session opens the preview as a full-screen overlay (activePage flips to
-// pagePreview), NOT through the §8.1 blank-screen modal path — m.modal stays
-// modalNone and the preview View() renders the cyan chrome (not a centred
-// blanked modal panel).
 func TestPreviewPeekChrome_FullScreenOverlayNotBlankScreenModal(t *testing.T) {
 	groups := []tmux.WindowGroup{
 		{WindowIndex: 0, WindowName: "editor", PaneIndices: []int{0}},
 	}
 	m := newPeekPreviewModel(t, "work", groups, []byte("hello\n"), 80, 24)
 
-	// The preview's own View must be the cyan-framed overlay: the header
-	// compartment carries "◉ preview", not a blank canvas row.
 	header := stripANSI(headerLine(m.View()))
 	if !strings.Contains(header, "◉ preview") {
 		t.Errorf("preview overlay header is not the cyan peek-mode bar; got %q", header)
 	}
 }
 
-// TestPreviewPeekChrome_NarrowWidthDegradesGracefully drives a narrow terminal
-// and asserts the full-screen joined panel never overflows — EVERY frame line
-// (border, header, body, footer) is exactly the terminal width — and carries no
-// embedded newline corruption (the header and footer cascade, never expand the
-// panel beyond the terminal).
 func TestPreviewPeekChrome_NarrowWidthDegradesGracefully(t *testing.T) {
 	groups := []tmux.WindowGroup{
 		{WindowIndex: 0, WindowName: "a-very-long-window-name-that-will-not-fit", PaneIndices: []int{0}},
@@ -264,10 +207,6 @@ func TestPreviewPeekChrome_NarrowWidthDegradesGracefully(t *testing.T) {
 	}
 }
 
-// TestPreviewPeekChrome_ColourlessKeepsStructureDropsHue pins the §2.5 / §9.2
-// NO_COLOR carve-out: the chrome renders colourless (no foreground SGR) but
-// the structure — marker, session, counters, footer hints, frame glyphs — stays
-// present.
 func TestPreviewPeekChrome_ColourlessKeepsStructureDropsHue(t *testing.T) {
 	groups := []tmux.WindowGroup{
 		{WindowIndex: 0, WindowName: "editor", PaneIndices: []int{0}},
@@ -299,7 +238,6 @@ func TestPreviewPeekChrome_ColourlessKeepsStructureDropsHue(t *testing.T) {
 			t.Errorf("colourless View() missing frame glyph %q", glyph)
 		}
 	}
-	// No foreground colour SGR anywhere in the chrome (frame + header + footer).
 	if strings.Contains(out, "\x1b[38;") {
 		t.Errorf("colourless View() carries a foreground SGR; chrome must be colourless. out=%q", out)
 	}

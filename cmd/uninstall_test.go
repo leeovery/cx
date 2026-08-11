@@ -1,5 +1,3 @@
-// Tests in this file mutate package-level state (uninstallDeps, bootstrapDeps)
-// and MUST NOT use t.Parallel.
 package cmd
 
 import (
@@ -13,12 +11,9 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// newExitError returns a real *exec.ExitError (a process that exited non-zero),
-// the shape tmux's `has-session` produces when a session is genuinely absent.
-// The uninstall probe (HasSessionProbe) discriminates a genuine non-zero exit
-// (session absent) from an OS-layer fault (non-ExitError) via errors.As against
-// *exec.ExitError, so an absent-saver mock must return this — a bare
-// errors.New(...) would be misclassified as a transient fault.
+// newExitError returns a real *exec.ExitError, the shape tmux's has-session
+// produces for a genuinely absent session. An absent-saver mock must return
+// this: a bare errors.New would be misclassified as a transient fault.
 func newExitError(t *testing.T) error {
 	t.Helper()
 	err := exec.Command("sh", "-c", "exit 1").Run()
@@ -29,10 +24,6 @@ func newExitError(t *testing.T) error {
 	return err
 }
 
-// recordingCommander is a tmux.Commander that records every Run call and
-// dispatches via an optional RunFunc. Mirrors internal/tmux/MockCommander
-// shape but lives in the cmd package so cmd-level tests can drive a real
-// *tmux.Client end-to-end. Shared by many cmd tests.
 type recordingCommander struct {
 	mu      sync.Mutex
 	Calls   [][]string
@@ -51,9 +42,8 @@ func (r *recordingCommander) Run(args ...string) (string, error) {
 	return r.Output, r.Err
 }
 
-// RunRaw mirrors Run but represents the no-trim variant. Recording behaviour
-// stays identical so test assertions on Calls work regardless of which method
-// the production code reaches.
+// RunRaw records identically to Run, so assertions on Calls hold regardless of
+// which method production reached for.
 func (r *recordingCommander) RunRaw(args ...string) (string, error) {
 	r.mu.Lock()
 	r.Calls = append(r.Calls, args)
@@ -64,7 +54,6 @@ func (r *recordingCommander) RunRaw(args ...string) (string, error) {
 	return r.Output, r.Err
 }
 
-// setHookCalls returns the "set-hook -gu <target>" calls in invocation order.
 func setHookCalls(calls [][]string) []string {
 	var out []string
 	for _, c := range calls {
@@ -75,9 +64,6 @@ func setHookCalls(calls [][]string) []string {
 	return out
 }
 
-// callIndex returns the position in calls of the first tmux invocation whose
-// argv[0] matches op (and, when targetSubstr is non-empty, whose joined argv
-// contains targetSubstr). Returns -1 when not found.
 func callIndex(calls [][]string, op, targetSubstr string) int {
 	for i, c := range calls {
 		if len(c) == 0 || c[0] != op {
@@ -93,8 +79,6 @@ func callIndex(calls [][]string, op, targetSubstr string) int {
 	return -1
 }
 
-// installUninstallDeps overrides uninstallDeps for the duration of the test,
-// restoring the previous value via t.Cleanup.
 func installUninstallDeps(t *testing.T, deps *UninstallDeps) {
 	t.Helper()
 	prev := uninstallDeps
@@ -102,8 +86,6 @@ func installUninstallDeps(t *testing.T, deps *UninstallDeps) {
 	t.Cleanup(func() { uninstallDeps = prev })
 }
 
-// runUninstall executes "portal uninstall" and returns stdout/stderr buffers
-// and the Execute error.
 func runUninstall(t *testing.T, args ...string) (*bytes.Buffer, *bytes.Buffer, error) {
 	t.Helper()
 	outBuf := new(bytes.Buffer)
@@ -116,10 +98,8 @@ func runUninstall(t *testing.T, args ...string) (*bytes.Buffer, *bytes.Buffer, e
 	return outBuf, errBuf, err
 }
 
-// wantCompletionMessage is the byte-exact two-line completion message printed
-// on every uninstall path (spec § uninstall — Runtime-Only Teardown). Hard-
-// coded here (not referenced from production) so a drift in the production
-// string fails the test.
+// wantCompletionMessage is hard-coded rather than referenced from production,
+// so a drift in the production string fails the test.
 const wantCompletionMessage = "Portal's tmux runtime removed. Your saved sessions and config are untouched at ~/.config/portal/.\n" +
 	"To remove Portal completely, uninstall the binary and delete that directory.\n"
 
@@ -129,9 +109,9 @@ func TestUninstall_KillsPortalSaverBeforeRemovingHooks(t *testing.T) {
 		RunFunc: func(args ...string) (string, error) {
 			switch args[0] {
 			case "info":
-				return "", nil // server running
+				return "", nil
 			case "has-session":
-				return "", nil // saver present
+				return "", nil
 			case "kill-session":
 				return "", nil
 			case "show-hooks":
@@ -171,8 +151,6 @@ func TestUninstall_KillsPortalSaverBeforeRemovingHooks(t *testing.T) {
 		t.Errorf("expected order has-session(%d) < kill-session(%d) < show-hooks(%d) < set-hook(%d); calls=%v",
 			hasSessionIdx, killIdx, showHooksIdx, setHookIdx, cmder.Calls)
 	}
-	// Guard the "leaves the load-bearing _portal-bootstrap anchor running"
-	// criterion: the only kill-session target is the saver, never the anchor.
 	if anchorKillIdx := callIndex(cmder.Calls, "kill-session", tmux.PortalBootstrapName); anchorKillIdx >= 0 {
 		t.Errorf("kill-session must never target %s (the load-bearing anchor); calls=%v", tmux.PortalBootstrapName, cmder.Calls)
 	}
@@ -198,7 +176,6 @@ func TestUninstall_NoServerRunningIsGracefulNoOpAndPrintsMessage(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Neither the kill nor the unregister may run when the server is down.
 	for _, c := range cmder.Calls {
 		switch c[0] {
 		case "has-session", "kill-session", "show-hooks", "set-hook":
@@ -217,7 +194,7 @@ func TestUninstall_IsIdempotentWhenSaverAbsent(t *testing.T) {
 			case "info":
 				return "", nil
 			case "has-session":
-				return "", newExitError(t) // genuine non-zero exit: saver absent
+				return "", newExitError(t)
 			case "show-hooks":
 				return "", nil
 			}
@@ -251,7 +228,7 @@ func TestUninstall_PrintsExactCompletionMessage(t *testing.T) {
 			case "info":
 				return "", nil
 			case "has-session":
-				return "", newExitError(t) // genuine non-zero exit: saver absent
+				return "", newExitError(t)
 			case "show-hooks":
 				return "", nil
 			}
@@ -284,7 +261,7 @@ func TestUninstall_AccumulatesHookRemovalFailureWithoutSkippingKill(t *testing.T
 			case "info":
 				return "", nil
 			case "has-session":
-				return "", nil // saver present
+				return "", nil
 			case "kill-session":
 				return "", nil
 			}
@@ -307,33 +284,27 @@ func TestUninstall_AccumulatesHookRemovalFailureWithoutSkippingKill(t *testing.T
 	if !strings.Contains(err.Error(), "hook removal") {
 		t.Errorf("error %q does not contain 'hook removal'", err.Error())
 	}
-	// The kill must still have run despite the hook-removal failure.
 	if callIndex(cmder.Calls, "kill-session", tmux.PortalSaverName) < 0 {
 		t.Errorf("expected kill-session %s despite hook removal failure, got calls=%v", tmux.PortalSaverName, cmder.Calls)
 	}
-	// The completion message must still print on a partial-failure return.
 	if out.String() != wantCompletionMessage {
 		t.Errorf("completion message must print on partial failure:\n got %q\nwant %q", out.String(), wantCompletionMessage)
 	}
 }
 
 func TestUninstall_TransientProbeFaultSurfacesErrorNotSilentRemoval(t *testing.T) {
-	// A transient (OS-layer) fault probing _portal-saver — a missing tmux binary,
-	// an exec lookup failure, a transport hiccup — is NOT a genuine "session
-	// absent" exit: it does not unwrap to *exec.ExitError, so HasSessionProbe
-	// reports (present=true, err). killSaver must fold that fault into the returned
-	// error rather than silently treating the saver as absent and letting uninstall
-	// exit 0 with a false "removed" claim. It must NOT attempt the kill (the probe
-	// could not confirm the saver is even there) and must NOT emit the removal INFO.
+	// An OS-layer fault does not unwrap to *exec.ExitError, so the probe reports
+	// present-with-error. Folding it into the returned error is what stops
+	// uninstall exiting 0 with a false "removed" claim.
 	probeFault := errors.New(`exec: "tmux": executable file not found in $PATH`)
 	logger, sink := newCaptureLoggerForComponent(t, "daemon")
 	cmder := &recordingCommander{
 		RunFunc: func(args ...string) (string, error) {
 			switch args[0] {
 			case "info":
-				return "", nil // server running
+				return "", nil
 			case "has-session":
-				return "", probeFault // OS-layer fault, NOT an *exec.ExitError
+				return "", probeFault
 			}
 			if args[0] == "kill-session" {
 				t.Fatalf("kill-session must not run on a transient probe fault: %v", args)
@@ -367,8 +338,6 @@ func TestUninstall_TransientProbeFaultSurfacesErrorNotSilentRemoval(t *testing.T
 		t.Errorf("expected a WARN log for the probe fault; log:\n%s", logged)
 	}
 
-	// The completion message still prints on every path (uninstall never
-	// short-circuits it) — but the command now exits non-zero via the returned error.
 	if out.String() != wantCompletionMessage {
 		t.Errorf("completion message must print on a probe fault:\n got %q\nwant %q", out.String(), wantCompletionMessage)
 	}
@@ -388,9 +357,9 @@ func TestUninstall_ToleratesKillSessionCantFindSessionError(t *testing.T) {
 			case "info":
 				return "", nil
 			case "has-session":
-				return "", nil // present at probe
+				return "", nil
 			case "kill-session":
-				// Race: tmux auto-destroyed between has-session and kill-session.
+				// Race: tmux auto-destroyed it between has-session and kill-session.
 				return "", errors.New("can't find session: _portal-saver")
 			case "show-hooks":
 				return raw, nil
@@ -407,7 +376,6 @@ func TestUninstall_ToleratesKillSessionCantFindSessionError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	// Hook removal must still proceed after the idempotent kill error.
 	if got := setHookCalls(cmder.Calls); len(got) != 1 || got[0] != "session-created[0]" {
 		t.Errorf("expected hook removal to run after idempotent kill error; got set-hook -gu calls=%v", got)
 	}
@@ -428,7 +396,7 @@ func TestUninstall_KillSessionOtherFailureContributesJoinedErrorAndStillRunsUnre
 			case "info":
 				return "", nil
 			case "has-session":
-				return "", nil // present
+				return "", nil
 			case "kill-session":
 				return "", errors.New("permission denied")
 			}
@@ -512,7 +480,7 @@ func TestUninstall_DoesNotInvokeBootstrap(t *testing.T) {
 			case "info":
 				return "", nil
 			case "has-session":
-				return "", newExitError(t) // genuine non-zero exit: saver absent
+				return "", newExitError(t)
 			case "show-hooks":
 				return "", nil
 			}

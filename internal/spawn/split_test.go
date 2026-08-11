@@ -5,12 +5,6 @@ import (
 	"testing"
 )
 
-// TestSplitNetN pins the net-N (external/trigger) split the picker's multi-select
-// burst uses: for an ordered selection the trailing row is the self-attach trigger
-// and the leading N-1 rows are the external windows. A single-element slice yields an
-// empty external set and that element as the trigger. These are the exact values
-// dispatchBurst (internal/tui — SplitNetN's sole consumer) inherits; the
-// leading-trigger open burst uses SplitTriggerFirst instead.
 func TestSplitNetN(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -50,12 +44,6 @@ func TestSplitNetN(t *testing.T) {
 	}
 }
 
-// TestSplitTriggerFirst pins the FIRST-trigger split the multi-target open burst
-// uses (runOpenBurstWithDeps in cmd/open_burst_run.go): for an ordered surface
-// selection the LEADING row is the trigger the invoking terminal self-connects to
-// and the trailing N-1 rows are the externally-spawned windows. It is deliberately
-// distinct from the trailing-trigger SplitNetN (the picker's multi-select burst —
-// SplitNetN's sole consumer).
 func TestSplitTriggerFirst(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -95,10 +83,6 @@ func TestSplitTriggerFirst(t *testing.T) {
 	}
 }
 
-// TestSplitTriggerFirst_DistinctFromSplitNetN proves the two splits pick OPPOSITE
-// ends of the same ordered slice: SplitTriggerFirst (open burst) takes the FIRST
-// element as trigger, while the trailing-trigger SplitNetN (the picker) takes the
-// LAST. The externals are the mirror-image complements.
 func TestSplitTriggerFirst_DistinctFromSplitNetN(t *testing.T) {
 	names := []string{"a", "b", "c"}
 	surfaces := AttachSurfaces(names)
@@ -116,8 +100,6 @@ func TestSplitTriggerFirst_DistinctFromSplitNetN(t *testing.T) {
 		t.Errorf("the two splits must pick DIFFERENT triggers on the same slice: both got %q", trigger.Value)
 	}
 
-	// SplitTriggerFirst externals are the trailing rows; SplitNetN externals are
-	// the leading rows — mirror-image complements.
 	wantFirstExternal := []Surface{{Kind: SurfaceAttach, Value: "b"}, {Kind: SurfaceAttach, Value: "c"}}
 	if !slices.Equal(external, wantFirstExternal) {
 		t.Errorf("SplitTriggerFirst external = %#v, want %#v", external, wantFirstExternal)

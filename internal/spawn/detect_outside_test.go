@@ -5,9 +5,6 @@ import (
 	"testing"
 )
 
-// failWalker is a ProcessWalker that fails the test the moment it is invoked.
-// It guards the env fast-path branches, where detection must resolve from the
-// environment alone and never touch the process tree.
 type failWalker struct{ t *testing.T }
 
 func (f failWalker) ProcessInfo(pid int) (int, string, error) {
@@ -16,8 +13,6 @@ func (f failWalker) ProcessInfo(pid int) (int, string, error) {
 	return 0, "", nil
 }
 
-// failReader is a BundleReader that fails the test the moment it is invoked —
-// the env fast-path never reads a bundle.
 type failReader struct{ t *testing.T }
 
 func (f failReader) Read(appPath string) (string, string, error) {
@@ -26,7 +21,6 @@ func (f failReader) Read(appPath string) (string, string, error) {
 	return "", "", nil
 }
 
-// mapGetenv builds a getenv seam backed by a map; unset keys read as "".
 func mapGetenv(env map[string]string) func(string) string {
 	return func(key string) string {
 		return env[key]
@@ -119,7 +113,6 @@ func TestDetectOutsideTmux(t *testing.T) {
 				if err != nil {
 					t.Fatalf("detectOutsideTmux returned error: %v, want nil", err)
 				}
-				// The result must come from the walk, not the bogus env value.
 				if got.BundleID != "com.mitchellh.ghostty" {
 					t.Errorf("BundleID = %q, want the walk's %q (env value %q must not be trusted)", got.BundleID, "com.mitchellh.ghostty", tc.value)
 				}

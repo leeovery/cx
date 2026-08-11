@@ -9,10 +9,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// newRebuildTestModel constructs a minimal Model with a real session list and
-// the supplied sessions/projects/mode, sized so SetItems behaves as in
-// production. It bypasses the seam constructors so each test can drive the
-// mode-aware re-render core directly.
 func newRebuildTestModel(t *testing.T, mode prefs.SessionListMode, sessions []tmux.Session, projects []project.Project) Model {
 	t.Helper()
 	m := Model{
@@ -113,7 +109,6 @@ func TestRebuildSessionList(t *testing.T) {
 		if len(items) != len(want) {
 			t.Fatalf("len(items) = %d, want %d", len(items), len(want))
 		}
-		// Two tags → two instances of the same session (under two headers).
 		rows := sessionRows(items)
 		if len(rows) != 2 {
 			t.Fatalf("len(rows) = %d, want 2 (one per tag)", len(rows))
@@ -130,8 +125,6 @@ func TestRebuildSessionList(t *testing.T) {
 		projects := []project.Project{{Path: dir, Name: "Portal"}}
 		sessions := []tmux.Session{{Name: "portal-abc", Dir: dir}}
 
-		// Same sessions, but no cached projects: the session cannot resolve and
-		// lands in the Unknown catch-all. With cached projects it resolves.
 		without := newRebuildTestModel(t, prefs.ModeByProject, sessions, nil)
 		without.rebuildSessionList()
 		if !sessionRows(without.sessionList.Items())[0].CatchAll {
@@ -172,8 +165,6 @@ func TestRebuildSessionList(t *testing.T) {
 		m.rebuildSessionList()
 		second := m.sessionList.Items()
 
-		// The full interleaved item slice (headers + rows) must be identical
-		// across re-renders.
 		if len(first) != len(second) {
 			t.Fatalf("len mismatch: first %d, second %d", len(first), len(second))
 		}
@@ -236,10 +227,6 @@ func TestWithInsideTmuxRoutesThroughRebuild(t *testing.T) {
 			{Name: "current", Dir: dir},
 		}
 
-		// Sessions populated BEFORE WithInsideTmux, in a grouped mode with a
-		// matching project. The old direct-push path (SetItems(ToListItems(...)))
-		// would render these flat; routing through rebuildSessionList must group
-		// them and still exclude the current session.
 		m := newRebuildTestModel(t, prefs.ModeByProject, sessions, projects)
 		m = m.WithInsideTmux("current")
 
@@ -260,14 +247,12 @@ func TestWithInsideTmuxRoutesThroughRebuild(t *testing.T) {
 	})
 
 	t.Run("preserves construction behaviour: empty sessions yields empty list and mode-aware inside-tmux title", func(t *testing.T) {
-		// Construction ordering: m.sessions is empty when WithInsideTmux runs.
 		m := newRebuildTestModel(t, prefs.ModeByTag, nil, nil)
 		m = m.WithInsideTmux("current")
 
 		if got := len(m.sessionList.Items()); got != 0 {
 			t.Fatalf("len(items) = %d, want 0 for empty sessions at construction", got)
 		}
-		// Title carries the active mode base plus the inside-tmux decoration.
 		want := "Sessions — by tag (current: current)"
 		if got := m.sessionList.Title; got != want {
 			t.Errorf("title = %q, want %q", got, want)

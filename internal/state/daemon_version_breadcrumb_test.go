@@ -11,11 +11,6 @@ import (
 	"github.com/leeovery/portal/internal/state"
 )
 
-// TestWriteVersionFile_EmitsBreadcrumb pins the post-migration breadcrumb
-// shape: a DEBUG record "daemon.version write" carrying the destination path
-// attr. version and pid are now baseline attrs injected per-record by the
-// configured handler (set once via main -> log.Init), so they are no longer
-// emitted at this call site.
 func TestWriteVersionFile_EmitsBreadcrumb(t *testing.T) {
 	dir := t.TempDir()
 	lg, sink := logtest.NewCaptureLogger(t)
@@ -37,9 +32,6 @@ func TestWriteVersionFile_EmitsBreadcrumb(t *testing.T) {
 	}
 }
 
-// TestWriteVersionFile_EmitsBreadcrumbEvenWhenWriteFails pins that the
-// breadcrumb is emitted BEFORE the atomic-write side effect, so a write
-// failure still leaves the paper trail.
 func TestWriteVersionFile_EmitsBreadcrumbEvenWhenWriteFails(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("permission-based write-failure test relies on POSIX semantics")
@@ -55,7 +47,7 @@ func TestWriteVersionFile_EmitsBreadcrumbEvenWhenWriteFails(t *testing.T) {
 	if err := os.Mkdir(roDir, 0o500); err != nil {
 		t.Fatalf("mkdir ro: %v", err)
 	}
-	// Restore writable mode after test so t.TempDir cleanup can remove it.
+	// Restore writable mode so t.TempDir's cleanup can remove it.
 	t.Cleanup(func() { _ = os.Chmod(roDir, 0o700) })
 
 	err := state.WriteVersionFile(roDir, "9.9.9", lg)
@@ -73,8 +65,6 @@ func TestWriteVersionFile_EmitsBreadcrumbEvenWhenWriteFails(t *testing.T) {
 	}
 }
 
-// TestWriteVersionFile_EmitsExactlyOneBreadcrumbPerCall pins one breadcrumb
-// per call.
 func TestWriteVersionFile_EmitsExactlyOneBreadcrumbPerCall(t *testing.T) {
 	dir := t.TempDir()
 	lg, sink := logtest.NewCaptureLogger(t)

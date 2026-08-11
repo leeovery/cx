@@ -9,8 +9,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// stubEnumerator records the session passed to ListWindowsAndPanesInSession
-// and returns a configured groups/err pair.
 type stubEnumerator struct {
 	groups  []tmux.WindowGroup
 	err     error
@@ -24,8 +22,6 @@ func (s *stubEnumerator) ListWindowsAndPanesInSession(session string) ([]tmux.Wi
 	return s.groups, s.err
 }
 
-// recordingReader records every paneKey passed to Tail and returns the
-// configured (bytes, err).
 type recordingReader struct {
 	bytes []byte
 	err   error
@@ -148,8 +144,6 @@ func TestNewPreviewModel_PassesRawANSIBytesVerbatimToSetContent(t *testing.T) {
 }
 
 func TestNewPreviewModel_PositionsViewportAtScrollTailOnInitialOpen(t *testing.T) {
-	// Build content with more lines than viewport height so that GotoBottom
-	// must explicitly run for AtBottom() to be true.
 	var b strings.Builder
 	for range 50 {
 		b.WriteString("line\n")
@@ -214,8 +208,6 @@ func TestNewPreviewModel_ConstructsFreshModelPerCallWithNoCarriedState(t *testin
 		t.Fatalf("first call: expected ok=true, got false")
 	}
 
-	// Mutate reader payload between calls — second model must observe the
-	// new bytes, proving a fresh Tail occurred and no caching is in play.
 	reader.bytes = []byte("second")
 
 	_, ok2 := NewPreviewModel("work", enum, reader, nil, 80, 24)

@@ -9,35 +9,14 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// The panel layout MESSAGE SLOT gate: the single-slot arbiter's two contenders, their
-// the pinned copy, their panel-layout tokens, the per-dimension degrade that governs both, and
-// the picker idiom nested confirm scope the footer substitutes while the confirm is live.
-//
-// THE EXCLUSION IS THE SUBJECT, not a precedence rule. The two contenders are the
-// slot-from-constant confirm and the failed-commit line, and a
-// confirm resolves BEFORE any write happens — so they can never be live at once,
-// and the tests assert that rather than ranking them.
-//
-// Colour roles are asserted as theme-resolved SGR runs (like the panel-row and
-// footer anatomy tests), so the assertion says WHICH text a token painted rather
-// than merely that the token appears somewhere on the row.
-//
-// No t.Parallel() — the package-level mock convention and the shared canvas
-// helpers make parallelism unsafe across this package's tests.
-
-// The two pinned-copy strings, restated here VERBATIM rather than re-derived from the
-// production constants. A test that formatted the production format string would
-// pass whatever the copy became; these are the byte comparison the pinned copy's pinning
-// exists for, double space included.
+// Verbatim, not re-derived from the production format string. The double space
+// is part of the copy.
 const (
 	messageTestConfirmSlug = "nord"
 	messageTestConfirmCopy = "clear constant nord?  y / n"
 	messageTestFailedCopy  = "⚠ couldn't save theme"
 )
 
-// messageTestConfirm / messageTestFailed are the two contenders as the panel holds
-// them. They are FUNCTIONS rather than package-level vars, following this
-// package's test-side convention (see themePanelFooterPinnedRows).
 func messageTestConfirm() themePanelMessage {
 	return themePanelMessage{Kind: themeMessageConfirm, Slug: messageTestConfirmSlug}
 }
@@ -46,8 +25,6 @@ func messageTestFailed() themePanelMessage {
 	return themePanelMessage{Kind: themeMessageCommitFailed}
 }
 
-// messageTestPanel is an open panel at the given width carrying one message —
-// enough rows behind it that the list body is never the thing under test.
 func messageTestPanel(th theme.Theme, width int, message themePanelMessage) themePanel {
 	return newThemePanelFixture(themePanelFixtureOpts{
 		th:      th,
@@ -57,8 +34,6 @@ func messageTestPanel(th theme.Theme, width int, message themePanelMessage) them
 	})
 }
 
-// messageTestVisible renders one message slot and returns its rows with every SGR
-// sequence stripped and the pad-to-width trimmed — the text a user reads.
 func messageTestVisible(message themePanelMessage, inner int, wrap bool, th theme.Theme) []string {
 	block := renderThemePanelMessage(message, inner, wrap, th, false)
 	rows := strings.Split(ansi.Strip(block), "\n")
@@ -68,13 +43,6 @@ func messageTestVisible(message themePanelMessage, inner int, wrap bool, th them
 	return rows
 }
 
-// TestPanelMessage_ConfirmPinnedCopy: it renders the pinned confirm copy.
-//
-// The pinned copy pins `clear constant <slug>?  y / n` — TWO spaces before the `y`. The copy
-// is a layout constraint as much as a copy choice (the panel is 24–30
-// columns), so it is byte-compared against the pinned copy string rather than matched
-// loosely, and the message carries NO FREE TEXT: the contender renders its own
-// pinned copy, so no call site can paraphrase it.
 func TestPanelMessage_ConfirmPinnedCopy(t *testing.T) {
 	th := testDarkTheme(t)
 	inner := themePanelInnerWidth(themePanelPreferredWidth)
@@ -84,18 +52,13 @@ func TestPanelMessage_ConfirmPinnedCopy(t *testing.T) {
 		t.Fatalf("the confirm rendered %d rows at inner width %d, want 1: %q", len(rows), inner, rows)
 	}
 	if got := rows[0]; got != messageTestConfirmCopy {
-		t.Errorf("the confirm reads %q, want §14A's %q", got, messageTestConfirmCopy)
+		t.Errorf("the confirm reads %q, want %q", got, messageTestConfirmCopy)
 	}
 	if !strings.Contains(rows[0], "?  y") {
-		t.Errorf("the confirm reads %q, want the DOUBLE space §14A pins before `y`", rows[0])
+		t.Errorf("the confirm reads %q, want the DOUBLE space pinned before `y`", rows[0])
 	}
 }
 
-// TestPanelMessage_CommitFailedPinnedCopy: it renders the pinned failed-commit
-// copy.
-//
-// The pinned copy pins `⚠ couldn't save theme` and the failed-commit rule requires it
-// glyph-backed, so the `⚠` is part of the string rather than a colour-only signal.
 func TestPanelMessage_CommitFailedPinnedCopy(t *testing.T) {
 	th := testDarkTheme(t)
 	inner := themePanelInnerWidth(themePanelPreferredWidth)
@@ -105,21 +68,13 @@ func TestPanelMessage_CommitFailedPinnedCopy(t *testing.T) {
 		t.Fatalf("the failed-commit line rendered %d rows, want 1: %q", len(rows), rows)
 	}
 	if got := rows[0]; got != messageTestFailedCopy {
-		t.Errorf("the failed-commit line reads %q, want §14A's %q", got, messageTestFailedCopy)
+		t.Errorf("the failed-commit line reads %q, want %q", got, messageTestFailedCopy)
 	}
 	if !strings.HasPrefix(rows[0], flashWarningGlyph) {
 		t.Errorf("the failed-commit line reads %q, want it glyph-backed with %q", rows[0], flashWarningGlyph)
 	}
 }
 
-// TestPanelMessage_SingleSlotExclusion: it keeps the two contenders mutually
-// exclusive.
-//
-// The panel layout's slot is a single-slot arbiter with two contenders "which can never be
-// live at once because a confirm resolves before any write happens". The
-// exclusion is asserted DIRECTLY rather than resolved with a precedence rule:
-// each raise installs a whole value, so the other contender — and any residue it
-// left — is gone by construction.
 func TestPanelMessage_SingleSlotExclusion(t *testing.T) {
 	th := testDarkTheme(t)
 	inner := themePanelInnerWidth(themePanelPreferredWidth)
@@ -164,9 +119,6 @@ func TestPanelMessage_SingleSlotExclusion(t *testing.T) {
 	})
 }
 
-// requireOnlyContender fails unless the rendered slot carries want and not other —
-// the single-slot property stated at the render surface rather than only on the
-// value, so a renderer that drew both would be caught too.
 func requireOnlyContender(t *testing.T, message themePanelMessage, inner int, th theme.Theme, want, other string) {
 	t.Helper()
 	got := strings.Join(messageTestVisible(message, inner, false, th), " ")
@@ -178,12 +130,6 @@ func requireOnlyContender(t *testing.T, message themePanelMessage, inner int, th
 	}
 }
 
-// TestPanelMessage_UnreservedWhenEmpty: it costs no row when empty.
-//
-// The panel layout: the slot is "not reserved when empty — it appears and the list shrinks by
-// one, the same way the main screen's notice band recomputes list height". The
-// wrap flag is passed both ways because that is a statement about the slot at
-// every height.
 func TestPanelMessage_UnreservedWhenEmpty(t *testing.T) {
 	th := testDarkTheme(t)
 	inner := themePanelInnerWidth(themePanelPreferredWidth)
@@ -198,9 +144,8 @@ func TestPanelMessage_UnreservedWhenEmpty(t *testing.T) {
 		}
 	}
 
-	// The list body is exactly one row taller with the slot empty — the failed
-	// commit is the contender that leaves the standing footer in place, so the row
-	// the slot costs is the only difference between the two layouts.
+	// The failed-commit contender leaves the standing footer in place, so the slot's
+	// row is what separates the two layouts.
 	_, empty := themePanelListSize(messageTestPanel(th, themePanelPreferredWidth, themePanelMessage{}), height)
 	_, live := themePanelListSize(messageTestPanel(th, themePanelPreferredWidth, messageTestFailed()), height)
 	if live != empty-1 {
@@ -208,12 +153,6 @@ func TestPanelMessage_UnreservedWhenEmpty(t *testing.T) {
 	}
 }
 
-// TestPanelMessage_WrappedMessageCostsTwoRows: it measures a wrapped message.
-//
-// The panel layout: "at the minimum panel width the slot may wrap to two rows — it is not a
-// list delegate, so wrapping costs pagination nothing". It costs the LIST two
-// rows rather than one, and the point of the assertion is that the cost is
-// MEASURED off the rendered block rather than assumed to be one.
 func TestPanelMessage_WrappedMessageCostsTwoRows(t *testing.T) {
 	th := testDarkTheme(t)
 	inner := themePanelInnerWidth(themePanelMinWidth)
@@ -227,17 +166,13 @@ func TestPanelMessage_WrappedMessageCostsTwoRows(t *testing.T) {
 		t.Errorf("the wrapped slot measures %d rows, want %d", got, themePanelMessageWrapRows)
 	}
 
-	// The whole message survives the wrap, word for word: what the panel layout promises is
-	// that nothing is lost, not where the break lands.
+	// Nothing is lost in the wrap; where the break lands is not promised.
 	if got, want := chromeWords(strings.Join(rows, " ")), chromeWords(messageTestConfirmCopy); got != want {
 		t.Errorf("the wrapped slot reads %q, want the whole confirm %q", got, want)
 	}
 
-	// The list body absorbs BOTH rows, not one. The two panels compared carry the
-	// SAME message and therefore the same footer scope, so the footer term cancels
-	// and the only difference between their budgets is what the slot measured: two
-	// rows at the minimum width, one at the preferred. A slot whose cost was assumed
-	// to be one row would make the two bodies equal.
+	// Same message, so the same footer scope: the footer term cancels and what
+	// separates the two is the slot's own measurement.
 	height := themePanelMinHeight(themePanelKeymap(), false) + 6
 	if got := themePanelMessageHeight(confirm, themePanelInnerWidth(themePanelPreferredWidth), true); got != 1 {
 		t.Fatalf("fixture: the confirm measures %d rows at the preferred width, want 1", got)
@@ -249,22 +184,10 @@ func TestPanelMessage_WrappedMessageCostsTwoRows(t *testing.T) {
 	}
 }
 
-// footerScopeSaving is the rows the confirm's own two-row footer hands BACK to the
-// list body (the picker idiom's nested scope substituted into the standing four-row footer).
-// It is stated once here because every confirm-driven layout assertion has to
-// account for it, and stating it as a derivation rather than a literal keeps it
-// true if either scope's Core membership changes.
 func footerScopeSaving() int {
 	return themePanelFooterHeight(themePanelKeymap()) - themePanelFooterHeight(themePanelConfirmKeymap())
 }
 
-// TestPanelMessage_TruncatesAtFloorHeight: it truncates at the minimum height.
-//
-// The panel layout: the slot "does cost a row of vertical budget, so at the minimum HEIGHT the
-// message is truncated to one line rather than wrapped". The geometry rule's floor counts
-// exactly one message row, so a two-row message there would leave zero list rows
-// or overflow the frame — and truncation degrades the message the user is being
-// asked to answer rather than the row they are answering ABOUT.
 func TestPanelMessage_TruncatesAtFloorHeight(t *testing.T) {
 	th := testDarkTheme(t)
 	inner := themePanelInnerWidth(themePanelMinWidth)
@@ -279,7 +202,7 @@ func TestPanelMessage_TruncatesAtFloorHeight(t *testing.T) {
 
 	t.Run("at the floor it renders on exactly one line", func(t *testing.T) {
 		if got := themePanelMessageWraps(p, floor); got {
-			t.Fatal("the slot wraps at the floor; §9.1 truncates there")
+			t.Fatal("the slot wraps at the floor; it truncates there")
 		}
 		rows := messageTestVisible(confirm, inner, false, th)
 		if len(rows) != 1 {
@@ -292,15 +215,13 @@ func TestPanelMessage_TruncatesAtFloorHeight(t *testing.T) {
 
 	t.Run("above the floor the same message may occupy two", func(t *testing.T) {
 		if got := themePanelMessageWraps(p, floor+1); !got {
-			t.Fatal("the slot truncates one row above the floor; §9.1 wraps there")
+			t.Fatal("the slot truncates one row above the floor; it wraps there")
 		}
 		if got := themePanelMessageHeight(confirm, inner, true); got != themePanelMessageWrapRows {
 			t.Errorf("above the floor the slot measures %d rows, want %d", got, themePanelMessageWrapRows)
 		}
 	})
 
-	// Rendered at the floor the panel is still exactly its floor in rows, with the
-	// slot on the single row above the footer.
 	lines := themePanelLines(renderThemePanel(p, floor, th, false))
 	if len(lines) != floor {
 		t.Fatalf("the panel rendered %d rows at its floor of %d", len(lines), floor)
@@ -311,12 +232,6 @@ func TestPanelMessage_TruncatesAtFloorHeight(t *testing.T) {
 	}
 }
 
-// TestPanelMessage_ConfirmSlugTruncation: it truncates a long constant slug.
-//
-// The pinned copy: "the slug truncated by the row-rendering rule if needed". The row-rendering
-// rule is the row composition one — the pinned frame is charged first and the flexing element
-// takes what is left, floored at three visible characters plus the ellipsis — so
-// a long slug can never push `?  y / n` out of the copy.
 func TestPanelMessage_ConfirmSlugTruncation(t *testing.T) {
 	th := testDarkTheme(t)
 	inner := themePanelInnerWidth(themePanelMinWidth)
@@ -331,23 +246,18 @@ func TestPanelMessage_ConfirmSlugTruncation(t *testing.T) {
 	if strings.Contains(joined, long.Slug) {
 		t.Errorf("the confirm reads %q, want the %d-cell slug truncated", joined, lipgloss.Width(long.Slug))
 	}
-	// The pinned frame survives the truncation at BOTH ends: the phrase that says
-	// what is being cleared, and the keys that answer it.
 	if !strings.HasPrefix(joined, "clear constant ") {
-		t.Errorf("the confirm reads %q, want §14A's leading phrase intact", joined)
+		t.Errorf("the confirm reads %q, want the leading phrase intact", joined)
 	}
 	if !strings.HasSuffix(joined, "? y / n") {
-		t.Errorf("the confirm reads %q, want §14A's trailing keys intact", joined)
+		t.Errorf("the confirm reads %q, want the trailing keys intact", joined)
 	}
 
-	// The floor is the row-rendering rule's: three visible characters plus the ellipsis, so the
-	// slug never degrades below being recognisable.
+	// Three visible characters plus the ellipsis, so the slug stays recognisable.
 	if got := lipgloss.Width(strings.Fields(joined)[2]); got != themeRowLabelFloor+1 {
-		t.Errorf("the truncated slug plus its `?` is %d cells, want §9.5's floor of %d", got, themeRowLabelFloor+1)
+		t.Errorf("the truncated slug plus its `?` is %d cells, want the floor of %d", got, themeRowLabelFloor+1)
 	}
 
-	// The row still renders at the minimum width: every line is exactly the panel's
-	// width, with nothing spilling past the border.
 	p := messageTestPanel(th, themePanelMinWidth, long)
 	block := renderThemePanel(p, themePanelMinHeight(themePanelKeymap(), false)+4, th, false)
 	for i, line := range strings.Split(block, "\n") {
@@ -357,22 +267,13 @@ func TestPanelMessage_ConfirmSlugTruncation(t *testing.T) {
 	}
 }
 
-// TestPanelMessage_ConfirmReadsRawKeys: it names the persisted constant even when
-// it failed to load.
-//
-// The confirm names `m.themeState.keys.Theme` — the PERSISTED constant — and never
-// the nomination the panel resolved. The two differ exactly where it matters: under
-// a per-slot fallback the persisted slug is the one being cleared and the
-// resolved one is a built-in the user never chose, so naming the resolution would ask the user
-// to confirm clearing a theme that was never set.
 func TestPanelMessage_ConfirmReadsRawKeys(t *testing.T) {
 	th := testDarkTheme(t)
 	inner := themePanelInnerWidth(themePanelPreferredWidth)
 	dir := t.TempDir()
 
-	// `ghost` resolves to nothing — no file, no built-in — so the per-slot fallback rule's
-	// fallback puts the shipped dark default on screen while `ghost` stays the persisted
-	// constant. The cursor sitting on the fallback's row is that state made observable.
+	// `ghost` resolves to nothing on purpose: the shipped dark default is on
+	// screen while `ghost` stays the persisted constant.
 	m, _, _ := newRecomputePanelModel(t, dir, theme.RawKeys{Theme: "ghost"})
 	requireCursorOn(t, m, theme.DefaultDarkSlug)
 
@@ -387,11 +288,6 @@ func TestPanelMessage_ConfirmReadsRawKeys(t *testing.T) {
 	}
 }
 
-// TestPanelMessage_ConfirmTokens: it uses text.secondary with no band.
-//
-// The panel layout's table: "message slot — confirm: `text.secondary`, no band". The role is
-// asserted as the run that painted the text, and the absence of a band as the
-// absence of any background other than the panel's own canvas.
 func TestPanelMessage_ConfirmTokens(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		inner := themePanelInnerWidth(themePanelPreferredWidth)
@@ -404,12 +300,6 @@ func TestPanelMessage_ConfirmTokens(t *testing.T) {
 	}
 }
 
-// TestPanelMessage_CommitFailedTokens: it uses accent.attention with no band.
-//
-// The panel layout's table: "message slot — failed commit: `⚠` and text in `accent.attention`,
-// NO `bg.attention` band — the warning band is a full-width main-screen flash
-// treatment and would read as heavy inside a 24–30 column panel". The glyph and
-// the text share ONE run, exactly as the pinned directory row's do.
 func TestPanelMessage_CommitFailedTokens(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		inner := themePanelInnerWidth(themePanelPreferredWidth)
@@ -422,10 +312,7 @@ func TestPanelMessage_CommitFailedTokens(t *testing.T) {
 	}
 }
 
-// requireNoBand fails unless the only background the slot paints is the panel's
-// own canvas — the panel layout's "no band" for both contenders, with bg.attention named
-// explicitly because it is the one the failed-commit line would plausibly reach
-// for.
+// bg.attention specifically: the token the failed-commit line would reach for.
 func requireNoBand(t *testing.T, th theme.Theme, row string) {
 	t.Helper()
 	if strings.Contains(row, tokenBgSeq(t, th.BgAttention)) {
@@ -438,16 +325,6 @@ func requireNoBand(t *testing.T, th theme.Theme, row string) {
 	}
 }
 
-// TestPanelFooter_ConfirmScopeSubstitution: it substitutes the confirm footer.
-//
-// The picker idiom: "the panel footer switches to the confirm's own keys while it is live —
-// `y confirm` / `n cancel`". The standing footer advertises four keys of which
-// NONE would act during a confirm, and the footer rule is firm that advertising a key that
-// will not act is the dead end a proactive block exists to prevent.
-//
-// SUBSTITUTED, NOT FORKED: the rendered rows are compared against the SAME
-// renderer handed the confirm scope, so a second footer implementation would show
-// up as a difference rather than pass on a coincidence.
 func TestPanelFooter_ConfirmScopeSubstitution(t *testing.T) {
 	th := testDarkTheme(t)
 	const height = 18
@@ -472,9 +349,6 @@ func TestPanelFooter_ConfirmScopeSubstitution(t *testing.T) {
 		}
 	}
 
-	// The layout ABSORBS the difference: themePanelFooterHeight reports the
-	// substituted footer's height, so the two rows it no longer spends land in the
-	// list body rather than nowhere.
 	_, standing := themePanelListSize(messageTestPanel(th, themePanelPreferredWidth, messageTestFailed()), height)
 	_, confirming := themePanelListSize(p, height)
 	if want := standing + footerScopeSaving(); confirming != want {
@@ -482,11 +356,6 @@ func TestPanelFooter_ConfirmScopeSubstitution(t *testing.T) {
 	}
 }
 
-// TestPanelFooter_RevertsAfterConfirm: it restores the standing footer on resolve.
-//
-// The picker idiom: the footer "switches back when it resolves". Resolving is clearing the
-// message — nothing else in the panel changes — and the restored footer is
-// compared byte for byte against the standing render, through the SAME renderer.
 func TestPanelFooter_RevertsAfterConfirm(t *testing.T) {
 	th := testDarkTheme(t)
 	const height = 18
@@ -509,9 +378,6 @@ func TestPanelFooter_RevertsAfterConfirm(t *testing.T) {
 	}
 }
 
-// footerRowsOf returns the last n rows of a rendered panel block with each row's
-// border-and-gutter prefix removed, so it can be compared against a footer
-// rendered on its own.
 func footerRowsOf(block string, n int) []string {
 	lines := themePanelLines(block)
 	rows := make([]string, 0, n)
@@ -521,7 +387,6 @@ func footerRowsOf(block string, n int) []string {
 	return rows
 }
 
-// equalRows reports whether two rendered row slices match exactly.
 func equalRows(got, want []string) bool {
 	if len(got) != len(want) {
 		return false
@@ -534,31 +399,20 @@ func equalRows(got, want []string) bool {
 	return true
 }
 
-// TestPanelMessage_FloorUsesStandingScope: it leaves the height floor unchanged.
-//
-// The geometry rule's floor is computed from the STANDING scope and gains no row for the
-// confirm. The confirm's footer is strictly SHORTER, so a panel that clears the
-// floor with the standing footer has room to spare the moment the confirm raises
-// — which is the non-obvious half of "the slot's height feeds the floor arithmetic
-// unchanged".
 func TestPanelMessage_FloorUsesStandingScope(t *testing.T) {
 	th := testDarkTheme(t)
 
 	if got := footerScopeSaving(); got <= 0 {
-		t.Fatalf("the confirm footer is %d rows shorter than the standing one; §9.2's nested scope must be strictly shorter or the floor would need a row", got)
+		t.Fatalf("the confirm footer is %d rows shorter than the standing one; the nested confirm scope must be strictly shorter or the floor would need a row", got)
 	}
 
 	for _, dirUnusable := range []bool{false, true} {
 		floor := themePanelMinHeight(themePanelKeymap(), dirUnusable)
 
-		// The floor is a function of the STANDING scope and the directory alone: the
-		// panel's own predicate answers identically whatever the slot holds.
 		if _, ok := themePanelFloor(themePanelPreferredWidth*2, floor, dirUnusable); !ok {
 			t.Fatalf("the floor predicate refuses at exactly the floor of %d", floor)
 		}
 
-		// And the panel renders coherently at that floor with the confirm live: the
-		// whole confirm footer, the message row, and at least the floor's one list row.
 		p := newThemePanelFixture(themePanelFixtureOpts{
 			th:          th,
 			width:       themePanelMinWidth,
@@ -582,12 +436,8 @@ func TestPanelMessage_FloorUsesStandingScope(t *testing.T) {
 	}
 }
 
-// TestPanelMessage_Colourless: it drops hue under colourless.
-//
-// The NO_COLOR carve-out: no canvas, no hue, state carried by the glyphs. The NO_COLOR panel
-// block blocks the panel under NO_COLOR outright, so this is the defence rather than the
-// daily path — the message slot must not be the one surface that reintroduces a
-// colour the carve-out removed everywhere else.
+// The panel is blocked under NO_COLOR outright, so this is defence, not the
+// daily path.
 func TestPanelMessage_Colourless(t *testing.T) {
 	th := testDarkTheme(t)
 	inner := themePanelInnerWidth(themePanelPreferredWidth)
