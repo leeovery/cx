@@ -1,9 +1,4 @@
-// White-box (package prefs) because the write path's contract is the unexported
-// mutate seam: §8.9 deliberately refuses to export a whole-record Load/Save API,
-// so "the mutator declines and nothing is written" is only reachable from inside
-// the package. The Save-level tests live here alongside it rather than in the
-// external prefs_test package so the whole write-path story — strict decode,
-// merge, abort — reads as one file.
+// White-box: the write path's contract is the unexported mutate seam.
 package prefs
 
 import (
@@ -16,10 +11,8 @@ import (
 	"testing"
 )
 
-// seedPrefsFile writes content to a prefs.json inside a fresh temp dir and
-// returns its path. Deliberately a second declaration of the helper shape in
-// theme_keys_test.go: that file is package prefs_test and cannot share with this
-// one.
+// Deliberately duplicates theme_keys_test.go's helper: that file is package
+// prefs_test and cannot share with this one.
 func seedPrefsFile(t *testing.T, content string) string {
 	t.Helper()
 
@@ -30,7 +23,6 @@ func seedPrefsFile(t *testing.T, content string) string {
 	return path
 }
 
-// readRaw returns the file's exact bytes.
 func readRaw(t *testing.T, path string) []byte {
 	t.Helper()
 
@@ -41,8 +33,6 @@ func readRaw(t *testing.T, path string) []byte {
 	return data
 }
 
-// decodeWritten reads the on-disk prefs.json into a generic map so key
-// presence/absence is asserted structurally rather than by substring.
 func decodeWritten(t *testing.T, path string) map[string]any {
 	t.Helper()
 
@@ -54,7 +44,6 @@ func decodeWritten(t *testing.T, path string) map[string]any {
 	return decoded
 }
 
-// assertWrittenValue asserts an on-disk key holds exactly want.
 func assertWrittenValue(t *testing.T, decoded map[string]any, key, want string) {
 	t.Helper()
 
@@ -68,8 +57,6 @@ func assertWrittenValue(t *testing.T, decoded map[string]any, key, want string) 
 	}
 }
 
-// assertNoTempFiles asserts AtomicWrite left no temp file behind in dir — an
-// abort must not even reach the write, so there is nothing to clean up.
 func assertNoTempFiles(t *testing.T, dir string) {
 	t.Helper()
 
@@ -84,8 +71,6 @@ func assertNoTempFiles(t *testing.T, dir string) {
 	}
 }
 
-// assertUntouched asserts the file's bytes are identical to before and that no
-// temp file survives.
 func assertUntouched(t *testing.T, path string, before []byte) {
 	t.Helper()
 
@@ -95,8 +80,6 @@ func assertUntouched(t *testing.T, path string, before []byte) {
 	assertNoTempFiles(t, filepath.Dir(path))
 }
 
-// assertNothingCreated asserts a saver that declined to write left path absent
-// and dir wholly empty — not the file, not the tree above it, not a temp file.
 func assertNothingCreated(t *testing.T, dir, path string) {
 	t.Helper()
 
@@ -117,31 +100,21 @@ func assertNothingCreated(t *testing.T, dir, path string) {
 	assertNoTempFiles(t, dir)
 }
 
-// undecodableErrClass names the decoder error one corrupt shape produces, so an
-// abort test can assert the class rather than only that some error came back.
 type undecodableErrClass int
 
 const (
-	// classSyntax is encoding/json's *json.SyntaxError.
 	classSyntax undecodableErrClass = iota
-	// classTopLevelTypeMismatch is a *json.UnmarshalTypeError whose Field is
-	// empty: the whole document is the wrong JSON type, so the decode yields a
-	// wholly zero-valued record. A non-empty Field is a declared field's wrong
-	// type, which the write path absorbs instead of aborting.
+	// A *json.UnmarshalTypeError with empty Field: the whole document is the
+	// wrong JSON type, decoding to a wholly zero record.
 	classTopLevelTypeMismatch
 )
 
-// undecodableCase is one corrupt prefs.json shape paired with the decoder error
-// it produces.
 type undecodableCase struct {
 	name     string
 	content  string
 	errClass undecodableErrClass
 }
 
-// assertErr asserts err is the decoder's own error for this shape, returned
-// verbatim — prefs is a leaf, so it reports by returning rather than
-// re-classifying.
 func (c undecodableCase) assertErr(t *testing.T, err error) {
 	t.Helper()
 
@@ -162,9 +135,6 @@ func (c undecodableCase) assertErr(t *testing.T, err error) {
 	}
 }
 
-// undecodablePrefsCases is the single statement of the shapes a save aborts on.
-// Every save method routes through mutate, so each saver's abort test ranges
-// over this table and a shape added here is proven against all of them at once.
 func undecodablePrefsCases() []undecodableCase {
 	return []undecodableCase{
 		{name: "a truncated object", content: `{`, errClass: classSyntax},
@@ -179,22 +149,15 @@ func undecodablePrefsCases() []undecodableCase {
 	}
 }
 
-// absentPathCase is one shape of "the prefs file is not there", named for the
-// subtest and carrying the path segments to join onto a fresh temp dir.
 type absentPathCase struct {
 	name string
 	rel  []string
 }
 
-// path joins the case's segments onto dir.
 func (c absentPathCase) path(dir string) string {
 	return filepath.Join(append([]string{dir}, c.rel...)...)
 }
 
-// absentPathCases is the single statement of the absent-path shapes every saver
-// is judged on, whether it creates the file or declines to. A shape added here
-// is exercised against both outcomes at once, so the inputs that decide
-// create-versus-decline cannot drift apart.
 func absentPathCases() []absentPathCase {
 	return []absentPathCase{
 		{name: "the file is absent", rel: []string{"prefs.json"}},
@@ -202,11 +165,6 @@ func absentPathCases() []absentPathCase {
 	}
 }
 
-// TestSave_CreatesAbsentFile pins the create-on-absent half of §8.9: an absent
-// prefs.json has nothing to merge and nothing to lose, so the write proceeds.
-// This is the most common write in the product — a brand-new user's first
-// keypress — and an abort here would be permanent, since nothing else creates
-// the file.
 func TestSave_CreatesAbsentFile(t *testing.T) {
 	for _, c := range absentPathCases() {
 		t.Run(c.name, func(t *testing.T) {
@@ -223,13 +181,6 @@ func TestSave_CreatesAbsentFile(t *testing.T) {
 	}
 }
 
-// TestSave_AbortsOnUndecodable pins the abort-on-undecodable half of the write
-// path. Under the tolerant load decode a stray comma collapses to a zero-valued
-// record with no error, so the writer merges into it and one keypress erases
-// every other key — the exact silent, permanent destruction this split exists to
-// prevent. A zero-byte file is present and is not valid JSON, and a top-level
-// type mismatch decodes to a wholly zero-valued record, so both abort by the
-// same rule.
 func TestSave_AbortsOnUndecodable(t *testing.T) {
 	for _, c := range undecodablePrefsCases() {
 		t.Run(c.name, func(t *testing.T) {
@@ -248,9 +199,6 @@ func TestSave_AbortsOnUndecodable(t *testing.T) {
 	}
 }
 
-// TestSave_AbortsOnReadError pins the I/O half of "present but unusable": a
-// non-ErrNotExist read failure aborts exactly like malformed JSON, and the OS
-// error is returned verbatim.
 func TestSave_AbortsOnReadError(t *testing.T) {
 	path := seedPrefsFile(t, `{"session_list_mode":"flat","theme":"nord"}`)
 	before := readRaw(t, path)
@@ -279,17 +227,8 @@ func TestSave_AbortsOnReadError(t *testing.T) {
 	assertUntouched(t, path, before)
 }
 
-// TestSave_WrongTypedFieldDoesNotAbort pins the discriminator: a wrong TYPE on a
-// declared field is a value problem, not a syntax one. encoding/json still
-// populates every other field, so the merge is safe and the write proceeds.
-//
-// The string fields are what exercise this rung. theme_migrated — the field a
-// user is most likely to hand-edit wrongly, and the reason the carve-out was
-// specified — never reaches it: its own total decode (see migrationMarker)
-// absorbs a wrong type one layer earlier, so no UnmarshalTypeError is ever
-// raised for it. That is deliberate. The carve-out here still leaves the
-// tolerant LOAD path zeroing the record, which for the marker would lose the
-// mode, the theme keys and the retained appearance on every read.
+// theme_migrated never reaches the carve-out — its own total decode absorbs a
+// wrong type one layer earlier — so string fields exercise it instead.
 func TestSave_WrongTypedFieldDoesNotAbort(t *testing.T) {
 	t.Run("a wrong-typed session_list_mode still preserves theme", func(t *testing.T) {
 		path := seedPrefsFile(t, `{"session_list_mode":5,"theme":"nord"}`)
@@ -305,10 +244,6 @@ func TestSave_WrongTypedFieldDoesNotAbort(t *testing.T) {
 	})
 
 	t.Run("the offending field is normalised to its zero value, siblings survive", func(t *testing.T) {
-		// The accepted consequence of §8.1's tolerant absorption: the
-		// wrong-typed field decodes to its zero value and is re-encoded as such
-		// (omitted, by omitempty). That is absorption, not the loss the abort
-		// rule exists to catch.
 		path := seedPrefsFile(t, `{"session_list_mode":"flat","theme":5,"theme_dark":"nord","appearance":"dark"}`)
 		store := NewStore(path)
 
@@ -326,9 +261,6 @@ func TestSave_WrongTypedFieldDoesNotAbort(t *testing.T) {
 	})
 }
 
-// TestSave_UnrecognisedValueIsNotUnusable pins that the strict decode judges
-// SYNTAX only. Treating an unrecognised value as fatal would make hand-editing
-// prefs.json a way to lock yourself out of every write.
 func TestSave_UnrecognisedValueIsNotUnusable(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -354,18 +286,8 @@ func TestSave_UnrecognisedValueIsNotUnusable(t *testing.T) {
 	}
 }
 
-// TestWrite_OmitsAnUnsetSessionListMode pins that session_list_mode follows the
-// same omission rule as every other key: a field-specific saver firing on a file
-// whose mode was never set leaves the key ABSENT rather than writing it as an
-// empty string.
-//
-// The case is reachable, not theoretical. §8.1 leaves a fresh install with no
-// prefs.json at all, so the first theme commit both creates the file and encodes
-// a mode nobody has ever chosen. `""` and absent are indistinguishable to every
-// reader — parseMode collapses both to ModeFlat, neither decode carries
-// key-presence logic, and a downgraded binary reads them the same — so this is
-// about keeping the hand-editable file clean, which is the same reason §8.1
-// gives for the theme keys and the retained appearance.
+// Reachable: the first theme commit creates the file and encodes a mode
+// nobody has chosen.
 func TestWrite_OmitsAnUnsetSessionListMode(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "prefs.json")
 
@@ -379,18 +301,13 @@ func TestWrite_OmitsAnUnsetSessionListMode(t *testing.T) {
 		t.Errorf("written JSON carries session_list_mode = %#v, want the key absent — it was never set", value)
 	}
 
-	// A mode that WAS chosen still round-trips: omitempty must not swallow a
-	// real choice, and ModeFlat marshals as "flat" rather than the empty string,
-	// so the default is persistable like any other.
+	// ModeFlat marshals as "flat", not the empty string omitempty swallows.
 	if err := NewStore(path).Save(ModeFlat); err != nil {
 		t.Fatalf("unexpected Save error: %v", err)
 	}
 	assertWrittenValue(t, decodeWritten(t, path), "session_list_mode", "flat")
 }
 
-// TestMutate_DecliningMutatorWritesNothing pins the skip contract every later
-// saver in this phase relies on: returning false touches no bytes and returns no
-// error.
 func TestMutate_DecliningMutatorWritesNothing(t *testing.T) {
 	decline := func(*prefsFile, bool) bool { return false }
 
@@ -422,9 +339,6 @@ func TestMutate_DecliningMutatorWritesNothing(t *testing.T) {
 	})
 }
 
-// TestMutate_ReportsFileExistence pins the second half of the mutator's
-// contract: fn is told whether the file existed, which is what lets task 6-3's
-// marker be written only when prefs.json already exists (§8.1).
 func TestMutate_ReportsFileExistence(t *testing.T) {
 	t.Run("true for a present file", func(t *testing.T) {
 		store := NewStore(seedPrefsFile(t, `{"session_list_mode":"flat"}`))

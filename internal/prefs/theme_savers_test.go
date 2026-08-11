@@ -1,13 +1,5 @@
-// White-box (package prefs) for the same reason store_write_path_test.go is: the
-// theme savers' whole contract is expressed at unexported seams. They are §8.9's
-// field-specific savers precisely so no whole-record API exists to drive them
-// from outside, and "exactly one atomic write per save" is not observable from
-// the filesystem after the fact — a second write leaves no trace on disk — so it
-// is counted at the atomicWrite indirection.
-//
-// The helpers declared in store_write_path_test.go (seedPrefsFile, readRaw,
-// decodeWritten, assertWrittenValue, assertNoTempFiles, assertUntouched) are
-// reused rather than redeclared: this file is the same package.
+// White-box: "one atomic write per save" is not observable from the
+// filesystem, so it is counted at the unexported atomicWrite seam.
 package prefs
 
 import (
@@ -19,11 +11,7 @@ import (
 	"testing"
 )
 
-// assertKeysAbsent asserts none of the given keys is present in the encoded
-// JSON. §8.3's "an unset slot holds the shipped default" means a cleared key is
-// ABSENT (omitempty renders the empty string as key-absent), never present as
-// "" — so presence is asserted structurally on the decoded map rather than by
-// substring, where `"theme"` would also match `"theme_light"`.
+// Asserted structurally: a "theme" substring would also match "theme_light".
 func assertKeysAbsent(t *testing.T, decoded map[string]any, keys ...string) {
 	t.Helper()
 
@@ -34,9 +22,6 @@ func assertKeysAbsent(t *testing.T, decoded map[string]any, keys ...string) {
 	}
 }
 
-// TestSaveTheme_ClearsBothSlots pins the first half of §8.2's write-enforced
-// mutual exclusion: committing a constant clears both slots, so "both a constant
-// and a pair are present" cannot arise from Portal's own writes.
 func TestSaveTheme_ClearsBothSlots(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -47,8 +32,6 @@ func TestSaveTheme_ClearsBothSlots(t *testing.T) {
 			content: `{"session_list_mode":"flat","theme_light":"tokyo-night-day","theme_dark":"tokyo-night"}`,
 		},
 		{
-			// The hand-edited both-present file §8.2 documents: `theme` wins on
-			// read, and the next constant commit prunes the stale slots.
 			name:    "a hand-edited file holding a constant and both slots",
 			content: `{"theme":"gruvbox","theme_light":"tokyo-night-day","theme_dark":"tokyo-night"}`,
 		},
@@ -78,8 +61,6 @@ func TestSaveTheme_ClearsBothSlots(t *testing.T) {
 	}
 }
 
-// TestSaveThemeSlot_ClearsConstant pins the other half of §8.2: assigning a slot
-// clears the constant. Whichever was set last wins.
 func TestSaveThemeSlot_ClearsConstant(t *testing.T) {
 	path := seedPrefsFile(t, `{"theme":"gruvbox","theme_light":"tokyo-night-day"}`)
 	store := NewStore(path)
@@ -94,9 +75,6 @@ func TestSaveThemeSlot_ClearsConstant(t *testing.T) {
 	assertKeysAbsent(t, decoded, "theme")
 }
 
-// TestSaveThemeSlot_OtherSlotUnaffected pins that a slot save touches its own
-// slot only — the property that makes §9.5's `● both` reachable in two
-// keypresses rather than clobbering the pair on every commit.
 func TestSaveThemeSlot_OtherSlotUnaffected(t *testing.T) {
 	cases := []struct {
 		name      string
@@ -137,8 +115,6 @@ func TestSaveThemeSlot_OtherSlotUnaffected(t *testing.T) {
 	}
 }
 
-// TestSaveThemeSlot_LightThenDarkYieldsBoth pins §9.5's `● both` state: two slot
-// saves of the same slug leave both slots naming it.
 func TestSaveThemeSlot_LightThenDarkYieldsBoth(t *testing.T) {
 	path := seedPrefsFile(t, `{"session_list_mode":"flat","theme":"gruvbox"}`)
 	store := NewStore(path)
@@ -156,11 +132,6 @@ func TestSaveThemeSlot_LightThenDarkYieldsBoth(t *testing.T) {
 	assertKeysAbsent(t, decoded, "theme")
 }
 
-// recordWrites swaps the package-level atomicWrite seam for a recorder that
-// still performs the real write, and restores it on cleanup. Tests in this
-// repository never run in parallel, so the swap is unsynchronised by design.
-// It returns an accessor for the bytes of every commit made since the swap, in
-// order.
 func recordWrites(t *testing.T) func() [][]byte {
 	t.Helper()
 
@@ -175,18 +146,8 @@ func recordWrites(t *testing.T) func() [][]byte {
 	return func() [][]byte { return commits }
 }
 
-// TestSaveTheme_SingleAtomicWrite pins that a saver's commit and its
-// mutual-exclusion clear land in ONE AtomicWrite, never two (§8.9). Two writes
-// would leave a reachable window where prefs.json holds both a constant and a
-// pair — the state §8.2 says cannot arise from Portal's own writes.
-//
-// The count is taken at the atomicWrite seam because it is not recoverable from
-// the filesystem afterwards: a second write leaves no trace, so a post-hoc
-// assertion could only ever prove "at least one". Recording each commit's bytes
-// also pins the stronger property — that the single write already carries the
-// final state, rather than the clear arriving in a later one.
-//
-// Despite the name it covers both savers: they are the two halves of one rule.
+// Covers both savers despite the name; a second write leaves no trace on the
+// filesystem, so the count is taken at the seam.
 func TestSaveTheme_SingleAtomicWrite(t *testing.T) {
 	for _, c := range themeSaverCases() {
 		t.Run(c.name, func(t *testing.T) {
@@ -212,13 +173,8 @@ func TestSaveTheme_SingleAtomicWrite(t *testing.T) {
 	}
 }
 
-// TestThemeSavers_PreserveUnrelatedFields pins §8.9's reason for keeping the
-// merge inside the leaf: a saver owns its own key and nothing else, so the raw
-// `appearance` round-trip is a property of the store rather than a rule every
-// caller has to remember.
 func TestThemeSavers_PreserveUnrelatedFields(t *testing.T) {
-	// The seeded appearance is deliberately an unrecognised value: §8.8 keeps the
-	// field as a plain string that is read and preserved, never parsed.
+	// The seeded appearance is deliberately unrecognised: never parsed.
 	const seeded = `{"session_list_mode":"by-tag","appearance":"sepia","theme_light":"tokyo-night-day"}`
 
 	for _, c := range themeSaverCases() {
@@ -232,19 +188,13 @@ func TestThemeSavers_PreserveUnrelatedFields(t *testing.T) {
 			decoded := decodeWritten(t, path)
 			assertWrittenValue(t, decoded, "session_list_mode", "by-tag")
 			assertWrittenValue(t, decoded, "appearance", "sepia")
-			// Neither saver may invent the migration marker. The field is now
-			// declared, and omitempty keeps a false marker absent — see
-			// TestMigrationMarker_NotTouchedByThemeSavers for the full
-			// both-directions rule (§8.1: the marker never participates in
-			// mutual exclusion).
 			assertKeysAbsent(t, decoded, "theme_migrated")
 		})
 	}
 }
 
-// seedWithStaleKeys renders prefs.json content carrying a stale value for each
-// of the given keys, over the same `session_list_mode` base as the bare seed it
-// is compared against — so the two differ in nothing else.
+// The rendered content differs from the bare flat seed only in the given stale
+// keys, so byte comparisons isolate the clear.
 func seedWithStaleKeys(t *testing.T, keys []string) string {
 	t.Helper()
 
@@ -260,9 +210,6 @@ func seedWithStaleKeys(t *testing.T, keys []string) string {
 	return string(encoded)
 }
 
-// TestThemeSavers_ClearedKeysAreAbsent pins that clearing is writing the empty
-// string, which omitempty renders as key-absent — §8.3's "an unset slot holds
-// the shipped default", and a hand-editable file that stays clean.
 func TestThemeSavers_ClearedKeysAreAbsent(t *testing.T) {
 	t.Run("a cleared key is omitted, never written as an empty string", func(t *testing.T) {
 		for _, c := range themeSaverCases() {
@@ -275,9 +222,8 @@ func TestThemeSavers_ClearedKeysAreAbsent(t *testing.T) {
 
 				assertKeysAbsent(t, decodeWritten(t, path), c.clearedKeys...)
 
-				// Belt to the decoded map's braces: the key name must not appear
-				// in the bytes at all. The trailing `":` anchors it so `"theme"`
-				// does not match `"theme_light"`.
+				// The trailing `":` anchors the needle so `"theme"` does not
+				// match `"theme_light"`.
 				raw := readRaw(t, path)
 				for _, key := range c.clearedKeys {
 					if needle := []byte(`"` + key + `":`); bytes.Contains(raw, needle) {
@@ -289,15 +235,8 @@ func TestThemeSavers_ClearedKeysAreAbsent(t *testing.T) {
 	})
 
 	t.Run("clearing an already-absent key is not an error and lands the same bytes", func(t *testing.T) {
-		// Nothing to clear: the constant save prunes slots that were never set,
-		// and the slot save prunes a constant that was never set. The result must
-		// be byte-identical to the same save over a file that DID hold them, or
-		// "cleared" and "never set" would be two different on-disk states.
 		for _, c := range themeSaverCases() {
 			t.Run(c.name, func(t *testing.T) {
-				// The two seeds differ ONLY in the keys this saver clears, so the
-				// comparison isolates the clear — a slot saver's untouched other
-				// slot would otherwise show up as a difference of its own.
 				nothingToClear := seedPrefsFile(t, `{"session_list_mode":"flat"}`)
 				somethingToClear := seedPrefsFile(t, seedWithStaleKeys(t, c.clearedKeys))
 
@@ -318,9 +257,6 @@ func TestThemeSavers_ClearedKeysAreAbsent(t *testing.T) {
 	})
 }
 
-// TestThemeSavers_RepeatedCommitIsByteIdentical pins the idempotence that makes
-// §9.13's "a commit is always re-attemptable" free: the commit keys are
-// unconditional writes, so pressing the same key again simply retries.
 func TestThemeSavers_RepeatedCommitIsByteIdentical(t *testing.T) {
 	for _, c := range themeSaverCases() {
 		t.Run(c.name, func(t *testing.T) {
@@ -346,12 +282,8 @@ func TestThemeSavers_RepeatedCommitIsByteIdentical(t *testing.T) {
 	}
 }
 
-// TestThemeSavers_InheritWritePathRules pins that both savers get task 6-1's two
-// persistence rules from the shared mutator rather than re-implementing either.
 func TestThemeSavers_InheritWritePathRules(t *testing.T) {
 	t.Run("create-on-absent", func(t *testing.T) {
-		// The ordinary first write: a fresh install has no prefs.json at all, and
-		// an abort here would be permanent because nothing else creates the file.
 		for _, c := range themeSaverCases() {
 			t.Run(c.name, func(t *testing.T) {
 				path := filepath.Join(t.TempDir(), "sub", "prefs.json")
@@ -367,8 +299,6 @@ func TestThemeSavers_InheritWritePathRules(t *testing.T) {
 	})
 
 	t.Run("abort-on-undecodable", func(t *testing.T) {
-		// A stray comma must not become an overwrite: merging into the tolerant
-		// decode's zero-valued record would erase every other key in one commit.
 		for _, saver := range themeSaverCases() {
 			t.Run(saver.name, func(t *testing.T) {
 				for _, c := range undecodablePrefsCases() {
@@ -390,21 +320,15 @@ func TestThemeSavers_InheritWritePathRules(t *testing.T) {
 	})
 }
 
-// TestThemeSavers_RMWDoesNotLoseAnotherWritersField is the lost-update rule this
-// phase exists for (§8.9): each saver re-reads immediately before writing, so an
-// instance constructed before another instance's commit does not revert it.
 func TestThemeSavers_RMWDoesNotLoseAnotherWritersField(t *testing.T) {
 	for _, c := range themeSaverCases() {
 		t.Run(c.name, func(t *testing.T) {
 			path := seedPrefsFile(t, `{"session_list_mode":"flat"}`)
 
-			// Instance A is constructed against the pre-commit file...
 			instanceA := NewStore(path)
-			// ...instance B presses `s` in between...
 			if err := NewStore(path).Save(ModeByTag); err != nil {
 				t.Fatalf("unexpected Save error from the other writer: %v", err)
 			}
-			// ...and A's theme commit must merge into B's bytes, not its own.
 			if err := c.save(instanceA, "nord"); err != nil {
 				t.Fatalf("unexpected save error: %v", err)
 			}
@@ -416,10 +340,6 @@ func TestThemeSavers_RMWDoesNotLoseAnotherWritersField(t *testing.T) {
 	}
 }
 
-// TestSaveThemeSlot_InvalidSlotWritesNothing pins the structural half of "no
-// caller can mint a third slot" (the typed constant is the other half): the zero
-// value is deliberately invalid, so a forgotten argument cannot silently write
-// the light slot.
 func TestSaveThemeSlot_InvalidSlotWritesNothing(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -465,11 +385,6 @@ func TestSaveThemeSlot_InvalidSlotWritesNothing(t *testing.T) {
 	}
 }
 
-// TestThemeSavers_NoSlugKnowledge pins that prefs gains no slug knowledge: no
-// charset check, no trimming, no lowercasing, no default substitution. Those are
-// read-side resolution rules owned by internal/theme, and validating here would
-// diverge from the resolver — and would turn a stray-space value into a silently
-// different slug instead of the honest `bad name` rejection the user is owed.
 func TestThemeSavers_NoSlugKnowledge(t *testing.T) {
 	slugs := []struct {
 		name string
@@ -496,9 +411,6 @@ func TestThemeSavers_NoSlugKnowledge(t *testing.T) {
 	}
 }
 
-// themeSaverCase drives the properties both savers share — preservation,
-// omission, idempotence, the inherited write-path rules, the RMW re-read and the
-// absence of slug knowledge — over one table, so the two cannot drift.
 type themeSaverCase struct {
 	name        string
 	writtenKey  string

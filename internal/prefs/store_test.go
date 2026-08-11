@@ -114,9 +114,7 @@ func TestRoundTrip(t *testing.T) {
 func TestSaveWritesAtomically(t *testing.T) {
 	t.Run("writes session_list_mode atomically via AtomicWrite", func(t *testing.T) {
 		dir := t.TempDir()
-		// Nested path that does not yet exist: AtomicWrite creates the parent
-		// directory, proving the write went through AtomicWrite (not a bare
-		// os.WriteFile that would fail on a missing dir).
+		// The parent dir does not exist: only AtomicWrite creates it.
 		filePath := filepath.Join(dir, "sub", "prefs.json")
 		store := prefs.NewStore(filePath)
 
@@ -134,7 +132,6 @@ func TestSaveWritesAtomically(t *testing.T) {
 			t.Errorf("file content = %q, want it to contain session_list_mode by-tag", got)
 		}
 
-		// No leftover temp files from the temp+rename strategy.
 		entries, err := os.ReadDir(filepath.Dir(filePath))
 		if err != nil {
 			t.Fatalf("failed to read dir: %v", err)
