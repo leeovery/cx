@@ -1,8 +1,6 @@
 package tui
 
 import (
-	"os"
-	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -527,47 +525,11 @@ func TestPanelOpen_NoNewOSC11Query(t *testing.T) {
 // persisted theme name is exactly what a write here would break, on the surface where the user
 // is least able to tell it happened.
 func TestPanelOpen_WritesNothing(t *testing.T) {
-	t.Run("a present prefs.json survives byte for byte", func(t *testing.T) {
-		const persisted = `{"session_list_mode":"by-project","theme":"sunset"}`
-		prefsFile := filepath.Join(t.TempDir(), "prefs.json")
-		if err := os.WriteFile(prefsFile, []byte(persisted), 0o644); err != nil {
-			t.Fatalf("write prefs: %v", err)
-		}
-		t.Setenv("PORTAL_PREFS_FILE", prefsFile)
-		dir := t.TempDir()
-		writeThemeFileForTest(t, dir, "sunset.theme", "not-a-colour")
-		m := themeCursorModel(t, dir, theme.RawKeys{Theme: "sunset"}, theme.MemberDark)
-
-		pressThemeKey(t, m)
-
-		after, err := os.ReadFile(prefsFile)
-		if err != nil {
-			t.Fatalf("read back prefs: %v", err)
-		}
-		if string(after) != persisted {
-			t.Errorf("prefs.json =\n%s\nwant it byte-identical:\n%s", after, persisted)
-		}
-	})
-
-	t.Run("an absent prefs.json stays absent and the directory is untouched", func(t *testing.T) {
-		configDir := t.TempDir()
-		t.Setenv("PORTAL_PREFS_FILE", filepath.Join(configDir, "prefs.json"))
-		dir := t.TempDir()
-		writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
-		m := themeCursorModel(t, dir, theme.RawKeys{Theme: "sunset"}, theme.MemberDark)
-
-		pressThemeKey(t, m)
-
-		if entries, err := os.ReadDir(configDir); err != nil || len(entries) != 0 {
-			t.Errorf("opening left %d entries in the config directory (err %v), want none", len(entries), err)
-		}
-		entries, err := os.ReadDir(dir)
-		if err != nil {
-			t.Fatalf("read %s: %v", dir, err)
-		}
-		if len(entries) != 1 || entries[0].Name() != "sunset.theme" {
-			t.Errorf("the themes directory holds %d entries after an open, want only the seeded drop-in", len(entries))
-		}
+	requireNoPrefsOrThemesWrite(t, panelReadOnlyPath{
+		verb:          "opening",
+		absentSubtest: "an absent prefs.json stays absent and the directory is untouched",
+	}, func(t *testing.T, dir string, keys theme.RawKeys) {
+		pressThemeKey(t, themeCursorModel(t, dir, keys, theme.MemberDark))
 	})
 }
 

@@ -3,7 +3,6 @@ package tui
 import (
 	"go/ast"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -371,47 +370,12 @@ func TestPanelClose_WritesNothing(t *testing.T) {
 		}
 	})
 
-	t.Run("a present prefs.json survives byte for byte", func(t *testing.T) {
-		const persisted = `{"session_list_mode":"by-project","theme":"sunset"}`
-		prefsFile := filepath.Join(t.TempDir(), "prefs.json")
-		if err := os.WriteFile(prefsFile, []byte(persisted), 0o644); err != nil {
-			t.Fatalf("write prefs: %v", err)
-		}
-		t.Setenv("PORTAL_PREFS_FILE", prefsFile)
-		dir := t.TempDir()
-		writeThemeFileForTest(t, dir, "sunset.theme", "not-a-colour")
-		m, _, _ := newClosePanelModel(t, dir, theme.RawKeys{Theme: "sunset"})
-
-		closeThemePanelForTest(t, pressThemeKey(t, m))
-
-		after, err := os.ReadFile(prefsFile)
-		if err != nil {
-			t.Fatalf("read back prefs: %v", err)
-		}
-		if string(after) != persisted {
-			t.Errorf("prefs.json =\n%s\nwant it byte-identical:\n%s", after, persisted)
-		}
-	})
-
-	t.Run("an absent prefs.json stays absent and the themes directory is untouched", func(t *testing.T) {
-		configDir := t.TempDir()
-		t.Setenv("PORTAL_PREFS_FILE", filepath.Join(configDir, "prefs.json"))
-		dir := t.TempDir()
-		writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
-		m, _, _ := newClosePanelModel(t, dir, theme.RawKeys{Theme: "sunset"})
-
+	requireNoPrefsOrThemesWrite(t, panelReadOnlyPath{
+		verb:          "closing",
+		absentSubtest: "an absent prefs.json stays absent and the themes directory is untouched",
+	}, func(t *testing.T, dir string, keys theme.RawKeys) {
+		m, _, _ := newClosePanelModel(t, dir, keys)
 		closeThemePanelForTest(t, pressPanelKey(t, pressThemeKey(t, m), arrowDown))
-
-		if entries, err := os.ReadDir(configDir); err != nil || len(entries) != 0 {
-			t.Errorf("closing left %d entries in the config directory (err %v), want none", len(entries), err)
-		}
-		entries, err := os.ReadDir(dir)
-		if err != nil {
-			t.Fatalf("read %s: %v", dir, err)
-		}
-		if len(entries) != 1 || entries[0].Name() != "sunset.theme" {
-			t.Errorf("the themes directory holds %d entries after a close, want only the seeded drop-in", len(entries))
-		}
 	})
 }
 

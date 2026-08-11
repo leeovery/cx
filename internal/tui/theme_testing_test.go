@@ -184,6 +184,80 @@ func requireCommitDoesNoOtherIO(
 	}
 }
 
+// panelReadOnlyPath names one of the panel's read-only paths for the shared
+// no-write proof: the verb its assertion failures read with, and the name that
+// path's absent-prefs subtest runs under.
+//
+// The subtest name is carried rather than composed, so the string a maintainer
+// greps a failure by is a literal at the call site and stays whatever it has
+// always been on each path.
+type panelReadOnlyPath struct {
+	verb          string
+	absentSubtest string
+}
+
+// requireNoPrefsOrThemesWrite fails unless act leaves a present prefs.json byte
+// for byte, and leaves an absent one absent with the config and themes
+// directories as it found them.
+//
+// The proof is owned here rather than per path because it is ONE invariant: the
+// panel's read-only paths write no file. Authored twice, one copy would keep
+// proving something about a fixture the other no longer stages the moment the
+// prefs seam or the theme files move.
+//
+// act stages nothing of its own — it receives the themes directory and the keys
+// naming the theme staged in it, builds its own model and performs its own
+// action, so the two paths differ by their model and their keypresses alone.
+func requireNoPrefsOrThemesWrite(t *testing.T, path panelReadOnlyPath, act func(t *testing.T, dir string, keys theme.RawKeys)) {
+	t.Helper()
+
+	const persisted = `{"session_list_mode":"by-project","theme":"sunset"}`
+	keys := theme.RawKeys{Theme: "sunset"}
+
+	t.Run("a present prefs.json survives byte for byte", func(t *testing.T) {
+		prefsFile := filepath.Join(t.TempDir(), "prefs.json")
+		if err := os.WriteFile(prefsFile, []byte(persisted), 0o644); err != nil {
+			t.Fatalf("write prefs: %v", err)
+		}
+		t.Setenv("PORTAL_PREFS_FILE", prefsFile)
+		dir := t.TempDir()
+		// The staged theme is INVALID, so the path runs over the fallback the
+		// rejection surface takes — the case where a write would overwrite the
+		// persisted name the user set.
+		writeThemeFileForTest(t, dir, "sunset.theme", "not-a-colour")
+
+		act(t, dir, keys)
+
+		after, err := os.ReadFile(prefsFile)
+		if err != nil {
+			t.Fatalf("read back prefs: %v", err)
+		}
+		if string(after) != persisted {
+			t.Errorf("prefs.json after %s =\n%s\nwant it byte-identical:\n%s", path.verb, after, persisted)
+		}
+	})
+
+	t.Run(path.absentSubtest, func(t *testing.T) {
+		configDir := t.TempDir()
+		t.Setenv("PORTAL_PREFS_FILE", filepath.Join(configDir, "prefs.json"))
+		dir := t.TempDir()
+		writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
+
+		act(t, dir, keys)
+
+		if entries, err := os.ReadDir(configDir); err != nil || len(entries) != 0 {
+			t.Errorf("%s left %d entries in the config directory (err %v), want none", path.verb, len(entries), err)
+		}
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			t.Fatalf("read %s: %v", dir, err)
+		}
+		if len(entries) != 1 || entries[0].Name() != "sunset.theme" {
+			t.Errorf("the themes directory holds %d entries after %s, want only the seeded drop-in", len(entries), path.verb)
+		}
+	})
+}
+
 // constantResolution is what a stub theme seam answers with under a CONSTANT
 // setting: the one loaded palette, plus the single slot record naming slug as
 // both the slug that was asked for and the slug that loaded.
