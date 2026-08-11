@@ -6,18 +6,6 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// TestFixtureColourless_ReadsDepsNoColor pins the discriminator §13.4's
-// swap-and-diff guard excludes colourless fixtures on.
-//
-// The exclusion has to be structural: a colourless render carries no theme hexes
-// at all, so there is nothing to diff, and a hand-maintained name list would go
-// stale the moment a colourless fixture is added. Colourless therefore reads the
-// fixture's own Deps rather than answering from a list.
-//
-// It is an in-package test because the interesting case does not exist among the
-// registered fixtures: none is colourless today, so the accessor is exercised over
-// a fixture whose flag is set directly. Asserting only over the registered set
-// would check nothing but the false branch.
 func TestFixtureColourless_ReadsDepsNoColor(t *testing.T) {
 	t.Run("false when the fixture sets no NO_COLOR flag", func(t *testing.T) {
 		fx := &Fixture{Lister: &fakeLister{}, projectStore: &fakeProjectStore{}}

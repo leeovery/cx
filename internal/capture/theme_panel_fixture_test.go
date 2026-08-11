@@ -18,30 +18,8 @@ import (
 	"github.com/leeovery/portal/internal/tui"
 )
 
-// The harness contract's FOUR panel-fixture inputs, and the no-I/O fake that turns three of
-// them into a union the panel can list.
-//
-// These tests are IN-PACKAGE because the inputs are declared fields and the fake
-// is unexported: what they pin is that a fixture DECLARES its panel and that the
-// declaration reaches the model, which is a statement about the catalogue rather
-// than about a frame. The frame-level assertions (badges, cursor, palette) live
-// beside them in package capture_test.
-//
-// No t.Parallel() anywhere — the project bans it outright.
-
-// panelLeftBorder is the panel layout's left-border-only glyph, the one column marking where
-// the slide-over starts on every row of a frame. It is a literal because
-// internal/tui keeps its own copy unexported.
 const panelLeftBorder = "│"
 
-// panelFixtureNames is EVERY harness-mandated panel fixture, DERIVED FROM THE REGISTRY so a
-// fixture added to the catalogue is covered by the assertions below without being
-// enrolled a second time by hand.
-//
-// It is the whole set rather than the two setting-state frames the four-input
-// check was first written against: a reader reasonably assumes the structural
-// check spans the catalogue, and a fixture added to the catalogue without its four
-// inputs is precisely the failure that check exists to name.
 func panelFixtureNames() []string {
 	var names []string
 	for _, name := range FixtureNames() {
@@ -52,22 +30,8 @@ func panelFixtureNames() []string {
 	return names
 }
 
-// panelFixturePrefix is what every harness-mandated panel fixture's registered name begins
-// with, and the whole of what distinguishes one from the picker fixtures beside
-// it in the registry.
 const panelFixturePrefix = "theme-panel-"
 
-// TestPanelFixture_FourInputs: it declares all four panel inputs.
-//
-// The harness contract names four and calls the fourth PREVIOUSLY UNSTATED: the `--theme`
-// palette, the raw persisted keys, the faked ThemeSource's row set, and the
-// CURSOR POSITION. The palette arrives per render (Deps takes it), so what a
-// fixture can declare for itself is the other three — plus the enumeration and
-// the slot records that feed the fake.
-//
-// Without the cursor input the mandated constant-while-previewing frame is
-// unreachable: its whole point is a cursor on a row other than the marked one,
-// otherwise reachable only by arrowing, and fixtures are one-shot renders.
 func TestPanelFixture_FourInputs(t *testing.T) {
 	for _, name := range panelFixtureNames() {
 		t.Run(name, func(t *testing.T) {
@@ -89,8 +53,6 @@ func TestPanelFixture_FourInputs(t *testing.T) {
 				t.Error("input 4: the fixture declares no cursor row; §13.3 makes the cursor position a declared input precisely because a one-shot render cannot arrow to it")
 			}
 
-			// The palette is input 1 and arrives per render, so the declaration is
-			// only complete once it reaches the model's seam set.
 			deps := fx.Deps(theme.Theme{})
 			if deps.ThemeKeys != fx.themeKeys {
 				t.Errorf("Deps().ThemeKeys = %+v, want the declared %+v", deps.ThemeKeys, fx.themeKeys)
@@ -113,9 +75,6 @@ func TestPanelFixture_FourInputs(t *testing.T) {
 	}
 }
 
-// rowIdentities is a union's rows by identity, for comparing a seam's answer
-// against a fixture's declaration without comparing palettes (which the fake
-// deliberately rewrites — see newFakeThemeSource).
 func rowIdentities(rows []theme.Row) []string {
 	keys := make([]string, 0, len(rows))
 	for _, row := range rows {
@@ -124,29 +83,8 @@ func rowIdentities(rows []theme.Row) []string {
 	return keys
 }
 
-// TestFakeThemeSource_ResolveReportsTheInjectedPalette: it reports the
-// injected palette.
-//
-// THE WHOLE POINT IS THAT THE OPEN-TIME ApplyTheme IS A NO-OP. The open
-// applies the theme its Resolve return names, BEFORE the cursor seed runs. So a
-// fake reporting anything other than the palette the model's nomination carries
-// REPAINTS the frame — and three distinct failures follow, none of them loud:
-//
-//   - A ZERO resolution paints the whole panel through lipgloss.Color("")'s
-//     no-colour sentinel: silently colourless, no compile error, no failing
-//     assertion.
-//   - A HARD-CODED BUILT-IN makes `--theme` inert on precisely the frames a
-//     drop-in author most wants to check, and contradicts the coherence rule the
-//     fixtures' own doc comments state.
-//   - Inside the swap-and-diff completeness guard the same apply OVERWRITES the
-//     synthetic theme ModelAt was handed, so a panel fixture contributes neither an A value
-//     nor a B value: assertion 1 passes as a vacuous negative, assertion 2's union
-//     balances, and the panel's bubbles/list instance reads as covered while being
-//     covered by nothing.
 func TestFakeThemeSource_ResolveReportsTheInjectedPalette(t *testing.T) {
 	injected := themetest.Builtin(t, theme.DefaultDarkSlug)
-	// The declared slots carry a DIFFERENT palette, so an implementation passing
-	// them through untouched fails rather than agreeing by coincidence.
 	declared := []theme.SlotResolution{
 		{Slot: theme.SlotLight, Requested: "tokyo-night-day", Resolved: "tokyo-night-day", Theme: themetest.Builtin(t, theme.DefaultLightSlug)},
 		{Slot: theme.SlotDark, Requested: "nord", Resolved: "nord", Theme: themetest.Builtin(t, "nord")},
@@ -181,9 +119,6 @@ func TestFakeThemeSource_ResolveReportsTheInjectedPalette(t *testing.T) {
 		}
 	})
 
-	// The non-vacuity control. A fake reporting a DIFFERENT palette genuinely
-	// repaints the frame, which is what makes "reports the injected palette"
-	// load-bearing rather than an assertion about an inert value.
 	t.Run("a fake reporting another palette repaints the frame", func(t *testing.T) {
 		pinned := themetest.Builtin(t, "nord")
 		other := themetest.Builtin(t, theme.DefaultLightSlug)
@@ -194,11 +129,6 @@ func TestFakeThemeSource_ResolveReportsTheInjectedPalette(t *testing.T) {
 		}
 	})
 
-	// The named hazard, driven rather than described: a fake reporting a ZERO
-	// palette resolves every panel surface through lipgloss.Color("")'s no-colour
-	// sentinel. Nothing errors, nothing fails to compile, and the frame simply
-	// stops carrying colour — which is why the requirement is stated in the fake's
-	// own doc comment rather than left to be inferred.
 	t.Run("a fake reporting a zero palette renders colourless", func(t *testing.T) {
 		pinned := themetest.Builtin(t, "nord")
 
@@ -212,22 +142,6 @@ func TestFakeThemeSource_ResolveReportsTheInjectedPalette(t *testing.T) {
 	})
 }
 
-// TestFakeThemeSource_RowsCarryTheInjectedPalette: its union rows carry the
-// injected palette too.
-//
-// This is the fake's FOURTH reason for reporting the injected palette, and the one
-// belonging to the live view rather than to a still: the picker idiom's arrow-preview applies
-// THE CURSOR ROW'S OWN palette, so a row left with a zero Theme paints the whole
-// frame through lipgloss.Color("")'s no-colour sentinel the moment anyone presses
-// `↓` in `go run ./cmd/capturetool --fixture …` — which the capture harness makes the human's
-// route at the visual gate, the one audience a PNG cannot serve.
-//
-// IT IS DRIVEN RATHER THAN DESCRIBED because nothing else in this suite would
-// notice. Row.Theme has exactly one consumer, this preview, and no still frame
-// reads it: with the row repaint removed, every capture, every badge assertion and
-// the whole completeness guard stay green while the live view goes colourless on the
-// first arrow key. That is the same silent-hazard shape as the sibling Resolve case, and
-// it is held to the same standard.
 func TestFakeThemeSource_RowsCarryTheInjectedPalette(t *testing.T) {
 	t.Run("arrowing to the next row keeps the frame on the injected palette", func(t *testing.T) {
 		pinned := themetest.Builtin(t, "nord")
@@ -240,10 +154,6 @@ func TestFakeThemeSource_RowsCarryTheInjectedPalette(t *testing.T) {
 		model := panelModel(t, fx.Deps(pinned))
 		opened := frameOf(t, model)
 
-		// The panel is OPEN before the arrow is sent. Without this the diff below
-		// proves only that the FRAME changed: with the open short-circuited, `↓` moves
-		// the Sessions cursor instead and the frame changes anyway, so the leg would
-		// pass over a panel that never rendered.
 		if !strings.Contains(ansi.Strip(opened), panelLeftBorder) {
 			t.Fatalf("the frame carries no %q, so the panel never opened and the `↓` below cannot reach it:\n%s", panelLeftBorder, ansi.Strip(opened))
 		}
@@ -251,25 +161,14 @@ func TestFakeThemeSource_RowsCarryTheInjectedPalette(t *testing.T) {
 		model, _ = model.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 		previewed := frameOf(t, model)
 
-		// The non-vacuity leg. An `↓` that never reached the panel — an unbound key,
-		// a cursor already at the end, a panel that never opened — leaves the frame
-		// untouched, and the palette leg below would then pass over a preview that
-		// never happened.
 		if opened == previewed {
 			t.Fatal("the `↓` changed nothing on the frame; the panel cursor never moved, so this asserts nothing about what a preview applies")
 		}
-		// Which is also the not-colourless leg: a canvas SGR is a 24-bit background
-		// run, so a frame painted from a zero palette carries none of it.
 		if !strings.Contains(previewed, backgroundSGR(t, pinned.Canvas)) {
 			t.Errorf("one `↓` left the frame without `--theme`'s canvas %s; the previewed row's palette is not the injected one, and the live view is colourless from the first arrow key:\n%s", pinned.Canvas.Value, ansi.Strip(previewed))
 		}
 	})
 
-	// The carve-out repaintUnion states, which no fixture's union can exercise
-	// today: theme.Row populates Theme IFF Rejection is nil, so a rejected row
-	// coming back with a palette would be a shape the real assembly cannot produce
-	// — and the harness contract's mandated invalid-row and `⚠ dir unreadable` fixtures are built
-	// from precisely that row.
 	t.Run("a rejected row keeps its rejection and takes no palette", func(t *testing.T) {
 		injected := themetest.Builtin(t, "nord")
 		rejection := &theme.Rejection{Reason: theme.ReasonBadSyntax, Detail: "line 4: quoted value"}
@@ -295,10 +194,6 @@ func TestFakeThemeSource_RowsCarryTheInjectedPalette(t *testing.T) {
 	})
 }
 
-// panelDepsReporting builds a panel fixture's seam set painted from pinned, with
-// its fake theme source deliberately REPORTING a different palette — the only way
-// to drive what happens when the two disagree, since Deps assembles them from one
-// value precisely so they cannot.
 func panelDepsReporting(t *testing.T, fixture string, pinned, reported theme.Theme) tui.Deps {
 	t.Helper()
 
@@ -311,21 +206,8 @@ func panelDepsReporting(t *testing.T, fixture string, pinned, reported theme.The
 	return deps
 }
 
-// truecolorBackground is the SGR parameter prefix a 24-bit background opens with.
-// A frame carrying none has no theme background anywhere on it.
 const truecolorBackground = "48;2;"
 
-// TestFakeThemeSource_ResolveIsTheOnlyBadgeSource pins the other half of the
-// Resolve contract: the DECLARED slots are what the `●` comes from, and a fixture
-// declaring none renders no badge on any row.
-//
-// It is worth an assertion of its own because the failure is entirely silent.
-// The injected slot record was retired, so the seam's Resolve return is now
-// the panel's only badge source — a fixture that declared its slots anywhere else
-// would list every row correctly, mark nothing, and look like a panel on an
-// install with no theme set. On the adaptive-pair frame that is the loss of the
-// entire subject: those two badges are the reference for a vocabulary
-// with no prior art anywhere.
 func TestFakeThemeSource_ResolveIsTheOnlyBadgeSource(t *testing.T) {
 	pinned := themetest.Builtin(t, "nord")
 
@@ -355,13 +237,6 @@ func TestFakeThemeSource_ResolveIsTheOnlyBadgeSource(t *testing.T) {
 	})
 }
 
-// panelBadges is the badge text of every rendered panel row, in frame order —
-// empty for a row carrying none.
-//
-// It reads the PANEL side of each line (everything past the slide-over's one
-// left-border column) rather than the whole frame, because the Sessions list
-// behind it renders `● attached` on its own rows: a frame-wide scan for the glyph
-// would find one on every fixture built from the shared session set.
 func panelBadges(t *testing.T, frame string) []string {
 	t.Helper()
 
@@ -379,8 +254,6 @@ func panelBadges(t *testing.T, frame string) []string {
 	return badges
 }
 
-// badgeIn is the `●` badge a panel row's text carries, from the glyph to the
-// end of the row — or "" where the row carries none.
 func badgeIn(text string) string {
 	at := strings.Index(text, "●")
 	if at < 0 {
@@ -389,35 +262,16 @@ func badgeIn(text string) string {
 	return strings.TrimSpace(text[at:])
 }
 
-// TestFakeThemeSource_NoIO: its fake theme source does no I/O.
-//
-// The built-in-is-a-file rule's no-real-config import guard forbids internal/capture reaching
-// config at all, and the harness contract rests the whole panel-fixture route on the seam
-// being fakeable wholesale — so the fake must answer from declared values on every one of its
-// four methods.
-//
-// It is checked STRUCTURALLY and behaviourally, because neither alone is enough.
-// A behavioural check can only prove the fake did not read the directories the
-// test thought to poison; the structural scans prove it cannot read any.
-//
-// THE STRUCTURAL HALF IS TWO SCANS, NOT ONE. internal/theme is the one package
-// the fake MUST import — it answers in theme.Theme / theme.Union /
-// theme.Resolution values — so the import ban structurally cannot name it, and
-// theme.Loader, the only I/O-capable type the package declares, would walk past a
-// green import scan in silence. Closing it takes a scan of the fake's own FIELDS.
 func TestFakeThemeSource_NoIO(t *testing.T) {
 	const source = "theme_fake.go"
 	file := parseFakeSource(t, source)
 
-	// The non-vacuity guard on BOTH structural scans: a fake renamed out from under
-	// them leaves each one passing green over nothing.
 	fake, ok := fakeThemeSourceStruct(file)
 	if !ok {
 		t.Fatalf("%s declares no fakeThemeSource struct, so scanning it proves nothing", source)
 	}
 
 	t.Run("the fake's source imports nothing that can touch the filesystem", func(t *testing.T) {
-		// The I/O-capable stdlib packages a fake could reach for.
 		banned := []string{"os", "io", "io/fs", "io/ioutil", "path/filepath", "embed", "os/exec", "net"}
 		for _, spec := range file.Imports {
 			path := strings.Trim(spec.Path.Value, `"`)
@@ -433,10 +287,6 @@ func TestFakeThemeSource_NoIO(t *testing.T) {
 		}
 	})
 
-	// The non-vacuity control on that scan, which is a NEGATIVE: a scan looking for
-	// the wrong shape — or for nothing at all — passes it exactly as readily as a
-	// fake that genuinely holds no loader. This is the same "absence reads as
-	// coverage" failure the assertion itself exists to close, one level up.
 	t.Run("the loader scan reports one that is there", func(t *testing.T) {
 		control := parseControlSource(t, loaderHoldingFakeSource)
 		fake, ok := fakeThemeSourceStruct(control)
@@ -453,8 +303,6 @@ func TestFakeThemeSource_NoIO(t *testing.T) {
 	})
 
 	t.Run("every method answers from declared values with the config paths poisoned", func(t *testing.T) {
-		// A directory that does not exist and an unreadable prefs path: any method
-		// that consulted either would fail or answer differently.
 		missing := filepath.Join(t.TempDir(), "no-such-themes-dir")
 		t.Setenv("PORTAL_THEMES_DIR", missing)
 		t.Setenv("XDG_CONFIG_HOME", missing)
@@ -481,10 +329,6 @@ func TestFakeThemeSource_NoIO(t *testing.T) {
 		if len(resolution.Slots) != len(fx.themeSlots) {
 			t.Errorf("Resolve returned %d slot(s), want the declared %d", len(resolution.Slots), len(fx.themeSlots))
 		}
-		// ResolveSlot is unreachable in a capture (a fixture wires no theme
-		// persister), so this is the only pin on it answering like its three
-		// siblings: the slot it was asked for, carrying the slug those keys
-		// nominate for it and the injected palette, off no directory read.
 		res, err := seam.ResolveSlot(enumeration, theme.SlotLight, theme.RawKeys{Light: "nord"})
 		if err != nil {
 			t.Fatalf("ResolveSlot returned %v", err)
@@ -501,11 +345,6 @@ func TestFakeThemeSource_NoIO(t *testing.T) {
 	})
 }
 
-// loaderHoldingFakeSource is a fake that DOES hold a loader, in the two shapes
-// the field scan must see through: behind a POINTER, and behind an import ALIAS
-// — so the scan is pinned to internal/theme's import path rather than to the
-// literal identifier `theme`, and a decoy field beside it cannot be what it
-// matched.
 const loaderHoldingFakeSource = `package capture
 
 import palette "github.com/leeovery/portal/internal/theme"
@@ -516,7 +355,6 @@ type fakeThemeSource struct {
 }
 `
 
-// parseFakeSource parses one of this package's own source files.
 func parseFakeSource(t *testing.T, source string) *ast.File {
 	t.Helper()
 	file, err := parser.ParseFile(token.NewFileSet(), source, nil, 0)
@@ -526,8 +364,6 @@ func parseFakeSource(t *testing.T, source string) *ast.File {
 	return file
 }
 
-// parseControlSource parses a source LITERAL — the control fake above, which
-// exists only in this file and so has no path to be read from.
 func parseControlSource(t *testing.T, src string) *ast.File {
 	t.Helper()
 	file, err := parser.ParseFile(token.NewFileSet(), "control_fake.go", src, 0)
@@ -537,12 +373,6 @@ func parseControlSource(t *testing.T, src string) *ast.File {
 	return file
 }
 
-// fakeThemeSourceStruct resolves the fake's declared struct type out of a
-// parsed file.
-//
-// The false return is what makes the two structural scans non-vacuous: a file
-// that had been renamed out from under them declares no such type, and both would
-// otherwise pass green over nothing.
 func fakeThemeSourceStruct(file *ast.File) (*ast.StructType, bool) {
 	var found *ast.StructType
 	ast.Inspect(file, func(n ast.Node) bool {
@@ -558,12 +388,6 @@ func fakeThemeSourceStruct(file *ast.File) (*ast.StructType, bool) {
 	return found, found != nil
 }
 
-// themePackageName is the local name internal/theme is bound to in the parsed
-// file — "" when the file does not import it at all, in which case nothing in it
-// can spell theme.Loader.
-//
-// It is resolved from the IMPORT PATH rather than assumed to be `theme`, so an
-// aliased import cannot walk a loader past the scan below.
 func themePackageName(file *ast.File) string {
 	const path = `"github.com/leeovery/portal/internal/theme"`
 	for _, spec := range file.Imports {
@@ -578,13 +402,6 @@ func themePackageName(file *ast.File) string {
 	return ""
 }
 
-// loaderFieldIn is the name of the first field of the parsed struct whose TYPE
-// mentions <pkg>.Loader, and whether there was one.
-//
-// It walks each field's whole type expression rather than matching two literal
-// shapes, so a loader behind a pointer, a slice, a map or a func result is found
-// as readily as a bare one. An embedded field's name IS its type's name, which is
-// why that case reports "Loader".
 func loaderFieldIn(fake *ast.StructType, pkg string) (string, bool) {
 	if pkg == "" {
 		return "", false
@@ -601,8 +418,6 @@ func loaderFieldIn(fake *ast.StructType, pkg string) (string, bool) {
 	return "", false
 }
 
-// mentionsLoader reports whether the type expression names <pkg>.Loader anywhere
-// within it.
 func mentionsLoader(expr ast.Expr, pkg string) bool {
 	found := false
 	ast.Inspect(expr, func(n ast.Node) bool {
@@ -618,13 +433,6 @@ func mentionsLoader(expr ast.Expr, pkg string) bool {
 	return found
 }
 
-// panelModel builds the fixture's model, sizes it, ingests its data and plays the
-// `t` its captureKeys declare — the same drive ModelAt performs — returning the
-// model with the panel open.
-//
-// The MODEL rather than its frame, because the picker idiom's arrow-preview is only reachable
-// from a model that can take another key: a still is where a fixture stops, not
-// where the live view does.
 func panelModel(t *testing.T, deps tui.Deps) tea.Model {
 	t.Helper()
 
@@ -645,15 +453,11 @@ func panelModel(t *testing.T, deps tui.Deps) tea.Model {
 	return model
 }
 
-// driveToPanel is panelModel's painted frame — what most assertions here want,
-// since internal/tui exports no panel accessor and the frame is what a tape
-// screenshots.
 func driveToPanel(t *testing.T, deps tui.Deps) string {
 	t.Helper()
 	return frameOf(t, panelModel(t, deps))
 }
 
-// frameOf is the model's painted content.
 func frameOf(t *testing.T, model tea.Model) string {
 	t.Helper()
 	painted, ok := model.(tui.Model)
@@ -663,9 +467,6 @@ func frameOf(t *testing.T, model tea.Model) string {
 	return painted.View().Content
 }
 
-// backgroundSGR is a token's rendered BACKGROUND SGR parameter run. Styled
-// output carries no hex, so a frame is searched for this rather than for the
-// value a theme file declares.
 func backgroundSGR(t *testing.T, tok theme.Token) string {
 	t.Helper()
 	probe := lipgloss.NewStyle().Background(tok.Color()).Render("x")
@@ -677,20 +478,10 @@ func backgroundSGR(t *testing.T, tok theme.Token) string {
 	return probe[start+1 : end]
 }
 
-// TestPanelPaginatedUnion_DerivesFromBase: the paginating union and its retained
-// parse are the base panel set plus synthetics, not a second declaration of it.
-//
-// The base row set and the shared drop-in entry are declared once, so a built-in
-// added to the embedded set reaches the paginating frame without a second edit.
-// A re-declared list would drift silently: both frames would still render, and
-// the paginating one would list the stale set.
 func TestPanelPaginatedUnion_DerivesFromBase(t *testing.T) {
 	base := themePanelUnion()
 	paginated := themePanelPaginatedUnion()
 
-	// Parent-level, because the ordering legs below slice the rows against the
-	// base's length: a Fatal inside one sub-test does not stop its siblings, so a
-	// short derivation would panic the binary rather than fail by name.
 	if len(paginated.Rows) <= len(base.Rows) {
 		t.Fatalf("the paginating union carries %d rows against the base's %d; it must carry the base set and then the synthetics", len(paginated.Rows), len(base.Rows))
 	}
@@ -715,9 +506,6 @@ func TestPanelPaginatedUnion_DerivesFromBase(t *testing.T) {
 		}
 	})
 
-	// What the derivation's safety rests on: a base builder handing back a shared
-	// value — a package-level var, say — is the one arrangement in which the
-	// derived append could reach a set another fixture holds.
 	t.Run("the base builders mint a fresh row set per call", func(t *testing.T) {
 		first := themePanelUnion()
 		first.Rows[0] = theme.Row{Slug: "mutated"}
@@ -746,8 +534,6 @@ func TestPanelPaginatedUnion_DerivesFromBase(t *testing.T) {
 	})
 }
 
-// rowSlugs is a union row set as its slugs, so a mismatch reads as a list of
-// names rather than as a wall of zero-valued palettes.
 func rowSlugs(rows []theme.Row) []string {
 	slugs := make([]string, 0, len(rows))
 	for _, row := range rows {

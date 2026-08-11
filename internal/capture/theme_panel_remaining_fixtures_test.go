@@ -13,38 +13,6 @@ import (
 	"github.com/leeovery/portal/internal/tui"
 )
 
-// The harness contract's FIVE REMAINING panel surfaces, as frames.
-//
-// The slide-over became capturable with the two SETTING-state
-// frames. Five specified surfaces still had no way to be seen before release, and
-// the completeness guard structurally cannot report their absence — it enumerates whatever
-// fixtures exist, so a missing one READS AS COVERAGE. Each of the five carries
-// something no other frame does:
-//
-//   - the INVALID row is the only place the row-rendering rule's four-element composition
-//     priority is observable at all, and the only place the reason can be watched losing its
-//     slot to a badge;
-//   - the pinned `⚠ dir unreadable` row has its own placement rule, its own token
-//     and its own pinned copy, and the row-rendering rule gives it NO OTHER WAY TO BE CHECKED;
-//   - the NARROW panel is the only observable check on the geometry rule's ladder between the
-//     preferred and minimum widths;
-//   - the PAGINATING panel is the completeness risk's own coverage consequence — the dots
-//     render only when the panel's list overflows, so without a fixture carrying enough
-//     rows the completeness guard is blind at exactly the `bubbles/list` instance the panel
-//     adds;
-//   - the panel over PROJECTS exists because `t` is bound there, Projects
-//     carries its own flash slot, and every other panel fixture is
-//     implicitly Sessions-based.
-//
-// The assertions read the RENDERED frame rather than model internals, exactly as
-// the sibling setting-state assertions do: internal/tui exports no panel accessor,
-// and the frame is what the tapes screenshot.
-//
-// No t.Parallel() anywhere — the project bans it outright.
-
-// remainingPanelFixtureNames is the set of five surfaces above, named once so a
-// per-fixture assertion cannot cover four and forget the fifth, and an input to
-// the specified set allPanelFixtureNames() states.
 func remainingPanelFixtureNames() []string {
 	return []string{
 		panelFixtureNamePrefix + "invalid-row",
@@ -55,55 +23,19 @@ func remainingPanelFixtureNames() []string {
 	}
 }
 
-// allPanelFixtureNames is every `theme-panel-*` fixture the harness contract specifies: the
-// two setting-state frames, the five that followed them, and the message-slot set —
-// the slot-from-constant confirm, the failed-commit line and the panel at its
-// minimum height with a message live.
-//
-// The last three arrived separately because all three are COMMIT-PATH states:
-// until a commit key could write, the message slot had no setter
-// and a fixture for any of them could only render a state nothing could reach.
 func allPanelFixtureNames() []string {
 	names := append(capturePanelFixtureNames(), remainingPanelFixtureNames()...)
 	return append(names, messagePanelFixtureNames()...)
 }
 
-// The sizes the two size-sensitive frames are captured at, declared here because
-// they are what their tapes resolve to and what these assertions must render at.
-//
-// VHS sets the terminal in PIXELS (`Set Width` / `Set Height` against
-// `Set FontSize`), so a tape cannot state a column count directly — each tape's
-// comment records the count its pixel size resolves to, and these constants are
-// the same numbers on the Go side.
 const (
-	// narrowPanelTermWidth lands the panel on the geometry rule's NARROWED STAGE. The
-	// ladder takes the preferred width only while the content region is at least
-	// twice it, and steps to the minimum below that; against a content region of
-	// termW − 2·tui.Hinset, 54 columns gives 50 content columns, which is below the
-	// threshold — the stepped-down panel is the only thing this frame exists to show.
 	narrowPanelTermWidth = 54
 
-	// minimumPanelTermWidth is the narrowest terminal that still renders a panel,
-	// used ONLY to derive the ladder's bottom end for comparison (see
-	// TestPanelFixture_NarrowRendersTheStepDown). 28 columns leaves 24 content
-	// columns, which is the minimum panel width.
 	minimumPanelTermWidth = 28
 
-	// dirUnreadablePanelTermHeight is short enough that the five-row union
-	// OVERFLOWS the panel body, which is what makes the `Ctrl+↓` in the fixture's
-	// captureKeys move a page rather than do nothing. 16 rows leaves 14 content
-	// rows; the panel spends 5 on its header, 1 on the pinned directory row and 4
-	// on its footer, so the body is 4 rows and `bubbles/list` pages it two at a
-	// time.
 	dirUnreadablePanelTermHeight = 16
 )
 
-// panelFrameAt renders one fixture at an explicit size, driven through its own
-// captureKeys by ModelAt — the identical drive a tape performs.
-//
-// The size is explicit because some of these frames are SIZE-SENSITIVE by
-// construction: the narrow one is about the width ladder and the directory one
-// about pagination, so neither can be asserted at the guard's one pinned size.
 func panelFrameAt(t *testing.T, fixture string, palette theme.Theme, w, h int) string {
 	t.Helper()
 
@@ -114,21 +46,11 @@ func panelFrameAt(t *testing.T, fixture string, palette theme.Theme, w, h int) s
 	return fx.ModelAt(palette, w, h).View().Content
 }
 
-// fgSeq is a token's rendered FOREGROUND SGR core (`38;2;R;G;B`) — the
-// foreground counterpart of bgSeq. Styled output carries no hex, so a line is
-// searched for this rather than for the value a theme file declares.
 func fgSeq(t *testing.T, tok theme.Token) string {
 	t.Helper()
 	return sgrParameterRun(t, lipgloss.NewStyle().Foreground(tok.Color()))
 }
 
-// panelOuterWidth measures the slide-over's OUTER width off a rendered frame —
-// the value the geometry rule's ladder chose, recovered from the one thing a frame shows:
-// where the left border falls.
-//
-// overlayThemePanel places the panel at the RIGHT edge of the content region, and
-// the content region sits tui.Hinset cells in from the terminal's own edge, so the
-// border's column determines the width outright.
 func panelOuterWidth(t *testing.T, frame string, termW int) int {
 	t.Helper()
 
@@ -143,14 +65,6 @@ func panelOuterWidth(t *testing.T, frame string, termW int) int {
 	return 0
 }
 
-// TestPanelFixture_InvalidRowFrame: it renders the invalid-row composition
-// priority.
-//
-// The harness contract mandates an invalid-theme row, and this frame is the ONLY place the
-// row-rendering rule's four-element priority is observable at all. The three rows it carries
-// are the three things that priority decides: a reason that FITS, a reason DROPPED by a
-// badge competing for the same right edge, and a label long enough to be
-// truncated.
 func TestPanelFixture_InvalidRowFrame(t *testing.T) {
 	palette := themetest.Builtin(t, "tokyo-night")
 	frame := panelFixtureFrame(t, "theme-panel-invalid-row", palette)
@@ -160,8 +74,6 @@ func TestPanelFixture_InvalidRowFrame(t *testing.T) {
 		if got, want := rows["aurora-glow"].badge, "⚠ bad syntax"; got != want {
 			t.Errorf("the aurora-glow row's trailing elements = %q, want %q", got, want)
 		}
-		// panelRowLine fatals on a second line, which IS the row-rendering rule's one-delegate-line
-		// invariant: an invalid row never wraps.
 		_, line := panelRowLine(t, frame, "aurora-glow")
 		if !strings.Contains(ansi.Strip(line), "bad syntax") {
 			t.Errorf("the label and its reason are not on the same line: %q", ansi.Strip(line))
@@ -189,9 +101,6 @@ func TestPanelFixture_InvalidRowFrame(t *testing.T) {
 
 	t.Run("the over-long label is truncated with an ellipsis", func(t *testing.T) {
 		visible := ansi.Strip(frame)
-		// The exact cut: the label flexes to what the row-rendering rule's fixed columns leave,
-		// which at the preferred width is 24 cells — 23 visible characters plus the
-		// ellipsis, since ansi.Truncate counts the tail inside the width it is given.
 		if !strings.Contains(visible, "My Gorgeous Midnight Pa…") {
 			t.Errorf("the over-long `bad name` label is not truncated to the panel's budget:\n%s", visible)
 		}
@@ -212,17 +121,6 @@ func TestPanelFixture_InvalidRowFrame(t *testing.T) {
 	})
 }
 
-// TestPanelFixture_InvalidPersistedRowDropsTheReason: it drops the reason when a
-// badge competes.
-//
-// The row-rendering rule makes the reason THE FIRST ELEMENT DROPPED, and the badge outranking
-// it is the one half of that rule no other frame can show: `⚠` still says the row is
-// invalid and doctor says why, which is exactly the split the rejection-surface split draws.
-//
-// It is asserted as a PAIR, over one frame, because either half alone is
-// worthless. "`bad colour` renders nowhere" passes just as readily on a panel that
-// renders no reasons at all, and "`bad syntax` renders" says nothing about
-// competition. The two reasons sit on rows that differ ONLY in carrying a badge.
 func TestPanelFixture_InvalidPersistedRowDropsTheReason(t *testing.T) {
 	visible := ansi.Strip(panelFixtureFrame(t, "theme-panel-invalid-row", themetest.Builtin(t, "tokyo-night")))
 
@@ -234,23 +132,10 @@ func TestPanelFixture_InvalidPersistedRowDropsTheReason(t *testing.T) {
 	}
 }
 
-// TestPanelFixture_DirUnreadableIsChromeOnPageTwo: it pins the directory row on
-// page two.
-//
-// The row-rendering rule: the `⚠ dir unreadable` row is "chrome pinned to the viewport
-// directly beneath the header, NOT a list row… a list row participates in pagination, so
-// the warning would vanish the moment the user paged down".
-//
-// THE FRAME IS TAKEN ON PAGE 2 FOR THAT REASON ALONE. A page-1 capture is
-// indistinguishable from one of a warning implemented as a list delegate — both
-// show the row — so the claim is only observable once the user has paged past it.
 func TestPanelFixture_DirUnreadableIsChromeOnPageTwo(t *testing.T) {
 	frame := panelFrameAt(t, "theme-panel-dir-unreadable", themetest.Builtin(t, "tokyo-night"), harnessWidth, dirUnreadablePanelTermHeight)
 	visible := ansi.Strip(frame)
 
-	// The non-vacuity leg, and it comes first: a frame still on page 1 would carry
-	// the warning whether it were chrome or a list row, so every claim below rests
-	// on the `Ctrl+↓` having genuinely moved a page.
 	if strings.Contains(visible, "nord-lee") {
 		t.Fatalf("the frame still shows the page-1 rows, so the `Ctrl+↓` never paged and this asserts nothing about chrome:\n%s", visible)
 	}
@@ -272,15 +157,6 @@ func TestPanelFixture_DirUnreadableIsChromeOnPageTwo(t *testing.T) {
 	}
 }
 
-// TestPanelFixture_RowsBeneathDirRow: it renders rows beneath the directory row.
-//
-// The row-rendering rule: "built-in rows and persisted-slug rows still render beneath it — the
-// PERSISTED ROWS ESPECIALLY, or a user with an unreadable directory loses the `●`
-// entirely."
-//
-// Both kinds are asserted on the SAME page-2 frame, which is what makes the claim
-// about the warning's chrome-ness and the claim about the surviving `●` one
-// observation rather than two.
 func TestPanelFixture_RowsBeneathDirRow(t *testing.T) {
 	frame := panelFrameAt(t, "theme-panel-dir-unreadable", themetest.Builtin(t, "tokyo-night"), harnessWidth, dirUnreadablePanelTermHeight)
 	rows := panelRows(t, frame)
@@ -298,20 +174,6 @@ func TestPanelFixture_RowsBeneathDirRow(t *testing.T) {
 	})
 }
 
-// TestPanelFixture_NarrowRendersTheStepDown: it renders the ladder's narrowed
-// stage.
-//
-// The geometry rule's ladder is a STAGED shrink — the preferred width while the
-// content region affords it, the minimum below that — and this frame is where the
-// step is checked: the panel fixtures whose subject is the panel itself all render
-// at the preferred width.
-//
-// THE TWO ENDS ARE DERIVED FROM RENDERS RATHER THAN RESTATED. internal/tui keeps
-// both constants unexported, and a literal here would agree with a broken ladder
-// exactly as readily as with a working one — so the same fixture is rendered wide
-// (which takes the preferred width) and at the narrowest terminal that still
-// renders a panel (which takes the minimum), and the narrow frame must measure the
-// minimum rather than the preferred width.
 func TestPanelFixture_NarrowRendersTheStepDown(t *testing.T) {
 	palette := themetest.Builtin(t, "nord")
 
@@ -327,9 +189,6 @@ func TestPanelFixture_NarrowRendersTheStepDown(t *testing.T) {
 		t.Errorf("at %d columns the panel renders %d wide, want the ladder's stepped-down %d (the preferred width is %d)", narrowPanelTermWidth, got, minimum, preferred)
 	}
 
-	// The row-rendering rule's one-delegate-line invariant, restated at the narrowed width
-	// because that is where a composition budget miscount would first show: every row still
-	// renders on exactly one line (panelSlugRow fatals on a second).
 	t.Run("every row still renders on exactly one line", func(t *testing.T) {
 		for _, slug := range panelUnionSlugs() {
 			panelSlugRow(t, narrow, slug)
@@ -346,19 +205,6 @@ func TestPanelFixture_NarrowRendersTheStepDown(t *testing.T) {
 	})
 }
 
-// TestPanelFixture_PaginatedDrawsDots: it paginates and draws the dots.
-//
-// The completeness risk's own coverage consequence: "pagination dots only render when the
-// panel's list paginates, so one of the harness contract's panel fixtures must carry enough
-// theme rows to overflow. OTHERWISE THE GUARD IS BLIND at exactly the new site this paragraph
-// adds." The dots are the exemplar of the cached-style class — `bubbles/list` reads
-// their STRINGS out of the styles once at construction — so a restyle that failed
-// to re-feed the paginator would render the library's hardcoded greys under every
-// theme, identically before and after a swap.
-//
-// The non-vacuity leg is a sibling fixture whose union is four rows: it must draw
-// NO dots at the same size, or "the dots render" would be a statement about the
-// panel rather than about overflow.
 func TestPanelFixture_PaginatedDrawsDots(t *testing.T) {
 	palette := themetest.Builtin(t, "nord")
 	frame := panelFixtureFrame(t, "theme-panel-paginated", palette)
@@ -386,12 +232,8 @@ func TestPanelFixture_PaginatedDrawsDots(t *testing.T) {
 	})
 }
 
-// paginationDot is the glyph `bubbles/list` draws its paginator with. It is a
-// literal because internal/tui keeps its own copy unexported; it is deliberately
-// NOT the `●` of the row-rendering rule's badge, which is what lets a scan tell the two apart.
 const paginationDot = "•"
 
-// panelCarriesDots reports whether any panel line carries the paginator glyph.
 func panelCarriesDots(t *testing.T, frame string) bool {
 	t.Helper()
 
@@ -403,17 +245,6 @@ func panelCarriesDots(t *testing.T, frame string) bool {
 	return false
 }
 
-// TestPanelFixture_OverProjects: it renders over the Projects page.
-//
-// The panel-open rule binds `t` on Projects because theme is a GLOBAL setting, and the pinned
-// copy gave that page its own transient-flash slot for the panel's six signals — yet every
-// other panel fixture is implicitly Sessions-based, which is why the harness contract requires
-// this one.
-//
-// It also renders the panel layout's ACCEPTED COST where it is most visible: the overlay cuts
-// wherever its left border falls, mid-label included. That is asserted by diffing
-// against the SAME page rendered without the panel, so the claim is "the overlay
-// cut it" rather than "some footer text is missing".
 func TestPanelFixture_OverProjects(t *testing.T) {
 	palette := themetest.Builtin(t, "nord")
 
@@ -444,13 +275,6 @@ func TestPanelFixture_OverProjects(t *testing.T) {
 		}
 	})
 
-	// The panel layout's accepted cost: the overlay cuts the page's footer WHEREVER ITS BORDER
-	// FALLS, because the page beneath is composed at the unreduced content width and
-	// deliberately not re-laid-out. What that removes here is the right-aligned
-	// `? help`; on the Sessions frames the same cut lands mid-entry instead. Which
-	// of the two it is depends on where the border falls, so the assertion is the
-	// PREFIX RELATION rather than a particular severed word — a reflow to the
-	// reduced width would not be a prefix of the bare footer at all.
 	t.Run("the Projects footer beneath is cut by the overlay", func(t *testing.T) {
 		plain := ansi.Strip(panelFixtureFrame(t, "projects", palette))
 		bare, covered := footerLine(t, plain), footerLine(t, visible)
@@ -463,14 +287,6 @@ func TestPanelFixture_OverProjects(t *testing.T) {
 	})
 }
 
-// footerLine is the PAGE side of the Projects footer row — everything left of the
-// slide-over's border on a frame that carries one, and the whole line on a frame
-// that does not.
-//
-// It is located by `new session`, the footer's leading entry: it is on the page
-// rather than the panel, it is far enough left that the overlay never covers it,
-// and it appears on no other row — where a search for `filter` would land on the
-// section header's own `/ to filter` hint.
 func footerLine(t *testing.T, visible string) string {
 	t.Helper()
 	for line := range strings.SplitSeq(visible, "\n") {
@@ -484,17 +300,6 @@ func footerLine(t *testing.T, visible string) string {
 	return ""
 }
 
-// TestPanelFixture_RegistryHoldsTheSpecifiedPanelSet: it registers exactly the
-// specified panel fixtures.
-//
-// The harness contract names the panel surfaces that must be visible before release, and a
-// registry holding MORE than them is as much a problem as one holding fewer: an
-// unnamed extra `theme-panel-*` fixture is a frame nobody specified, driven by
-// the completeness guard and reviewed by no one against anything.
-//
-// It is stated as an EXACT SET rather than as a list of required names, which is
-// what lets it name a surplus. The cost is that a task adding a specified frame
-// extends the set as it lands, which is the point rather than an inconvenience.
 func TestPanelFixture_RegistryHoldsTheSpecifiedPanelSet(t *testing.T) {
 	panels := registeredPanelFixtureNames()
 	want := allPanelFixtureNames()
