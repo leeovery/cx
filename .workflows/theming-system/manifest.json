@@ -717,7 +717,7 @@
     "review": {
       "items": {
         "theming-system": {
-          "status": "in-progress",
+          "status": "completed",
           "reviewed_tasks": [
             "theming-system-1-1",
             "theming-system-1-2",
