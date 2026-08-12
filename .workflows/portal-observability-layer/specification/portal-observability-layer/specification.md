@@ -5,6 +5,7 @@
 > **Corrigendum 2026-08-07** (from `theming-system`): "Closed attr-key value space (49 keys)" — corrected: **64 keys**, after declaring the `spawn` (8 new), `resolve` (2 new) and `theme` (5 new) groups and counting the keys they cross-list (`session`, `target`, `reason`, `path`) once each.
 > **Corrigendum 2026-08-07** (from `theming-system`): `spawn`'s and `resolve`'s attr keys were undeclared here, for the same reason their components were — corrected: both groups are declared, verified against their emission sites.
 > **Corrigendum 2026-08-07** (from `theming-system`): "Every package that logs binds its component name once at package init" read as one package per component — corrected: the rule is bind once **per package, per component**; a component may be bound by several packages, and a package that is handed a bound logger through a seam binds nothing at all.
+> **Corrigendum 2026-08-12** (from `theming-system` review): "The 11-step bootstrap orchestrator" (the `bootstrap` owns-row, and the same phrase in the sequence-cycle list) — corrected: the orchestrator runs **ten** steps. The former step 11, `CleanStale`, was re-homed onto the `_portal-saver` daemon.
 
 ## Overview
 
@@ -170,7 +171,7 @@ This list is the **single source of truth** for the component count.
 | Component | Owns |
 |---|---|
 | `daemon` | `portal state daemon` runtime — tick loop, self-supervision |
-| `bootstrap` | The 11-step bootstrap orchestrator |
+| `bootstrap` | The ten-step bootstrap orchestrator |
 | `restore` | Two-phase restore engine (skeleton + geometry + scrollback) |
 | `hydrate` | Per-pane `portal state hydrate` helper — FIFO open, scrollback replay, exec chain |
 | `notify` | Notification helpers |
@@ -866,7 +867,7 @@ Every cycle in portal emits ONE INFO summary at completion, with per-item events
 
 A "cycle" is a function or method whose body matches one of these shapes:
 1. **Loop cycle** — a `for` loop iterating distinct items (sessions, panes, files, entries, orphans).
-2. **Sequence cycle** — an orchestrator running discrete named steps (the 11-step bootstrap orchestrator, the two-phase restore engine).
+2. **Sequence cycle** — an orchestrator running discrete named steps (the ten-step bootstrap orchestrator, the two-phase restore engine).
 3. **Tick cycle** — a periodic loop driven by a ticker (the daemon's 1 Hz capture loop).
 
 For every cycle, the function/method MUST:
