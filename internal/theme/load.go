@@ -20,8 +20,7 @@ type Loader struct {
 	// state and does not relax slug reservation.
 	BuiltinSource func(slug string) ([]byte, bool)
 
-	// A pointer so every copy of a Loader (used by value) shares one dedup set;
-	// nil is a valid silent seam.
+	// A pointer so every copy of a Loader (used by value) shares one dedup set.
 	events *EventLogger
 }
 
@@ -48,7 +47,7 @@ type Result struct {
 	Slug  string
 	Theme Theme
 
-	// Source is the exact bytes that were parsed. Nil on rejection.
+	// Source is the exact bytes that were parsed.
 	Source []byte
 }
 

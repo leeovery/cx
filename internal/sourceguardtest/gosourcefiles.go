@@ -9,7 +9,7 @@ import (
 
 // GoSourceFiles returns every .go file under root, test sources included, as
 // paths joined onto root. Dot-directories, vendor and node_modules are skipped:
-// Go's own tooling ignores them, so nothing a guard polices can hide there.
+// nothing a guard polices lives there.
 func GoSourceFiles(root string) ([]string, error) {
 	var paths []string
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {

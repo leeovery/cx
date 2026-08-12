@@ -9,9 +9,6 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// Composited over the page rather than replacing it: modals blank the page to
-// the canvas, so a modal picker would preview nothing.
-
 const (
 	themePanelHeaderLabel = "Themes"
 
@@ -55,6 +52,8 @@ func themePanelEntryFlash(dim themePanelDim) string {
 	return themePanelNarrowEntryFlash
 }
 
+// Composited over the page rather than replacing it: modals blank the page to
+// the canvas, so a modal picker would preview nothing.
 type themePanel struct {
 	// Set only once the list exists: the restyle path keys off it and would
 	// otherwise run against a zero list.Model mid-arm.
@@ -202,8 +201,8 @@ func (m Model) themeSetting() theme.Setting {
 	return setting
 }
 
-// The false return is a resolution naming no slot — a shape a fixture can hand
-// back; callers degrade on it rather than selecting a zero Theme.
+// The false return is a resolution naming no slot; callers degrade on it rather
+// than selecting a zero Theme.
 func inForceSlot(r theme.Resolution, mode theme.Member) (theme.SlotResolution, bool) {
 	want := mode.Slot()
 	for _, slot := range r.Slots {

@@ -92,8 +92,9 @@ func themeRoundTripConfig(t *testing.T) tuiConfig {
 	return cfg
 }
 
-// The gate must be answered or the frame the cursor is tracked through would
-// be the pre-resolution blank, with the pair's in-force member undecided.
+// An adaptive nomination paints nothing until the gate resolves, so the reply is
+// delivered before anything is read off the frame; under a constant the gate is
+// skipped and the reply is inert.
 func startRoundTripPicker(t *testing.T, cfg tuiConfig) tui.Model {
 	t.Helper()
 

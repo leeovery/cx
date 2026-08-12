@@ -32,8 +32,8 @@ func (r terminalReply) answer() theme.Member {
 
 // themeState outlives any one panel open, unlike themePanel.
 type themeState struct {
-	// Zero value is the "nothing was injected" sentinel. Describes what is
-	// persisted, not what is rendered — the palette in force is active.
+	// Zero value is the "nothing was injected" sentinel. Never what is rendered —
+	// the palette in force is active.
 	nomination theme.Nomination
 
 	// A construction-time snapshot, never refreshed: re-reading prefs would let

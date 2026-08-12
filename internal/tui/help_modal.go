@@ -12,7 +12,7 @@ const (
 	helpTitle       = "Keybindings"
 	helpDismissHint = "esc close"
 	helpColumnGap   = "   "
-	// Sized for the widest glyph ("^↑/↓") so labels share a left edge.
+	// Sized for the widest glyph ("Home/End") so labels share a left edge.
 	helpKeyColumnWidth = 10
 )
 

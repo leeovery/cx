@@ -8,7 +8,7 @@ import (
 // The format has no `#RGB` shorthand and no 8-digit `#RRGGBBAA` alpha form.
 const hexValueLength = len("#RRGGBB")
 
-// User-facing copy only: a consumer needing the tokens themselves reads
+// Rendered copy: a consumer needing the tokens themselves reads
 // Rejection.Tokens.
 const (
 	detailBadColourPair       = "%s = %s"

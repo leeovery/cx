@@ -7,9 +7,8 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-// Acceptance compares this by exact bytes and never case-folds; enumeration
-// alone matches it case-insensitively, so a mis-cased file is visible before it
-// is rejected.
+// Acceptance compares this by exact bytes and never case-folds; a case-folded
+// match is used only to keep a mis-cased file visible before it is rejected.
 const FileExtension = ".theme"
 
 // BadNameCause records which of `bad name`'s rules a name broke. It is a
@@ -22,8 +21,8 @@ const (
 	BadNameNone BadNameCause = iota
 	// BadNameSlug — the stem does not match the slug charset.
 	BadNameSlug
-	// BadNameExtension — the extension is not exactly lowercase `.theme`, over
-	// a stem that is a legal slug or that leaves nothing to judge.
+	// BadNameExtension — the extension is not exactly lowercase `.theme`, over a
+	// stem that is a legal slug.
 	BadNameExtension
 )
 
@@ -74,7 +73,7 @@ func SlugFromFilename(base string) (string, *Rejection) {
 	return stem, nil
 }
 
-// The stem is judged here only — never returned, never a slug.
+// The stem is inspected to place the cause, never to derive a slug.
 func misCasedExtensionCause(base string) BadNameCause {
 	if len(base) < len(FileExtension) {
 		return BadNameExtension

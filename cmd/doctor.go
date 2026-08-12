@@ -53,8 +53,8 @@ type advisory struct {
 }
 
 // DoctorDeps fields are all optional: an unset one falls through to the
-// production default in resolveDoctorDeps, and a store left nil makes its check
-// not-evaluable rather than aborting diagnosis.
+// production default in resolveDoctorDeps, and nothing left nil aborts
+// diagnosis.
 type DoctorDeps struct {
 	StateDir      string
 	ThemesDir     string

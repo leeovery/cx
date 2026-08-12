@@ -11,11 +11,9 @@ import (
 // The `theme` component's attr keys are a closed, spec-governed vocabulary:
 // extending them is a spec change, not a call-site choice. Against the project's
 // bind-once rule, the component name is bound in cmd rather than here — this
-// package takes an injected logger, and diagnose-shaped callers inject
-// log.Discard().
+// package takes an injected logger, and diagnose-shaped callers construct it
+// through NewSilentLoader.
 
-// Each constant is used twice: as the message and as the dedup key's
-// discriminator.
 const (
 	eventLoaded            = "loaded"
 	eventEnumerated        = "enumerated"

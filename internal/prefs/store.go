@@ -54,7 +54,7 @@ func parseMode(s string) SessionListMode {
 }
 
 // Decodes any JSON value without error: a field-level error would zero the
-// tolerant load's whole record and abort every write's strict re-read.
+// tolerant load's whole record.
 type migrationMarker bool
 
 func (m *migrationMarker) UnmarshalJSON(data []byte) error {

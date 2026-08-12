@@ -70,8 +70,7 @@ func (f *Fixture) PinRenderSize(msg tea.Msg) tea.Msg {
 // RenderSwapRender renders the fixture under theme a, swaps it live to theme b
 // through the production Model.ApplyTheme, and renders again. One model,
 // deliberately: cached styles are assigned at construction, so two models would
-// each render correctly while live swap was broken — the A-render populates
-// those caches.
+// each render correctly while live swap was broken.
 func (f *Fixture) RenderSwapRender(a, b theme.Theme, w, h int) (before, after string) {
 	m := f.ModelAt(a, w, h)
 	before = m.View().Content

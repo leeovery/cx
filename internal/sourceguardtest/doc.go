@@ -7,7 +7,7 @@
 // carries that boundary at the import line, as it does for every sibling helper
 // package.
 //
-// These primitives stay here rather than folding back into portalbintest: guards
-// across several packages share them, and portalbintest builds binaries, which a
-// package serving unit-lane guards must not drag in.
+// These primitives stay here rather than folding back into portalbintest, whose
+// subject is building and staging the portal binary: source scanning is a
+// separate concern that guards across several packages share.
 package sourceguardtest

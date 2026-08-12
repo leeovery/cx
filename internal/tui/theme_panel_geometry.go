@@ -17,7 +17,7 @@ const (
 
 	themePanelBorderWidth = 1
 
-	// Matches the page's Hinset; charged once in themePanelBlock.
+	// Charged once, in themePanelBlock.
 	themePanelGutterWidth = 1
 
 	themePanelMinBodyRows = 1
@@ -72,14 +72,14 @@ func themePanelHeaderRows(height int, dirUnusable bool) int {
 
 // ThemePanelMinWidthTerminal reports the widest terminal whose content region
 // steps the panel down to its minimum width — one column below the preferred
-// affordance, plus the page gutter the content region is inset by.
+// affordance, plus the gutter the content region is inset by on both sides.
 func ThemePanelMinWidthTerminal() int {
 	return themePanelPreferredAffordance - 1 + 2*Hinset
 }
 
 // ThemePanelFloorTerminalHeight reports the shortest terminal the panel opens
 // in: the height floor of the standing keymap over a usable directory, plus the
-// page gutter. One row less refuses.
+// gutter on both sides. One row less refuses.
 func ThemePanelFloorTerminalHeight() int {
 	return themePanelMinHeight(themePanelKeymap(), false) + 2*Vinset
 }

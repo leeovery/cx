@@ -105,8 +105,7 @@ type Union struct {
 
 type Assembler struct {
 	// One Loader keeps a launch to one `theme` dedup scope; a second would
-	// report one broken file twice. The zero Loader is valid and silent: it
-	// reserves nothing and emits nothing.
+	// report one broken file twice.
 	Loader Loader
 }
 
@@ -170,9 +169,9 @@ func fileRows(entries []Entry) []Row {
 	return rows
 }
 
-// The rule is "resolves", not "has a file": a persisted value matching a listed
-// row contributes nothing, or every persisted built-in slug would mint a second
-// `⚠ not found` row.
+// A persisted value already listed contributes nothing — whether or not that row
+// resolves — or every persisted built-in slug would mint a second `⚠ not found`
+// row.
 func persistedRows(listed []Row, e Enumeration, keys RawKeys) []Row {
 	inForce := InForceKeys(keys)
 

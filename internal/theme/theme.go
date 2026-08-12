@@ -24,7 +24,6 @@ func (t Token) Color() color.Color {
 }
 
 type Theme struct {
-	// TextFaint is decorative only — never content a user must read.
 	TextPrimary     Token
 	TextSecondary   Token
 	TextTertiary    Token

@@ -352,9 +352,9 @@ func TestPersistedThemeAdvisory_UnresolvedThemesDirStillReports(t *testing.T) {
 }
 
 func TestPersistedThemeAdvisory_ControlStrippedUntruncated(t *testing.T) {
-	// Long enough that no terminal width could carry it, short enough that the
-	// composed basename stays inside the per-name limit — past that the
-	// resolver honestly answers `unreadable` (ENAMETOOLONG).
+	// Long enough that no terminal width could carry it. Length is otherwise
+	// unconstrained here: the enumeration path composes no path, so no per-name
+	// filesystem limit applies.
 	stripped := strings.Repeat("nord-lee-", 12)
 	requireDropInSlug(t, stripped)
 	raw := "\x1b[31m" + stripped + "\n\t"

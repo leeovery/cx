@@ -1,7 +1,7 @@
 // Package themetest supports Portal's theme tests: it authors `.theme` fixture
-// files, loads the embedded built-ins by slug, and builds the synthetic probe
-// palettes a swap guard diffs between. It defines the fixture format, so a
-// change to what the loader reads is one edit here.
+// files, loads the embedded built-ins by slug, builds the synthetic probe
+// palettes a swap guard diffs between, and stages unreadable paths. It defines
+// the fixture format, so a change to what the loader reads is one edit here.
 //
 // Test-only: production code must not import this package.
 package themetest
