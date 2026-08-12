@@ -206,6 +206,21 @@ func (s *Store) LoadMigrationState() (MigrationState, error) {
 	return MigrationState{Appearance: f.Appearance, Migrated: bool(f.ThemeMigrated)}, nil
 }
 
+// LoadThemeState reads the theme keys and the migration state from one file
+// read, so the two cannot describe different moments: between two separate
+// reads another instance's translation can land, yielding empty keys beside a
+// set marker and a launch rendering the shipped pair instead of the pin just
+// written.
+func (s *Store) LoadThemeState() (ThemeKeys, MigrationState, error) {
+	f, _, err := s.readFile()
+	if err != nil {
+		return ThemeKeys{}, MigrationState{}, err
+	}
+	return ThemeKeys{Theme: f.Theme, Light: f.ThemeLight, Dark: f.ThemeDark},
+		MigrationState{Appearance: f.Appearance, Migrated: bool(f.ThemeMigrated)},
+		nil
+}
+
 // Save persists the grouping mode, leaving every other key untouched; a
 // malformed prefs.json aborts the write rather than overwriting it.
 func (s *Store) Save(mode SessionListMode) error {

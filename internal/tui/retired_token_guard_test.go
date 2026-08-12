@@ -53,11 +53,6 @@ var retiredNameExemptions = []retiredNameExemption{
 	},
 	{
 		file:   "help_modal_frame_test.go",
-		name:   "border.separator",
-		reason: "records the two frame roles that were consolidated into the one border token",
-	},
-	{
-		file:   "help_modal_frame_test.go",
 		name:   "border.footer",
 		reason: "records the two frame roles that were consolidated into the one border token",
 	},

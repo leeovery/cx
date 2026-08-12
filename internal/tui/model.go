@@ -920,6 +920,7 @@ func applyListCanvasMode(l *list.Model, delegate list.ItemDelegate, th theme.The
 		colourlessHelpStyles(l)
 		colourlessNoItemsStyle(l)
 		colourlessPaginationDots(l)
+		l.Styles.ArabicPagination = lipgloss.NewStyle()
 		l.Styles.TitleBar = l.Styles.TitleBar.UnsetBackground()
 		l.Styles.Title = stripListTitleColours(l.Styles.Title)
 		return
@@ -927,6 +928,12 @@ func applyListCanvasMode(l *list.Model, delegate list.ItemDelegate, th theme.The
 	canvasHelpStyles(l, th)
 	canvasNoItemsStyle(l, th)
 	canvasPaginationDots(l, th)
+	// bubbles/list escalates to the arabic form when the dot row outgrows the
+	// list width; unrepointed it keeps the library's own grey, which belongs to
+	// no theme.
+	l.Styles.ArabicPagination = lipgloss.NewStyle().
+		Foreground(th.TextFaint.Color()).
+		Background(th.Canvas.Color())
 	// Background the title bar so its left-pad cells are canvas, not terminal bg.
 	l.Styles.TitleBar = l.Styles.TitleBar.Background(th.Canvas.Color())
 	l.Styles.Title = stripListTitleColours(l.Styles.Title)

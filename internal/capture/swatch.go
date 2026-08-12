@@ -24,16 +24,33 @@ type swatchModel struct {
 
 	width  int
 	height int
+
+	// originalBg is what the terminal looked like before the swatch painted its
+	// canvas, so the caller can set it back on exit.
+	originalBg string
 }
 
 func newSwatchModel(th theme.Theme) swatchModel {
 	return swatchModel{th: th}
 }
 
-func (s swatchModel) Init() tea.Cmd { return nil }
+func (s swatchModel) Init() tea.Cmd { return tea.RequestBackgroundColor }
+
+// OriginalBackground is empty until the terminal answers, and empty forever on
+// one that never does.
+func (s swatchModel) OriginalBackground() string { return s.originalBg }
+
+// PaintedCanvasHex is what View sets the terminal background to, so a caller can
+// tell a genuine original from the terminal echoing our own canvas back.
+func (s swatchModel) PaintedCanvasHex() string { return s.th.Canvas.Value }
 
 func (s swatchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.BackgroundColorMsg:
+		// The nil guard is required: String() panics on a nil Color.
+		if msg.Color != nil {
+			s.originalBg = msg.String()
+		}
 	case tea.WindowSizeMsg:
 		s.width = msg.Width
 		s.height = msg.Height

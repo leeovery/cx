@@ -60,9 +60,16 @@ func run(fixture, themeArg string) error {
 	}
 
 	// Terminals that ignore the OSC 111 reset keep the painted canvas, so set
-	// the captured original background back.
-	if fm, ok := finalModel.(tui.Model); ok {
+	// the captured original background back. The swatch paints one too, and is
+	// the surface a human runs in their own terminal at a visual gate.
+	switch fm := finalModel.(type) {
+	case tui.Model:
 		tui.RestoreTerminalBackground(os.Stdout, fm)
+	case interface {
+		OriginalBackground() string
+		PaintedCanvasHex() string
+	}:
+		tui.RestoreBackground(os.Stdout, fm.OriginalBackground(), fm.PaintedCanvasHex())
 	}
 	return nil
 }

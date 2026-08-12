@@ -24,7 +24,7 @@ func editFieldFocused(t *testing.T, view, label string) bool {
 	start := strings.IndexByte(probe, '[')
 	end := strings.IndexByte(probe, 'm')
 	if start < 0 || end <= start {
-		return false
+		t.Fatalf("could not derive an SGR parameter run from %q", probe)
 	}
 	violetCore := probe[start+1 : end]
 	for line := range strings.SplitSeq(view, "\n") {

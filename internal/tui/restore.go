@@ -21,11 +21,15 @@ func RestoreTerminalBackground(w io.Writer, m Model) {
 	if m.colourless {
 		return
 	}
-	original := m.OriginalBackground()
-	if original == "" {
-		return
-	}
-	if sameHexColour(original, m.themeState.startupCanvasHex) {
+	RestoreBackground(w, m.OriginalBackground(), m.themeState.startupCanvasHex)
+}
+
+// RestoreBackground is the set-back itself, for a surface that paints a canvas
+// without being the picker — the contrast swatch. An empty original means the
+// terminal never answered; an original equal to the painted canvas is the echo
+// race, where setting it back would re-stick the canvas.
+func RestoreBackground(w io.Writer, original, paintedCanvasHex string) {
+	if original == "" || sameHexColour(original, paintedCanvasHex) {
 		return
 	}
 	_, _ = io.WriteString(w, ansi.SetBackgroundColor(original))

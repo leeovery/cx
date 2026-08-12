@@ -120,8 +120,7 @@ func loadPrefsStore() (prefsLoad, error) {
 		return prefsLoad{}, err
 	}
 
-	keys, _ := store.LoadThemeKeys()
-	migration, _ := store.LoadMigrationState()
+	keys, migration, _ := store.LoadThemeState()
 
 	load := prefsLoad{Store: store, Keys: keys}
 

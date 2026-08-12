@@ -17,7 +17,7 @@ func TestHelpModalPanelBorderColour(t *testing.T) {
 	forEachBuiltinTheme(t, func(t *testing.T, th theme.Theme) {
 		panel := renderHelpModalOnClearedCanvas(sessionsKeymap(), 100, 30, th, false)
 		if seq := borderFgSeq(t, th.Border); !strings.Contains(panel, seq) {
-			t.Errorf("help modal panel border must be border.separator SGR core %q (not white); missing in:\n%s", seq, panel)
+			t.Errorf("help modal panel border must be the border-token SGR core %q (not white); missing in:\n%s", seq, panel)
 		}
 	})
 }

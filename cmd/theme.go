@@ -13,9 +13,11 @@ var themeCmd = &cobra.Command{
 }
 
 var themeExportCmd = &cobra.Command{
-	Use:   "export <slug>",
-	Short: "Write a theme's file to stdout",
-	Args:  cobra.ExactArgs(1),
+	Use:           "export <slug>",
+	Short:         "Write a theme's file to stdout",
+	Args:          cobra.ExactArgs(1),
+	SilenceErrors: true,
+	SilenceUsage:  true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Stripped at the read, not at the echo: the stripped value is what
 		// the charset check judges and what the refusal frame names.
