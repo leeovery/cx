@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2026-08-12
+
+✨ Added
+- Themes. Every colour Portal draws now resolves through 19 named roles, so one palette restyles every screen. Three ship: `tokyo-night` (dark), `tokyo-night-day` (light), and `nord` (dark).
+- Theme picker — press `t` on the Sessions or Projects page. Moving the cursor previews a theme live; `⏎` pins it whatever the terminal looks like, `d` and `l` assign it to the dark or light slot, `Esc` closes.
+- Drop-in themes. A `.theme` file in `~/.config/portal/themes/` (or `PORTAL_THEMES_DIR`) is read by the same parser as the built-ins — same keys, same rules, no privileges withheld. The directory is re-read every time the picker opens, so the edit-and-look loop needs no restart.
+- `portal theme export <slug>` prints a theme's file to stdout, comments and all — the way to start your own from a built-in. It resolves your own themes too, so it doubles as "what did Portal actually read?".
+- The theme setting in `prefs.json` is hand-editable: `"theme"` pins one theme, or the `"theme_light"` / `"theme_dark"` pair lets detection choose between them.
+- `portal doctor` reports a themes directory that exists but can't be read, and the theme picker pins a `⚠ dir unreadable` row above the list. An absent directory stays silent — having no drop-ins isn't a problem to report.
+- `docs/theming.md` documents the 19 roles, the file format, the naming rules, and how the light/dark pair is set.
+
+🔧 Changed
+- The `appearance` preference is replaced by the theme setting, and translates itself once on first launch: `"dark"` becomes a pinned `tokyo-night`, `"light"` becomes `tokyo-night-day`, and `"auto"` becomes the shipped light/dark pair — the same behaviour you had either way. Your `appearance` value is left in the file untouched.
+- Light and dark are still decided by asking the terminal its background colour over OSC 11 at launch, but the answer now picks between two *themes* rather than switching a canvas mode. A terminal that doesn't answer still resolves to dark, and a pinned theme skips detection entirely.
+- `NO_COLOR` is unchanged — a colourless render on your terminal's native colours. With no colour to theme, `t` is unavailable there.
+
 ## [0.10.5] - 2026-07-27
 
 🔧 Changed
