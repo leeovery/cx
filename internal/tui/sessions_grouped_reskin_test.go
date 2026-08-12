@@ -33,10 +33,10 @@ func TestGroupHeading_TextDetailHeadingWithTextDimCount(t *testing.T) {
 		dim := tokenFgSeq(t, th.TextSubtle)
 
 		if !strings.Contains(out, detail) {
-			t.Errorf("[%v] heading missing text.detail fg %q: %q", themeLabel(th), detail, escSeq(out))
+			t.Errorf("[%v] heading missing text.muted fg %q: %q", themeLabel(th), detail, escSeq(out))
 		}
 		if !strings.Contains(out, dim) {
-			t.Errorf("[%v] count missing text.dim fg %q: %q", themeLabel(th), dim, escSeq(out))
+			t.Errorf("[%v] count missing text.subtle fg %q: %q", themeLabel(th), dim, escSeq(out))
 		}
 		if detail == dim {
 			t.Fatalf("[%v] test precondition broken: text.muted == text.subtle", themeLabel(th))
@@ -62,11 +62,11 @@ func TestGroupHeading_HeadingRunCarriesDetailCountRunCarriesDim(t *testing.T) {
 		t.Fatalf("missing a run: detailIdx=%d dimIdx=%d in %q", detailIdx, dimIdx, escSeq(out))
 	}
 	if detailIdx > dimIdx {
-		t.Errorf("text.detail run (idx %d) should precede the text.dim run (idx %d): %q", detailIdx, dimIdx, escSeq(out))
+		t.Errorf("text.muted run (idx %d) should precede the text.subtle run (idx %d): %q", detailIdx, dimIdx, escSeq(out))
 	}
 	dimRun := out[dimIdx:]
 	if !strings.Contains(dimRun, "7") {
-		t.Errorf("count digit '7' not under the text.dim run: %q", escSeq(dimRun))
+		t.Errorf("count digit '7' not under the text.subtle run: %q", escSeq(dimRun))
 	}
 }
 
@@ -149,10 +149,10 @@ func TestCatchAllHeadings_UseSameHeadingStyle(t *testing.T) {
 		for _, heading := range []string{"Unknown", "Untagged"} {
 			out := renderHeaderRow(d, 80, HeaderItem{Heading: heading, Count: 3, Key: heading})
 			if !strings.Contains(out, detail) {
-				t.Errorf("[%v] catch-all %q heading missing text.detail fg %q: %q", themeLabel(th), heading, detail, escSeq(out))
+				t.Errorf("[%v] catch-all %q heading missing text.muted fg %q: %q", themeLabel(th), heading, detail, escSeq(out))
 			}
 			if !strings.Contains(out, dim) {
-				t.Errorf("[%v] catch-all %q count missing text.dim fg %q: %q", themeLabel(th), heading, dim, escSeq(out))
+				t.Errorf("[%v] catch-all %q count missing text.subtle fg %q: %q", themeLabel(th), heading, dim, escSeq(out))
 			}
 			if got := visibleColOf(out, heading); got != 2 {
 				t.Errorf("[%v] catch-all %q heading at col %d, want 2 (same indent as resolvable groups)", themeLabel(th), heading, got)

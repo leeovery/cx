@@ -25,7 +25,7 @@ func TestErrorFrame_FailedRowIsRedCross(t *testing.T) {
 	}
 	redSeq := tokenFgSeq(t, testDarkTheme(t).StateDestructive)
 	if !strings.Contains(out, redSeq) {
-		t.Errorf("error frame did not paint anything state.red:\n%q", out)
+		t.Errorf("error frame did not paint anything state.destructive:\n%q", out)
 	}
 	if !strings.Contains(visible, LabelRegisteredHooks) {
 		t.Errorf("error frame missing the failed label:\n%s", visible)

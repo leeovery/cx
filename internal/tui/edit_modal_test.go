@@ -50,7 +50,7 @@ func TestEditModal_Header(t *testing.T) {
 			t.Errorf("[%v] 'Edit Project' must render in text.primary SGR core %q", themeLabel(th), seq)
 		}
 		if seq := tokenFgSeq(t, th.TextMuted); !strings.Contains(content, seq) {
-			t.Errorf("[%v] header <name> must render in text.detail SGR core %q", themeLabel(th), seq)
+			t.Errorf("[%v] header <name> must render in text.muted SGR core %q", themeLabel(th), seq)
 		}
 	}
 }
@@ -77,16 +77,16 @@ func TestEditModal_FocusedFieldLabelViolet(t *testing.T) {
 		m := editModalModel(t, editFieldName, 0, 0)
 		m.themeState.active = th
 		if seg := labelSegment(t, m.renderEditProjectContent(), "NAME"); !strings.Contains(seg, violet) {
-			t.Errorf("[%v] focused NAME label must be accent.violet; seg=%q", themeLabel(th), seg)
+			t.Errorf("[%v] focused NAME label must be accent.primary; seg=%q", themeLabel(th), seg)
 		}
 		if seg := labelSegment(t, m.renderEditProjectContent(), "ALIASES"); !strings.Contains(seg, detail) || strings.Contains(seg, violet) {
-			t.Errorf("[%v] unfocused ALIASES label must be text.detail (not violet); seg=%q", themeLabel(th), seg)
+			t.Errorf("[%v] unfocused ALIASES label must be text.muted (not violet); seg=%q", themeLabel(th), seg)
 		}
 
 		mt := editModalModel(t, editFieldTags, 0, 0)
 		mt.themeState.active = th
 		if seg := labelSegment(t, mt.renderEditProjectContent(), "TAGS"); !strings.Contains(seg, violet) {
-			t.Errorf("[%v] focused TAGS label must be accent.violet; seg=%q", themeLabel(th), seg)
+			t.Errorf("[%v] focused TAGS label must be accent.primary; seg=%q", themeLabel(th), seg)
 		}
 	}
 }
@@ -109,7 +109,7 @@ func TestEditModal_NameInputNeverFilled_GreyUnfocused(t *testing.T) {
 		content := m.renderEditProjectContent()
 		assertNoFill(t, content, th, "name-input-unfocused")
 		if seq := tokenFgSeq(t, th.Border); !strings.Contains(content, seq) {
-			t.Errorf("[%v] unfocused NAME box border must be border.separator (grey) SGR core %q", themeLabel(th), seq)
+			t.Errorf("[%v] unfocused NAME box border must be border (grey) SGR core %q", themeLabel(th), seq)
 		}
 	}
 }
@@ -121,7 +121,7 @@ func TestEditModal_NameInputFocusedViolet(t *testing.T) {
 		content := m.renderEditProjectContent()
 		assertNoFill(t, content, th, "name-input-focused")
 		if seq := tokenFgSeq(t, th.AccentPrimary); !strings.Contains(content, seq) {
-			t.Errorf("[%v] focused NAME box border must be accent.violet SGR core %q", themeLabel(th), seq)
+			t.Errorf("[%v] focused NAME box border must be accent.primary SGR core %q", themeLabel(th), seq)
 		}
 	}
 }
@@ -136,7 +136,7 @@ func TestEditModal_NameInputEditingOrangeWithCursor(t *testing.T) {
 		content := m.renderEditProjectContent()
 		assertNoFill(t, content, th, "name-input-editing")
 		if seq := tokenFgSeq(t, th.AccentAttention); !strings.Contains(content, seq) {
-			t.Errorf("[%v] editing NAME box border must be accent.orange SGR core %q", themeLabel(th), seq)
+			t.Errorf("[%v] editing NAME box border must be accent.attention SGR core %q", themeLabel(th), seq)
 		}
 		if !reverseBlockPresent(content) {
 			t.Errorf("[%v] editing NAME input must carry a live block cursor (SGR 7)", themeLabel(th))
@@ -153,7 +153,7 @@ func TestEditModal_ChipNormalGreyNoCross(t *testing.T) {
 		assertNoCross(t, content)
 		assertNoGreen(t, content, th)
 		if seq := tokenFgSeq(t, th.Border); !strings.Contains(content, seq) {
-			t.Errorf("[%v] normal chip border must be border.separator (grey) SGR core %q", themeLabel(th), seq)
+			t.Errorf("[%v] normal chip border must be border (grey) SGR core %q", themeLabel(th), seq)
 		}
 		if seq := tokenFgSeq(t, th.TextPrimary); !strings.Contains(content, seq) {
 			t.Errorf("[%v] chip text must be text.primary SGR core %q", themeLabel(th), seq)
@@ -170,7 +170,7 @@ func TestEditModal_ChipFocusedVioletNoCross(t *testing.T) {
 		assertNoCross(t, content)
 		assertNoGreen(t, content, th)
 		if seq := tokenFgSeq(t, th.AccentPrimary); !strings.Contains(content, seq) {
-			t.Errorf("[%v] focused chip border must be accent.violet SGR core %q", themeLabel(th), seq)
+			t.Errorf("[%v] focused chip border must be accent.primary SGR core %q", themeLabel(th), seq)
 		}
 	}
 }
@@ -187,7 +187,7 @@ func TestEditModal_ChipEditingOrangeCursorNoCross(t *testing.T) {
 		assertNoCross(t, content)
 		assertNoGreen(t, content, th)
 		if seq := tokenFgSeq(t, th.AccentAttention); !strings.Contains(content, seq) {
-			t.Errorf("[%v] editing chip border must be accent.orange SGR core %q", themeLabel(th), seq)
+			t.Errorf("[%v] editing chip border must be accent.attention SGR core %q", themeLabel(th), seq)
 		}
 		if !reverseBlockPresent(content) {
 			t.Errorf("[%v] editing chip must carry a live block cursor (SGR 7)", themeLabel(th))
@@ -239,7 +239,7 @@ func TestEditModal_EditModeIndicatorOnlyWhileEditing(t *testing.T) {
 		}
 		seg := labelSegment(t, content, "EDIT MODE")
 		if seq := tokenFgSeq(t, th.AccentAttention); !strings.Contains(seg, seq) {
-			t.Errorf("[%v] `◉ EDIT MODE` must be accent.orange SGR core %q; seg=%q", themeLabel(th), seq, seg)
+			t.Errorf("[%v] `◉ EDIT MODE` must be accent.attention SGR core %q; seg=%q", themeLabel(th), seq, seg)
 		}
 	}
 }
@@ -417,10 +417,10 @@ func TestEditModal_FooterKeyGlyphsBlue(t *testing.T) {
 		m.themeState.active = th
 		content := m.renderEditProjectContent()
 		if seq := tokenFgSeq(t, th.AccentKey); !strings.Contains(content, seq) {
-			t.Errorf("[%v] footer key glyphs must render in accent.blue SGR core %q", themeLabel(th), seq)
+			t.Errorf("[%v] footer key glyphs must render in accent.key SGR core %q", themeLabel(th), seq)
 		}
 		if seq := tokenFgSeq(t, th.TextMuted); !strings.Contains(content, seq) {
-			t.Errorf("[%v] footer labels must render in text.detail SGR core %q", themeLabel(th), seq)
+			t.Errorf("[%v] footer labels must render in text.muted SGR core %q", themeLabel(th), seq)
 		}
 	}
 }
@@ -469,7 +469,7 @@ func TestEditModal_ZeroChipFieldOnlyAddSlot(t *testing.T) {
 			t.Errorf("[%v] zero-chip TAGS must still show `+ add`; got:\n%s", themeLabel(th), tail)
 		}
 		if seg := labelSegment(t, content, "TAGS"); !strings.Contains(seg, tokenFgSeq(t, th.AccentPrimary)) {
-			t.Errorf("[%v] zero-chip focused TAGS label must stay accent.violet; seg=%q", themeLabel(th), seg)
+			t.Errorf("[%v] zero-chip focused TAGS label must stay accent.primary; seg=%q", themeLabel(th), seg)
 		}
 	}
 }
@@ -485,7 +485,7 @@ func TestEditModal_NewEmptyChipEditingOrangeCursor(t *testing.T) {
 		content := m.renderEditProjectContent()
 		assertNoCross(t, content)
 		if seq := tokenFgSeq(t, th.AccentAttention); !strings.Contains(content, seq) {
-			t.Errorf("[%v] brand-new editing chip must have an accent.orange border", themeLabel(th))
+			t.Errorf("[%v] brand-new editing chip must have an accent.attention border", themeLabel(th))
 		}
 		if !reverseBlockPresent(content) {
 			t.Errorf("[%v] brand-new editing chip must carry a live cursor", themeLabel(th))
@@ -600,6 +600,6 @@ func TestEditModalFooterRow_ByteExact(t *testing.T) {
 func assertNoGreenLabelled(t *testing.T, content string, th theme.Theme, idx int) {
 	t.Helper()
 	if seq := tokenFgSeq(t, th.StatePositive); strings.Contains(content, seq) {
-		t.Errorf("[%v/state%d] state.green must never appear on a chip; SGR core %q present", themeLabel(th), idx, seq)
+		t.Errorf("[%v/state%d] state.positive must never appear on a chip; SGR core %q present", themeLabel(th), idx, seq)
 	}
 }

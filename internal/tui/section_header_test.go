@@ -25,10 +25,10 @@ func TestSectionHeader_LabelCyanCountGreen(t *testing.T) {
 			t.Errorf("section header missing the count %q:\n%s", "7", header)
 		}
 		if seq := tokenFgSeq(t, th.AccentMode); !strings.Contains(header, seq) {
-			t.Errorf("section header missing the accent.cyan label role sequence %q", seq)
+			t.Errorf("section header missing the accent.mode label role sequence %q", seq)
 		}
 		if seq := tokenFgSeq(t, th.StatePositive); !strings.Contains(header, seq) {
-			t.Errorf("section header missing the state.green count role sequence %q", seq)
+			t.Errorf("section header missing the state.positive count role sequence %q", seq)
 		}
 	})
 }
@@ -45,7 +45,7 @@ func TestSectionHeader_ModeSuffixFromTitleFn(t *testing.T) {
 			t.Errorf("section header for %v missing the suffix %q from sessionListTitleForMode:\n%s", mode, suffix, header)
 		}
 		if seq := tokenFgSeq(t, testDarkTheme(t).TextMuted); !strings.Contains(header, seq) {
-			t.Errorf("section header for %v missing the text.detail suffix role sequence %q", mode, seq)
+			t.Errorf("section header for %v missing the text.muted suffix role sequence %q", mode, seq)
 		}
 	}
 }
@@ -117,7 +117,7 @@ func TestSectionHeader_CountValueAndSuffixByteIdentical(t *testing.T) {
 		}
 		countRun := headerStyle(testDarkTheme(t).StatePositive, testDarkTheme(t), false).Render(itoa(tc.count))
 		if !strings.Contains(header, countRun) {
-			t.Errorf("section header for %v missing the exact count %d in a state.green run:\n%s", tc.mode, tc.count, header)
+			t.Errorf("section header for %v missing the exact count %d in a state.positive run:\n%s", tc.mode, tc.count, header)
 		}
 	}
 }
@@ -153,13 +153,13 @@ func TestViewSessionList_ReplacesTitleWithSectionHeader(t *testing.T) {
 
 	countRun := headerStyle(testDarkTheme(t).StatePositive, testDarkTheme(t), false).Render("3")
 	if !strings.Contains(view, countRun) {
-		t.Errorf("composed Sessions view missing the state.green count run for 3 visible sessions:\n%s", view)
+		t.Errorf("composed Sessions view missing the state.positive count run for 3 visible sessions:\n%s", view)
 	}
 	if !strings.Contains(view, sectionFilterHint) {
 		t.Errorf("composed Sessions view missing the %q hint:\n%s", sectionFilterHint, view)
 	}
 	if seq := tokenFgSeq(t, testDarkTheme(t).AccentMode); !strings.Contains(view, seq) {
-		t.Errorf("composed Sessions view missing the accent.cyan label role sequence %q", seq)
+		t.Errorf("composed Sessions view missing the accent.mode label role sequence %q", seq)
 	}
 	if got := m.SessionListTitle(); got != "Sessions" {
 		t.Errorf("SessionListTitle() = %q, want %q (title field untouched by the reskin)", got, "Sessions")

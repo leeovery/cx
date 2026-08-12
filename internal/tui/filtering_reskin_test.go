@@ -89,7 +89,7 @@ func TestFiltering_InputActiveQueryOrange(t *testing.T) {
 
 		orange := tokenFgSeq(t, th.AccentAttention)
 		if !strings.Contains(view, orange) {
-			t.Errorf("[%v] input-active view missing accent.orange filter SGR %q:\n%s", themeLabel(th), orange, ansi.Strip(view))
+			t.Errorf("[%v] input-active view missing accent.attention filter SGR %q:\n%s", themeLabel(th), orange, ansi.Strip(view))
 		}
 		vis := ansi.Strip(view)
 		if !strings.Contains(vis, "/") {
@@ -137,13 +137,13 @@ func TestFiltering_InputActiveFooterColours(t *testing.T) {
 		footer := renderFilteringFooter(filteringReskinWidth, th, false)
 
 		if seq := tokenFgSeq(t, th.AccentAttention); !strings.Contains(footer, seq) {
-			t.Errorf("[%v] input-active footer missing accent.orange action-word SGR %q", themeLabel(th), seq)
+			t.Errorf("[%v] input-active footer missing accent.attention action-word SGR %q", themeLabel(th), seq)
 		}
 		if seq := tokenFgSeq(t, th.AccentKey); !strings.Contains(footer, seq) {
-			t.Errorf("[%v] input-active footer missing accent.blue nav-glyph SGR %q", themeLabel(th), seq)
+			t.Errorf("[%v] input-active footer missing accent.key nav-glyph SGR %q", themeLabel(th), seq)
 		}
 		if seq := tokenFgSeq(t, th.TextMuted); !strings.Contains(footer, seq) {
-			t.Errorf("[%v] input-active footer missing text.detail label SGR %q", themeLabel(th), seq)
+			t.Errorf("[%v] input-active footer missing text.muted label SGR %q", themeLabel(th), seq)
 		}
 	}
 }
@@ -155,7 +155,7 @@ func TestFiltering_ListActiveLockedQueryOrange(t *testing.T) {
 
 		orange := tokenFgSeq(t, th.AccentAttention)
 		if !strings.Contains(header, orange) {
-			t.Errorf("[%v] list-active locked query missing accent.orange SGR %q:\n%s", themeLabel(th), orange, ansi.Strip(header))
+			t.Errorf("[%v] list-active locked query missing accent.attention SGR %q:\n%s", themeLabel(th), orange, ansi.Strip(header))
 		}
 		vis := ansi.Strip(header)
 		if !strings.Contains(vis, "/ fab") {
@@ -195,7 +195,7 @@ func TestFiltering_ListActiveFooterClearIsOrange(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		footer := renderFilterAppliedFooter(filteringReskinWidth, th, false)
 		if seq := tokenFgSeq(t, th.AccentAttention); !strings.Contains(footer, seq) {
-			t.Errorf("[%v] list-active footer `esc` clear-filter key missing accent.orange SGR %q", themeLabel(th), seq)
+			t.Errorf("[%v] list-active footer `esc` clear-filter key missing accent.attention SGR %q", themeLabel(th), seq)
 		}
 	}
 }

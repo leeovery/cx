@@ -291,8 +291,8 @@ func TestHelpModalColourRoles(t *testing.T) {
 		body := helpModalBody(sessionsKeymap(), th, false)
 
 		wantTokens := map[string]theme.Token{
-			"accent.blue (key glyphs)":    th.AccentKey,
-			"text.strong (action labels)": th.TextSecondary,
+			"accent.key (key glyphs)":    th.AccentKey,
+			"text.secondary (action labels)": th.TextSecondary,
 		}
 		for label, tok := range wantTokens {
 			seq := tokenFgSeq(t, tok)
@@ -306,7 +306,7 @@ func TestHelpModalColourRoles(t *testing.T) {
 			t.Errorf("help header must render '? Keybindings' in text.primary SGR core %q; missing in:\n%s", seq, header)
 		}
 		if seq := tokenFgSeq(t, th.TextMuted); !strings.Contains(header, seq) {
-			t.Errorf("help header must render 'esc close' in text.detail SGR core %q; missing in:\n%s", seq, header)
+			t.Errorf("help header must render 'esc close' in text.muted SGR core %q; missing in:\n%s", seq, header)
 		}
 	})
 }
@@ -315,7 +315,7 @@ func TestHelpModalDestructiveKill(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		body := helpModalBody(sessionsKeymap(), th, false)
 		if seq := tokenFgSeq(t, th.StateDestructive); !strings.Contains(body, seq) {
-			t.Errorf("theme %v: the kill (k) glyph must render in state.red; missing SGR core %q in:\n%s", themeLabel(th), seq, body)
+			t.Errorf("theme %v: the kill (k) glyph must render in state.destructive; missing SGR core %q in:\n%s", themeLabel(th), seq, body)
 		}
 	}
 }

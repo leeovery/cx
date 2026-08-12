@@ -245,7 +245,7 @@ func TestOpeningBand_RendersVioletCounter(t *testing.T) {
 		}
 		violet := headerStyle(th.AccentPrimary, th, false).Render("Opening 1/3…")
 		if !strings.Contains(band, violet) {
-			t.Errorf("band missing the accent.violet %q run:\n%s", "Opening 1/3…", band)
+			t.Errorf("band missing the accent.primary %q run:\n%s", "Opening 1/3…", band)
 		}
 		if got := lipgloss.Height(band); got != 1 {
 			t.Errorf("band height = %d, want exactly 1 row:\n%s", got, band)
@@ -269,6 +269,6 @@ func TestOpeningBand_ColourlessDropsHueAndCanvas(t *testing.T) {
 		t.Errorf("colourless band still paints the canvas background sequence %q", seq)
 	}
 	if seq := tokenFgSeq(t, testDarkTheme(t).AccentPrimary); strings.Contains(band, seq) {
-		t.Errorf("colourless band still emits the accent.violet foreground sequence %q", seq)
+		t.Errorf("colourless band still emits the accent.primary foreground sequence %q", seq)
 	}
 }

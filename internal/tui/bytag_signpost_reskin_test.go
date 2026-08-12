@@ -45,7 +45,7 @@ func TestSignpostReskin_VioletInfoBand(t *testing.T) {
 	}
 	violetSeq := tokenFgSeq(t, m.themeState.active.AccentPrimary)
 	if !strings.Contains(band, violetSeq) {
-		t.Errorf("signpost band missing the accent.violet bar foreground sequence %q:\n%s", violetSeq, band)
+		t.Errorf("signpost band missing the accent.primary bar foreground sequence %q:\n%s", violetSeq, band)
 	}
 	onSelectionSeq := tokenFgSeq(t, m.themeState.active.TextOnSelection)
 	if !strings.Contains(band, onSelectionSeq) {
@@ -57,7 +57,7 @@ func TestSignpostReskin_VioletInfoBand(t *testing.T) {
 	}
 	warnBgSeq := tokenBgSeq(t, m.themeState.active.BgAttention)
 	if strings.Contains(band, warnBgSeq) {
-		t.Errorf("signpost band carries the bg.warning flash tint %q (info band is not a flash):\n%s", warnBgSeq, band)
+		t.Errorf("signpost band carries the bg.attention flash tint %q (info band is not a flash):\n%s", warnBgSeq, band)
 	}
 }
 

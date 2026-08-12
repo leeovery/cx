@@ -205,7 +205,7 @@ func TestNoMatches_ColourRoles(t *testing.T) {
 			t.Errorf("[%v] no-matches message missing text.primary SGR %q:\n%s", themeLabel(th), seq, escSeq(body))
 		}
 		if seq := tokenFgSeq(t, th.TextMuted); !strings.Contains(body, seq) {
-			t.Errorf("[%v] no-matches hint missing text.detail SGR %q:\n%s", themeLabel(th), seq, escSeq(body))
+			t.Errorf("[%v] no-matches hint missing text.muted SGR %q:\n%s", themeLabel(th), seq, escSeq(body))
 		}
 	}
 }

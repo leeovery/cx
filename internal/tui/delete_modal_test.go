@@ -19,7 +19,7 @@ func TestDeleteModal_Header(t *testing.T) {
 			t.Errorf("[%v] header must read '▲ Delete project?'; got:\n%s", themeLabel(th), content)
 		}
 		if seq := tokenFgSeq(t, th.StateDestructive); !strings.Contains(content, seq) {
-			t.Errorf("[%v] header ▲ + title must render in state.red SGR core %q; missing in:\n%s", themeLabel(th), seq, content)
+			t.Errorf("[%v] header ▲ + title must render in state.destructive SGR core %q; missing in:\n%s", themeLabel(th), seq, content)
 		}
 	}
 }
@@ -57,10 +57,10 @@ func TestDeleteModal_BodyColourRoles(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		content := renderDeleteModalContent("flow-v1-api", "/Users/leeovery/Code/fabric", th, false)
 		if seq := tokenFgSeq(t, th.StateDestructive); !strings.Contains(content, seq) {
-			t.Errorf("[%v] project name must render in state.red SGR core %q; missing in:\n%s", themeLabel(th), seq, content)
+			t.Errorf("[%v] project name must render in state.destructive SGR core %q; missing in:\n%s", themeLabel(th), seq, content)
 		}
 		if seq := tokenFgSeq(t, th.TextMuted); !strings.Contains(content, seq) {
-			t.Errorf("[%v] path + consequence must render in text.detail SGR core %q; missing in:\n%s", themeLabel(th), seq, content)
+			t.Errorf("[%v] path + consequence must render in text.muted SGR core %q; missing in:\n%s", themeLabel(th), seq, content)
 		}
 	}
 }
@@ -92,7 +92,7 @@ func TestDeleteModal_Footer(t *testing.T) {
 			}
 		}
 		if seq := tokenFgSeq(t, th.AccentKey); !strings.Contains(content, seq) {
-			t.Errorf("[%v] footer key glyphs must render in accent.blue SGR core %q; missing in:\n%s", themeLabel(th), seq, content)
+			t.Errorf("[%v] footer key glyphs must render in accent.key SGR core %q; missing in:\n%s", themeLabel(th), seq, content)
 		}
 	}
 }
@@ -125,7 +125,7 @@ func TestDeleteModal_Colourless(t *testing.T) {
 		t.Errorf("colourless delete modal must keep the ▲ destructive glyph + title; got:\n%s", content)
 	}
 	if seq := tokenFgSeq(t, testDarkTheme(t).StateDestructive); strings.Contains(content, seq) {
-		t.Errorf("colourless delete modal must NOT paint the state.red hue %q (state via glyph+bold, not colour)", seq)
+		t.Errorf("colourless delete modal must NOT paint the state.destructive hue %q (state via glyph+bold, not colour)", seq)
 	}
 	if !strings.Contains(content, "\x1b[1m") {
 		t.Errorf("colourless delete modal must carry bold (SGR 1) for destructive emphasis; got:\n%s", content)

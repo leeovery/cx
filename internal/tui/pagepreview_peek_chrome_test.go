@@ -72,7 +72,7 @@ func TestPreviewPeekChrome_MarkerStyledAccentCyan(t *testing.T) {
 
 	top := headerLine(m.View())
 	if !segmentCarriesForeground(top, "◉ preview", testDarkTheme(t).AccentMode.Color()) {
-		t.Errorf("`◉ preview` marker is not styled with accent.cyan; top=%q", top)
+		t.Errorf("`◉ preview` marker is not styled with accent.mode; top=%q", top)
 	}
 }
 
@@ -96,7 +96,7 @@ func TestPreviewPeekChrome_CountersStyledTextDetail(t *testing.T) {
 
 	top := headerLine(m.View())
 	if !segmentCarriesForeground(top, "Window 1/1 · Pane 1/1", testDarkTheme(t).TextMuted.Color()) {
-		t.Errorf("counters are not styled with text.detail; top=%q", top)
+		t.Errorf("counters are not styled with text.muted; top=%q", top)
 	}
 }
 
@@ -108,10 +108,10 @@ func TestPreviewPeekChrome_FooterGlyphsAccentBlueLabelsTextDetail(t *testing.T) 
 
 	foot := footerLine(m.View())
 	if !segmentCarriesForeground(foot, "←→", testDarkTheme(t).AccentKey.Color()) {
-		t.Errorf("footer `←→` glyph is not styled with accent.blue; foot=%q", foot)
+		t.Errorf("footer `←→` glyph is not styled with accent.key; foot=%q", foot)
 	}
 	if !segmentCarriesForeground(foot, "window", testDarkTheme(t).TextMuted.Color()) {
-		t.Errorf("footer `window` label is not styled with text.detail; foot=%q", foot)
+		t.Errorf("footer `window` label is not styled with text.muted; foot=%q", foot)
 	}
 }
 
@@ -146,7 +146,7 @@ func TestPreviewPeekChrome_ContentFramedByAccentCyanBorder(t *testing.T) {
 		}
 		startOfLine := strings.LastIndexByte(out[:idx], '\n') + 1
 		if !strings.Contains(out[startOfLine:idx], cyanOpen) {
-			t.Errorf("corner glyph %q not preceded by accent.cyan SGR on its line", glyph)
+			t.Errorf("corner glyph %q not preceded by accent.mode SGR on its line", glyph)
 		}
 	}
 }

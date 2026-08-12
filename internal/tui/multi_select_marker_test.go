@@ -31,7 +31,7 @@ func TestSessionRow_MarkedShowsVioletBulletInLeftBar(t *testing.T) {
 		t.Errorf("marked row ● should sit at the left-bar col 0, got col %d: %q", col, ansi.Strip(marked))
 	}
 	if seq := tokenFgSeq(t, testDarkTheme(t).AccentPrimary); !strings.Contains(marked, seq) {
-		t.Errorf("marked ● missing accent.violet fg %q: %q", seq, escSeq(marked))
+		t.Errorf("marked ● missing accent.primary fg %q: %q", seq, escSeq(marked))
 	}
 
 	unmarked := renderRow(d, 80, items, 1, 0)
@@ -68,7 +68,7 @@ func TestSessionRow_CursorRowMarkedShowsBandAndBullet(t *testing.T) {
 		t.Errorf("cursor+marked row missing the bg.selection tint %q: %q", params, escSeq(out))
 	}
 	if seq := tokenFgSeq(t, testDarkTheme(t).AccentPrimary); !strings.Contains(out, seq) {
-		t.Errorf("cursor+marked ● missing accent.violet fg %q: %q", seq, escSeq(out))
+		t.Errorf("cursor+marked ● missing accent.primary fg %q: %q", seq, escSeq(out))
 	}
 }
 
@@ -162,7 +162,7 @@ func TestSessionRow_MarkedColourlessGlyphSurvivesNoHue(t *testing.T) {
 		t.Errorf("colourless marked row dropped the ● glyph: %q", ansi.Strip(out))
 	}
 	if seq := tokenFgSeq(t, testDarkTheme(t).AccentPrimary); strings.Contains(out, seq) {
-		t.Errorf("colourless ● still emits the accent.violet fg %q: %q", seq, escSeq(out))
+		t.Errorf("colourless ● still emits the accent.primary fg %q: %q", seq, escSeq(out))
 	}
 	if seq := canvasSeq(t, testDarkTheme(t)); strings.Contains(out, seq) {
 		t.Errorf("colourless marked row still paints the canvas background %q: %q", seq, escSeq(out))

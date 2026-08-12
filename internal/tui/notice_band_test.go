@@ -402,7 +402,7 @@ func TestNoticeBand_FlashTintSpansEveryWrappedLine(t *testing.T) {
 	tintSeq := tokenBgSeq(t, testDarkTheme(t).BgAttention)
 	for i, l := range lines {
 		if !strings.Contains(l, tintSeq) {
-			t.Errorf("wrapped line %d missing the bg.warning tint %q (no tint island allowed):\n%s", i, tintSeq, l)
+			t.Errorf("wrapped line %d missing the bg.attention tint %q (no tint island allowed):\n%s", i, tintSeq, l)
 		}
 		if got := lipgloss.Width(l); got != w {
 			t.Errorf("wrapped line %d width = %d, want %d (padded to full width)", i, got, w)

@@ -31,15 +31,15 @@ func TestHeaderBlock_RendersWordmarkCaretSubtitleRule(t *testing.T) {
 			tok  theme.Token
 		}{
 			{"text.primary wordmark", th.TextPrimary},
-			{"accent.violet caret", th.AccentPrimary},
-			{"text.detail subtitle", th.TextMuted},
+			{"accent.primary caret", th.AccentPrimary},
+			{"text.muted subtitle", th.TextMuted},
 		} {
 			if seq := tokenFgSeq(t, want.tok); !strings.Contains(header, seq) {
 				t.Errorf("header missing the %s foreground role sequence %q", want.role, seq)
 			}
 		}
 		if seq := tokenFgSeq(t, th.Border); !strings.Contains(header, seq) {
-			t.Errorf("header missing the border.separator rule role sequence %q", seq)
+			t.Errorf("header missing the border rule role sequence %q", seq)
 		}
 
 		lines := strings.Split(header, "\n")

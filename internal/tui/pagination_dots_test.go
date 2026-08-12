@@ -49,7 +49,7 @@ func TestSessionsPaginationDots_ActiveVioletInactiveFaint(t *testing.T) {
 		row, _ := dotRowLine(t, m.viewSessionList())
 
 		if seq := tokenFgSeq(t, th.AccentPrimary); !strings.Contains(row, seq) {
-			t.Errorf("dot row missing active-dot accent.violet role sequence %q:\n%q", seq, row)
+			t.Errorf("dot row missing active-dot accent.primary role sequence %q:\n%q", seq, row)
 		}
 		if seq := tokenFgSeq(t, th.TextFaint); !strings.Contains(row, seq) {
 			t.Errorf("dot row missing inactive-dot text.faint role sequence %q:\n%q", seq, row)
@@ -73,7 +73,7 @@ func TestSessionsPaginationDots_ActiveDotIsViolet(t *testing.T) {
 	}
 	run := row[lastEsc:firstDot]
 	if !strings.Contains(run, violet) {
-		t.Errorf("the active (page-0) dot's SGR run %q is not accent.violet (%q)", run, violet)
+		t.Errorf("the active (page-0) dot's SGR run %q is not accent.primary (%q)", run, violet)
 	}
 }
 

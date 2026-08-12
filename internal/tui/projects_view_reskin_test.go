@@ -42,11 +42,11 @@ func TestViewProjectList_ComposesHeaderSectionAndFooter(t *testing.T) {
 		t.Errorf("composed Projects view missing the Projects section label:\n%s", visible)
 	}
 	if seq := tokenFgSeq(t, testDarkTheme(t).StatePositive); !strings.Contains(view, seq) {
-		t.Errorf("composed Projects view missing the state.green label role sequence %q", seq)
+		t.Errorf("composed Projects view missing the state.positive label role sequence %q", seq)
 	}
 	countRun := headerStyle(testDarkTheme(t).TextMuted, testDarkTheme(t), false).Render("4")
 	if !strings.Contains(view, countRun) {
-		t.Errorf("composed Projects view missing the text.detail count run for 4 projects:\n%s", view)
+		t.Errorf("composed Projects view missing the text.muted count run for 4 projects:\n%s", view)
 	}
 	if !strings.Contains(view, sectionFilterHint) {
 		t.Errorf("composed Projects view missing the %q hint:\n%s", sectionFilterHint, view)

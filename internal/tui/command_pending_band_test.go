@@ -53,11 +53,11 @@ func TestCommandBand_VioletBarCaretTextAndOrangeChip(t *testing.T) {
 
 	violetSeq := tokenFgSeq(t, testDarkTheme(t).AccentPrimary)
 	if !strings.Contains(band, violetSeq) {
-		t.Errorf("command band missing the accent.violet bar foreground sequence %q:\n%s", violetSeq, band)
+		t.Errorf("command band missing the accent.primary bar foreground sequence %q:\n%s", violetSeq, band)
 	}
 	orangeSeq := tokenFgSeq(t, testDarkTheme(t).AccentAttention)
 	if !strings.Contains(band, orangeSeq) {
-		t.Errorf("command band missing the accent.orange chip foreground sequence %q:\n%s", orangeSeq, band)
+		t.Errorf("command band missing the accent.attention chip foreground sequence %q:\n%s", orangeSeq, band)
 	}
 }
 
@@ -113,7 +113,7 @@ func TestCommandBand_NoColorKeepsBarCaretAndChip(t *testing.T) {
 
 func TestCommandBandRole_BarAndTintTokens(t *testing.T) {
 	if got := bandCommand.barToken(testDarkTheme(t)).Name; got != testDarkTheme(t).AccentPrimary.Name {
-		t.Errorf("bandCommand bar token = %q, want accent.violet", got)
+		t.Errorf("bandCommand bar token = %q, want accent.primary", got)
 	}
 	if got := bandCommand.tintToken(testDarkTheme(t)).Name; got != testDarkTheme(t).BgSelection.Name {
 		t.Errorf("bandCommand tint token = %q, want bg.selection", got)
@@ -135,7 +135,7 @@ func TestViewProjectList_CommandPendingBandOverFullChrome(t *testing.T) {
 		t.Errorf("command-pending view missing the Projects section header (chrome stripped?):\n%s", visible)
 	}
 	if seq := tokenFgSeq(t, testDarkTheme(t).StatePositive); !strings.Contains(view, seq) {
-		t.Errorf("command-pending view missing the state.green section label role sequence %q", seq)
+		t.Errorf("command-pending view missing the state.positive section label role sequence %q", seq)
 	}
 	if !strings.Contains(visible, sectionFilterHint) {
 		t.Errorf("command-pending view missing the %q hint (chrome stripped?):\n%s", sectionFilterHint, visible)

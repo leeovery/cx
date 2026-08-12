@@ -109,11 +109,11 @@ func TestPreflightAbortHeader_RedGlyphMessageDimHint(t *testing.T) {
 		}
 		redRun := headerStyle(th.StateDestructive, th, false).Render(wantLeft)
 		if !strings.Contains(header, redRun) {
-			t.Errorf("abort banner missing the state.red %q run:\n%s", wantLeft, header)
+			t.Errorf("abort banner missing the state.destructive %q run:\n%s", wantLeft, header)
 		}
 		detailRun := headerStyle(th.TextMuted, th, false).Render("esc dismiss")
 		if !strings.Contains(header, detailRun) {
-			t.Errorf("abort banner missing the text.detail %q run:\n%s", "esc dismiss", header)
+			t.Errorf("abort banner missing the text.muted %q run:\n%s", "esc dismiss", header)
 		}
 	}
 }
@@ -186,7 +186,7 @@ func TestSessionRow_GoneFlaggedShowsRedWarningAndBadge(t *testing.T) {
 		t.Errorf("gone row must NOT render the attached badge: %q", strippedGone)
 	}
 	if seq := tokenFgSeq(t, testDarkTheme(t).StateDestructive); !strings.Contains(gone, seq) {
-		t.Errorf("gone row missing the state.red role sequence %q: %q", seq, escSeq(gone))
+		t.Errorf("gone row missing the state.destructive role sequence %q: %q", seq, escSeq(gone))
 	}
 
 	survivor := renderRow(d, 80, items, 0, 1)
@@ -197,7 +197,7 @@ func TestSessionRow_GoneFlaggedShowsRedWarningAndBadge(t *testing.T) {
 		t.Errorf("survivor row must not render the ⚠: %q", ansi.Strip(survivor))
 	}
 	if seq := tokenFgSeq(t, testDarkTheme(t).AccentPrimary); !strings.Contains(survivor, seq) {
-		t.Errorf("survivor row missing the accent.violet ● role sequence %q: %q", seq, escSeq(survivor))
+		t.Errorf("survivor row missing the accent.primary ● role sequence %q: %q", seq, escSeq(survivor))
 	}
 }
 
@@ -237,7 +237,7 @@ func TestSessionRow_GoneFlaggedColourlessSurvives(t *testing.T) {
 		t.Errorf("colourless gone row dropped the %q badge: %q", goneBadge, stripped)
 	}
 	if seq := tokenFgSeq(t, testDarkTheme(t).StateDestructive); strings.Contains(out, seq) {
-		t.Errorf("colourless gone row still emits the state.red fg %q", seq)
+		t.Errorf("colourless gone row still emits the state.destructive fg %q", seq)
 	}
 	if seq := canvasSeq(t, testDarkTheme(t)); strings.Contains(out, seq) {
 		t.Errorf("colourless gone row still paints the canvas background %q", seq)

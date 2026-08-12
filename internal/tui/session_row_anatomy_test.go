@@ -125,7 +125,7 @@ func TestSessionRow_SelectedShowsVioletBarTintAndOnSelectionName(t *testing.T) {
 			t.Errorf("[%v] selected row missing the ▌ selector bar: %q", themeLabel(th), ansi.Strip(out))
 		}
 		if seq := tokenFgSeq(t, th.AccentPrimary); !strings.Contains(out, seq) {
-			t.Errorf("[%v] selected bar missing accent.violet fg %q", themeLabel(th), seq)
+			t.Errorf("[%v] selected bar missing accent.primary fg %q", themeLabel(th), seq)
 		}
 		if params := selectionBgParams(t, th); !lineHasBgParams(out, params) {
 			t.Errorf("[%v] selected row missing the bg.selection tint %q: %q", themeLabel(th), params, escSeq(out))
@@ -170,15 +170,15 @@ func TestSessionRow_AttachedKeepsStateGreenWhenSelected(t *testing.T) {
 
 		sel := renderRow(d, 80, items, 0, 0)
 		if !strings.Contains(sel, green) {
-			t.Errorf("[%v] selected attached marker missing state.green fg %q", themeLabel(th), green)
+			t.Errorf("[%v] selected attached marker missing state.positive fg %q", themeLabel(th), green)
 		}
 		if th == testLightTheme(t) && green == onSelName {
-			t.Fatalf("[light] test precondition broken: state.green == text.on-selection")
+			t.Fatalf("[light] test precondition broken: state.positive == text.on-selection")
 		}
 
 		uns := renderRow(d, 80, items, 1, 0)
 		if !strings.Contains(uns, green) {
-			t.Errorf("[%v] unselected attached marker missing state.green fg %q", themeLabel(th), green)
+			t.Errorf("[%v] unselected attached marker missing state.positive fg %q", themeLabel(th), green)
 		}
 	}
 }
@@ -198,10 +198,10 @@ func TestSessionRow_SelectedCountInTextStrong(t *testing.T) {
 		detail := tokenFgSeq(t, th.TextMuted)
 
 		if !strings.Contains(sel, strong) {
-			t.Errorf("[%v] selected-row count missing text.strong fg %q", themeLabel(th), strong)
+			t.Errorf("[%v] selected-row count missing text.secondary fg %q", themeLabel(th), strong)
 		}
 		if !strings.Contains(uns, detail) {
-			t.Errorf("[%v] unselected-row count missing text.detail fg %q", themeLabel(th), detail)
+			t.Errorf("[%v] unselected-row count missing text.muted fg %q", themeLabel(th), detail)
 		}
 	}
 }

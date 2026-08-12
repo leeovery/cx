@@ -22,7 +22,7 @@ func TestJoinedPanel_SingleToneJoinedFrame(t *testing.T) {
 		}
 		sepSeq := tokenFgSeq(t, th.Border)
 		if !strings.Contains(panel, sepSeq) {
-			t.Errorf("panel frame must be drawn in border.separator SGR core %q; missing in:\n%s", sepSeq, panel)
+			t.Errorf("panel frame must be drawn in border SGR core %q; missing in:\n%s", sepSeq, panel)
 		}
 	})
 }
@@ -33,11 +33,11 @@ func TestJoinedPanel_BorderTokenParameterised(t *testing.T) {
 
 	cyanSeq := tokenFgSeq(t, testDarkTheme(t).AccentMode)
 	if !strings.Contains(panel, cyanSeq) {
-		t.Errorf("panel with accent.cyan border token must paint the frame in accent.cyan SGR core %q; missing in:\n%s", cyanSeq, panel)
+		t.Errorf("panel with accent.mode border token must paint the frame in accent.mode SGR core %q; missing in:\n%s", cyanSeq, panel)
 	}
 	sepSeq := tokenFgSeq(t, testDarkTheme(t).Border)
 	if strings.Contains(panel, sepSeq) {
-		t.Errorf("cyan-token panel must NOT carry the border.separator hue %q; found in:\n%s", sepSeq, panel)
+		t.Errorf("cyan-token panel must NOT carry the border hue %q; found in:\n%s", sepSeq, panel)
 	}
 }
 
@@ -116,6 +116,6 @@ func TestJoinedPanel_Colourless(t *testing.T) {
 		t.Errorf("colourless panel must keep the frame glyphs; got:\n%s", panel)
 	}
 	if seq := tokenFgSeq(t, testDarkTheme(t).Border); strings.Contains(panel, seq) {
-		t.Errorf("colourless panel must NOT paint the border.separator hue %q", seq)
+		t.Errorf("colourless panel must NOT paint the border hue %q", seq)
 	}
 }

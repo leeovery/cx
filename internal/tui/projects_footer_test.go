@@ -56,13 +56,13 @@ func TestProjectsFooter_TokenColours(t *testing.T) {
 		footer := renderProjectsFooter(projectsKeymap(), referenceFooterWidth, th, false)
 
 		if seq := tokenFgSeq(t, th.AccentKey); !strings.Contains(footer, seq) {
-			t.Errorf("Projects footer missing accent.blue key-glyph role sequence %q", seq)
+			t.Errorf("Projects footer missing accent.key key-glyph role sequence %q", seq)
 		}
 		if seq := tokenFgSeq(t, th.TextMuted); !strings.Contains(footer, seq) {
-			t.Errorf("Projects footer missing text.detail label role sequence %q", seq)
+			t.Errorf("Projects footer missing text.muted label role sequence %q", seq)
 		}
 		if seq := tokenFgSeq(t, th.AccentPrimary); !strings.Contains(footer, seq) {
-			t.Errorf("Projects footer missing accent.violet ? glyph role sequence %q", seq)
+			t.Errorf("Projects footer missing accent.primary ? glyph role sequence %q", seq)
 		}
 		if seq := tokenFgSeq(t, th.Border); !strings.Contains(footer, seq) {
 			t.Errorf("Projects footer missing the border top-rule role sequence %q", seq)

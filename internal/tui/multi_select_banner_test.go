@@ -25,11 +25,11 @@ func TestMultiSelectHeader_CountVioletCancelDetail(t *testing.T) {
 		}
 		violetRun := headerStyle(th.AccentPrimary, th, false).Render("3 selected")
 		if !strings.Contains(header, violetRun) {
-			t.Errorf("banner missing the accent.violet %q run:\n%s", "3 selected", header)
+			t.Errorf("banner missing the accent.primary %q run:\n%s", "3 selected", header)
 		}
 		detailRun := headerStyle(th.TextMuted, th, false).Render(multiSelectCancelHint)
 		if !strings.Contains(header, detailRun) {
-			t.Errorf("banner missing the text.detail %q run:\n%s", multiSelectCancelHint, header)
+			t.Errorf("banner missing the text.muted %q run:\n%s", multiSelectCancelHint, header)
 		}
 	})
 }
@@ -66,7 +66,7 @@ func TestMultiSelectHeader_ZeroSelected(t *testing.T) {
 	}
 	violetRun := headerStyle(testDarkTheme(t).AccentPrimary, testDarkTheme(t), false).Render("0 selected")
 	if !strings.Contains(header, violetRun) {
-		t.Errorf("N=0 banner missing the accent.violet %q run:\n%s", "0 selected", header)
+		t.Errorf("N=0 banner missing the accent.primary %q run:\n%s", "0 selected", header)
 	}
 	if !strings.Contains(header, multiSelectCancelHint) {
 		t.Errorf("N=0 banner missing the %q hint:\n%s", multiSelectCancelHint, header)
@@ -148,7 +148,7 @@ func TestApplySectionHeader_MultiSelectShowsBanner(t *testing.T) {
 		t.Errorf("multi-select section-header row must NOT show the standard %q header:\n%s", "Sessions", ansi.Strip(first))
 	}
 	if seq := tokenFgSeq(t, testDarkTheme(t).AccentPrimary); !strings.Contains(first, seq) {
-		t.Errorf("banner count cluster missing the accent.violet fg %q:\n%s", seq, first)
+		t.Errorf("banner count cluster missing the accent.primary fg %q:\n%s", seq, first)
 	}
 }
 

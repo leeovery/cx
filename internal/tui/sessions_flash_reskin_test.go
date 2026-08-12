@@ -50,13 +50,13 @@ func TestWarningFlash_OrangeBarWarningGlyphOnWarningTint(t *testing.T) {
 	}
 
 	if barSeq := tokenFgSeq(t, testDarkTheme(t).AccentAttention); !strings.Contains(line, barSeq) {
-		t.Errorf("warning flash missing accent.orange bar foreground %q:\n%s", barSeq, line)
+		t.Errorf("warning flash missing accent.attention bar foreground %q:\n%s", barSeq, line)
 	}
 	if msgSeq := tokenFgSeq(t, testDarkTheme(t).TextOnAttention); !strings.Contains(line, msgSeq) {
-		t.Errorf("warning flash missing text.on-warning message foreground %q:\n%s", msgSeq, line)
+		t.Errorf("warning flash missing text.on-attention message foreground %q:\n%s", msgSeq, line)
 	}
 	if tintSeq := tokenBgSeq(t, testDarkTheme(t).BgAttention); !strings.Contains(line, tintSeq) {
-		t.Errorf("warning flash missing bg.warning tint background %q:\n%s", tintSeq, line)
+		t.Errorf("warning flash missing bg.attention tint background %q:\n%s", tintSeq, line)
 	}
 }
 
@@ -79,7 +79,7 @@ func TestSuccessFlash_GreenBarSuccessGlyph(t *testing.T) {
 	}
 
 	if barSeq := tokenFgSeq(t, testDarkTheme(t).StatePositive); !strings.Contains(line, barSeq) {
-		t.Errorf("success flash missing state.green bar foreground %q:\n%s", barSeq, line)
+		t.Errorf("success flash missing state.positive bar foreground %q:\n%s", barSeq, line)
 	}
 }
 
@@ -265,7 +265,7 @@ func TestBuild_InitialFlash_RendersWarningBand(t *testing.T) {
 		t.Errorf("seeded band missing the ⚠ glyph: %q", ansi.Strip(band))
 	}
 	if tintSeq := tokenBgSeq(t, testDarkTheme(t).BgAttention); !strings.Contains(band, tintSeq) {
-		t.Errorf("seeded band missing the bg.warning tint %q:\n%s", tintSeq, band)
+		t.Errorf("seeded band missing the bg.attention tint %q:\n%s", tintSeq, band)
 	}
 }
 

@@ -48,10 +48,10 @@ func TestLoadingScreen_RendersBlockBannerCaretBarAndList(t *testing.T) {
 		t.Error("loading screen does not paint the wordmark in text.primary")
 	}
 	if !strings.Contains(out, tokenBgSeq(t, testDarkTheme(t).AccentPrimary)) {
-		t.Error("loading screen does not paint the filled bar with the accent.violet background")
+		t.Error("loading screen does not paint the filled bar with the accent.primary background")
 	}
 	if !strings.Contains(out, tokenBgSeq(t, testDarkTheme(t).BgSubtle)) {
-		t.Error("loading screen does not paint the bar track with the bg.track background")
+		t.Error("loading screen does not paint the bar track with the bg.subtle background")
 	}
 }
 
@@ -332,10 +332,10 @@ func TestLoadingScreen_TickStatesUseSpecdTokens(t *testing.T) {
 		t.Errorf("done row missing %q glyph: %q", loadingGlyphDone, ansi.Strip(doneRow))
 	}
 	if !strings.Contains(doneRow, tokenFgSeq(t, testDarkTheme(t).StatePositive)) {
-		t.Error("done glyph not painted state.green")
+		t.Error("done glyph not painted state.positive")
 	}
 	if !strings.Contains(doneRow, tokenFgSeq(t, testDarkTheme(t).TextTertiary)) {
-		t.Error("done label not painted text.muted-bright")
+		t.Error("done label not painted text.tertiary")
 	}
 
 	activeRow := renderTickRow(LoadingLabel{Text: LabelRestoringSessions, State: LabelActive, Counter: "8/12"}, testDarkTheme(t), false)
@@ -343,7 +343,7 @@ func TestLoadingScreen_TickStatesUseSpecdTokens(t *testing.T) {
 		t.Errorf("active row missing %q glyph: %q", loadingGlyphActive, ansi.Strip(activeRow))
 	}
 	if !strings.Contains(activeRow, tokenFgSeq(t, testDarkTheme(t).AccentMode)) {
-		t.Error("active glyph not painted accent.cyan")
+		t.Error("active glyph not painted accent.mode")
 	}
 	if !strings.Contains(activeRow, tokenFgSeq(t, testDarkTheme(t).TextPrimary)) {
 		t.Error("active label not painted text.primary")
@@ -357,7 +357,7 @@ func TestLoadingScreen_TickStatesUseSpecdTokens(t *testing.T) {
 		t.Error("pending glyph not painted text.faint")
 	}
 	if !strings.Contains(pendingRow, tokenFgSeq(t, testDarkTheme(t).TextSubtle)) {
-		t.Error("pending label not painted text.dim")
+		t.Error("pending label not painted text.subtle")
 	}
 }
 
@@ -373,7 +373,7 @@ func TestLoadingScreen_CounterSpacedOnlyOnActiveRestore(t *testing.T) {
 		t.Errorf("loading screen rendered the un-spaced counter %q; want %q", "8/12", "8 / 12")
 	}
 	if !strings.Contains(out, tokenFgSeq(t, testDarkTheme(t).TextMuted)) {
-		t.Error("counter not painted text.detail")
+		t.Error("counter not painted text.muted")
 	}
 	if n := strings.Count(visible, "8 / 12"); n != 1 {
 		t.Errorf("counter rendered %d times, want exactly 1 (active restore row only)", n)
@@ -537,7 +537,7 @@ func TestLoadingScreen_ColourlessNoCanvasGlyphDistinct(t *testing.T) {
 		t.Error("colourless loading screen painted the canvas background")
 	}
 	if strings.Contains(out, tokenFgSeq(t, testDarkTheme(t).AccentPrimary)) {
-		t.Error("colourless loading screen painted an accent.violet hue")
+		t.Error("colourless loading screen painted an accent.primary hue")
 	}
 	if strings.Contains(out, tokenBgSeq(t, testDarkTheme(t).AccentPrimary)) {
 		t.Error("colourless loading screen painted the violet bar fill")

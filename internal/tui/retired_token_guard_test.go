@@ -1,6 +1,7 @@
 package tui_test
 
 import (
+	"go/ast"
 	"go/parser"
 	"go/token"
 	"path/filepath"
@@ -69,7 +70,7 @@ func exemptRetiredName(file, name string) bool {
 
 var renderLayerPackageDirs = []string{".", filepath.Join("..", "capture")}
 
-func TestNoRetiredTokenNameInComments(t *testing.T) {
+func TestNoRetiredTokenName(t *testing.T) {
 	for _, dir := range renderLayerPackageDirs {
 		matches, err := sourceguardtest.PackageGoFiles(dir, true)
 		if err != nil {
@@ -83,16 +84,32 @@ func TestNoRetiredTokenNameInComments(t *testing.T) {
 				if err != nil {
 					t.Fatalf("parse %s: %v", path, err)
 				}
-				for _, group := range file.Comments {
-					for _, c := range group.List {
-						for retired, current := range retiredTokenNames {
-							if !strings.Contains(c.Text, retired) || exemptRetiredName(name, retired) {
-								continue
-							}
-							t.Errorf("%s:%d names the retired token %q; the role is %q now", path, fset.Position(c.Pos()).Line, retired, current)
+				report := func(pos token.Pos, where, text string) {
+					for retired, current := range retiredTokenNames {
+						if !strings.Contains(text, retired) || exemptRetiredName(name, retired) {
+							continue
 						}
+						t.Errorf("%s:%d names the retired token %q in a %s; the role is %q now", path, fset.Position(pos).Line, retired, where, current)
 					}
 				}
+
+				for _, group := range file.Comments {
+					for _, c := range group.List {
+						report(c.Pos(), "comment", c.Text)
+					}
+				}
+
+				// String literals too: a failure message naming a dead token
+				// teaches the vocabulary off a red test run, which is where a
+				// maintainer reads it most attentively.
+				ast.Inspect(file, func(n ast.Node) bool {
+					lit, ok := n.(*ast.BasicLit)
+					if !ok || lit.Kind != token.STRING {
+						return true
+					}
+					report(lit.Pos(), "string literal", lit.Value)
+					return true
+				})
 			})
 		}
 	}

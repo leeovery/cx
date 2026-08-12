@@ -47,7 +47,7 @@ func TestMultiSelectFooter_NoHelpAnchor(t *testing.T) {
 		t.Errorf("multi-select footer must NOT contain the help hint at all:\n%s", vis)
 	}
 	if seq := tokenFgSeq(t, testDarkTheme(t).AccentPrimary); strings.Contains(footer, seq) {
-		t.Errorf("multi-select footer must NOT carry the accent.violet ? glyph role sequence %q", seq)
+		t.Errorf("multi-select footer must NOT carry the accent.primary ? glyph role sequence %q", seq)
 	}
 }
 
@@ -112,13 +112,13 @@ func TestMultiSelectFooter_TokenColours(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		footer := renderMultiSelectFooter(referenceFooterWidth, th, false)
 		if seq := tokenFgSeq(t, th.AccentKey); !strings.Contains(footer, seq) {
-			t.Errorf("[%v] footer missing accent.blue key-glyph role sequence %q", themeLabel(th), seq)
+			t.Errorf("[%v] footer missing accent.key key-glyph role sequence %q", themeLabel(th), seq)
 		}
 		if seq := tokenFgSeq(t, th.TextMuted); !strings.Contains(footer, seq) {
-			t.Errorf("[%v] footer missing text.detail label role sequence %q", themeLabel(th), seq)
+			t.Errorf("[%v] footer missing text.muted label role sequence %q", themeLabel(th), seq)
 		}
 		if seq := tokenFgSeq(t, th.Border); !strings.Contains(footer, seq) {
-			t.Errorf("[%v] footer missing border.footer rule role sequence %q", themeLabel(th), seq)
+			t.Errorf("[%v] footer missing border rule role sequence %q", themeLabel(th), seq)
 		}
 	}
 }

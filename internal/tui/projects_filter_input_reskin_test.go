@@ -21,14 +21,14 @@ func TestProjectsFilterInput_ColouredBranchOrange(t *testing.T) {
 		styles := fi.Styles()
 
 		if seq := styles.Focused.Prompt.Render("x"); !strings.Contains(seq, orange) {
-			t.Errorf("[%v] project FilterInput Focused.Prompt missing accent.orange SGR %q (got %q)", themeLabel(th), orange, escSeq(seq))
+			t.Errorf("[%v] project FilterInput Focused.Prompt missing accent.attention SGR %q (got %q)", themeLabel(th), orange, escSeq(seq))
 		}
 		if seq := styles.Focused.Text.Render("x"); !strings.Contains(seq, orange) {
-			t.Errorf("[%v] project FilterInput Focused.Text missing accent.orange SGR %q (got %q)", themeLabel(th), orange, escSeq(seq))
+			t.Errorf("[%v] project FilterInput Focused.Text missing accent.attention SGR %q (got %q)", themeLabel(th), orange, escSeq(seq))
 		}
 		cursorProbe := lipgloss.NewStyle().Foreground(styles.Cursor.Color).Render("x")
 		if !strings.Contains(cursorProbe, orange) {
-			t.Errorf("[%v] project FilterInput Cursor.Color missing accent.orange SGR %q (got %q)", themeLabel(th), orange, escSeq(cursorProbe))
+			t.Errorf("[%v] project FilterInput Cursor.Color missing accent.attention SGR %q (got %q)", themeLabel(th), orange, escSeq(cursorProbe))
 		}
 		if styles.Cursor.Blink {
 			t.Errorf("[%v] project FilterInput Cursor.Blink = true, want false (deterministic block cursor)", themeLabel(th))
@@ -55,7 +55,7 @@ func TestProjectsFilterInput_ColourlessBranchBare(t *testing.T) {
 		}
 		for name, run := range runs {
 			if strings.Contains(run, orange) {
-				t.Errorf("colourless project FilterInput %s leaked accent.orange SGR %q (%v): %q", name, orange, themeLabel(th), escSeq(run))
+				t.Errorf("colourless project FilterInput %s leaked accent.attention SGR %q (%v): %q", name, orange, themeLabel(th), escSeq(run))
 			}
 		}
 	}

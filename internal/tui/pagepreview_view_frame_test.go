@@ -56,7 +56,7 @@ func TestPreviewView_HeaderSegmentsCarryRoleForegrounds(t *testing.T) {
 
 	header := headerLine(m.View())
 	if !segmentCarriesForeground(header, "Window 1/1 · Pane 1/1", testDarkTheme(t).TextMuted.Color()) {
-		t.Errorf("counters segment lacks text.detail foreground SGR; row=%q", header)
+		t.Errorf("counters segment lacks text.muted foreground SGR; row=%q", header)
 	}
 	if !segmentCarriesForeground(header, "work", testDarkTheme(t).TextPrimary.Color()) {
 		t.Errorf("session segment lacks text.primary foreground SGR; row=%q", header)

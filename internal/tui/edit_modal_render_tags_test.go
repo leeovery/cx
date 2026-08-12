@@ -59,7 +59,7 @@ func TestRenderEditProjectContent_FocusedTagBorderViolet(t *testing.T) {
 	content := m.renderEditProjectContent()
 	violet := tokenFgSeq(t, m.themeState.active.AccentPrimary)
 	if !strings.Contains(content, violet) {
-		t.Errorf("focused tag chip should carry the accent.violet border\n%s", ansi.Strip(content))
+		t.Errorf("focused tag chip should carry the accent.primary border\n%s", ansi.Strip(content))
 	}
 }
 
@@ -113,15 +113,15 @@ func TestRenderEditProjectContent_TagsHeadingFocusScoped(t *testing.T) {
 
 	nameSeg := labelSegment(t, content, "NAME")
 	if !strings.Contains(nameSeg, violet) {
-		t.Errorf("NAME label should be accent.violet when Name focused; seg=%q", nameSeg)
+		t.Errorf("NAME label should be accent.primary when Name focused; seg=%q", nameSeg)
 	}
 	tagsSeg := labelSegment(t, content, "TAGS")
 	if strings.Contains(tagsSeg, violet) {
-		t.Errorf("TAGS label should NOT be accent.violet when Name focused; seg=%q", tagsSeg)
+		t.Errorf("TAGS label should NOT be accent.primary when Name focused; seg=%q", tagsSeg)
 	}
 
 	tagsFocused := renderTagsModel(t, editFieldTags, []string{"work"}, 0).renderEditProjectContent()
 	if seg := labelSegment(t, tagsFocused, "TAGS"); !strings.Contains(seg, violet) {
-		t.Errorf("TAGS label should be accent.violet when Tags focused; seg=%q", seg)
+		t.Errorf("TAGS label should be accent.primary when Tags focused; seg=%q", seg)
 	}
 }

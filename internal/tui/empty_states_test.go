@@ -100,16 +100,16 @@ func TestEmptySessions_FooterTokenColours(t *testing.T) {
 		footer := renderEmptySessionsFooter(referenceFooterWidth, th, false)
 
 		if seq := tokenFgSeq(t, th.AccentKey); !strings.Contains(footer, seq) {
-			t.Errorf("[%v] empty-sessions footer missing accent.blue key-glyph role %q", themeLabel(th), seq)
+			t.Errorf("[%v] empty-sessions footer missing accent.key key-glyph role %q", themeLabel(th), seq)
 		}
 		if seq := tokenFgSeq(t, th.TextMuted); !strings.Contains(footer, seq) {
-			t.Errorf("[%v] empty-sessions footer missing text.detail label role %q", themeLabel(th), seq)
+			t.Errorf("[%v] empty-sessions footer missing text.muted label role %q", themeLabel(th), seq)
 		}
 		if seq := tokenFgSeq(t, th.AccentPrimary); !strings.Contains(footer, seq) {
-			t.Errorf("[%v] empty-sessions footer missing accent.violet ? glyph role %q", themeLabel(th), seq)
+			t.Errorf("[%v] empty-sessions footer missing accent.primary ? glyph role %q", themeLabel(th), seq)
 		}
 		if seq := tokenFgSeq(t, th.Border); !strings.Contains(footer, seq) {
-			t.Errorf("[%v] empty-sessions footer missing border.footer rule role %q", themeLabel(th), seq)
+			t.Errorf("[%v] empty-sessions footer missing border rule role %q", themeLabel(th), seq)
 		}
 	}
 }
@@ -206,7 +206,7 @@ func TestEmptyStates_ColourRoles(t *testing.T) {
 			t.Errorf("[%v] empty-state message missing text.primary SGR %q:\n%s", themeLabel(th), seq, escSeq(body))
 		}
 		if seq := tokenFgSeq(t, th.TextMuted); !strings.Contains(body, seq) {
-			t.Errorf("[%v] empty-state hint missing text.detail SGR %q:\n%s", themeLabel(th), seq, escSeq(body))
+			t.Errorf("[%v] empty-state hint missing text.muted SGR %q:\n%s", themeLabel(th), seq, escSeq(body))
 		}
 	}
 }

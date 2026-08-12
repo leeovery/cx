@@ -60,7 +60,7 @@ func TestRenameModal_EditModeBadge(t *testing.T) {
 		}
 		seg := labelSegment(t, content, "EDIT MODE")
 		if seq := tokenFgSeq(t, th.AccentAttention); !strings.Contains(seg, seq) {
-			t.Errorf("[%v] `◉ EDIT MODE` badge must render in accent.orange SGR core %q; seg=%q", themeLabel(th), seq, seg)
+			t.Errorf("[%v] `◉ EDIT MODE` badge must render in accent.attention SGR core %q; seg=%q", themeLabel(th), seq, seg)
 		}
 	}
 }
@@ -104,7 +104,7 @@ func TestRenameModal_NewNameLabel(t *testing.T) {
 			t.Errorf("[%v] body must contain the 'NEW NAME' label; got:\n%s", themeLabel(th), content)
 		}
 		if seq := tokenFgSeq(t, th.AccentPrimary); !strings.Contains(content, seq) {
-			t.Errorf("[%v] 'NEW NAME' label must render in accent.violet SGR core %q; missing in:\n%s", themeLabel(th), seq, content)
+			t.Errorf("[%v] 'NEW NAME' label must render in accent.primary SGR core %q; missing in:\n%s", themeLabel(th), seq, content)
 		}
 	}
 }
@@ -128,7 +128,7 @@ func TestRenameModal_OrangeBlockCursor(t *testing.T) {
 			t.Errorf("[%v] input cursor must be a reverse block (SGR 7); got:\n%s", themeLabel(th), content)
 		}
 		if seq := tokenFgSeq(t, th.AccentAttention); !strings.Contains(content, seq) {
-			t.Errorf("[%v] block cursor must carry accent.orange SGR core %q; missing in:\n%s", themeLabel(th), seq, content)
+			t.Errorf("[%v] block cursor must carry accent.attention SGR core %q; missing in:\n%s", themeLabel(th), seq, content)
 		}
 	}
 }
@@ -157,7 +157,7 @@ func TestRenameModal_OrangeInputBoxOutline(t *testing.T) {
 			t.Errorf("[%v] row below the input value must be the box bottom edge (rounded outline); got %q", themeLabel(th), bottom)
 		}
 		if seq := tokenFgSeq(t, th.AccentAttention); !strings.Contains(content, seq) {
-			t.Errorf("[%v] input box outline must render in accent.orange SGR core %q; missing in:\n%s", themeLabel(th), seq, content)
+			t.Errorf("[%v] input box outline must render in accent.attention SGR core %q; missing in:\n%s", themeLabel(th), seq, content)
 		}
 	}
 }
@@ -169,7 +169,7 @@ func TestRenameModal_WasLine(t *testing.T) {
 			t.Errorf("[%v] body must contain 'was: aviva-proxy-qNyfEO'; got:\n%s", themeLabel(th), content)
 		}
 		if seq := tokenFgSeq(t, th.TextMuted); !strings.Contains(content, seq) {
-			t.Errorf("[%v] 'was:' line must render in text.detail SGR core %q; missing in:\n%s", themeLabel(th), seq, content)
+			t.Errorf("[%v] 'was:' line must render in text.muted SGR core %q; missing in:\n%s", themeLabel(th), seq, content)
 		}
 	}
 }
@@ -183,10 +183,10 @@ func TestRenameModal_Footer(t *testing.T) {
 			}
 		}
 		if seq := tokenFgSeq(t, th.AccentKey); !strings.Contains(content, seq) {
-			t.Errorf("[%v] footer key glyphs must render in accent.blue SGR core %q; missing in:\n%s", themeLabel(th), seq, content)
+			t.Errorf("[%v] footer key glyphs must render in accent.key SGR core %q; missing in:\n%s", themeLabel(th), seq, content)
 		}
 		if seq := tokenFgSeq(t, th.TextMuted); !strings.Contains(content, seq) {
-			t.Errorf("[%v] footer labels must render in text.detail SGR core %q; missing in:\n%s", themeLabel(th), seq, content)
+			t.Errorf("[%v] footer labels must render in text.muted SGR core %q; missing in:\n%s", themeLabel(th), seq, content)
 		}
 	}
 }

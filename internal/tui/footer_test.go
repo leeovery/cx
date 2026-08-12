@@ -56,13 +56,13 @@ func TestSessionsFooter_TokenColours(t *testing.T) {
 		footer := renderSessionsFooter(sessionsKeymap(), referenceFooterWidth, th, false)
 
 		if seq := tokenFgSeq(t, th.AccentKey); !strings.Contains(footer, seq) {
-			t.Errorf("footer missing accent.blue key-glyph role sequence %q", seq)
+			t.Errorf("footer missing accent.key key-glyph role sequence %q", seq)
 		}
 		if seq := tokenFgSeq(t, th.TextMuted); !strings.Contains(footer, seq) {
-			t.Errorf("footer missing text.detail label role sequence %q", seq)
+			t.Errorf("footer missing text.muted label role sequence %q", seq)
 		}
 		if seq := tokenFgSeq(t, th.AccentPrimary); !strings.Contains(footer, seq) {
-			t.Errorf("footer missing accent.violet ? role sequence %q", seq)
+			t.Errorf("footer missing accent.primary ? role sequence %q", seq)
 		}
 		if seq := tokenFgSeq(t, th.Border); !strings.Contains(footer, seq) {
 			t.Errorf("footer missing the border rule role sequence %q", seq)
@@ -85,7 +85,7 @@ func TestSessionsFooter_HelpGlyphIsViolet(t *testing.T) {
 	}
 	run := footer[lastEsc:qIdx]
 	if !strings.Contains(run, violet) {
-		t.Errorf("the ? glyph's SGR run %q is not accent.violet (%q)", run, violet)
+		t.Errorf("the ? glyph's SGR run %q is not accent.primary (%q)", run, violet)
 	}
 }
 

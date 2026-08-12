@@ -51,7 +51,7 @@ func TestProjectRow_TwoLinesNamePrimaryPathDetail(t *testing.T) {
 			t.Errorf("[%v] name line missing text.primary fg %q", themeLabel(th), seq)
 		}
 		if seq := tokenFgSeq(t, th.TextMuted); !strings.Contains(lines[1], seq) {
-			t.Errorf("[%v] path line missing text.detail fg %q", themeLabel(th), seq)
+			t.Errorf("[%v] path line missing text.muted fg %q", themeLabel(th), seq)
 		}
 		boldName := lipgloss.NewStyle().Bold(true).Foreground(th.TextPrimary.Color()).Render("portal")
 		if !strings.Contains(lines[0], "1;") && !strings.Contains(boldName, "1;") {
@@ -80,7 +80,7 @@ func TestProjectRow_SelectedFullHeightBarTintAcrossBothLines(t *testing.T) {
 				t.Errorf("[%v] selected line %d missing the ▌ full-height bar: %q", themeLabel(th), i, ansi.Strip(line))
 			}
 			if !strings.Contains(line, violet) {
-				t.Errorf("[%v] selected line %d bar missing accent.violet fg %q", themeLabel(th), i, violet)
+				t.Errorf("[%v] selected line %d bar missing accent.primary fg %q", themeLabel(th), i, violet)
 			}
 			if !lineHasBgParams(line, bgParams) {
 				t.Errorf("[%v] selected line %d missing the bg.selection tint %q: %q", themeLabel(th), i, bgParams, escSeq(line))
@@ -100,7 +100,7 @@ func TestProjectRow_SelectedNameOnSelectionPathMutedBright(t *testing.T) {
 			t.Errorf("[%v] selected name missing text.on-selection fg %q", themeLabel(th), seq)
 		}
 		if seq := tokenFgSeq(t, th.TextTertiary); !strings.Contains(lines[1], seq) {
-			t.Errorf("[%v] selected path missing text.muted-bright fg %q", themeLabel(th), seq)
+			t.Errorf("[%v] selected path missing text.tertiary fg %q", themeLabel(th), seq)
 		}
 	}
 }

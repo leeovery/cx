@@ -22,11 +22,11 @@ func TestProjectsHeader_LabelGreenCountDetail(t *testing.T) {
 			t.Errorf("Projects header missing the count %q:\n%s", "14", header)
 		}
 		if seq := tokenFgSeq(t, th.StatePositive); !strings.Contains(header, seq) {
-			t.Errorf("Projects header missing the state.green label role sequence %q", seq)
+			t.Errorf("Projects header missing the state.positive label role sequence %q", seq)
 		}
 		countRun := headerStyle(th.TextMuted, th, false).Render("14")
 		if !strings.Contains(header, countRun) {
-			t.Errorf("Projects header missing the exact count 14 in a text.detail run:\n%s", header)
+			t.Errorf("Projects header missing the exact count 14 in a text.muted run:\n%s", header)
 		}
 	})
 }
