@@ -187,7 +187,7 @@ func TestRowOrder_TotalAndDeterministic(t *testing.T) {
 
 			again := assembler.Reassemble(shuffled, keys)
 
-			if got, want := rowIdentities(again), rowIdentities(union); !slices.Equal(got, want) {
+			if got, want := rowFingerprints(again), rowFingerprints(union); !slices.Equal(got, want) {
 				t.Errorf("re-derived union = %v, want the identical %v — the order must not carry any of the input's", got, want)
 			}
 		})
@@ -300,12 +300,12 @@ func rowLabels(union theme.Union) []string {
 	return labels
 }
 
-func rowIdentities(union theme.Union) []string {
-	identities := make([]string, 0, len(union.Rows))
+func rowFingerprints(union theme.Union) []string {
+	fingerprints := make([]string, 0, len(union.Rows))
 	for _, row := range union.Rows {
-		identities = append(identities, fmt.Sprintf("%s|%s|%d", row.SortKey(), row.Label(), row.Source))
+		fingerprints = append(fingerprints, fmt.Sprintf("%s|%s|%d", row.SortKey(), row.Label(), row.Source))
 	}
-	return identities
+	return fingerprints
 }
 
 func onlyRejectedRow(t *testing.T, union theme.Union, reason theme.Reason) theme.Row {

@@ -19,7 +19,7 @@ const fixtureThemesDir = "/fixture/themes"
 
 // A zero resolution names no slot, which the open's degrade policy reads as
 // "leave all three as they were": such cases assert the cadence, not the result.
-func newOpenEnumerator(union theme.Union) *fakeThemeSource {
+func newOpenThemeSource(union theme.Union) *fakeThemeSource {
 	return &fakeThemeSource{
 		enumeration: theme.Enumeration{DirPath: fixtureThemesDir},
 		union:       union,
@@ -38,7 +38,7 @@ func (e *countingThemeSource) Open(keys theme.RawKeys) (theme.Enumeration, theme
 	return e.DirThemeSource.Open(keys)
 }
 
-func countingEnumeratorOver(loader theme.Loader, dir string) *countingThemeSource {
+func countingThemeSourceOver(loader theme.Loader, dir string) *countingThemeSource {
 	return &countingThemeSource{DirThemeSource: theme.DirThemeSource{Loader: loader, Dir: dir}}
 }
 
@@ -132,7 +132,7 @@ func TestThemePanelOpen_BoundOnBothPages(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			union := themeOpenTestUnion()
-			enumerator := newOpenEnumerator(union)
+			enumerator := newOpenThemeSource(union)
 			m := themeOpenTestModel(t, enumerator, theme.RawKeys{Theme: "nord"})
 			m.activePage = tc.page
 
@@ -165,7 +165,7 @@ func TestThemePanelOpen_BoundOnBothPages(t *testing.T) {
 
 func TestThemePanelOpen_FilterCarveOut(t *testing.T) {
 	t.Run("sessions", func(t *testing.T) {
-		enumerator := newOpenEnumerator(themeOpenTestUnion())
+		enumerator := newOpenThemeSource(themeOpenTestUnion())
 		m := themeOpenTestPopulatedModel(t, enumerator)
 
 		m = pressPanelKey(t, m, tea.KeyPressMsg{Code: '/', Text: "/"})
@@ -186,7 +186,7 @@ func TestThemePanelOpen_FilterCarveOut(t *testing.T) {
 	})
 
 	t.Run("projects", func(t *testing.T) {
-		enumerator := newOpenEnumerator(themeOpenTestUnion())
+		enumerator := newOpenThemeSource(themeOpenTestUnion())
 		m := themeOpenTestPopulatedModel(t, enumerator)
 		m.activePage = PageProjects
 
@@ -214,7 +214,7 @@ func TestThemePanelOpen_NoEnumerationAtConstruction(t *testing.T) {
 	dir := t.TempDir()
 	themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("#101010"))
 	loader, sink := themeOpenTestLoader(t)
-	enumerator := countingEnumeratorOver(loader, dir)
+	enumerator := countingThemeSourceOver(loader, dir)
 
 	m := themeOpenTestModel(t, enumerator, theme.RawKeys{})
 
@@ -242,7 +242,7 @@ func TestThemePanelOpen_ReEnumeratesPerOpen(t *testing.T) {
 	dir := t.TempDir()
 	themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("#101010"))
 	loader, sink := themeOpenTestLoader(t)
-	enumerator := countingEnumeratorOver(loader, dir)
+	enumerator := countingThemeSourceOver(loader, dir)
 	m := themeOpenTestModel(t, enumerator, theme.RawKeys{})
 
 	const opens = 3
@@ -266,7 +266,7 @@ func TestThemePanelOpen_SeesAMidSessionEdit(t *testing.T) {
 	dir := t.TempDir()
 	themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("not-a-colour"))
 	loader, _ := themeOpenTestLoader(t)
-	m := themeOpenTestModel(t, countingEnumeratorOver(loader, dir), theme.RawKeys{})
+	m := themeOpenTestModel(t, countingThemeSourceOver(loader, dir), theme.RawKeys{})
 
 	m = pressThemeKey(t, m)
 	if broken := themePanelRowFor(t, m, "sunset"); broken.Row.Selectable() {
@@ -289,7 +289,7 @@ func TestThemePanelOpen_EnumerationDiscardedOnClose(t *testing.T) {
 	// carry, and named other than `sunset` so the later write is a mutation.
 	themetest.Write(t, dir, "aurora.theme", themetest.MonochromeLines("#101010"))
 	loader, _ := themeOpenTestLoader(t)
-	m := themeOpenTestModel(t, countingEnumeratorOver(loader, dir), theme.RawKeys{})
+	m := themeOpenTestModel(t, countingThemeSourceOver(loader, dir), theme.RawKeys{})
 
 	m = pressThemeKey(t, m)
 	if len(m.themePanel.union.Rows) == 0 {
@@ -328,7 +328,7 @@ func TestThemePanelOpen_UsesConstructionTimePrefsSnapshot(t *testing.T) {
 	t.Setenv("PORTAL_PREFS_FILE", prefsFile)
 
 	construction := theme.RawKeys{Light: theme.DefaultLightSlug, Dark: "nord"}
-	enumerator := newOpenEnumerator(themeOpenTestUnion())
+	enumerator := newOpenThemeSource(themeOpenTestUnion())
 	m := themeOpenTestModel(t, enumerator, construction)
 
 	m = pressThemeKey(t, m)
@@ -361,7 +361,7 @@ func TestThemePanelOpen_UsesConstructionTimePrefsSnapshot(t *testing.T) {
 }
 
 func TestThemePanelOpen_BadgesFromTheSeamsResolution(t *testing.T) {
-	enumerator := newOpenEnumerator(themeOpenTestUnion())
+	enumerator := newOpenThemeSource(themeOpenTestUnion())
 	enumerator.resolution = theme.Resolution{
 		Nomination: theme.ConstantNomination(testDarkTheme(t)),
 		Slots: []theme.SlotResolution{{
@@ -391,7 +391,10 @@ func TestThemePanelOpen_NilSeamIsASilentNoOp(t *testing.T) {
 	m = pressThemeKey(t, m)
 
 	if m.themePanel.open {
-		t.Error("t opened the panel with no enumerator wired")
+		t.Error("t opened the panel with no theme source wired")
+	}
+	if m.flashText != "" {
+		t.Errorf("t raised %q with no seam wired; the nil-seam path must be silent", m.flashText)
 	}
 }
 
@@ -403,7 +406,7 @@ func TestThemePanelOpen_ThemesThePaginationDots(t *testing.T) {
 	union := themeRowsUnion(rows)
 
 	forEachBuiltinTheme(t, func(t *testing.T, th theme.Theme) {
-		m := themeOpenTestModel(t, newOpenEnumerator(union), theme.RawKeys{})
+		m := themeOpenTestModel(t, newOpenThemeSource(union), theme.RawKeys{})
 		m.themeState.active = th
 
 		m = pressThemeKey(t, m)
@@ -428,7 +431,7 @@ func TestThemePanelOpen_ThemesThePaginationDots(t *testing.T) {
 	})
 
 	t.Run("colourless", func(t *testing.T) {
-		m := themeOpenTestModel(t, newOpenEnumerator(union), theme.RawKeys{})
+		m := themeOpenTestModel(t, newOpenThemeSource(union), theme.RawKeys{})
 		m.colourless = true
 
 		m = armPanelUnderNoColorForTest(t, m)
@@ -467,7 +470,7 @@ func themePanelDotRow(t *testing.T, block string) string {
 func TestThemePanelOpen_SwallowsPageKeys(t *testing.T) {
 	newModel := func(t *testing.T) Model {
 		t.Helper()
-		return themeOpenTestPopulatedModel(t, newOpenEnumerator(themeOpenTestUnion()))
+		return themeOpenTestPopulatedModel(t, newOpenThemeSource(themeOpenTestUnion()))
 	}
 
 	for _, tc := range []struct {

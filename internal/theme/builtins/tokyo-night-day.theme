@@ -19,7 +19,8 @@
 # and OkLch()), and ΔE >= 0.05 is "moved materially" — a scale anchored by the
 # Nord port's ΔE 0.018, cited there as essentially imperceptible. All seven came
 # in under the threshold, so nothing moved and these are the values that were
-# always shipped.
+# always shipped. One further value, accent.primary, carries a note recording why
+# it is outside that set of seven rather than a check of its own.
 #
 # Four surface tints are eyeball pins rather than derivations. A light tint on a
 # light canvas is numeric-insufficient — the fill floor bounds it from below but
@@ -90,7 +91,7 @@ state.positive = #3B5E18
 # value stands unchanged.
 state.destructive = #BD2545
 
-# Surfaces.
+# Surfaces, and the text drawn on the attention surface.
 canvas = #e1e2e7
 # Pinned — derivation: the dark violet selection anchor #28243a lifted onto the
 # light canvas #e1e2e7; eyeball-confirmed. Fill perceptible at 1.25, and the band

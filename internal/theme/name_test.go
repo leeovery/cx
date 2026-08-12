@@ -144,6 +144,7 @@ func TestSlugFromFilename_ExtensionCauseOnlyWhenStemIsLegal(t *testing.T) {
 		{name: "spaced stem, shouted extension", base: "My Theme.THEME", wantCause: theme.BadNameSlug},
 		{name: "illegal stem, exact extension", base: "My Theme.theme", wantCause: theme.BadNameSlug},
 		{name: "no .theme-shaped suffix", base: "nord.txt", wantCause: theme.BadNameExtension},
+		{name: "empty stem, shouted extension", base: ".THEME", wantCause: theme.BadNameSlug},
 		{name: "legal stem, exact extension", base: "nord.theme", wantSlug: "nord"},
 	}
 
@@ -267,7 +268,7 @@ func TestSlugFromFilename_EmptyStemRejected(t *testing.T) {
 	}
 }
 
-func TestSlugFromFilename_RejectsLeadingHyphenStem(t *testing.T) {
+func TestSlugFromFilename_RejectsIllegalStems(t *testing.T) {
 	tests := []struct {
 		name string
 		base string

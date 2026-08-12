@@ -293,7 +293,8 @@ func (s *Store) SaveTranslation(slug string) (persisted bool, err error) {
 	return persisted, nil
 }
 
-// Indirection so a test can count writes; production never reassigns it.
+// Substitutable so the write can be intercepted without a filesystem;
+// production never reassigns it.
 var atomicWrite = fileutil.AtomicWrite
 
 func (s *Store) write(f prefsFile) error {

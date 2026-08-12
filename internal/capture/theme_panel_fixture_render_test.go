@@ -253,7 +253,7 @@ func TestPanelFixture_PanelIsCompositedUnderTheGuard(t *testing.T) {
 			}
 			for _, refusal := range panelEntryRefusalCopy {
 				if strings.Contains(visible, refusal) {
-					t.Errorf("the A-frame carries the blocked-entry flash %q; the pinned render size is below task 8-11's floor", refusal)
+					t.Errorf("the A-frame carries the blocked-entry flash %q; the pinned render size is below the panel's entry-gate floor", refusal)
 				}
 			}
 		})

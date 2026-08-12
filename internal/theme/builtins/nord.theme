@@ -70,13 +70,13 @@ state.positive = #A7C492
 # every ported theme after it.
 state.destructive = #DD8188
 
-# Surfaces.
+# Surfaces, and the text drawn on the attention surface.
 canvas = #2E3440
 bg.selection = #434C5E
 # Invention 3 of 3. A background warning tint is neither a neutral from the
 # barrelled dark end nor a foreground accent, so the palette holds no slot for
 # it. This is a ~8% nord13-into-canvas blend, a fill of 1.20 against the canvas,
-# matching the proportion Portal's other built-ins use — the warning band is a
+# a fill in the same whisper band as Portal's other warning tints (1.11–1.15) — the warning band is a
 # whisper, not a wash. The first arithmetic answer, a 20% blend at #54524F
 # (fill 1.60), was rejected at a visual gate as far too heavy and as a warm grey
 # outside Nord's cool family. An invention has no source chroma to preserve, so

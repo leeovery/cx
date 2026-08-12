@@ -64,7 +64,7 @@ func StripControl(s string) string {
 func SlugFromFilename(base string) (string, *Rejection) {
 	stem, exact := strings.CutSuffix(base, FileExtension)
 	if !exact {
-		return "", badName(misCasedExtensionCause(base))
+		return "", badName(inexactExtensionCause(base))
 	}
 	if !ValidSlug(stem) {
 		return "", badName(BadNameSlug)
@@ -74,7 +74,7 @@ func SlugFromFilename(base string) (string, *Rejection) {
 }
 
 // The stem is inspected to place the cause, never to derive a slug.
-func misCasedExtensionCause(base string) BadNameCause {
+func inexactExtensionCause(base string) BadNameCause {
 	if len(base) < len(FileExtension) {
 		return BadNameExtension
 	}

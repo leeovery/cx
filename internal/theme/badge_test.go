@@ -331,7 +331,7 @@ func TestBadgeKey_ReservedNameRowHasNone(t *testing.T) {
 			}
 		}
 		if len(badged) != 1 {
-			t.Fatalf("%d rows match the badge map %v, want exactly 1 — only one marker may render: %v", len(badged), badgeNames(badges), rowIdentities(union))
+			t.Fatalf("%d rows match the badge map %v, want exactly 1 — only one marker may render: %v", len(badged), badgeNames(badges), rowFingerprints(union))
 		}
 		if badged[0].Source != theme.SourceBuiltin {
 			t.Errorf("the badged row is %+v, want the built-in — the persisted slug resolved to it, not to the rejected file", badged[0])

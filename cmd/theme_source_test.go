@@ -128,12 +128,12 @@ func TestOpenTUI_BuildsOneThemeLoader(t *testing.T) {
 		}
 	}
 
-	assertEnumeratorTakesBoundLoader(t, fn)
+	assertThemeSourceTakesBoundLoader(t, fn)
 }
 
 // Asserts the argument's shape, not its identity: any call expression in that
 // position is a loader built for the panel alone.
-func assertEnumeratorTakesBoundLoader(t *testing.T, n ast.Node) {
+func assertThemeSourceTakesBoundLoader(t *testing.T, n ast.Node) {
 	t.Helper()
 	ast.Inspect(n, func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)

@@ -53,7 +53,7 @@ func TestProjectRow_TwoLinesNamePrimaryPathDetail(t *testing.T) {
 		if seq := tokenFgSeq(t, th.TextMuted); !strings.Contains(lines[1], seq) {
 			t.Errorf("[%v] path line missing text.detail fg %q", themeLabel(th), seq)
 		}
-		boldName := lipgloss.NewStyle().Bold(true).Foreground(testDarkTheme(t).TextPrimary.Color()).Render("portal")
+		boldName := lipgloss.NewStyle().Bold(true).Foreground(th.TextPrimary.Color()).Render("portal")
 		if !strings.Contains(lines[0], "1;") && !strings.Contains(boldName, "1;") {
 			t.Errorf("[%v] precondition: bold name run should carry SGR bold", themeLabel(th))
 		}

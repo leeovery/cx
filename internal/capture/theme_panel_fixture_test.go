@@ -45,7 +45,7 @@ func TestPanelFixture_FourInputs(t *testing.T) {
 				t.Error("input 2: the fixture declares no raw persisted theme keys, so its badges have nothing to derive from")
 			}
 			if len(fx.themeSlots) == 0 {
-				t.Error("input 3b: the fixture declares no slot resolutions, so no row carries a ● at all")
+				t.Error("input 3: the fixture declares no slot resolutions, so no row carries a ● at all")
 			}
 			if fx.initialThemeCursor == "" {
 				t.Error("input 4: the fixture declares no cursor row; the cursor position is a declared input precisely because a one-shot render cannot arrow to it")

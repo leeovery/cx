@@ -121,19 +121,19 @@ func loadPrefsStore() (prefsLoad, error) {
 	}
 
 	keys, _ := store.LoadThemeKeys()
-	state, _ := store.LoadMigrationState()
+	migration, _ := store.LoadMigrationState()
 
 	load := prefsLoad{Store: store, Keys: keys}
 
 	// The trigger is the marker, never the absence of theme keys: absence-gating
 	// is re-armable, so a user hand-editing their keys away to return to the
 	// shipped pair would be silently re-pinned on the next launch.
-	if state.Migrated {
+	if migration.Migrated {
 		return load, nil
 	}
 
 	load.TranslationPending = true
-	load.TranslatedSlug = translateAppearance(state.Appearance)
+	load.TranslatedSlug = translateAppearance(migration.Appearance)
 
 	// Applied against the load-time snapshot: the only moment early enough to
 	// affect what is painted. Scoping this to the write alone would flip a user

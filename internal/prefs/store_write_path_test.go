@@ -132,6 +132,8 @@ func (c undecodableCase) assertErr(t *testing.T, err error) {
 		if typeErr.Field != "" {
 			t.Errorf("UnmarshalTypeError.Field = %q, want empty — the top-level discriminator", typeErr.Field)
 		}
+	default:
+		t.Fatalf("undecodableCase %q declares errClass %d with no assertion — extend assertErr", c.name, c.errClass)
 	}
 }
 

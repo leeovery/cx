@@ -740,7 +740,7 @@ func TestSlotConfirm_NilPersisterIsInert(t *testing.T) {
 		m := Build(Deps{
 			Lister:      fakeLister{},
 			Theme:       resolution.Nomination,
-			ThemeSource: countingEnumeratorOver(loader, dir),
+			ThemeSource: countingThemeSourceOver(loader, dir),
 			ThemeKeys:   keys,
 		})
 		if m.themeState.persister != nil {
@@ -757,7 +757,7 @@ func TestSlotConfirm_NilPersisterIsInert(t *testing.T) {
 			t.Errorf("`y` over a nil persister emitted %d `theme: loaded` line(s), want none — no write landed for a load to follow\n%s", len(got), sink.Body())
 		}
 		if got := themeEventRecords(sink, "fallback applied"); len(got) != 0 {
-			t.Errorf("`y` over a nil persister emitted %d `theme: fallback applied` line(s), want none — the un-mirrored keys' slots are both empty, which is the shape a load run here would resolve\n%s", len(got), sink.Body())
+			t.Errorf("`y` over a nil persister emitted %d `theme: fallback applied` line(s), want none — a load run here would collapse the un-mirrored constant's empty slots onto the shipped defaults and report a load for a write that never happened\n%s", len(got), sink.Body())
 		}
 		if m.themeState.nomination != nomination || !m.themeState.nomination.IsConstant() {
 			t.Errorf("`y` over a nil persister left the nomination %+v, want the untouched constant", m.themeState.nomination)

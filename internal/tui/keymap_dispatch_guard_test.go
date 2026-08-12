@@ -259,7 +259,7 @@ func themeGuardModel(t *testing.T, m Model) Model {
 	if m.colourless {
 		t.Fatal("the guard seed must not be colourless — that would block t and the probe would assert a refusal")
 	}
-	m.themeState.source = newEntryEnumerator(t, false)
+	m.themeState.source = newEntryThemeSource(t, false)
 	return m
 }
 
@@ -272,7 +272,7 @@ func TestKeymapDispatchGuard_ThemeKeyProbe(t *testing.T) {
 			t.Fatal("precondition: an unwired seam must leave t a silent no-op")
 		}
 		if wired := pressSession(t, themeGuardModel(t, sessionsGuardModel(t)), press); !wired.themePanel.open {
-			t.Error("t did not open the panel against a faked enumerator — the guard's probe would be vacuous")
+			t.Error("t did not open the panel against a faked theme source — the guard's probe would be vacuous")
 		}
 	})
 
@@ -283,7 +283,7 @@ func TestKeymapDispatchGuard_ThemeKeyProbe(t *testing.T) {
 		}
 		wired, _ := pressProject(t, themeGuardModel(t, projectsDispatchModel(t)), press)
 		if !wired.themePanel.open {
-			t.Error("t did not open the panel against a faked enumerator — the guard's probe would be vacuous")
+			t.Error("t did not open the panel against a faked theme source — the guard's probe would be vacuous")
 		}
 	})
 }

@@ -316,9 +316,10 @@ func TestThemePanelCommit_DarkKeyRoundTripsOneSlotToPrefs(t *testing.T) {
 	assertPaintedCanvas(t, m, themetest.Builtin(t, nordSlug).Canvas.Color())
 	m = arrowToPreviewedCanvas(t, m, roundTripChosenCanvas)
 
-	update(t, m, themePanelDarkSlotKey)
+	m = update(t, m, themePanelDarkSlotKey)
 
 	assertPrefsOnDisk(t, path, prefsOnDisk{ThemeLight: roundTripStandingSlug, ThemeDark: roundTripChosenSlug})
+	assertBadgesMatchPersistedKeys(t, m)
 
 	nomination := themeNominationForTest(t)
 	if nomination.IsConstant() {

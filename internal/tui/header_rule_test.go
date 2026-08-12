@@ -57,7 +57,7 @@ func TestRuleGlyphRun_HasASingleRenderer(t *testing.T) {
 	}
 
 	if len(renderers) != 1 {
-		t.Errorf("%d functions build the rule glyph run (%s); want exactly 1 so the page and the panel cannot drift",
+		t.Errorf("%d call sites build the rule glyph run (%s); want exactly 1 so the page and the panel cannot drift",
 			len(renderers), strings.Join(renderers, ", "))
 	}
 }

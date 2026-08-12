@@ -116,7 +116,7 @@ func TestThemeFlash_AllSixUseSetThemeFlash(t *testing.T) {
 				name: "the NO_COLOR block",
 				raise: func(t *testing.T) Model {
 					t.Helper()
-					m, _ := newEntryModel(t, newEntryEnumerator(t, false), entryModelOpts{
+					m, _ := newEntryModel(t, newEntryThemeSource(t, false), entryModelOpts{
 						page:       PageSessions,
 						colourless: true,
 						contentW:   entryContentW,
@@ -207,7 +207,7 @@ func TestThemeFlash_AllSixUseSetThemeFlash(t *testing.T) {
 				}
 				for _, arg := range call.Args {
 					if offender := themeCopyReference(arg, vocabulary); offender != "" {
-						t.Errorf("%s:%d passes the theme copy %s to %s; every theme signal is raised through setThemeFlash, which is what grants it precedence over the filter line",
+						t.Errorf("%s:%d passes the theme copy %s to %s; every theme signal is raised through setThemeFlash, which is what stamps the theme precedence tier (see flashSlotClaim)",
 							name, fset.Position(call.Pos()).Line, offender, sel.Sel.Name)
 					}
 				}
@@ -352,7 +352,7 @@ var themeFlashFilterStates = []struct {
 // reachable by keypress while a filter is applied.
 func themeFlashModel(t *testing.T, p page) Model {
 	t.Helper()
-	m, _ := newEntryModel(t, newEntryEnumerator(t, false), entryModelOpts{
+	m, _ := newEntryModel(t, newEntryThemeSource(t, false), entryModelOpts{
 		page:       p,
 		colourless: true,
 		contentW:   entryContentW,
@@ -467,7 +467,7 @@ func filteredThemeFlashModel(t *testing.T, s themeFlashSurface, locked bool, wan
 	return m, baseline
 }
 
-func TestThemeFlash_OutranksAppliedFilterOnSessions(t *testing.T) {
+func TestThemeFlash_ReachesBandUnderAppliedFilterOnSessions(t *testing.T) {
 	s := sessionsFlashSurface()
 	m, baseline := filteredThemeFlashModel(t, s, true, list.FilterApplied)
 
@@ -483,7 +483,7 @@ func TestThemeFlash_OutranksAppliedFilterOnSessions(t *testing.T) {
 
 // Raised directly, not by keypress: `t` is a literal filter character while the
 // input is focused.
-func TestThemeFlash_OutranksLiveFilterOnSessions(t *testing.T) {
+func TestThemeFlash_ReachesBandUnderLiveFilterOnSessions(t *testing.T) {
 	s := sessionsFlashSurface()
 	m, baseline := filteredThemeFlashModel(t, s, false, list.Filtering)
 
@@ -497,7 +497,7 @@ func TestThemeFlash_OutranksLiveFilterOnSessions(t *testing.T) {
 	}
 }
 
-func TestThemeFlash_OutranksAppliedFilterOnProjects(t *testing.T) {
+func TestThemeFlash_ReachesBandUnderAppliedFilterOnProjects(t *testing.T) {
 	s := projectsFlashSurface()
 
 	for _, tc := range themeFlashFilterStates {

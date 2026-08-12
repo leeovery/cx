@@ -449,7 +449,7 @@ func themeSlotUsagesInPackage(t *testing.T) (members, conversions, prefsSlots []
 				if isPackageSelector(node, "theme", "") && isThemeMemberValue(node.Sel.Name) {
 					members = append(members, node.Sel.Name)
 				}
-				if isPackageSelector(node, "prefs", "") && strings.HasPrefix(node.Sel.Name, "Slot") ||
+				if (isPackageSelector(node, "prefs", "") && strings.HasPrefix(node.Sel.Name, "Slot")) ||
 					isPackageSelector(node, "prefs", "ThemeSlot") {
 					prefsSlots = append(prefsSlots, name)
 				}

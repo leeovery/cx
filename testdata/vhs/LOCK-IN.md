@@ -16,7 +16,8 @@ section at the bottom is left PENDING for the human to fill.
   — a standalone `tea.Model`, NOT the production Sessions surface; the four tint
   *surfaces* are built in later phases — selection row → Phase 2, separator/footer
   borders → Phase 2, warning band → Phase 4, loading track → Phase 5).
-- Captures (regenerate with `vhs <tape>`, sandbox disabled):
+- Captures (the tapes were cleared at sign-off — view the swatch with
+  `go run ./cmd/capturetool --fixture contrast-validation --theme <slug|path>`):
   - `testdata/vhs/contrast-validation-light.png` ← `contrast-validation-light.tape`
     (light tints against `#e1e2e7` — the wash-out risk)
   - `testdata/vhs/contrast-validation-dark.png`  ← `contrast-validation-dark.tape`

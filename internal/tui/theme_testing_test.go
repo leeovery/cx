@@ -60,7 +60,7 @@ func newDirBackedPanelModelOver(t *testing.T, dir string, keys theme.RawKeys, mo
 	if err != nil {
 		t.Fatalf("construction-time resolution of %+v: %v", setting, err)
 	}
-	enumerator := countingEnumeratorOver(panelLoader, dir)
+	enumerator := countingThemeSourceOver(panelLoader, dir)
 	m := New(fakeLister{},
 		WithThemeSource(enumerator),
 		WithThemeKeys(keys),
@@ -89,7 +89,7 @@ func requireCommitDoesNoOtherIO(
 	stores := newCountingStores()
 	persister := &fakeThemePersister{}
 	loader := theme.NewSilentLoader()
-	enumerator := countingEnumeratorOver(loader, dir)
+	enumerator := countingThemeSourceOver(loader, dir)
 	setting, _ := theme.ResolveSetting(keys)
 	resolution, err := loader.ResolveNomination(setting, dir)
 	if err != nil {
@@ -117,7 +117,7 @@ func requireCommitDoesNoOtherIO(
 	stores.reset()
 	opens := enumerator.opens
 
-	m, cmd := press(t, m)
+	_, cmd := press(t, m)
 
 	assertCommitted(t, persister)
 	if got := stores.calls(); got != 0 {
@@ -150,7 +150,7 @@ type panelReadOnlyPath struct {
 
 // act stages nothing of its own: it receives the staged themes directory and
 // the keys naming the theme in it, and differs only in model and keypresses.
-func requireNoPrefsOrThemesWrite(t *testing.T, path panelReadOnlyPath, act func(t *testing.T, dir string, keys theme.RawKeys)) {
+func requireNoPrefsOrThemesWrite(t *testing.T, readOnly panelReadOnlyPath, act func(t *testing.T, dir string, keys theme.RawKeys)) {
 	t.Helper()
 
 	const persisted = `{"session_list_mode":"by-project","theme":"sunset"}`
@@ -174,11 +174,11 @@ func requireNoPrefsOrThemesWrite(t *testing.T, path panelReadOnlyPath, act func(
 			t.Fatalf("read back prefs: %v", err)
 		}
 		if string(after) != persisted {
-			t.Errorf("prefs.json after %s =\n%s\nwant it byte-identical:\n%s", path.verb, after, persisted)
+			t.Errorf("prefs.json after %s =\n%s\nwant it byte-identical:\n%s", readOnly.verb, after, persisted)
 		}
 	})
 
-	t.Run(path.absentSubtest, func(t *testing.T) {
+	t.Run(readOnly.absentSubtest, func(t *testing.T) {
 		configDir := t.TempDir()
 		t.Setenv("PORTAL_PREFS_FILE", filepath.Join(configDir, "prefs.json"))
 		dir := t.TempDir()
@@ -187,14 +187,14 @@ func requireNoPrefsOrThemesWrite(t *testing.T, path panelReadOnlyPath, act func(
 		act(t, dir, keys)
 
 		if entries, err := os.ReadDir(configDir); err != nil || len(entries) != 0 {
-			t.Errorf("%s left %d entries in the config directory (err %v), want none", path.verb, len(entries), err)
+			t.Errorf("%s left %d entries in the config directory (err %v), want none", readOnly.verb, len(entries), err)
 		}
 		entries, err := os.ReadDir(dir)
 		if err != nil {
 			t.Fatalf("read %s: %v", dir, err)
 		}
 		if len(entries) != 1 || entries[0].Name() != "sunset.theme" {
-			t.Errorf("the themes directory holds %d entries after %s, want only the seeded drop-in", len(entries), path.verb)
+			t.Errorf("the themes directory holds %d entries after %s, want only the seeded drop-in", len(entries), readOnly.verb)
 		}
 	})
 }

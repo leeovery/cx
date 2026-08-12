@@ -17,7 +17,7 @@ func TestThemeSourceImplementations_LoadTheSameSlug(t *testing.T) {
 
 	dir := newConversionThemesDir(t)
 	loader, sink := themeOpenTestLoader(t)
-	production := countingEnumeratorOver(loader, dir)
+	production := countingThemeSourceOver(loader, dir)
 	enumeration, _ := production.Open(keys)
 	if err := production.LoadSlot(enumeration, theme.SlotDark, keys); err != nil {
 		t.Fatalf("the production adapter's LoadSlot: %v", err)

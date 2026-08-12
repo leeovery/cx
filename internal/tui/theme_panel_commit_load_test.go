@@ -66,7 +66,7 @@ func newLoadPanelModel(t *testing.T, dir string, keys theme.RawKeys, loader them
 	m := Build(Deps{
 		Lister:         fakeLister{},
 		Theme:          resolution.Nomination,
-		ThemeSource:    countingEnumeratorOver(loader, dir),
+		ThemeSource:    countingThemeSourceOver(loader, dir),
 		ThemeKeys:      keys,
 		ThemePersister: persister,
 	})
@@ -550,7 +550,7 @@ func TestCommitSlotLoad_SharesTheResolverBody(t *testing.T) {
 	dir := newConversionThemesDir(t)
 	themetest.Write(t, dir, "ghostly.theme", themetest.MonochromeLines("#202020"))
 	loader, _ := themeOpenTestLoader(t)
-	enumerator := countingEnumeratorOver(loader, dir)
+	enumerator := countingThemeSourceOver(loader, dir)
 	enumeration, _ := enumerator.Open(theme.RawKeys{})
 
 	for _, slug := range []string{"nord", "ghostly", conversionConstant, "nope", "../escape"} {
@@ -855,7 +855,7 @@ func TestCommitSlotLoad_BrokenBuiltinDegrades(t *testing.T) {
 		t.Errorf("the fatal left the nomination %+v, want the untouched %+v — a degrade moves nothing", m.themeState.nomination, nomination)
 	}
 	if m.themeState.inForceMode() != mode {
-		t.Errorf("the fatal moved the light/dark answer to %v, want the untouched %v", m.themeState.inForceMode(), mode)
+		t.Errorf("the fatal left the light/dark answer %v, want the no-reply dark fallback %v — the answer is recorded from the retained reply before the load runs, and this fixture receives none", m.themeState.inForceMode(), mode)
 	}
 	if m.themeState.active != active {
 		t.Errorf("the fatal rendered %s, want the untouched %s", themeLabel(m.themeState.active), themeLabel(active))

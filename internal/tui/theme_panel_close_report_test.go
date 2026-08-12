@@ -36,7 +36,7 @@ func requireReportRaised(t *testing.T, m Model) {
 		t.Errorf("the close raised %q, want %q", got, wantThemeNotSavedFlash)
 	}
 	if m.flashOrigin != flashOriginTheme {
-		t.Errorf("the report carries origin %v, want the theme origin — it claims the band over a filter line", m.flashOrigin)
+		t.Errorf("the report carries origin %v, want the theme origin — it must be raised through setThemeFlash", m.flashOrigin)
 	}
 	if m.flashKind != flashWarning {
 		t.Errorf("the report carries kind %v, want the ordinary warning flash", m.flashKind)
@@ -344,7 +344,7 @@ func TestCloseReport_ProjectsFlashSlot(t *testing.T) {
 	}
 }
 
-func TestCloseReport_OutranksFilterLine(t *testing.T) {
+func TestCloseReport_ReachesBandUnderAppliedFilter(t *testing.T) {
 	s := sessionsFlashSurface()
 	m, _ := newFailedCommitModel(t)
 	m.applySessionListSize(m.contentWidth(), m.contentHeight())

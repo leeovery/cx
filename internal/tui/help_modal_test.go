@@ -186,6 +186,7 @@ func TestHelpModalContent(t *testing.T) {
 			"Rename session",
 			"Kill session",
 			"Multi-select mode",
+			"Theme picker",
 			"Quit",
 		} {
 			if !strings.Contains(view, action) {
@@ -218,6 +219,7 @@ func TestHelpModalContent(t *testing.T) {
 			"Delete project",
 			"New session in cwd",
 			"Move selection",
+			"Theme picker",
 			"Quit",
 		} {
 			if !strings.Contains(view, action) {

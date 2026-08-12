@@ -317,7 +317,7 @@ func TestPanelClose_EventCadence(t *testing.T) {
 }
 
 func TestPanelClose_DoesNotClearTheFilter(t *testing.T) {
-	m := themeOpenTestPopulatedModel(t, newOpenEnumerator(themeOpenTestUnion()))
+	m := themeOpenTestPopulatedModel(t, newOpenThemeSource(themeOpenTestUnion()))
 
 	m = pressPanelKey(t, m, tea.KeyPressMsg{Code: '/', Text: "/"})
 	m = pressPanelKey(t, m, tea.KeyPressMsg{Code: 'a', Text: "a"})

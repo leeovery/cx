@@ -15,19 +15,19 @@ import (
 
 // The production DirThemeSource with only Open replaced, so the unoverridden
 // derivations stay production's own.
-type behaviourEnumerator struct {
+type behaviourThemeSource struct {
 	theme.DirThemeSource
 	enumeration theme.Enumeration
 }
 
-func newBehaviourEnumerator(entries []theme.Entry) *behaviourEnumerator {
-	return &behaviourEnumerator{
+func newBehaviourThemeSource(entries []theme.Entry) *behaviourThemeSource {
+	return &behaviourThemeSource{
 		DirThemeSource: theme.DirThemeSource{Loader: theme.NewSilentLoader()},
 		enumeration:    theme.Enumeration{Entries: entries},
 	}
 }
 
-func (e *behaviourEnumerator) Open(keys theme.RawKeys) (theme.Enumeration, theme.Union) {
+func (e *behaviourThemeSource) Open(keys theme.RawKeys) (theme.Enumeration, theme.Union) {
 	return e.enumeration, e.Reassemble(e.enumeration, keys)
 }
 
@@ -61,7 +61,7 @@ func behaviourPanel(t *testing.T, entries []theme.Entry, keys theme.RawKeys) (Mo
 func behaviourPanelAt(t *testing.T, entries []theme.Entry, keys theme.RawKeys, contentW, contentH int) (Model, *fakeThemePersister) {
 	t.Helper()
 
-	enumerator := newBehaviourEnumerator(entries)
+	enumerator := newBehaviourThemeSource(entries)
 	persister := &fakeThemePersister{}
 	m := Build(Deps{
 		Lister:         fakeLister{},
@@ -73,7 +73,7 @@ func behaviourPanelAt(t *testing.T, entries []theme.Entry, keys theme.RawKeys, c
 	return openPanelForTest(t, m, contentW, contentH), persister
 }
 
-func behaviourNomination(t *testing.T, e *behaviourEnumerator, keys theme.RawKeys) theme.Nomination {
+func behaviourNomination(t *testing.T, e *behaviourThemeSource, keys theme.RawKeys) theme.Nomination {
 	t.Helper()
 
 	resolution, err := e.Resolve(e.enumeration, keys)

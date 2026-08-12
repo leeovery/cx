@@ -114,7 +114,7 @@ accent.attention = #FF9E64
 state.positive = #9ECE6A
 state.destructive = #F7768E
 
-# Surfaces.
+# Surfaces, and the text drawn on the attention surface.
 canvas = #0b0c14
 bg.selection = #28243a
 bg.attention = #241B10
@@ -159,6 +159,7 @@ Notes go on a line of their own above.
 | **Whitespace is trimmed** | Each line is trimmed at both ends, then around the `=`, so indenting a key is fine. Blank lines are ignored. |
 | **Keys are lowercase, matched exactly** | `Text.Primary` is not `text.primary`. It is an unknown key (below), and the file then fails for the role it never declared. |
 | **Every other line must parse** | Anything that is neither blank, nor a comment, nor a well-formed `key = value` pair rejects the file (`bad syntax`): a key with no `=`, a value with no key, a key containing a space. |
+| **Line endings and BOM** | A CRLF file reads the same as an LF one, and a byte-order mark at the very start of the file is stripped. A BOM anywhere else rejects the file (`bad syntax`). |
 
 `portal doctor` names the offending line:
 
@@ -171,7 +172,9 @@ Notes go on a line of their own above.
 Every value is a six-digit hex colour — `#RRGGBB`, upper or lower case, and
 nothing else. There is no `#RGB` shorthand, no ANSI colour number (`212`), and no
 colour name (`blue`). Anything else is `bad colour`, and the message names each
-key alongside the value you wrote.
+key alongside the value you wrote. A key with nothing after the `=` is a `bad
+colour` too, not a syntax error — the line is a well-formed pair whose value
+simply is not a colour.
 
 Portal validates the value itself rather than trusting the terminal colour
 library, whose accepted range is far wider and stranger — there `212` is a valid
@@ -248,7 +251,7 @@ else would tell you either.
 
 Portal reads themes from one directory, resolved in this order:
 
-1. `PORTAL_THEMES_DIR`, when it is set
+1. `PORTAL_THEMES_DIR`, when it is set to a non-empty value
 2. `$XDG_CONFIG_HOME/portal/themes/`
 3. `~/.config/portal/themes/`
 
@@ -366,8 +369,8 @@ your file is rejected.
 The theme setting lives in `prefs.json`, alongside Portal's other UI preferences
 — `$XDG_CONFIG_HOME/portal/prefs.json`, or `~/.config/portal/prefs.json`. The
 theme picker writes it for you, and **the file is hand-editable**: it is plain
-JSON, and editing it is a supported route rather than a workaround. A change
-lands at the next launch.
+JSON, and editing it is a supported route rather than a workaround. A hand-edited
+change lands at the next launch.
 
 There are **two states, not three**.
 
@@ -396,6 +399,9 @@ them:
 *is* a pair — `theme_light = tokyo-night-day`, `theme_dark = tokyo-night` — so a
 file with no theme keys in it is an adaptive setting whose two slots hold their
 defaults. There is no third, unconfigured state to be in.
+
+Nothing checks that a slot's theme is actually light or dark — the slot says
+*when* a theme is used, not what is in it.
 
 ### Partial pairs do not exist
 

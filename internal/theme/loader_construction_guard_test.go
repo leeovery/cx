@@ -58,7 +58,7 @@ func TestLoader_HasNoProductionCompositeLiteral(t *testing.T) {
 					exempted++
 					return true
 				}
-				t.Errorf("%s:%d assembles a theme.Loader literal — a hand-assembled Loader reserves no built-in slugs, so a drop-in taking the slug of the built-in a slot falls back to would shadow it; production callers take theme.NewLoader or theme.NewSilentLoader", rel, fset.Position(lit.Pos()).Line)
+				t.Errorf("%s:%d assembles a theme.Loader literal — a hand-assembled Loader reserves no built-in slugs, so a drop-in taking a built-in's slug is judged valid instead of `reserved name`: it lists as a second selectable row for that slug and diagnoses as loadable, while resolution still applies the built-in; production callers take theme.NewLoader or theme.NewSilentLoader", rel, fset.Position(lit.Pos()).Line)
 				return true
 			})
 		}

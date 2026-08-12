@@ -20,7 +20,7 @@ accent.attention = #FF9E64
 state.positive = #9ECE6A
 state.destructive = #F7768E
 
-# Surfaces.
+# Surfaces, and the text drawn on the attention surface.
 canvas = #0b0c14
 bg.selection = #28243a
 bg.attention = #241B10

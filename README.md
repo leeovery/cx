@@ -370,9 +370,9 @@ servers and editors after a reboot.
 
 ## Configuration
 
-Portal resolves its config directory using XDG: `$XDG_CONFIG_HOME/portal/` if set, otherwise `~/.config/portal/`. Each file also has a per-file env var override that takes full precedence.
+Portal resolves its config directory using XDG: `$XDG_CONFIG_HOME/portal/` if set, otherwise `~/.config/portal/`. Each entry also has an env var override that takes full precedence.
 
-| File | Purpose | Env override |
+| File / directory | Purpose | Env override |
 |---|---|---|
 | `aliases` | Path aliases (key=value, one per line) | `PORTAL_ALIASES_FILE` |
 | `projects.json` | Remembered project directories | `PORTAL_PROJECTS_FILE` |

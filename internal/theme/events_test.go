@@ -139,7 +139,7 @@ func TestEventLogger_AttrKeysAreInTheClosedSet(t *testing.T) {
 	logger, sink := logtest.NewCaptureLogger(t)
 	events := theme.NewEventLogger(logger)
 
-	events.Rejected("nord-lee", "/themes/nord-lee.theme", &theme.Rejection{Reason: theme.ReasonBadColour, Detail: "canvas = blue"})
+	events.Rejected("nord-lee", "/themes/nord-lee.theme", &theme.Rejection{Reason: theme.ReasonBadColour, Detail: "canvas = blue", Tokens: []string{"canvas"}, Values: []string{"blue"}})
 	events.Rejected("", "/themes/Nord.THEME", &theme.Rejection{Reason: theme.ReasonBadName})
 	events.DirectoryUnusable("/themes", &theme.Rejection{Reason: theme.ReasonUnreadable, Detail: "open /themes: permission denied"})
 

@@ -988,10 +988,10 @@ func (m *Model) styleListFilterInput(l *list.Model) {
 		l.FilterInput.SetStyles(styles)
 		return
 	}
-	orange := m.themeState.active.AccentAttention.Color()
-	styles.Focused.Prompt = lipgloss.NewStyle().Foreground(orange)
-	styles.Focused.Text = lipgloss.NewStyle().Foreground(orange)
-	styles.Cursor.Color = orange
+	attention := m.themeState.active.AccentAttention.Color()
+	styles.Focused.Prompt = lipgloss.NewStyle().Foreground(attention)
+	styles.Focused.Text = lipgloss.NewStyle().Foreground(attention)
+	styles.Cursor.Color = attention
 	styles.Cursor.Blink = false
 	l.FilterInput.SetStyles(styles)
 }

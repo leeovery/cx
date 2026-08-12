@@ -30,6 +30,9 @@ that rot the first time a colour token is renamed. The rule:
 > work is being collaborated on** (so the reviewer and the human open the same
 > frame the implementer did), and **cleared out at sign-off**.
 
+Sign-off means the *feature's* sign-off, not a phase's — work that re-captures a
+screen in a later phase owns clearing what it re-captured.
+
 So an empty-looking directory is the normal resting state. If you are here to
 change a screen, you are expected to add a tape, capture, and take it away again
 when the work lands.

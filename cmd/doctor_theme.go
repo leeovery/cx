@@ -21,10 +21,6 @@ const (
 	persistedThemeSlotFormat     = " (%s)"
 )
 
-// themeSlotBoth is not a third slot — it labels one slug occupying both halves
-// of the pair, which no slot can name.
-const themeSlotBoth = "both"
-
 // slug and fromPrefs are the dedup identity the assembly keys on.
 type themeAdvisory struct {
 	line      string
@@ -121,6 +117,10 @@ func persistedThemeNominations(keys theme.RawKeys) []persistedThemeNomination {
 	}
 	return nominations
 }
+
+// themeSlotBoth is not a third slot — it labels one slug occupying both halves
+// of the pair, which no slot can name.
+const themeSlotBoth = "both"
 
 func persistedThemeSlotLabel(key theme.InForceKey) string {
 	if key.Both {

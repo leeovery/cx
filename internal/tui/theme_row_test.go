@@ -103,9 +103,6 @@ func TestThemeRow_AlwaysOneDelegateLine(t *testing.T) {
 						if got := lipgloss.Height(out); got != 1 {
 							t.Errorf("[w=%d selected=%v] row height = %d, want exactly 1: %q", width, selected, got, out)
 						}
-						if strings.Contains(out, "\n") {
-							t.Errorf("[w=%d selected=%v] row carries a newline: %q", width, selected, out)
-						}
 					})
 				}
 			}
@@ -611,6 +608,9 @@ func TestThemeRow_CursorRowBoldsOnlyTheLabel(t *testing.T) {
 	out := renderThemeRow(d, badged, 0, 0)
 	if themeRowRunIsBold(t, out, themePanelBadgeText(theme.BadgeDark)) {
 		t.Errorf("the cursor row bolded its ● badge: %q", escSeq(out))
+	}
+	if themeRowRunIsBold(t, out, selectorBar) {
+		t.Errorf("the cursor row bolded its ▌ selector bar: %q", escSeq(out))
 	}
 
 	invalid := []list.Item{themeRowItem{Row: invalidThemeRow("nord", theme.ReasonBadColour)}}

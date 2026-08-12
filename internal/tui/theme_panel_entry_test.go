@@ -32,7 +32,7 @@ func entryRows(t *testing.T) []theme.Row {
 
 // The recorded open count discriminates the two refusal shapes: a proactive
 // block reads nothing, the post-read re-evaluation has already enumerated.
-func newEntryEnumerator(t *testing.T, dirUnusable bool) *fakeThemeSource {
+func newEntryThemeSource(t *testing.T, dirUnusable bool) *fakeThemeSource {
 	t.Helper()
 	rows := entryRows(t)
 	return &fakeThemeSource{
@@ -96,7 +96,7 @@ func newEntryModel(t *testing.T, e ThemeSource, o entryModelOpts) (Model, *fakeT
 
 func newUnblockedEntryModel(t *testing.T, p page) (Model, *fakeThemeSource) {
 	t.Helper()
-	return newEntryModel(t, newEntryEnumerator(t, false), entryModelOpts{
+	return newEntryModel(t, newEntryThemeSource(t, false), entryModelOpts{
 		page:     p,
 		contentW: entryContentW,
 		contentH: entryContentH,
@@ -193,7 +193,7 @@ func TestPanelEntry_OpensOnSessionsAndProjects(t *testing.T) {
 func TestPanelEntry_NoColorBlocked(t *testing.T) {
 	for _, tc := range entryPages {
 		t.Run(tc.name, func(t *testing.T) {
-			m, rec := newEntryModel(t, newEntryEnumerator(t, false), entryModelOpts{
+			m, rec := newEntryModel(t, newEntryThemeSource(t, false), entryModelOpts{
 				page:       tc.page,
 				colourless: true,
 				contentW:   entryContentW,
@@ -225,7 +225,7 @@ func TestPanelEntry_FloorBlocked(t *testing.T) {
 		{name: "both fail", contentW: themePanelMinWidth - 1, contentH: floor - 1, wantFlash: wantNarrowEntryFlash},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			m, rec := newEntryModel(t, newEntryEnumerator(t, false), entryModelOpts{
+			m, rec := newEntryModel(t, newEntryThemeSource(t, false), entryModelOpts{
 				page:     PageSessions,
 				contentW: tc.contentW,
 				contentH: tc.contentH,
@@ -251,7 +251,7 @@ func TestPanelEntry_UsableDirectoryOpensAtTheNonDirFloor(t *testing.T) {
 			themePanelMinHeight(entries, true), floor)
 	}
 
-	m, rec := newEntryModel(t, newEntryEnumerator(t, false), entryModelOpts{
+	m, rec := newEntryModel(t, newEntryThemeSource(t, false), entryModelOpts{
 		page:     PageSessions,
 		contentW: entryContentW,
 		contentH: floor,
@@ -275,7 +275,7 @@ func TestPanelEntry_UnusableDirectoryBlocksOnTheReEvaluation(t *testing.T) {
 	floor := themePanelMinHeight(entries, false)
 
 	t.Run("at the non-directory floor it discards the enumeration and refuses", func(t *testing.T) {
-		m, rec := newEntryModel(t, newEntryEnumerator(t, true), entryModelOpts{
+		m, rec := newEntryModel(t, newEntryThemeSource(t, true), entryModelOpts{
 			page:     PageSessions,
 			contentW: entryContentW,
 			contentH: floor,
@@ -295,7 +295,7 @@ func TestPanelEntry_UnusableDirectoryBlocksOnTheReEvaluation(t *testing.T) {
 
 	t.Run("one row higher it opens with a list row beneath the warning", func(t *testing.T) {
 		height := themePanelMinHeight(entries, true)
-		m, _ := newEntryModel(t, newEntryEnumerator(t, true), entryModelOpts{
+		m, _ := newEntryModel(t, newEntryThemeSource(t, true), entryModelOpts{
 			page:     PageSessions,
 			contentW: entryContentW,
 			contentH: height,
@@ -382,7 +382,7 @@ func wantEntryFlash(dim themePanelDim) string {
 
 func mustEntryModel(t *testing.T, contentW, contentH int) Model {
 	t.Helper()
-	m, _ := newEntryModel(t, newEntryEnumerator(t, false), entryModelOpts{
+	m, _ := newEntryModel(t, newEntryThemeSource(t, false), entryModelOpts{
 		page:     PageSessions,
 		contentW: contentW,
 		contentH: contentH,
@@ -476,7 +476,7 @@ func TestPanelEntry_BlockedFlashLifecycle(t *testing.T) {
 	for _, tc := range entryPages {
 		blocked := func(t *testing.T) Model {
 			t.Helper()
-			m, _ := newEntryModel(t, newEntryEnumerator(t, false), entryModelOpts{
+			m, _ := newEntryModel(t, newEntryThemeSource(t, false), entryModelOpts{
 				page:       tc.page,
 				colourless: true,
 				contentW:   entryContentW,
