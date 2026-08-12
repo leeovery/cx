@@ -18,28 +18,3 @@ diff_exclude = [
     'art/**',         # README screenshot + demo-clip assets (docs, not source)
     'demo/**',        # sandboxed demo-recording harness (Dockerfiles, tapes, scripts)
 ]
-
-# TEMPORARY — remove after v0.11.0 is cut.
-#
-# The theming-system release is ~45k diff lines / 2.3MB post-exclusion (~600k
-# tokens), past the notes-AI's context window, and no diff_exclude tuning gets
-# it under: even excluding the comment-strip work it is ~380k tokens. These
-# notes are hand-written and used verbatim by `mint release -m --no-ai`, so the
-# annotated tag, CHANGELOG.md and the GitHub release all carry the same body
-# (regenerate can rewrite the latter two, but never the tag).
-[release]
-fallback = '''
-✨ Added
-- Themes. Every colour Portal draws now resolves through 19 named roles, so one palette restyles every screen. Three ship: `tokyo-night` (dark), `tokyo-night-day` (light), and `nord` (dark).
-- Theme picker — press `t` on the Sessions or Projects page. Moving the cursor previews a theme live; `⏎` pins it whatever the terminal looks like, `d` and `l` assign it to the dark or light slot, `Esc` closes.
-- Drop-in themes. A `.theme` file in `~/.config/portal/themes/` (or `PORTAL_THEMES_DIR`) is read by the same parser as the built-ins — same keys, same rules, no privileges withheld. The directory is re-read every time the picker opens, so the edit-and-look loop needs no restart.
-- `portal theme export <slug>` prints a theme's file to stdout, comments and all — the way to start your own from a built-in. It resolves your own themes too, so it doubles as "what did Portal actually read?".
-- The theme setting in `prefs.json` is hand-editable: `"theme"` pins one theme, or the `"theme_light"` / `"theme_dark"` pair lets detection choose between them.
-- `portal doctor` reports a themes directory that exists but can't be read, and the theme picker pins a `⚠ dir unreadable` row above the list. An absent directory stays silent — having no drop-ins isn't a problem to report.
-- `docs/theming.md` documents the 19 roles, the file format, the naming rules, and how the light/dark pair is set.
-
-🔧 Changed
-- The `appearance` preference is replaced by the theme setting, and translates itself once on first launch: `"dark"` becomes a pinned `tokyo-night`, `"light"` becomes `tokyo-night-day`, and `"auto"` becomes the shipped light/dark pair — the same behaviour you had either way. Your `appearance` value is left in the file untouched.
-- Light and dark are still decided by asking the terminal its background colour over OSC 11 at launch, but the answer now picks between two *themes* rather than switching a canvas mode. A terminal that doesn't answer still resolves to dark, and a pinned theme skips detection entirely.
-- `NO_COLOR` is unchanged — a colourless render on your terminal's native colours. With no colour to theme, `t` is unavailable there.
-'''
