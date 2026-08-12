@@ -1,0 +1,47 @@
+name: Token check
+
+# TEMPORARY diagnostic — delete after use.
+#
+# Answers one question: is secrets.CICD_PAT a currently-valid credential?
+# v0.11.0's release failed at the homebrew dispatch with a 401, and 401 is
+# "bad credentials" rather than a scope or permission problem. This exercises
+# the token against a read-only endpoint and reports only the HTTP status and
+# the scope/rate-limit response headers — never the token, never a body.
+#
+#   200 -> alive; the release-time 401 was transient
+#   401 -> dead; rotate CICD_PAT
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe CICD_PAT validity
+        env:
+          TOKEN: ${{ secrets.CICD_PAT }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "RESULT: secret is empty or not set"
+            exit 0
+          fi
+          echo "secret present, length ${#TOKEN}"
+
+          # -o /dev/null discards the body; no -f so a 401 still reports.
+          # Headers are written separately and filtered to non-sensitive keys.
+          STATUS=$(curl -sS -o /dev/null -D headers.txt -w '%{http_code}' \
+            -H "Accept: application/vnd.github.v3+json" \
+            -H "Authorization: token $TOKEN" \
+            https://api.github.com/user)
+
+          echo "RESULT: HTTP $STATUS"
+          grep -iE '^(x-oauth-scopes|x-accepted-oauth-scopes|x-ratelimit-limit):' headers.txt || true
+
+          case "$STATUS" in
+            200) echo "VERDICT: token is VALID — the release-time 401 was transient" ;;
+            401) echo "VERDICT: token is INVALID — revoked or regenerated; rotate CICD_PAT" ;;
+            *)   echo "VERDICT: unexpected status; neither theory confirmed" ;;
+          esac
