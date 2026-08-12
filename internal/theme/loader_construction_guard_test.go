@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/portalbintest"
-	"github.com/leeovery/portal/internal/sourceguard"
+	"github.com/leeovery/portal/internal/sourceguardtest"
 )
 
 var (
@@ -22,7 +22,7 @@ func TestLoader_HasNoProductionCompositeLiteral(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve project root: %v", err)
 	}
-	paths, err := sourceguard.GoSourceFiles(root)
+	paths, err := sourceguardtest.GoSourceFiles(root)
 	if err != nil {
 		t.Fatalf("enumerate .go files: %v", err)
 	}

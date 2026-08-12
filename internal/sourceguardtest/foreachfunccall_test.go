@@ -1,4 +1,4 @@
-package sourceguard_test
+package sourceguardtest_test
 
 import (
 	"go/ast"
@@ -7,7 +7,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/leeovery/portal/internal/sourceguard"
+	"github.com/leeovery/portal/internal/sourceguardtest"
 )
 
 func TestForEachFuncCall_VisitsEveryCallUnderItsFunction(t *testing.T) {
@@ -26,7 +26,7 @@ var atPackageLevel = notAFunctionDecl()
 `)
 
 	var got []string
-	sourceguard.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
+	sourceguardtest.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
 		got = append(got, funcName+":"+callName(t, call))
 		return true
 	})
@@ -52,7 +52,7 @@ func local() { after() }
 `)
 
 	var got []string
-	sourceguard.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
+	sourceguardtest.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
 		got = append(got, funcName+":"+callName(t, call))
 		return true
 	})
@@ -75,7 +75,7 @@ func second() { inLaterFunc() }
 `)
 
 	var got []string
-	sourceguard.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
+	sourceguardtest.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
 		got = append(got, funcName+":"+callName(t, call))
 		return false
 	})

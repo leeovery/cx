@@ -9,12 +9,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/leeovery/portal/internal/sourceguard"
+	"github.com/leeovery/portal/internal/sourceguardtest"
 )
 
 func centralisedColourSites(t *testing.T) []string {
 	t.Helper()
-	paths, err := sourceguard.PackageGoFiles(".", false)
+	paths, err := sourceguardtest.PackageGoFiles(".", false)
 	if err != nil {
 		t.Fatalf("enumerate the internal/tui package sources: %v", err)
 	}

@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"charm.land/lipgloss/v2"
-	"github.com/leeovery/portal/internal/sourceguard"
+	"github.com/leeovery/portal/internal/sourceguardtest"
 )
 
 func prePlaceModalOnClearedCanvas(panel string, width, height int) string {
@@ -48,7 +48,7 @@ func TestModalCentringAppearsInExactlyOnePlace(t *testing.T) {
 	}
 
 	var hosts []string
-	sourceguard.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
+	sourceguardtest.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
 		if isClearedCanvasPlaceCall(call) {
 			hosts = append(hosts, funcName)
 		}

@@ -7,7 +7,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/leeovery/portal/internal/sourceguard"
+	"github.com/leeovery/portal/internal/sourceguardtest"
 	"github.com/leeovery/portal/internal/theme"
 )
 
@@ -48,7 +48,7 @@ func TestPanelRule_TakesNoPageFallbackWidth(t *testing.T) {
 func TestRuleGlyphRun_HasASingleRenderer(t *testing.T) {
 	var renderers []string
 	for _, file := range parsePackageFilesByName(t) {
-		sourceguard.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
+		sourceguardtest.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
 			if repeatsRuleGlyph(call) {
 				renderers = append(renderers, funcName)
 			}

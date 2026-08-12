@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/portalbintest"
-	"github.com/leeovery/portal/internal/sourceguard"
+	"github.com/leeovery/portal/internal/sourceguardtest"
 )
 
 // A source guard, not a compile-time one: a second collapse would build and
@@ -21,7 +21,7 @@ func TestSlugForSlot_IsTheOnlyCollapseOutsideThisPackagesTests(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve project root: %v", err)
 	}
-	paths, err := sourceguard.GoSourceFiles(root)
+	paths, err := sourceguardtest.GoSourceFiles(root)
 	if err != nil {
 		t.Fatalf("enumerate .go files: %v", err)
 	}
@@ -61,7 +61,7 @@ func exemptFromCollapseGuard(rel string) bool {
 func collapsingFuncsIn(file *ast.File) []string {
 	resolvers := map[string]bool{}
 	sluggers := map[string]bool{}
-	sourceguard.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
+	sourceguardtest.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
 		switch calledName(call.Fun) {
 		case "ResolveSetting":
 			resolvers[funcName] = true

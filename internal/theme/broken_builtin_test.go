@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/portalbintest"
-	"github.com/leeovery/portal/internal/sourceguard"
+	"github.com/leeovery/portal/internal/sourceguardtest"
 	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/themetest"
 )
@@ -259,7 +259,7 @@ func TestBuiltinSource_HasNoProductionCallSite(t *testing.T) {
 	fset := token.NewFileSet()
 	found := 0
 
-	paths, err := sourceguard.GoSourceFiles(root)
+	paths, err := sourceguardtest.GoSourceFiles(root)
 	if err != nil {
 		t.Fatalf("enumerate .go files: %v", err)
 	}

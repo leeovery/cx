@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/leeovery/portal/internal/sourceguard"
+	"github.com/leeovery/portal/internal/sourceguardtest"
 )
 
 const themePkg = "github.com/leeovery/portal/internal/theme"
@@ -151,7 +151,7 @@ func parseThemeSources(t *testing.T) []parsedThemeSource {
 
 func themeSourceFiles(t *testing.T) []string {
 	t.Helper()
-	files, err := sourceguard.PackageGoFiles(".", false)
+	files, err := sourceguardtest.PackageGoFiles(".", false)
 	if err != nil {
 		t.Fatalf("enumerate the internal/theme package sources: %v", err)
 	}

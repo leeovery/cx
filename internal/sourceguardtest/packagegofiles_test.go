@@ -1,11 +1,11 @@
-package sourceguard_test
+package sourceguardtest_test
 
 import (
 	"path/filepath"
 	"slices"
 	"testing"
 
-	"github.com/leeovery/portal/internal/sourceguard"
+	"github.com/leeovery/portal/internal/sourceguardtest"
 )
 
 func TestPackageGoFiles_ProductionSources(t *testing.T) {
@@ -30,7 +30,7 @@ func TestPackageGoFiles_WithTestSources(t *testing.T) {
 
 func TestPackageGoFiles_MissingDirErrors(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "absent")
-	if _, err := sourceguard.PackageGoFiles(missing, false); err == nil {
+	if _, err := sourceguardtest.PackageGoFiles(missing, false); err == nil {
 		t.Fatalf("PackageGoFiles(%q) = nil error, want an error", missing)
 	}
 }
@@ -42,7 +42,7 @@ func TestPackageGoFiles_EmptyMatchErrors(t *testing.T) {
 		"README.md":    "not go\n",
 	})
 
-	if _, err := sourceguard.PackageGoFiles(dir, false); err == nil {
+	if _, err := sourceguardtest.PackageGoFiles(dir, false); err == nil {
 		t.Fatalf("PackageGoFiles(%q, false) = nil error, want an error", dir)
 	}
 }
@@ -62,7 +62,7 @@ func packageFixture(t *testing.T) string {
 
 func packageRelFiles(t *testing.T, dir string, includeTests bool) []string {
 	t.Helper()
-	paths, err := sourceguard.PackageGoFiles(dir, includeTests)
+	paths, err := sourceguardtest.PackageGoFiles(dir, includeTests)
 	if err != nil {
 		t.Fatalf("PackageGoFiles(%q, %v): %v", dir, includeTests, err)
 	}

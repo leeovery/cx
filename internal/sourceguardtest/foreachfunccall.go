@@ -1,4 +1,4 @@
-package sourceguard
+package sourceguardtest
 
 import "go/ast"
 

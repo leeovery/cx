@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/leeovery/portal/internal/sourceguard"
+	"github.com/leeovery/portal/internal/sourceguardtest"
 )
 
 var retiredTokenNames = map[string]string{
@@ -69,7 +69,7 @@ var renderLayerPackageDirs = []string{".", filepath.Join("..", "capture")}
 
 func TestNoRetiredTokenNameInComments(t *testing.T) {
 	for _, dir := range renderLayerPackageDirs {
-		matches, err := sourceguard.PackageGoFiles(dir, true)
+		matches, err := sourceguardtest.PackageGoFiles(dir, true)
 		if err != nil {
 			t.Fatalf("enumerate the %s package sources: %v", dir, err)
 		}

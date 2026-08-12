@@ -12,7 +12,7 @@ import (
 
 	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
-	"github.com/leeovery/portal/internal/sourceguard"
+	"github.com/leeovery/portal/internal/sourceguardtest"
 	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/themetest"
 )
@@ -552,7 +552,7 @@ func TestPersistedThemeAdvisory_UsesNonMigratingRead(t *testing.T) {
 			if !strings.HasPrefix(name, "doctor") {
 				continue
 			}
-			sourceguard.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
+			sourceguardtest.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
 				ident, ok := call.Fun.(*ast.Ident)
 				if !ok {
 					return true

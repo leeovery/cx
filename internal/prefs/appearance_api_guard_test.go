@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/portalbintest"
-	"github.com/leeovery/portal/internal/sourceguard"
+	"github.com/leeovery/portal/internal/sourceguardtest"
 )
 
 // The on-disk field is deliberately not banned here: it must stay declared, or
@@ -34,7 +34,7 @@ func TestPrefs_AppearanceAPIIsGone(t *testing.T) {
 	// This file names every identifier it bans, so it exempts itself.
 	self := filepath.Join("internal", "prefs", "appearance_api_guard_test.go")
 
-	paths, err := sourceguard.GoSourceFiles(root)
+	paths, err := sourceguardtest.GoSourceFiles(root)
 	if err != nil {
 		t.Fatalf("enumerate .go files: %v", err)
 	}

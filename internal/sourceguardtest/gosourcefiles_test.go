@@ -1,4 +1,4 @@
-package sourceguard_test
+package sourceguardtest_test
 
 import (
 	"os"
@@ -6,7 +6,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/leeovery/portal/internal/sourceguard"
+	"github.com/leeovery/portal/internal/sourceguardtest"
 )
 
 func TestGoSourceFiles_EnumeratesUnderRoot(t *testing.T) {
@@ -56,14 +56,14 @@ func TestGoSourceFiles_SkipsExcludedDirectories(t *testing.T) {
 
 func TestGoSourceFiles_MissingRootErrors(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "absent")
-	if _, err := sourceguard.GoSourceFiles(missing); err == nil {
+	if _, err := sourceguardtest.GoSourceFiles(missing); err == nil {
 		t.Fatalf("GoSourceFiles(%q) = nil error, want an error", missing)
 	}
 }
 
 func relFiles(t *testing.T, root string) []string {
 	t.Helper()
-	paths, err := sourceguard.GoSourceFiles(root)
+	paths, err := sourceguardtest.GoSourceFiles(root)
 	if err != nil {
 		t.Fatalf("GoSourceFiles(%q): %v", root, err)
 	}

@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/leeovery/portal/internal/sourceguard"
+	"github.com/leeovery/portal/internal/sourceguardtest"
 	"github.com/leeovery/portal/internal/theme"
 )
 
@@ -257,7 +257,7 @@ func parsePackageFilesByName(t *testing.T) map[string]*ast.File {
 // go test runs in the package's source directory, so "." is the package dir.
 func parsePackageFiles(t *testing.T, fset *token.FileSet) map[string]*ast.File {
 	t.Helper()
-	paths, err := sourceguard.PackageGoFiles(".", false)
+	paths, err := sourceguardtest.PackageGoFiles(".", false)
 	if err != nil {
 		t.Fatalf("enumerate the internal/tui package sources: %v", err)
 	}

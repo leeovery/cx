@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/leeovery/portal/internal/sourceguard"
+	"github.com/leeovery/portal/internal/sourceguardtest"
 )
 
 const (
@@ -233,7 +233,7 @@ func exprText(expr ast.Expr) string {
 
 func allGoFiles(t *testing.T, root string) []string {
 	t.Helper()
-	paths, err := sourceguard.GoSourceFiles(root)
+	paths, err := sourceguardtest.GoSourceFiles(root)
 	if err != nil {
 		t.Fatalf("enumerate .go files: %v", err)
 	}
