@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"sort"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -128,72 +127,60 @@ func loadingReceiverOrNil(events []tui.BootstrapProgressMsg, fatal tui.Bootstrap
 
 func (f *Fixture) Name() string { return f.name }
 
-func FixtureByName(name string) (*Fixture, error) {
-	switch name {
-	case "sessions-flat":
-		return sessionsFlatFixture(), nil
-	case "sessions-empty":
-		return sessionsEmptyFixture(), nil
-	case "sessions-by-project":
-		return sessionsByProjectFixture(), nil
-	case "sessions-by-tag":
-		return sessionsByTagFixture(), nil
-	case "sessions-paged":
-		return sessionsPagedFixture(), nil
-	case "sessions-inline-flash":
-		return sessionsInlineFlashFixture(), nil
-	case "sessions-multi-select-active":
-		return sessionsMultiSelectActiveFixture(), nil
-	case "sessions-unsupported-terminal":
-		return sessionsUnsupportedTerminalFixture(), nil
-	case "sessions-unsupported-null":
-		return sessionsUnsupportedNullFixture(), nil
-	case "sessions-multi-select-preflight-abort":
-		return sessionsMultiSelectPreflightAbortFixture(), nil
-	case "sessions-burst-opening":
-		return sessionsBurstOpeningFixture(), nil
-	case "sessions-no-tags-signpost":
-		return sessionsNoTagsSignpostFixture(), nil
-	case "projects":
-		return projectsFixture(), nil
-	case "projects-command-pending":
-		return projectsCommandPendingFixture(), nil
-	case "theme-panel-adaptive-pair":
-		return themePanelAdaptivePairFixture(), nil
-	case "theme-panel-constant-previewing":
-		return themePanelConstantPreviewingFixture(), nil
-	case "theme-panel-invalid-row":
-		return themePanelInvalidRowFixture(), nil
-	case "theme-panel-dir-unreadable":
-		return themePanelDirUnreadableFixture(), nil
-	case "theme-panel-narrow":
-		return themePanelNarrowFixture(), nil
-	case "theme-panel-paginated":
-		return themePanelPaginatedFixture(), nil
-	case "theme-panel-projects":
-		return themePanelProjectsFixture(), nil
-	case "theme-panel-confirm":
-		return themePanelConfirmFixture(), nil
-	case "theme-panel-commit-failed":
-		return themePanelCommitFailedFixture(), nil
-	case "theme-panel-min-height-message":
-		return themePanelMinHeightMessageFixture(), nil
-	case "preview-screen":
-		return previewScreenFixture(), nil
-	case "loading-screen":
-		return loadingScreenFixture(), nil
-	case "loading-error":
-		return loadingErrorFixture(), nil
-	default:
-		return nil, fmt.Errorf("unknown fixture %q (available: %s)", name, strings.Join(FixtureNames(), ", "))
+// fixtureBuilders is the registry: both lookups derive from it, and each builder
+// names its own fixture, so a builder's name cannot be reachable by one lookup
+// and absent from the other.
+func fixtureBuilders() []func() *Fixture {
+	return []func() *Fixture{
+		sessionsFlatFixture,
+		sessionsEmptyFixture,
+		sessionsByProjectFixture,
+		sessionsByTagFixture,
+		sessionsPagedFixture,
+		sessionsInlineFlashFixture,
+		sessionsMultiSelectActiveFixture,
+		sessionsUnsupportedTerminalFixture,
+		sessionsUnsupportedNullFixture,
+		sessionsMultiSelectPreflightAbortFixture,
+		sessionsBurstOpeningFixture,
+		sessionsNoTagsSignpostFixture,
+		projectsFixture,
+		projectsCommandPendingFixture,
+		themePanelAdaptivePairFixture,
+		themePanelConstantPreviewingFixture,
+		themePanelInvalidRowFixture,
+		themePanelDirUnreadableFixture,
+		themePanelNarrowFixture,
+		themePanelPaginatedFixture,
+		themePanelProjectsFixture,
+		themePanelConfirmFixture,
+		themePanelCommitFailedFixture,
+		themePanelMinHeightMessageFixture,
+		previewScreenFixture,
+		loadingScreenFixture,
+		loadingErrorFixture,
 	}
+}
+
+func FixtureByName(name string) (*Fixture, error) {
+	for _, build := range fixtureBuilders() {
+		if fx := build(); fx.Name() == name {
+			return fx, nil
+		}
+	}
+	return nil, fmt.Errorf("unknown fixture %q (available: %s)", name, strings.Join(FixtureNames(), ", "))
 }
 
 // FixtureNames includes the contrast-validation swatch, which is a standalone
 // tea.Model rather than a *Fixture.
 func FixtureNames() []string {
-	names := []string{"sessions-flat", "sessions-empty", "sessions-by-project", "sessions-by-tag", "sessions-paged", "sessions-inline-flash", "sessions-multi-select-active", "sessions-unsupported-terminal", "sessions-unsupported-null", "sessions-multi-select-preflight-abort", "sessions-burst-opening", "sessions-no-tags-signpost", "theme-panel-adaptive-pair", "theme-panel-constant-previewing", "theme-panel-invalid-row", "theme-panel-dir-unreadable", "theme-panel-narrow", "theme-panel-paginated", "theme-panel-projects", "theme-panel-confirm", "theme-panel-commit-failed", "theme-panel-min-height-message", "projects", "projects-command-pending", "preview-screen", "loading-screen", "loading-error", ContrastValidationFixture}
-	sort.Strings(names)
+	builders := fixtureBuilders()
+	names := make([]string, 0, len(builders)+1)
+	for _, build := range builders {
+		names = append(names, build().Name())
+	}
+	names = append(names, ContrastValidationFixture)
+	slices.Sort(names)
 	return names
 }
 

@@ -1,9 +1,6 @@
 package capture_test
 
 import (
-	"go/ast"
-	"go/parser"
-	"go/token"
 	"image/color"
 	"maps"
 	"slices"
@@ -160,56 +157,6 @@ func TestThemeSwapGuard_EnumeratesRegistry(t *testing.T) {
 			t.Errorf("FixtureByName(%s) resolved a fixture; it is skipped as a standalone tea.Model, so a resolvable one must go under the guard instead", capture.ContrastValidationFixture)
 		}
 	})
-}
-
-func TestFixtureRegistry_ByNameCasesMatchFixtureNames(t *testing.T) {
-	cases := fixtureByNameCases(t)
-	want := slices.DeleteFunc(capture.FixtureNames(), func(n string) bool {
-		return n == capture.ContrastValidationFixture
-	})
-	slices.Sort(cases)
-	if !slices.Equal(cases, want) {
-		t.Errorf("FixtureByName switches on %v, FixtureNames() lists %v — a fixture in one list and not the other is invisible to the guard", cases, want)
-	}
-}
-
-func fixtureByNameCases(t *testing.T) []string {
-	t.Helper()
-	const catalogue = "fixtures.go"
-	fset := token.NewFileSet()
-	file, err := parser.ParseFile(fset, catalogue, nil, 0)
-	if err != nil {
-		t.Fatalf("parse %s: %v", catalogue, err)
-	}
-	var cases []string
-	for _, decl := range file.Decls {
-		fn, ok := decl.(*ast.FuncDecl)
-		if !ok || fn.Name.Name != "FixtureByName" || fn.Body == nil {
-			continue
-		}
-		ast.Inspect(fn.Body, func(n ast.Node) bool {
-			clause, ok := n.(*ast.CaseClause)
-			if !ok {
-				return true
-			}
-			for _, expr := range clause.List {
-				lit, ok := expr.(*ast.BasicLit)
-				if !ok || lit.Kind != token.STRING {
-					t.Fatalf("%s: FixtureByName carries a non string-literal case expression (%T) — this scan reads literals only, so such a case is invisible to the drift check above", catalogue, expr)
-				}
-				unquoted, err := strconv.Unquote(lit.Value)
-				if err != nil {
-					t.Fatalf("unquote case literal %s: %v", lit.Value, err)
-				}
-				cases = append(cases, unquoted)
-			}
-			return true
-		})
-	}
-	if len(cases) == 0 {
-		t.Fatalf("%s declares no FixtureByName switch cases; the drift check would pass vacuously", catalogue)
-	}
-	return cases
 }
 
 func TestSyntheticThemes_AllValuesUnique(t *testing.T) {
