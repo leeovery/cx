@@ -40,6 +40,10 @@
 > The **§15 Paper frames and verification loop stand unedited**: a frame still showing `↑↓ navigate` is a record of MV's design phase, not a defect. The one exception is **§15.6's light-tint checklist**, which names tokens rather than frames and so takes the renames with the rest of the body.
 > Bodies below were edited in place to match; this block is the only annotation. Original wording is recoverable via `git log -p`.
 
+> **⚠ Corrigendum — 2026-08-12 (theming-system review).**
+> - **§2.9's status line.** Superseded: "All values are a **hypothesis until prototyped in a real terminal (§15)**; the table is the build target, validation is the lock." Current: the values **were** prototyped and locked; the `.theme` files carry them and the table records what that validation settled. The old wording re-asserted the table as the authority the §2.9 preamble had already demoted, and stopped being true when the palette shipped.
+> - **§11's Projects claim.** Superseded: "Projects carries the transient-flash slot **alone**. Every other contender is Sessions-only **with no Projects analogue**." Current: Projects carries the transient flash **and the command-pending banner** — `activeProjectNoticeBand` (`internal/tui/notice_band.go:196-204`) ranks the flash above `commandPending`, so the slot has two contenders on that page. The 2026-08-07 entry above repeats the same imprecision in its §11 bullet and stands as the record of what that pass believed.
+
 ## Specification
 
 > **⚠ Verification mandate — applies to every task (read before planning).**
@@ -192,7 +196,7 @@ The vocabulary is a **closed set of 19 named tokens**; Modern Vivid is one palet
 - **Text-carrying tints are co-tuned with their on-band text token.** A tint that carries text (the selection band, notice bands) is pinned by **two** ratios — tint-vs-canvas (≥3:1 UI floor) and text-vs-tint (≥4.5/3:1 text floor) — and **both must clear simultaneously**. There are two knobs (the tint *and* its on-band text token); when no single tint value satisfies both, the text token moves too. The spec measures the **pair**, not the tint alone.
 - **No stray hex.** The mockups' ad-hoc values collapse to tokens: `#15131F` → `bg.selection`, `#2B3050` → `border`. No raw hex survives at a call site.
 - **The light surface tints are eyeball pins, not derivations.** `bg.selection` (`#D0C6F0`), `bg.attention` (`#E8D6A8`), `bg.subtle` (`#D2D4DE`) and the light `border` (`#C9CDDB`) are each **lifted from their dark counterpart and confirmed by eye** against `#e1e2e7` — not invented, and not settled numerically. A light tint on a light canvas is numeric-insufficient: the fill floor bounds it from below but nothing decides between two values that both clear it, which is the recurring risk. That judgement is unrecoverable from the numbers, so it is recorded beside each value in the theme file.
-- All values are a **hypothesis until prototyped in a real terminal (§15)**; the table is the build target, validation is the lock.
+- The values were prototyped and locked in a real terminal (§15); the `.theme` files carry them, and this table records what that validation settled.
 
 ---
 
@@ -483,7 +487,7 @@ Only `Restoring sessions` carries an `N/M` counter (the restore loop is the one 
 
 **One exception to that order: a flash originating in the theme picker outranks the filter line.** A filter can sit applied-but-unfocused for the whole of a picker open/use/close, and raising a flash **discharges** the state it reports — so under the standing order a failed-commit report or a proactively-blocked-key notice would be *destroyed* rather than deferred, which is the silent dead end those signals exist to prevent. The justification is asymmetric: a filter line restates a state the user can already see in their own list, while each of those flashes reports a one-time event with no other surface. Every other flash keeps its position below the filter line.
 
-**The arbiter is a Sessions element; Projects carries the transient-flash slot alone.** Every other contender is Sessions-only with no Projects analogue, but a page that binds a key which can flash must be able to render the flash — otherwise a proactive block is a silent no-op on that page.
+**The arbiter is a Sessions element; Projects carries the transient flash and the command-pending banner.** Every other contender in the order above is Sessions-only, but a page that binds a key which can flash must be able to render the flash — otherwise a proactive block is a silent no-op on that page.
 
 ### 11.1 Empty states (reskin)
 - **Empty sessions** — centred: a dim block glyph `▌ ▌ ▌` (`text.faint`), `No sessions yet` (`text.primary`), hint `Press n to start one in the current directory · x for projects` (`text.muted`); the footer is **replaced** by the keys relevant with no sessions — `n new in cwd · x projects · / filter · ? help` (drawn from the page's full keymap §12.1, not a subset of the standard footer).
