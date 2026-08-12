@@ -194,6 +194,7 @@ var wantExports = []string{
 	"Nomination",
 	"Nomination.Constant",
 	"Nomination.IsConstant",
+	"Nomination.IsZero",
 	"Nomination.Select",
 	"Pair",
 	"RawKeys",

@@ -850,7 +850,7 @@ func (m Model) modeResolved() bool {
 }
 
 func (m Model) hasNomination() bool {
-	return m.themeState.nomination != (theme.Nomination{})
+	return !m.themeState.nomination.IsZero()
 }
 
 // With no nomination injected the active palette is left at New's dark seed —

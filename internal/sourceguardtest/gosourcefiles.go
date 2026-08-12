@@ -30,6 +30,9 @@ func GoSourceFiles(root string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("walk %s: %w", root, err)
 	}
+	if len(paths) == 0 {
+		return nil, fmt.Errorf("walk %s: no .go files, so a guard over them would pass by having stopped looking", root)
+	}
 	return paths, nil
 }
 

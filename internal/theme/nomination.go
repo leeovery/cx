@@ -41,6 +41,12 @@ func (n Nomination) IsConstant() bool {
 	return n.state == nominationConstant
 }
 
+// IsZero reports the "nothing was nominated" state, so callers gate on the
+// contract rather than on a struct comparison that widens with every field.
+func (n Nomination) IsZero() bool {
+	return n == Nomination{}
+}
+
 // Constant returns the constant setting's palette, and the zero Theme for any
 // other state — a mis-ordered call degrades to a colourless render rather than
 // taking the process down at construction.

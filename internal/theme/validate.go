@@ -11,9 +11,8 @@ const hexValueLength = len("#RRGGBB")
 // Rendered copy: a consumer needing the tokens themselves reads
 // Rejection.Tokens.
 const (
-	detailBadColourPair       = "%s = %s"
-	detailMissingTokensLeadIn = "missing "
-	detailMissingTokens       = detailMissingTokensLeadIn + "%s"
+	detailBadColourPair = "%s = %s"
+	detailMissingTokens = "missing %s"
 )
 
 // Unknown keys are ignored entirely, key and value, so the stale line of a

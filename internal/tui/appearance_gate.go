@@ -29,7 +29,7 @@ func (g appearanceGate) resolved() bool {
 // Even the armable adaptive gate is returned resolved, so a directly
 // constructed model paints immediately; production opens the window via arm().
 func newNominationGate(n theme.Nomination) appearanceGate {
-	if n.IsConstant() || n == (theme.Nomination{}) {
+	if n.IsConstant() || n.IsZero() {
 		return appearanceGate{pinned: true}
 	}
 	return appearanceGate{}
