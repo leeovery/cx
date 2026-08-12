@@ -111,8 +111,8 @@ func (m Model) handleThemePanelKey() (tea.Model, tea.Cmd) {
 	return m.openThemePanel()
 }
 
-// setThemeFlash gives the flash precedence over the filter line; without it a
-// proactive block could produce nothing at all.
+// The flash is the whole of a refused entry's output, and it is raised through
+// setThemeFlash so it carries the theme precedence tier.
 func (m Model) blockThemePanel(flash string) (tea.Model, tea.Cmd) {
 	(&m).setThemeFlash(flash)
 	return m, flashTickCmd(m.flashGen)

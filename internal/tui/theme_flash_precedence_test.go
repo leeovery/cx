@@ -520,6 +520,62 @@ func TestThemeFlash_OutranksAppliedFilterOnProjects(t *testing.T) {
 	}
 }
 
+// The filter line never contends for the band slot, so a theme flash reaches the
+// band whatever the filter is doing — the reason the required behaviour holds.
+func TestThemeFlash_FilterLineIsNotABandContender(t *testing.T) {
+	for _, s := range themeFlashSurfaces() {
+		t.Run(s.name+"/an applied filter claims no band slot", func(t *testing.T) {
+			m, baseline := filteredThemeFlashModel(t, s, true, list.FilterApplied)
+
+			if role, message, ok := s.band(m); ok {
+				t.Errorf("%s: an applied filter arbitrated a band (role %v, message %q); the filter line is not a band contender", s.name, role, message)
+			}
+			if got := s.slot(m); got != "" {
+				t.Errorf("%s: the band slot renders %q under an applied filter, want nothing", s.name, got)
+			}
+			if !strings.Contains(ansi.Strip(baseline), filterPromptPrefix+s.query) {
+				t.Errorf("%s: the filter line is not on the section-header row: %q", s.name, ansi.Strip(baseline))
+			}
+		})
+
+		t.Run(s.name+"/a theme flash and an applied filter occupy separate rows", func(t *testing.T) {
+			m, baseline := filteredThemeFlashModel(t, s, true, list.FilterApplied)
+
+			m = raiseBlockedThemeFlash(t, m)
+
+			slot := ansi.Strip(s.slot(m))
+			if !strings.Contains(slot, wantNoColorEntryFlash) {
+				t.Errorf("%s: the band slot carries no theme flash: %q", s.name, slot)
+			}
+			if strings.Contains(slot, filterPromptPrefix+s.query) {
+				t.Errorf("%s: the band slot carries the filter line %q, want it on the section-header row alone: %q", s.name, filterPromptPrefix+s.query, slot)
+			}
+			if got := s.headerRow(m); got != baseline {
+				t.Errorf("%s: the section-header row changed when the theme flash took the band slot:\n got %q\nwant %q", s.name, got, baseline)
+			}
+		})
+
+		// The tier is a forward guard, not the mechanism: with one flashText its two
+		// arms return the same claim, so it changes no rendered outcome today.
+		t.Run(s.name+"/the theme tier changes no outcome under a filter", func(t *testing.T) {
+			const message = "__SAME_UNDER_FILTER__"
+
+			themed, _ := filteredThemeFlashModel(t, s, true, list.FilterApplied)
+			(&themed).setThemeFlash(message)
+
+			ordinary, _ := filteredThemeFlashModel(t, s, true, list.FilterApplied)
+			ordinary.setFlash(message)
+
+			if got, want := s.slot(themed), s.slot(ordinary); got != want {
+				t.Errorf("%s: the theme tier changed the band slot under a filter:\n got %q\nwant %q", s.name, got, want)
+			}
+			if got, want := s.headerRow(themed), s.headerRow(ordinary); got != want {
+				t.Errorf("%s: the theme tier changed the section-header row under a filter:\n got %q\nwant %q", s.name, got, want)
+			}
+		})
+	}
+}
+
 func TestThemeFlash_NonThemeFlashUnchanged(t *testing.T) {
 	const ordinary = "__ORDINARY_FLASH__"
 

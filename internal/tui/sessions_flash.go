@@ -15,8 +15,9 @@ const (
 	flashSuccess
 )
 
-// Exists so the theme signals can outrank the filter line without inferring the
-// tier from message text, which a copy edit would silently re-order.
+// Carried by the flash so a theme signal's precedence tier is granted at set time
+// rather than inferred from message text, which a copy edit would silently move a
+// signal out of. What the tier does and does not arbitrate is on flashSlotClaim.
 type flashOrigin int
 
 const (

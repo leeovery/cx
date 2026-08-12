@@ -239,9 +239,14 @@ func (m Model) themeFlashClaim() (role noticeBandRole, message string, ok bool) 
 	return m.flashClaim()
 }
 
-// The filter line sits between the two arms: the theme tier outranks it, every
-// other flash sits under it — a filter can stay applied-but-unfocused for a whole
-// panel session, destroying a theme signal ranked beneath it. Do not re-order.
+// A forward guard rather than today's mechanism: the model holds one flashText,
+// so both arms return the same claim and this ordering changes no rendered
+// outcome. A theme signal reaches the band under any filter state because the
+// filter line claims the section-header row instead of contending here. The tier
+// is kept rather than folded away because it is granted at set time by
+// setThemeFlash: should the slot gain a contender that can stay live for a whole
+// panel session, it belongs below this arm, and without the tier it would rank
+// above a theme signal unnoticed.
 func (m Model) flashSlotClaim() (role noticeBandRole, message string, ok bool) {
 	if role, message, live := m.themeFlashClaim(); live {
 		return role, message, true
