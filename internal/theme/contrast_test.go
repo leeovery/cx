@@ -59,8 +59,8 @@ func TestFloorsEnumerateTheEmbeddedSet(t *testing.T) {
 	if len(enrolled) == 0 {
 		t.Fatal("no embedded theme is enrolled — every floor assertion in this file would pass vacuously")
 	}
-	if want := theme.BuiltinSlugs(); !slices.Equal(enrolled, want) {
-		t.Errorf("the floor tests enrol %v, want every embedded built-in %v", enrolled, want)
+	if want := committedBuiltinSlugs(t); !slices.Equal(enrolled, want) {
+		t.Errorf("the floor tests enrol %v, want every built-in committed to builtins/ %v", enrolled, want)
 	}
 }
 

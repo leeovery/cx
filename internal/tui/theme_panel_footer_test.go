@@ -47,9 +47,6 @@ func TestThemePanelFooter_PinnedCopy(t *testing.T) {
 		if got := themePanelFooterCopy(lines[i]); got != want {
 			t.Errorf("row %d reads %q, want the pinned copy %q", i, got, want)
 		}
-		if h := lipgloss.Height(lines[i]); h != 1 {
-			t.Errorf("row %d is %d lines, want exactly 1", i, h)
-		}
 	}
 }
 

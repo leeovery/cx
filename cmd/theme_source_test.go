@@ -135,6 +135,7 @@ func TestOpenTUI_BuildsOneThemeLoader(t *testing.T) {
 // position is a loader built for the panel alone.
 func assertThemeSourceTakesBoundLoader(t *testing.T, n ast.Node) {
 	t.Helper()
+	found := false
 	ast.Inspect(n, func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
 		if !ok {
@@ -143,11 +144,15 @@ func assertThemeSourceTakesBoundLoader(t *testing.T, n ast.Node) {
 		if ident, isIdent := call.Fun.(*ast.Ident); !isIdent || ident.Name != "newThemeSource" || len(call.Args) != 1 {
 			return true
 		}
+		found = true
 		if _, isIdent := call.Args[0].(*ast.Ident); !isIdent {
 			t.Errorf("openTUI hands newThemeSource a freshly-constructed loader; it must share the construction-time instance")
 		}
 		return true
 	})
+	if !found {
+		t.Fatal("no single-argument newThemeSource call found; the guard would pass vacuously")
+	}
 }
 
 func callCount(n ast.Node, name string) int {

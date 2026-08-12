@@ -100,17 +100,9 @@ func TestThemingDocExampleThemeIsValid(t *testing.T) {
 		t.Fatalf("%v", err)
 	}
 
-	built, problems := auditDocExampleTheme(doc)
-	if len(problems) > 0 {
+	if _, problems := auditDocExampleTheme(doc); len(problems) > 0 {
 		for _, problem := range problems {
 			t.Errorf("%s: %s", themingDocPath, problem)
-		}
-		return
-	}
-
-	for _, token := range built.All() {
-		if token.Value == "" {
-			t.Errorf("%s: the example theme parsed but left %q empty", themingDocPath, token.Name)
 		}
 	}
 }

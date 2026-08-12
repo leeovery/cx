@@ -3,7 +3,6 @@ package theme
 import (
 	"cmp"
 	"slices"
-	"sort"
 	"strings"
 )
 
@@ -211,7 +210,15 @@ func unresolvedRejection(e Enumeration) *Rejection {
 // Stable, so a pair the legs still tie on holds its assembly order and the
 // rendering stays reproducible.
 func sortRows(rows []Row) {
-	sort.SliceStable(rows, func(i, j int) bool { return rowBefore(rows[i], rows[j]) })
+	slices.SortStableFunc(rows, func(a, b Row) int {
+		if rowBefore(a, b) {
+			return -1
+		}
+		if rowBefore(b, a) {
+			return 1
+		}
+		return 0
+	})
 }
 
 // Case-insensitive first, or a byte-wise comparison would file `Zed.theme` ahead

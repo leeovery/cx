@@ -197,10 +197,7 @@ func TestLoadPrefsStoreNoMigrate_ComputesAndWritesNothing(t *testing.T) {
 	t.Run("it returns a bound store against an unreadable file", func(t *testing.T) {
 		before := []byte(`{"appearance":"dark"}`)
 		path := setPrefsFile(t, string(before))
-		if err := os.Chmod(path, 0o000); err != nil {
-			t.Fatalf("chmod 0000 prefs.json: %v", err)
-		}
-		t.Cleanup(func() { _ = os.Chmod(path, 0o644) })
+		_ = themetest.DenyRead(t, path)
 
 		store, err := loadPrefsStoreNoMigrate()
 		if err != nil {

@@ -321,8 +321,8 @@ func TestResolveTheme_PathReservedNameWarnsWithoutBlocking(t *testing.T) {
 	if got == (theme.Theme{}) {
 		t.Error("resolveTheme returned the zero palette for a valid file")
 	}
-	builtin, _, _ := theme.NewSilentLoader().LoadBuiltin("nord")
-	if got == builtin.Theme {
+	builtin := themetest.Builtin(t, "nord")
+	if got == builtin {
 		t.Error("resolveTheme rendered the built-in nord palette, want the file's own — the candidate slug is not identity")
 	}
 	want := "capturetool: warning: nord.theme: reserved name — \"nord\" is a built-in slug, so a file with this name is ignored in the themes directory (rendering it anyway)\n"

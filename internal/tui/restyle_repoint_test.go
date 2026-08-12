@@ -19,12 +19,14 @@ const (
 
 func probeThemeBefore(t *testing.T) theme.Theme {
 	t.Helper()
-	return themetest.SyntheticPalette(t, probeRedBefore)
+	before, _ := themetest.SyntheticPair(t, probeRedBefore, probeRedAfter)
+	return before
 }
 
 func probeThemeAfter(t *testing.T) theme.Theme {
 	t.Helper()
-	return themetest.SyntheticPalette(t, probeRedAfter)
+	_, after := themetest.SyntheticPair(t, probeRedBefore, probeRedAfter)
+	return after
 }
 
 func newRestyleProbeModel(t *testing.T, before theme.Theme) Model {

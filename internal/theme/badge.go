@@ -21,13 +21,16 @@ const (
 // an empty map.
 func Badges(slots []SlotResolution) map[string]Badge {
 	if isConstantSetting(slots) {
+		if slots[0].Requested == "" {
+			return map[string]Badge{}
+		}
 		return map[string]Badge{slots[0].Requested: BadgeConstant}
 	}
 
 	badges := make(map[string]Badge, len(slots))
 	for _, slot := range slots {
 		badge := slotBadge(slot.Slot)
-		if badge == BadgeNone {
+		if badge == BadgeNone || slot.Requested == "" {
 			continue
 		}
 		badges[slot.Requested] = collapsed(badges[slot.Requested], badge)

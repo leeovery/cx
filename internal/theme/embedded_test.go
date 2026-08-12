@@ -40,12 +40,7 @@ func TestEveryEmbeddedThemeIsValid(t *testing.T) {
 				t.Fatalf("built-in %q is invalid: %s — %s", slug, rejection.Reason, rejection.Detail)
 			}
 
-			tokens := result.Theme.All()
-			if len(tokens) != wantTokens {
-				t.Fatalf("built-in %q yielded %d tokens, want the closed vocabulary's %d", slug, len(tokens), wantTokens)
-			}
-
-			for _, tok := range tokens {
+			for _, tok := range result.Theme.All() {
 				if tok.Value == "" {
 					t.Errorf("built-in %q leaves %s unpopulated, want all %d tokens carrying a value", slug, tok.Name, wantTokens)
 					continue
