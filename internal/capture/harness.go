@@ -21,7 +21,7 @@ func keyPageDown() tea.KeyPressMsg {
 // loading fixtures stay parked precisely because neither arrives.
 func (f *Fixture) ModelAt(th theme.Theme, w, h int) tui.Model {
 	var model tea.Model = tui.Build(f.Deps(th))
-	w, h = f.RenderSize(w, h)
+	w, h = f.renderSize(w, h)
 	model, _ = model.Update(tea.WindowSizeMsg{Width: w, Height: h})
 
 	sessions, err := f.Lister.ListSessions()
@@ -42,10 +42,10 @@ func (f *Fixture) ModelAt(th theme.Theme, w, h int) tui.Model {
 	return model.(tui.Model)
 }
 
-// RenderSize substitutes whichever dimension the fixture declares for the
+// renderSize substitutes whichever dimension the fixture declares for the
 // caller's, so every consumer renders a geometry fixture at the size that
 // produces its frame without a branch of its own.
-func (f *Fixture) RenderSize(w, h int) (int, int) {
+func (f *Fixture) renderSize(w, h int) (int, int) {
 	if f.width > 0 {
 		w = f.width
 	}
@@ -63,7 +63,7 @@ func (f *Fixture) PinRenderSize(msg tea.Msg) tea.Msg {
 	if !ok {
 		return msg
 	}
-	resize.Width, resize.Height = f.RenderSize(resize.Width, resize.Height)
+	resize.Width, resize.Height = f.renderSize(resize.Width, resize.Height)
 	return resize
 }
 

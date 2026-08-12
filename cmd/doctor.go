@@ -164,9 +164,7 @@ var doctorCmd = &cobra.Command{
 
 		// The exit is driven solely by the post-repair re-diagnosis below; the
 		// repairs never touch it directly.
-		if err := runDoctorFix(cmd, deps); err != nil {
-			return err
-		}
+		runDoctorFix(cmd, deps)
 		postResults, err := runDoctorDiagnosis(deps)
 		if err != nil {
 			return err
@@ -184,12 +182,11 @@ var doctorCmd = &cobra.Command{
 // runDoctorFix applies only repairs that are reversible by reconstruction, each
 // best-effort so a failure is left for the re-diagnosis to report. Themes get no
 // repair step: every available one would destroy user-authored content.
-func runDoctorFix(cmd *cobra.Command, deps *DoctorDeps) error {
+func runDoctorFix(cmd *cobra.Command, deps *DoctorDeps) {
 	w := cmd.OutOrStdout()
 	pruneDoctorStaleHooks(w, deps)
 	pruneDoctorStaleProjects(w, deps)
 	sweepDoctorLogs(deps)
-	return nil
 }
 
 // runHookStaleCleanup's own mass-deletion hazard guard is the down-server

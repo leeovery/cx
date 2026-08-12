@@ -1,5 +1,7 @@
 package tui
 
+import "slices"
+
 // Descriptors drive display only, not dispatch — a binding change must also be
 // made in the per-page Update switch.
 type keymapEntry struct {
@@ -27,7 +29,7 @@ func navKeymapEntries() []keymapEntry {
 // Stays a pure static function: the `t`/`m` blocked-key filters are applied at
 // the call site, so the descriptor stays a complete statement of the bindings.
 func sessionsKeymap() []keymapEntry {
-	return append(navKeymapEntries(), []keymapEntry{
+	return slices.Concat(navKeymapEntries(), []keymapEntry{
 		{Key: "⏎", HelpKey: "⏎", Action: "attach", HelpAction: "Open / attach session", Core: true},
 		{Key: "/", Action: "filter", HelpAction: "Filter sessions", Core: true},
 		{Key: "␣", HelpKey: "␣", Action: "preview", HelpAction: "Preview scrollback", Core: true},
@@ -40,12 +42,12 @@ func sessionsKeymap() []keymapEntry {
 		{Key: "t", Action: "theme", HelpAction: "Theme picker", Core: true},
 		{Key: "m", Action: "multi", HelpAction: "Multi-select mode", Core: true},
 		{Key: "?", Action: "help", HelpAction: "Show this help", Core: true, RightAligned: true},
-	}...)
+	})
 }
 
 // Stays a pure static function: the `t` blocked-key filter is applied at the call site.
 func projectsKeymap() []keymapEntry {
-	return append(navKeymapEntries(), []keymapEntry{
+	return slices.Concat(navKeymapEntries(), []keymapEntry{
 		{Key: "⏎", Action: "new session", HelpAction: "New session from project", Core: true},
 		{Key: "x", Action: "sessions", HelpAction: "Switch to Sessions", Core: true},
 		{Key: "e", Action: "edit", HelpAction: "Edit project", Core: true},
@@ -56,18 +58,18 @@ func projectsKeymap() []keymapEntry {
 		{Key: "q", Action: "quit", HelpAction: "Quit"},
 		{Key: "esc", Action: "back", HelpAction: "Back / quit"},
 		{Key: "?", Action: "help", HelpAction: "Show this help", Core: true, RightAligned: true},
-	}...)
+	})
 }
 
 // Complete scope — every key the panel dispatches, arrows and paging included.
 // Do not trim it to the Core keys the footer shows.
 func themePanelKeymap() []keymapEntry {
-	return append(navKeymapEntries(), []keymapEntry{
+	return slices.Concat(navKeymapEntries(), []keymapEntry{
 		{Key: "⏎", Action: "set theme", HelpAction: "Set as the theme", Core: true},
 		{Key: "d", Action: "set as dark", HelpAction: "Assign to the dark slot", Core: true},
 		{Key: "l", Action: "set as light", HelpAction: "Assign to the light slot", Core: true},
 		{Key: "esc", Action: "close", HelpAction: "Close the theme picker", Core: true},
-	}...)
+	})
 }
 
 // Key-exclusive within the panel while the confirm is live, so its footer

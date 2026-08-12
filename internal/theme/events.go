@@ -135,14 +135,10 @@ func (e *EventLogger) firstSighting(key eventKey) bool {
 }
 
 func themeAttrs(slug string, slot Slot) []any {
-	if name, named := slotAttr(slot); named {
+	if name, named := slot.AttrName(); named {
 		return []any{"slug", slug, "slot", name}
 	}
 	return []any{"slug", slug}
-}
-
-func slotAttr(slot Slot) (string, bool) {
-	return slot.AttrName()
 }
 
 // tokenAttr renders from the structured name/value pair and never parses

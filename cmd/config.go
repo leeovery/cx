@@ -138,7 +138,7 @@ func loadPrefsStore() (prefsLoad, error) {
 	// Applied against the load-time snapshot: the only moment early enough to
 	// affect what is painted. Scoping this to the write alone would flip a user
 	// who already set a theme key onto the translated theme for one launch.
-	if load.TranslatedSlug != "" && keys.Theme == "" && keys.Light == "" && keys.Dark == "" {
+	if load.TranslatedSlug != "" && keys == (prefs.ThemeKeys{}) {
 		// A pinned appearance becomes a pinned constant, so detection stays off.
 		load.Keys = prefs.ThemeKeys{Theme: load.TranslatedSlug}
 	}

@@ -86,7 +86,7 @@ func persistedSlugs(persisted []themeAdvisory) []string {
 // reported) and can raise the broken-built-in fatal.
 func persistedThemeAdvisories(deps *DoctorDeps, loader theme.Loader, enumeration theme.Enumeration) []themeAdvisory {
 	if deps.PrefsStore == nil {
-		return nil
+		return []themeAdvisory{}
 	}
 
 	keys, _ := deps.PrefsStore.LoadThemeKeys()
