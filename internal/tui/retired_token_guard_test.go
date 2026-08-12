@@ -29,14 +29,21 @@ var retiredTokenNames = map[string]string{
 }
 
 type retiredNameExemption struct {
-	file   string
+	file string
+	// name scopes the exemption to one retired name; self is the deliberate
+	// whole-file form, so an entry that simply forgets a name is not silently
+	// a blanket exemption.
 	name   string
+	self   bool
 	reason string
 }
 
 var retiredNameExemptions = []retiredNameExemption{
+	// Every retired name, because this file declares the table itself. Scoped by
+	// filename alone — an empty name would blanket-exempt any file added here.
 	{
 		file:   "retired_token_guard_test.go",
+		self:   true,
 		reason: "declares the retired table this guard matches against",
 	},
 	{
@@ -58,7 +65,7 @@ var retiredNameExemptions = []retiredNameExemption{
 
 func exemptRetiredName(file, name string) bool {
 	for _, e := range retiredNameExemptions {
-		if e.file == file && (e.name == "" || e.name == name) {
+		if e.file == file && (e.self || e.name == name) {
 			return true
 		}
 	}

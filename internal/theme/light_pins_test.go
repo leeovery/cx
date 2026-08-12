@@ -138,6 +138,14 @@ func TestLightPins_SkipDarkThemes(t *testing.T) {
 			t.Errorf("dark built-in %q carries a light pin row — the eyeball pins are light-only", slug)
 		}
 	}
+
+	// Without this a row for a deleted theme survives silently, which is the
+	// staleness the enrolment table exists to prevent.
+	for slug := range lightPins {
+		if !slices.Contains(light, slug) {
+			t.Errorf("lightPins carries a row for %q, which is enrolled in no light theme %v", slug, light)
+		}
+	}
 }
 
 func lightThemeSlugs(t *testing.T) []string {

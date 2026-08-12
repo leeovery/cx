@@ -279,7 +279,7 @@ func TestPreviewError_ChromeCountsUnaffectedByErrorBranch(t *testing.T) {
 	}
 
 	got := stripANSI(chromeLineForTest(m))
-	expected := stripANSI(chromeLineForTest(newPreviewModelForHelpers("work", groups, 0, 0)))
+	expected := stripANSI(chromeLineForTest(newPreviewModelForHelpers(t, "work", groups, 0, 0)))
 	if got != expected {
 		t.Errorf("chromeLine() under error = %q; want %q (identical to non-error shape)", got, expected)
 	}

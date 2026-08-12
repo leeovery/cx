@@ -17,7 +17,7 @@ func TestPreviewChromeLine_Renders1BasedOrdinalsForZeroIndexedGroups(t *testing.
 		{WindowIndex: 0, WindowName: "alpha", PaneIndices: []int{0, 1}},
 		{WindowIndex: 1, WindowName: "beta", PaneIndices: []int{0}},
 	}
-	m := newPreviewModelForHelpers("work", groups, 0, 0)
+	m := newPreviewModelForHelpers(t, "work", groups, 0, 0)
 
 	got := stripANSI(chromeLineForTest(m))
 
@@ -45,7 +45,7 @@ func TestPreviewChromeLine_RendersOneToNCountersWhenWindowIndexValuesAreNonConti
 		{2, "Window 3/3"},
 	}
 	for _, tc := range cases {
-		m := newPreviewModelForHelpers("work", groups, tc.windowIdx, 0)
+		m := newPreviewModelForHelpers(t, "work", groups, tc.windowIdx, 0)
 		got := stripANSI(chromeLineForTest(m))
 		if !strings.Contains(got, tc.want) {
 			t.Errorf("windowIdx=%d: chromeLine() = %q; want substring %q", tc.windowIdx, got, tc.want)
@@ -69,7 +69,7 @@ func TestPreviewChromeLine_RendersOneToNCountersWhenPaneIndicesStartAt1(t *testi
 		{1, "Pane 2/2"},
 	}
 	for _, tc := range cases {
-		m := newPreviewModelForHelpers("work", groups, 0, tc.paneIdx)
+		m := newPreviewModelForHelpers(t, "work", groups, 0, tc.paneIdx)
 		got := stripANSI(chromeLineForTest(m))
 		if !strings.Contains(got, tc.want) {
 			t.Errorf("paneIdx=%d: chromeLine() = %q; want substring %q", tc.paneIdx, got, tc.want)
@@ -81,7 +81,7 @@ func TestPreviewChromeLine_IncludesSessionNameVerbatimIncludingSpaces(t *testing
 	groups := []tmux.WindowGroup{
 		{WindowIndex: 0, WindowName: "editor window", PaneIndices: []int{0}},
 	}
-	m := newPreviewModelForHelpers("evvi webhooks and watchers", groups, 0, 0)
+	m := newPreviewModelForHelpers(t, "evvi webhooks and watchers", groups, 0, 0)
 
 	got := stripANSI(chromeLineForTest(m))
 
@@ -94,7 +94,7 @@ func TestPreviewFooter_IncludesWindowPaneAttachBackAsVisibleHints(t *testing.T) 
 	groups := []tmux.WindowGroup{
 		{WindowIndex: 0, WindowName: "main", PaneIndices: []int{0}},
 	}
-	m := newPreviewModelForHelpers("work", groups, 0, 0)
+	m := newPreviewModelForHelpers(t, "work", groups, 0, 0)
 
 	got := stripANSI(footerLineForTest(m))
 
@@ -109,7 +109,7 @@ func TestPreviewFooter_OrdersWindowPaneAttachBackLeftToRight(t *testing.T) {
 	groups := []tmux.WindowGroup{
 		{WindowIndex: 0, WindowName: "main", PaneIndices: []int{0}},
 	}
-	m := newPreviewModelForHelpers("work", groups, 0, 0)
+	m := newPreviewModelForHelpers(t, "work", groups, 0, 0)
 
 	got := stripANSI(footerLineForTest(m))
 
@@ -135,7 +135,7 @@ func TestPreviewChromeLine_FullStringEqualityForCanonicalShape(t *testing.T) {
 		{WindowIndex: 0, WindowName: "main", PaneIndices: []int{0, 1}},
 		{WindowIndex: 1, WindowName: "logs", PaneIndices: []int{0}},
 	}
-	m := newPreviewModelForHelpers("work", groups, 0, 0)
+	m := newPreviewModelForHelpers(t, "work", groups, 0, 0)
 
 	header := stripANSI(chromeLineForTest(m))
 	if want := "◉ preview work Window 1/2 · Pane 1/2"; !strings.Contains(header, want) {
@@ -152,7 +152,7 @@ func TestPreviewChromeLine_DoesNotExposeRawTmuxIndices(t *testing.T) {
 		{WindowIndex: 0, WindowName: "first", PaneIndices: []int{0}},
 		{WindowIndex: 99, WindowName: "second", PaneIndices: []int{42, 43}},
 	}
-	m := newPreviewModelForHelpers("work", groups, 1, 1)
+	m := newPreviewModelForHelpers(t, "work", groups, 1, 1)
 
 	got := stripANSI(chromeLineForTest(m))
 
@@ -200,7 +200,7 @@ func TestPreviewChromeLine_WordingDoesNotPromiseLiveness(t *testing.T) {
 	groups := []tmux.WindowGroup{
 		{WindowIndex: 0, WindowName: "main", PaneIndices: []int{0}},
 	}
-	m := newPreviewModelForHelpers("work", groups, 0, 0)
+	m := newPreviewModelForHelpers(t, "work", groups, 0, 0)
 
 	got := strings.ToLower(stripANSI(chromeLineForTest(m)))
 
@@ -215,7 +215,7 @@ func TestPreviewChromeLine_SingleWindowSinglePaneRendersOneOfOne(t *testing.T) {
 	groups := []tmux.WindowGroup{
 		{WindowIndex: 0, WindowName: "main", PaneIndices: []int{0}},
 	}
-	m := newPreviewModelForHelpers("work", groups, 0, 0)
+	m := newPreviewModelForHelpers(t, "work", groups, 0, 0)
 
 	got := stripANSI(chromeLineForTest(m))
 
@@ -231,7 +231,7 @@ func TestPreviewChromeLine_SessionNameWithPipeRenderedVerbatim(t *testing.T) {
 	groups := []tmux.WindowGroup{
 		{WindowIndex: 0, WindowName: "main", PaneIndices: []int{0}},
 	}
-	m := newPreviewModelForHelpers("weird|name with spaces", groups, 0, 0)
+	m := newPreviewModelForHelpers(t, "weird|name with spaces", groups, 0, 0)
 
 	got := stripANSI(chromeLineForTest(m))
 
@@ -246,7 +246,7 @@ func TestPreviewChromeLine_DoesNotEmbedTmuxFormatCodePrefix(t *testing.T) {
 		{WindowIndex: 1, WindowName: "logs", PaneIndices: []int{0, 1}},
 	}
 	for _, paneIdx := range []int{0} {
-		m := newPreviewModelForHelpers("work", groups, 0, paneIdx)
+		m := newPreviewModelForHelpers(t, "work", groups, 0, paneIdx)
 		got := stripANSI(chromeLineForTest(m))
 		if strings.Contains(got, "#W:") {
 			t.Errorf("chromeLine() = %q; must not contain raw tmux format-code label %q", got, "#W:")

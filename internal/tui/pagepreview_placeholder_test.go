@@ -91,7 +91,7 @@ func TestPreviewPlaceholder_ChromeCountsRemainCorrectWhenPlaceholderShown(t *tes
 
 	chrome := stripANSI(chromeLineForTest(m))
 
-	expected := stripANSI(chromeLineForTest(newPreviewModelForHelpers("work", groups, 0, 0)))
+	expected := stripANSI(chromeLineForTest(newPreviewModelForHelpers(t, "work", groups, 0, 0)))
 	if chrome != expected {
 		t.Errorf("chromeLine() under placeholder = %q; want %q (identical to non-placeholder shape)", chrome, expected)
 	}

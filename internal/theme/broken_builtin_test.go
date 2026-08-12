@@ -215,9 +215,20 @@ func TestTheme_NoCompiledInFallbackPalette(t *testing.T) {
 	}
 }
 
+// Collections count too: a []Theme or map[K]Theme literal declares palettes just
+// as a bare Theme literal does, and its elements elide the type entirely.
 func isThemeTypeExpr(expr ast.Expr) bool {
-	ident, ok := expr.(*ast.Ident)
-	return ok && ident.Name == "Theme"
+	switch t := expr.(type) {
+	case *ast.Ident:
+		return t.Name == "Theme"
+	case *ast.ArrayType:
+		return isThemeTypeExpr(t.Elt)
+	case *ast.MapType:
+		return isThemeTypeExpr(t.Value)
+	case *ast.StarExpr:
+		return isThemeTypeExpr(t.X)
+	}
+	return false
 }
 
 func TestBuiltinSource_DefaultsToTheEmbeddedSet(t *testing.T) {

@@ -88,8 +88,10 @@ func observedTokens(frame string, forms []tokenForm) map[string]bool {
 
 type colourReporter interface{ Colourless() bool }
 
+// Clones first: slices.DeleteFunc compacts in place and zeroes the caller's
+// tail, so filtering a slice the caller still holds would silently truncate it.
 func excludeColourless[F colourReporter](all []F) []F {
-	return slices.DeleteFunc(all, func(fx F) bool { return fx.Colourless() })
+	return slices.DeleteFunc(slices.Clone(all), func(fx F) bool { return fx.Colourless() })
 }
 
 func registryFixtures(t *testing.T) []*capture.Fixture {

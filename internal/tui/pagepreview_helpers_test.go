@@ -8,12 +8,16 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-func newPreviewModelForHelpers(session string, groups []tmux.WindowGroup, windowIdx, paneIdx int) previewModel {
+// th is seeded rather than left zero: the chrome helpers render from it, and a
+// zero palette would make every colour assertion pass against no colour at all.
+func newPreviewModelForHelpers(t *testing.T, session string, groups []tmux.WindowGroup, windowIdx, paneIdx int) previewModel {
+	t.Helper()
 	return previewModel{
 		session:   session,
 		groups:    groups,
 		windowIdx: windowIdx,
 		paneIdx:   paneIdx,
+		th:        testDarkTheme(t),
 	}
 }
 
@@ -80,7 +84,7 @@ func TestPreviewModel_currentGroup_ReturnsCachedWindowGroupAtWindowIdx(t *testin
 		{WindowIndex: 2, WindowName: "beta", PaneIndices: []int{0}},
 		{WindowIndex: 5, WindowName: "gamma", PaneIndices: []int{3, 4, 5}},
 	}
-	m := newPreviewModelForHelpers("work", groups, 1, 0)
+	m := newPreviewModelForHelpers(t, "work", groups, 1, 0)
 
 	got := m.currentGroup()
 
@@ -100,7 +104,7 @@ func TestPreviewModel_currentRawIndices_ReturnsRawWindowIndexAndPaneIndicesNotOr
 		{WindowIndex: 0, WindowName: "alpha", PaneIndices: []int{0, 1}},
 		{WindowIndex: 2, WindowName: "beta", PaneIndices: []int{4, 7}},
 	}
-	m := newPreviewModelForHelpers("work", groups, 1, 1)
+	m := newPreviewModelForHelpers(t, "work", groups, 1, 1)
 
 	rawWindow, rawPane := m.currentRawIndices()
 
@@ -119,7 +123,7 @@ func TestPreviewModel_currentRawIndices_HandlesNonContiguousWindowIndexAndBaseIn
 		{WindowIndex: 5, WindowName: "third", PaneIndices: []int{1, 2, 3}},
 	}
 
-	m := newPreviewModelForHelpers("work", groups, 2, 0)
+	m := newPreviewModelForHelpers(t, "work", groups, 2, 0)
 	rawWindow, rawPane := m.currentRawIndices()
 	if rawWindow != 5 {
 		t.Errorf("currentRawIndices() rawWindow = %d; want 5 (raw), not 2 (ordinal)", rawWindow)
@@ -128,7 +132,7 @@ func TestPreviewModel_currentRawIndices_HandlesNonContiguousWindowIndexAndBaseIn
 		t.Errorf("currentRawIndices() rawPane = %d; want 1 (raw under base-index 1)", rawPane)
 	}
 
-	m2 := newPreviewModelForHelpers("work", groups, 1, 0)
+	m2 := newPreviewModelForHelpers(t, "work", groups, 1, 0)
 	rawWindow2, rawPane2 := m2.currentRawIndices()
 	if rawWindow2 != 2 {
 		t.Errorf("currentRawIndices() rawWindow = %d; want 2 (raw)", rawWindow2)
@@ -160,7 +164,7 @@ func TestPreviewModel_currentPaneKey_MatchesSanitizePaneKeyOnRawIndicesForSameSe
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			m := newPreviewModelForHelpers(tc.session, groups, tc.windowIdx, tc.paneIdx)
+			m := newPreviewModelForHelpers(t, tc.session, groups, tc.windowIdx, tc.paneIdx)
 			rawW := groups[tc.windowIdx].WindowIndex
 			rawP := groups[tc.windowIdx].PaneIndices[tc.paneIdx]
 			want := state.SanitizePaneKey(tc.session, rawW, rawP)
@@ -214,7 +218,7 @@ func TestPreviewModel_degenerate_ReturnsTrueFor1x1AndFalseOtherwise(t *testing.T
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			m := newPreviewModelForHelpers("work", tc.groups, 0, 0)
+			m := newPreviewModelForHelpers(t, "work", tc.groups, 0, 0)
 			got := m.degenerate()
 			if got != tc.want {
 				t.Errorf("degenerate() = %v; want %v", got, tc.want)

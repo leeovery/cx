@@ -3,7 +3,6 @@ package tui
 import (
 	"bytes"
 	"fmt"
-	"slices"
 	"strings"
 	"testing"
 
@@ -575,9 +574,27 @@ func themeRowOpeningParams(t *testing.T, out, text string) []string {
 	return splitSGRParams(seq[:end+1])
 }
 
+// Steps over truecolor and indexed colour operands before testing for the bold
+// attribute: `38;2;<r>;<g>;<b>` puts three arbitrary channel values in the
+// parameter list, so a token with a channel of exactly 1 would otherwise read
+// as bold.
 func themeRowRunIsBold(t *testing.T, out, text string) bool {
 	t.Helper()
-	return slices.Contains(themeRowOpeningParams(t, out, text), "1")
+	params := themeRowOpeningParams(t, out, text)
+	for i := 0; i < len(params); i++ {
+		switch params[i] {
+		case "38", "48":
+			switch {
+			case i+1 < len(params) && params[i+1] == "2":
+				i += 4
+			case i+1 < len(params) && params[i+1] == "5":
+				i += 2
+			}
+		case "1":
+			return true
+		}
+	}
+	return false
 }
 
 func TestThemeRow_CursorRowLabelIsBold(t *testing.T) {
