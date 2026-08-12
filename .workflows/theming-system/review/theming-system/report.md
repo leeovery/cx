@@ -9,7 +9,7 @@ The feature is built, and built well. 175 in-scope plan tasks were independently
 
 The two blocking items are both incomplete sweeps rather than defects. Task 10-10's sign-off capture clear ran, and then six panel geometry/state tapes and their PNGs were re-created for the phase 13–15 visual gates and never re-cleared — so the tree ships scaffolding that three documents written by this same feature (`testdata/vhs/README.md`, `CLAUDE.md`, `internal/capture/fixtures.go:61`) each assert is absent. Task 14-2 swept retired token names out of comments but not out of the `t.Errorf`/`t.Fatalf` strings its own Do list placed in scope, leaving 151 dead token names across 37 test files — and files where the rewritten comment and the failure message two lines below it now name different tokens. Neither blocks a user; both leave the repo asserting something false about itself, which is the specific failure mode this feature spent two phases guarding against elsewhere.
 
-Beneath that, 488 non-blocking notes — triaged rather than worked through, for a reason the distribution makes plain: 488 over 171 tasks, mean 2.85, median 3, and only 4 tasks producing none. Defects clump; that is flat, which makes the count a function of how many verifiers ran rather than of how much is wrong. 145 are applied (including five false claims corrected across four specifications), 75 declined as comment prose the current standard would not have asked for, 254 marked won't-fix as test-hygiene and speculative tail, 2 dropped with the CHANGELOG entry they maintained. **12 stay open**: 4 decisions and 8 bugs, none blocking.
+Beneath that, 488 non-blocking notes — triaged rather than worked through, for a reason the distribution makes plain: 488 over 171 tasks, mean 2.85, median 3, and only 4 tasks producing none. Defects clump; that is flat, which makes the count a function of how many verifiers ran rather than of how much is wrong. 151 are applied, 75 declined as comment prose the current standard would not have asked for, 254 marked won't-fix, 2 dropped with the CHANGELOG entry they maintained. **6 stay open**: 4 ideas and 2 bugs, and the two bugs are one condition needing a specification decision rather than a fix.
 
 ## QA Verification
 
@@ -27,7 +27,7 @@ Implementation aligns with the specification. Verified against it at section gra
 
 Two spec-vs-code reconciliations surfaced that are the spec's side of the ledger, not the code's:
 
-- §9.1's "the header therefore costs two rows" is **corrected** in this review pass: the shipped header is two-shaped, and the compact form is what §9.8's floor resolves against.
+- §9.1's "the header therefore costs two rows" is **corrected** in this pass: the shipped header is two-shaped, and the compact form is what §9.8's floor resolves against.
 - §13.2's retention rule reads as unconditional and carries no `reference/` carve-out, though CLAUDE.md and `testdata/vhs/README.md` both now state one (task 16-9). The spec is the one document of the three that does not.
 
 ### Plan Completion
@@ -77,18 +77,19 @@ Ten notes flag assertions that cannot fail as written. The sharpest is `internal
 
 ## Findings disposition
 
-**Applied 145** · **Declined 75** · **Won't fix 254** · **Dropped 2** · **Open 12**
+**Applied 151** · **Declined 75** · **Won't fix 254** · **Dropped 2** · **Open 6**
 
-488 notes over 171 tasks — mean 2.85, median 3, only 4 tasks producing none. Defects clump; that distribution is flat, which makes the count a property of how many verifiers ran rather than of how much is wrong. The notes were triaged on that basis: everything naming a concrete defect or a real decision was taken, and the rest closed.
+488 notes over 171 tasks — mean 2.85, median 3, only 4 tasks producing none. Defects clump; that distribution is flat, which makes the count a property of how many verifiers ran rather than of how much is wrong. The notes were triaged on that basis: everything naming a concrete defect or a real decision was taken, the rest closed. Every pass verified with `go build ./...`, `go test ./...` and `golangci-lint run`.
 
-### Applied (145)
+### Applied (151)
 
 - **Comments the code falsifies** — corrected in place or deleted, never restored.
 - **Documentation and data accuracy** — CLAUDE.md, `docs/theming.md`, README (including the missing `theme export` entry), the three built-ins' group headers, the vhs retention notes.
-- **Defects hiding in the quick-fix bucket** — a slice-aliasing `append` writing into its own input; an empty `Requested` able to claim a badge under the empty identity; six assertions that could not fail; dead code with no caller; six guards or probes that did not catch what they claimed.
-- **Specification corrections** — five false claims across four specs, each edited in place with a corrigendum, re-indexed into the knowledge base and committed scoped to its owning work unit: `spectrum-tui-design` (§2.9's "hypothesis until prototyped" status line, §11's "Projects carries the flash slot alone"), `cli-verb-surface-redesign` (the `--fix` exit absolutes its own corrigendum already quoted as corrected), `portal-observability-layer` ("11-step bootstrap orchestrator" ×2 — it is ten), and this feature's own §9.1 ("the header therefore costs two rows" — it is a two-shape header).
+- **Defects in the quick-fix bucket** — a slice-aliasing `append` writing into its own input; an empty `Requested` able to claim a badge; six assertions that could not fail; dead code with no caller; six guards or probes that did not catch what they claimed.
+- **Specification corrections** — five false claims across four specs, each edited in place with a corrigendum, re-indexed, and committed scoped to its owning work unit.
+- **Six of the eight bugs** — the swatch leaving the terminal background changed on exit; two prefs reads where the spec requires one snapshot; the export refusal printing itself twice around a usage block; the pagination counter rendering in `bubbles/list`'s own grey; a probe reporting the wrong defect; a stale guard exemption.
 
-Sites (130):
+Sites (136):
 
 - `internal/theme/theme.go:27` (Report 1-1)
 - `internal/theme/name.go:10-12` (Report 1-4)
@@ -220,10 +221,16 @@ Sites (130):
 - `specification.md:486` (Report 10-7)
 - `workflows/cli-verb-surface-redesign/specification/cli-verb-surface-redesign/specification.md:340` (Report 10-8)
 - `workflows/portal-observability-layer/specification/portal-observability-layer/specification.md:173` (Report 10-9)
+- `cmd/capturetool/main.go:63-66` (Report 2-4)
+- `cmd/theme.go:15` (Report 2-9)
+- `internal/tui/model.go:917-933` (Report 4-1)
+- `cmd/config.go:123-124` (Report 6-5)
+- `internal/tui/model_test.go:26-28` (Report 12-4)
+- `internal/tui/retired_token_guard_test.go:48-51` (Report 14-2)
 
 ### Declined (75)
 
-Comment prose the current code-quality standard would not have asked for. The plan predates that standard, so tasks carried Do steps requiring comments and the later strip sweeps removed them; verifiers graded against the criteria as written. Git history holds the text if a claim ever earns its place back.
+Comment prose the current code-quality standard would not have asked for. The plan predates that standard, so tasks carried Do steps requiring comments and the later strip sweeps removed them; verifiers graded against the criteria as written.
 
 - `internal/theme/enumerate.go:22-27` — 27` — `Enumerate`'s doc comment documents both returns but is silent about its two side-effecting emissions, which is precisely wh (Report 1-7)
 - `internal/theme/contrast_test.go:20` — the const block's doc comment describes three floors but the block declares four names; add a line above `ratioIdentity`: `// rati (Report 2-3)
@@ -304,10 +311,8 @@ Comment prose the current code-quality standard would not have asked for. The pl
 ### Won't fix (254)
 
 - **Test hygiene (191)** — shared-helper extractions, redundant subtests, fixture consolidation, parameter order, naming. ~85% in `_test.go`, none touching behaviour or what the suite proves.
-- **Speculative ideas (62)** — overwhelmingly "consider whether…" and "decide whether…", proposing no change anyone is owed.
-- **One spec-prose preference** — §16.3's "was once bundled with… did not come with it" phrasing. Not a false claim, so not corrected.
-
-Recorded by target; the per-task reports carry each note in full.
+- **Speculative ideas (62)** — "consider whether…" / "decide whether…", proposing no change anyone is owed.
+- **One spec-prose preference** — §16.3's "was once bundled with…" phrasing; not a false claim.
 
 - `internal/tui/theme_testing_test.go` — 9
 - `internal/capture/theme_swap_guard_test.go` — 8
@@ -447,9 +452,7 @@ Recorded by target; the per-task reports carry each note in full.
 
 ## Recommendations
 
-### Decisions
-
-*4 notes. Each is user-visible behaviour or a hole in a safety net.*
+### Ideas
 
 1. `cmd/theme.go`:45 — `cmd/theme.go:45` — an argument that is empty, or that strips to empty (`portal theme export ""`, `portal theme export -- $'\n'`), renders `theme is not valid: bad name` with a doubled space and no visible subject. §14A pins the frame but says nothing about an empty `<slug>`, so choosing a rendering (quote the value, or a distinct "no theme name given" line) is a copy decision, not a mechanical edit. Add the chosen case to `TestThemeExport_BadNameFrame` once decided. (Report 2-10)
 2. `internal/theme/contrast_test.go` — the suite auto-enumerates *themes* but not *tokens*: a 20th token added to `Theme.fields()` would carry no floor and nothing would fail. Consider a coverage assertion that every name in `theme.TokenNames()` is either exercised by at least one rule or listed in an explicit no-floor exemption set (`border`, `canvas`, and the two `text.on-*` pairings which are only measured on their tints). Needs a design decision on how rules declare which token they cover, which is why this is not a mechanical edit. (Report 2-3)
@@ -458,14 +461,6 @@ Recorded by target; the per-task reports carry each note in full.
 
 ### Bugs
 
-*8 notes. None blocking.*
-
 5. `internal/theme/resolve.go` — 2 notes
    - 63` — on a case-insensitive filesystem (macOS APFS default) the by-name path can accept a file the panel rejects: `loadFromThemesDir` composes `<themesDir>/<slug>.theme` and `LoadFile` derives the slug from that *composed* base, so a `Mine.theme` on disk is opened and accepted as slug `mine`, while `Enumerate` lists the same file as `bad name`. The no-shadowing property itself is unaffected (a built-in slug never reaches the directory — `resolve.go:32-34` consults the embedded set first), and spec §5.6 line 391 asserts the by-name path "looks for `<slug>.theme` and nothing else", which is what the code implements — so this is a spec-level edge rather than a coding mistake, and it is outside this task's criteria. Concrete change: after a successful `LoadFile` in `loadFromThemesDir`, confirm the on-disk entry name equals `slug+FileExtension` (one `os.ReadDir`/`filepath.Glob` name comparison) and return `notFound()` when it does not, so panel and launch cannot disagree about the same file. (Report 2-2)
    - a *directory* named `<slug>.theme` inside the themes dir makes `ResolveByName` return `unreadable` (ReadFile gives EISDIR; Lstat succeeds so nothing narrows), while `Enumerate` skips directories (`enumerate.go:78 resolvesToDirectory`) and the enumeration-backed path answers `not found` (`resolution.go:138` → `union.go:209`). One on-disk state, two different reasons across construction and the panel/doctor. Narrow the same way the other cases are narrowed: in `narrowReadFailure`, when the composed path stats as a directory, return `notFound()` so by-name agrees with enumeration's skip; add the case to `TestResolveByName_AbsentFileIsNotFound`. (Report 5-3)
-6. `cmd/capturetool/main.go`:63-66 — 66` — the swatch branch never restores the terminal background. `tui.RestoreTerminalBackground` runs only when the final model is a `tui.Model`, but `swatchModel.View()` sets `BackgroundColor` (`internal/capture/swatch.go:58`), so quitting `--fixture contrast-validation` leaves the theme's canvas set on any terminal that ignores Bubble Tea's OSC 111 reset — the exact failure `internal/tui/restore.go` exists to prevent. This predates the task, but `--theme` widens the blast radius from two known MV canvases to any drop-in's canvas, and the swatch is precisely the surface a human runs in their real terminal at a visual gate. Concrete change: have `swatchModel` capture the original background (`tea.RequestBackgroundColor` in `Init`) and set it back on exit, mirroring `internal/tui/restore.go` including its canvas-echo guard. (Report 2-4)
-7. `cmd/config.go`:123-124 — `LoadThemeKeys()` and `LoadMigrationState()` each perform their own `os.ReadFile` (`internal/prefs/store.go:191,201`), so §10.5's "load-time snapshot" is in fact two snapshots. Between the two reads another instance's `SaveTranslation` can land, yielding `keys={}` with `Migrated=true`; the marker gate then returns zero keys and that launch renders the shipped adaptive pair instead of the pin just translated — §10.1's silent flip, narrow (two simultaneous cold launches) and self-correcting on the next launch, but reachable. Fix: add one combined prefs read (e.g. `LoadThemeState() (ThemeKeys, MigrationState, error)` off a single `readFile`) and call it once in `loadPrefsStore`; it also removes one of the three prefs file reads the launch path currently performs. (Report 6-5)
-8. `cmd/theme.go`:15 — `themeExportCmd` sets neither `SilenceErrors` nor `SilenceUsage`, so a refusal reaches the user as cobra's `Error: no theme named nope`, then the **full usage + flags block**, then `main.classify` (main.go:71) printing the same frame a second time, bare. Both the spec's single-line refusal frame (§14A) and `.claude/skills/golang-cli`'s "Printing usage on every error" mistake row are missed, and `doctorCmd`, `uninstallCmd` and `stateCommitNowCmd` already carry the pair. Add `SilenceErrors: true, SilenceUsage: true` to `themeExportCmd`, and extend `requireExportRefusal` (cmd/theme_test.go:580) to assert `run.stderr` is empty (main, not cobra, owns the printing) so the shape is pinned. The frame *copy* is task 2-10's; this is the surrounding noise, so the fix belongs with whichever of the two is touched first. (Report 2-9)
-9. `internal/tui/model.go`:917-933 — `Styles.ArabicPagination` keeps `bubbles/list`'s hardcoded `#9B9B9B`/`#5C5C5C` (`bubbles/v2@v2.1.0/list/style.go:83`), and `paginationView` escalates to it whenever the rendered dot row is wider than the list (`list/list.go:1188-1192`) — a colour belonging to no theme reaching a real frame, on a narrow terminal with many pages. It is the same class as the `Styles.NoItems` offender this task's review caught, it is invisible to task 4-3's swap-and-diff guard (no fixture paginates that far and the grey is neither theme), and since the residue block was stripped it is no longer recorded either. Fix: set it alongside the dots in `applyListCanvasMode` — `l.Styles.ArabicPagination = lipgloss.NewStyle().Foreground(th.TextFaint.Color()).Background(th.Canvas.Color())` on the canvas arm and a bare `lipgloss.NewStyle()` on the colourless arm — with a matching assertion in the `probedLists` loop. (Report 4-1)
-10. `internal/tui/model_test.go`:26-28 — `editFieldFocused` returns `false` when the probe carries no SGR sequence, so a colourless render (or a profile downgrade) reports "field not focused" instead of "probe broken", sending the reader after the wrong defect. Replace the `return false` with `t.Fatalf("could not derive an SGR parameter run from %q", probe)`, matching the shared helper. (Report 12-4)
-11. `internal/tui/retired_token_guard_test.go`:48-51 — the `help_modal_frame_test.go` / `border.separator` exemption no longer covers a deliberate reference. The comment it was written for (line 41 pre-strip, recording the two consolidated frame roles) was removed by `e3fa1503`; the sole surviving occurrence is `help_modal_frame_test.go:20`, whose message reads "must be border.separator SGR core %q (not white)" on an assertion that reads `th.Border` — stale prose, not an absence guard. Once the guard covers strings this entry would bless it. Rewrite that message to name `border` and drop the exemption entry. (Report 14-2)
