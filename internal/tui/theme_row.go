@@ -91,7 +91,7 @@ func (d themeRowDelegate) compose(it themeRowItem) (labelBudget int, trailing []
 	if it.Row.Rejection != nil {
 		signal := flashWarningGlyph
 		remaining -= lipgloss.Width(signal) + themeRowGap
-		if reason, cost := themeRowReason(it, remaining, badge); reason != "" {
+		if reason, cost := themeRowReason(it, remaining); badge == "" && reason != "" {
 			signal += " " + reason
 			remaining -= cost
 		}
@@ -124,11 +124,7 @@ func themePanelBadgeText(badge theme.Badge) string {
 // The label is charged at least its floor: measured against a shorter natural
 // width, a reason would fit and then push the composed row past the panel's
 // width, spilling the slide-over out of its composite position.
-func themeRowReason(it themeRowItem, free int, badge string) (string, int) {
-	if badge != "" {
-		return "", 0
-	}
-
+func themeRowReason(it themeRowItem, free int) (string, int) {
 	reason := string(it.Row.Rejection.Reason)
 	cost := lipgloss.Width(reason) + themeRowGap
 	if free-max(lipgloss.Width(it.Row.Label()), themeRowLabelFloor) < cost {

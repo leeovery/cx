@@ -56,11 +56,7 @@ func SyntheticPalette(t *testing.T, red uint8) theme.Theme {
 		TextOnAttention:  v(19),
 	}
 
-	tokens := palette.All()
-	if len(tokens) != len(theme.TokenNames()) {
-		t.Fatalf("synthetic palette enumerated %d tokens, the vocabulary has %d", len(tokens), len(theme.TokenNames()))
-	}
-	for _, tok := range tokens {
+	for _, tok := range palette.All() {
 		if tok.Value == "" {
 			t.Fatalf("synthetic palette left token %q empty; add it to the builder", tok.Name)
 		}

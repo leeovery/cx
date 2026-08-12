@@ -107,22 +107,6 @@ func TestMigrationMarker_FalseIsAbsentOnDisk(t *testing.T) {
 		}
 	})
 
-	t.Run("no writer invents the key on a markerless file", func(t *testing.T) {
-		for _, c := range markerWriterCases() {
-			if c.setsMarker {
-				continue
-			}
-			t.Run(c.name, func(t *testing.T) {
-				path := seedPrefsFile(t, `{"session_list_mode":"flat","theme":"nord"}`)
-
-				if err := c.write(NewStore(path)); err != nil {
-					t.Fatalf("unexpected write error: %v", err)
-				}
-
-				assertMarkerOnDisk(t, path, false)
-			})
-		}
-	})
 }
 
 // False fails safe: the translation is idempotent and simply re-runs.

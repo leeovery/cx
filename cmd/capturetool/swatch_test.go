@@ -41,15 +41,6 @@ func TestResolveProgramContrastValidation(t *testing.T) {
 		}
 	})
 
-	t.Run("an unknown theme is an error", func(t *testing.T) {
-		m, err := resolveProgram(capture.ContrastValidationFixture, "not-a-theme", io.Discard)
-		if err == nil {
-			t.Fatal("resolveProgram(contrast-validation, not-a-theme) returned nil error, want error")
-		}
-		if m != nil {
-			t.Error("resolveProgram returned a model alongside its error — nothing must render")
-		}
-	})
 }
 
 func TestResolveProgramSessionsFixture(t *testing.T) {

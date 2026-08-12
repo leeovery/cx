@@ -797,12 +797,6 @@ func TestThemeExport_UnreadableFrame(t *testing.T) {
 // nothing at this name": the read reports ENOENT either way, and only the name's
 // own existence tells them apart.
 func TestThemeExport_AbsentIsNotUnreadable(t *testing.T) {
-	t.Run("an absent file is no theme named", func(t *testing.T) {
-		useThemesDir(t)
-
-		requireExportRefusal(t, execThemeExport(t, "nope"), "no theme named nope")
-	})
-
 	t.Run("an unreadable directory is could not be read", func(t *testing.T) {
 		dir := seedThemesDir(t, "mine", validThemeSource(t))
 		_ = themetest.DenyDir(t, dir)

@@ -30,10 +30,6 @@ func newSwatchModel(th theme.Theme) swatchModel {
 	return swatchModel{th: th}
 }
 
-func (s swatchModel) canvasHex() string {
-	return s.th.Canvas.Value
-}
-
 func (s swatchModel) Init() tea.Cmd { return nil }
 
 func (s swatchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {

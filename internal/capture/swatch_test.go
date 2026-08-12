@@ -77,9 +77,6 @@ func TestSwatch_UsesThemeOwnCanvas(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			s := newSwatchModel(c.theme)
 
-			if got := s.canvasHex(); got != c.theme.Canvas.Value {
-				t.Errorf("canvasHex() = %q, want %q", got, c.theme.Canvas.Value)
-			}
 			if got := s.View().BackgroundColor; got != c.theme.Canvas.Color() {
 				t.Errorf("View().BackgroundColor = %v, want the theme's canvas %v", got, c.theme.Canvas.Color())
 			}

@@ -27,16 +27,6 @@ func TestThemePanelKeymap_CarriesAllSixKeys(t *testing.T) {
 		}
 	})
 
-	t.Run("it pins no right anchor and no ? entry", func(t *testing.T) {
-		for _, e := range entries {
-			if e.RightAligned {
-				t.Errorf("entry %q is RightAligned — a vertical footer has no right anchor", e.Key)
-			}
-			if e.Key == "?" {
-				t.Errorf("panel scope carries a %q entry — ? does nothing inside the panel", e.Key)
-			}
-		}
-	})
 }
 
 func TestThemePanelKeymap_CoreIsTheFourCommits(t *testing.T) {

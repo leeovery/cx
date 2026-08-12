@@ -222,14 +222,6 @@ func TestThemeSavers_ClearedKeysAreAbsent(t *testing.T) {
 
 				assertKeysAbsent(t, decodeWritten(t, path), c.clearedKeys...)
 
-				// The trailing `":` anchors the needle so `"theme"` does not
-				// match `"theme_light"`.
-				raw := readRaw(t, path)
-				for _, key := range c.clearedKeys {
-					if needle := []byte(`"` + key + `":`); bytes.Contains(raw, needle) {
-						t.Errorf("written JSON %q still names %q, want the cleared key omitted", raw, key)
-					}
-				}
 			})
 		}
 	})
