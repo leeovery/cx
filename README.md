@@ -218,6 +218,16 @@ xctl doctor --fix        # apply low-stakes repairs, then re-diagnose
 
 `--fix` performs the reversible-by-reconstruction repairs: prune stale hooks, prune stale projects (replacing the retired `clean`), and sweep old logs. It re-runs the diagnosis afterwards and the exit code reflects the post-repair state. The daemon already runs these prunes automatically on a slow cadence, so `doctor` usually reads healthy without you doing anything — `--fix` is the manual trigger. The host-terminal check (folding in the retired `spawn --detect`) prints the detected terminal and its bundle id so you can copy it into [`terminals.json`](#configuration).
 
+### `xctl theme export`
+
+Print a theme's file to stdout, comments and all. This is the way to start your own theme from a built-in — copy one, edit it, drop it in your themes directory. See [`docs/theming.md`](docs/theming.md).
+
+```bash
+xctl theme export nord                                    # print it
+mkdir -p ~/.config/portal/themes
+xctl theme export nord > ~/.config/portal/themes/mine.theme
+```
+
 ### `portal uninstall`
 
 Remove Portal's tmux-server footprint — kill the save daemon and unregister the global hooks — **without touching any files**. Saved sessions and all config are left in place; the next `x`/`portal open` re-bootstraps the runtime, so it means "deactivate Portal's machinery now," not "destroy my data." Idempotent: a no-op on already-clean state. See [Uninstall](#uninstall).
