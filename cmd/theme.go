@@ -38,6 +38,11 @@ var themeExportCmd = &cobra.Command{
 // purpose — a *UsageError would exit 2, a silent-exit sentinel would print
 // nothing.
 func exportRefusal(slug string, rejection *theme.Rejection) error {
+	// An argument that is empty, or strips to empty, would leave a hole where
+	// the name goes — name the shape instead of printing nothing.
+	if slug == "" {
+		return fmt.Errorf("no theme name given: %s", rejection.Reason)
+	}
 	switch rejection.Reason {
 	case theme.ReasonNotFound:
 		return fmt.Errorf("no theme named %s", slug)
