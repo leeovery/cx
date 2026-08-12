@@ -53,7 +53,7 @@ func run(fixture, themeArg string) error {
 
 	// The alt screen is declared through tea.View.AltScreen in tui.Model.View,
 	// not a program option — Bubble Tea v2 removed tea.WithAltScreen.
-	p := tea.NewProgram(m)
+	p := tea.NewProgram(m, tea.WithFilter(renderSizeFilter(fixture)))
 	finalModel, err := p.Run()
 	if err != nil {
 		return err
@@ -65,6 +65,18 @@ func run(fixture, themeArg string) error {
 		tui.RestoreTerminalBackground(os.Stdout, fm)
 	}
 	return nil
+}
+
+// A live window is the terminal's size rather than the fixture's choice, so a
+// fixture that declares a render size has it substituted into the resize on its
+// way to the model. The swatch is no *Fixture and declares none, as does an
+// unresolvable name — which the program never reaches.
+func renderSizeFilter(fixture string) func(tea.Model, tea.Msg) tea.Msg {
+	fx, err := capture.FixtureByName(fixture)
+	if err != nil {
+		return func(_ tea.Model, msg tea.Msg) tea.Msg { return msg }
+	}
+	return func(_ tea.Model, msg tea.Msg) tea.Msg { return fx.PinRenderSize(msg) }
 }
 
 // The theme resolves before either branch, so a screen capture and the contrast

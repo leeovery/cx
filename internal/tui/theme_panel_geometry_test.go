@@ -62,6 +62,31 @@ func TestPanelGeometry_WidthLadder(t *testing.T) {
 	})
 }
 
+func TestPanelGeometry_TerminalEnds(t *testing.T) {
+	t.Run("the min-width terminal steps the panel down, one column wider does not", func(t *testing.T) {
+		term := ThemePanelMinWidthTerminal()
+
+		if got, ok := themePanelWidthFor(insetRegion(term, Hinset)); !ok || got != themePanelMinWidth {
+			t.Errorf("at %d columns the panel renders %d wide (ok=%v), want the stepped-down %d", term, got, ok, themePanelMinWidth)
+		}
+		if got, _ := themePanelWidthFor(insetRegion(term+1, Hinset)); got != themePanelPreferredWidth {
+			t.Errorf("at %d columns the panel renders %d wide, want the preferred %d — the declared width is the WIDEST terminal that steps down", term+1, got, themePanelPreferredWidth)
+		}
+	})
+
+	t.Run("the floor terminal opens the panel, one row shorter refuses", func(t *testing.T) {
+		term := ThemePanelFloorTerminalHeight()
+		contentW := insetRegion(ThemePanelMinWidthTerminal(), Hinset)
+
+		if dim, ok := themePanelFloor(contentW, insetRegion(term, Vinset), false); !ok {
+			t.Errorf("at %d rows the gate refuses on %v, want the panel to open", term, dim)
+		}
+		if dim, ok := themePanelFloor(contentW, insetRegion(term-1, Vinset), false); ok || dim != dimHeight {
+			t.Errorf("at %d rows the gate reports (%v, ok=%v), want a height refusal — the declared height is the SHORTEST terminal that opens", term-1, dim, ok)
+		}
+	})
+}
+
 func TestPanelGeometry_WidthFloor(t *testing.T) {
 	for contentW := themePanelMinWidth - 1; contentW >= 0; contentW-- {
 		got, ok := themePanelWidthFor(contentW)

@@ -222,7 +222,10 @@ tints get settled by eye, so it takes a `--theme` like everything else.
 2. **Add a tape** `testdata/vhs/<name>.tape` modelled on an existing one (see git
    history — the directory is normally empty). Set `FontFamily "JetBrains Mono"` +
    `FontSize 16`, fix `Width`/`Height` (vhs sizes in **pixels**, so record the
-   resulting column/row count in a comment), `Set Shell "bash"` for a deterministic
+   resulting column/row count in a comment). If the frame *is* a geometry, declare
+   the terminal size on the fixture rather than only in the tape, so the tape and
+   the offline driver cannot drift — the tape then sizes its terminal to match the
+   declared columns/rows. `Set Shell "bash"` for a deterministic
    prompt, launch `go run ./cmd/capturetool --fixture <name> --theme <slug>`, `Sleep`
    for the compile + first paint, type any keys, then `Screenshot "<...>.png"`.
 3. **Clear the tape and the PNG at sign-off.** Leave the fixture.

@@ -70,6 +70,20 @@ func themePanelHeaderRows(height int, dirUnusable bool) int {
 	return themePanelHeaderShapeFor(height, dirUnusable).rows
 }
 
+// ThemePanelMinWidthTerminal reports the widest terminal whose content region
+// steps the panel down to its minimum width — one column below the preferred
+// affordance, plus the page gutter the content region is inset by.
+func ThemePanelMinWidthTerminal() int {
+	return themePanelPreferredAffordance - 1 + 2*Hinset
+}
+
+// ThemePanelFloorTerminalHeight reports the shortest terminal the panel opens
+// in: the height floor of the standing keymap over a usable directory, plus the
+// page gutter. One row less refuses.
+func ThemePanelFloorTerminalHeight() int {
+	return themePanelMinHeight(themePanelKeymap(), false) + 2*Vinset
+}
+
 type themePanelDim int
 
 const (

@@ -57,7 +57,9 @@ func capturedStates() []capturedStateWant {
 		{fixture: "theme-panel-projects", page: tui.PageProjects, present: []string{"flow-v1-api", "Projects", "Themes", "● light", "● dark"}},
 		{fixture: "theme-panel-confirm", page: tui.PageSessions, present: []string{sessionRow, "Themes", "clear constant nord?  y / n", "confirm", "cancel"}, absent: []string{"No sessions yet", "set as dark", "set as light"}},
 		{fixture: "theme-panel-commit-failed", page: tui.PageSessions, present: []string{sessionRow, "Themes", "⚠ couldn't save theme", "● light", "● dark", "set as dark"}, absent: []string{"No sessions yet", "confirm", "cancel"}},
-		{fixture: "theme-panel-min-height-message", page: tui.PageSessions, present: []string{sessionRow, "Themes", "⚠ couldn't save theme", "● light", "● dark"}, absent: []string{"No sessions yet"}},
+		// The floor's body is one list row, so the light badge's row is off the
+		// frame rather than missing from it.
+		{fixture: "theme-panel-min-height-message", page: tui.PageSessions, present: []string{sessionRow, "Themes", "⚠ couldn't save theme", "● dark"}, absent: []string{"No sessions yet", "● light"}},
 		{fixture: "projects", page: tui.PageProjects, present: []string{"flow-v1-api", "Projects"}},
 		{fixture: "projects-command-pending", page: tui.PageProjects, present: []string{"flow-v1-api", "Pick a project to run", "npm run dev"}},
 		{fixture: "preview-screen", present: []string{"aviva-proxy-qNyfEO", "Window 1/1", "kubectl rollout"}},

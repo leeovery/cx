@@ -29,8 +29,6 @@ func allPanelFixtureNames() []string {
 }
 
 const (
-	narrowPanelTermWidth = 54
-
 	minimumPanelTermWidth = 28
 
 	dirUnreadablePanelTermHeight = 16
@@ -177,16 +175,19 @@ func TestPanelFixture_RowsBeneathDirRow(t *testing.T) {
 func TestPanelFixture_NarrowRendersTheStepDown(t *testing.T) {
 	palette := themetest.Builtin(t, "nord")
 
-	preferred := panelOuterWidth(t, panelFixtureFrame(t, "theme-panel-narrow", palette), harnessWidth)
-	minimum := panelOuterWidth(t, panelFrameAt(t, "theme-panel-narrow", palette, minimumPanelTermWidth, harnessHeight), minimumPanelTermWidth)
+	// The ladder's ends are measured off the fixture this one is derived from,
+	// which declares no size of its own and so renders at whatever is asked for.
+	preferred := panelOuterWidth(t, panelFixtureFrame(t, "theme-panel-adaptive-pair", palette), harnessWidth)
+	minimum := panelOuterWidth(t, panelFrameAt(t, "theme-panel-adaptive-pair", palette, minimumPanelTermWidth, harnessHeight), minimumPanelTermWidth)
 	if minimum >= preferred {
 		t.Fatalf("the ladder's ends measure %d (minimum) and %d (preferred); with no step between them the assertion below cannot fail", minimum, preferred)
 	}
 
-	narrow := panelFrameAt(t, "theme-panel-narrow", palette, narrowPanelTermWidth, harnessHeight)
-	got := panelOuterWidth(t, narrow, narrowPanelTermWidth)
+	narrowTermWidth := tui.ThemePanelMinWidthTerminal()
+	narrow := panelFixtureFrame(t, "theme-panel-narrow", palette)
+	got := panelOuterWidth(t, narrow, narrowTermWidth)
 	if got != minimum {
-		t.Errorf("at %d columns the panel renders %d wide, want the ladder's stepped-down %d (the preferred width is %d)", narrowPanelTermWidth, got, minimum, preferred)
+		t.Errorf("at its declared %d columns the panel renders %d wide, want the ladder's stepped-down %d (the preferred width is %d)", narrowTermWidth, got, minimum, preferred)
 	}
 
 	t.Run("every row still renders on exactly one line", func(t *testing.T) {

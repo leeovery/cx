@@ -21,6 +21,10 @@ var errFixtureFatal = errors.New("permission denied")
 
 type Fixture struct {
 	name string
+	// The render size the fixture requires, per dimension, where its frame IS a
+	// geometry rather than content at whatever size the caller has. Zero takes
+	// the caller's.
+	width, height int
 
 	Lister *fakeLister
 
@@ -491,12 +495,15 @@ func themePanelCommitFailedFixture() *Fixture {
 	return fx
 }
 
-// A fixture cannot resize itself, so the panel's height floor is reachable only
-// by capturing at a terminal that lands on it: capture at the floor and minimum
-// width with `--theme nord`.
+// Declares the terminal that lands exactly on the panel's height floor, at the
+// minimum width: what it exercises is the floor's arithmetic — one list row and
+// one message row beneath the header, with the standing footer intact. Capture
+// with `--theme nord`.
 func themePanelMinHeightMessageFixture() *Fixture {
 	fx := themePanelCommitFailedFixture()
 	fx.name = "theme-panel-min-height-message"
+	fx.width = tui.ThemePanelMinWidthTerminal()
+	fx.height = tui.ThemePanelFloorTerminalHeight()
 	return fx
 }
 
@@ -586,12 +593,14 @@ func themePanelDirUnreadableFixture() *Fixture {
 // persisted row on each page of the captured frame.
 const themePanelUnreachableLightSlug = "solarized-lee"
 
-// Identical data to the adaptive pair — only the capture width differs.
-// Capture with `--theme nord` at a terminal narrow enough to step the panel
-// to its minimum width.
+// Identical data to the adaptive pair; it declares the terminal that steps the
+// panel down to its minimum width, which is the whole of what it exercises —
+// every row still on one line, and the badges reserved before the narrowed
+// width can crowd them out. Capture with `--theme nord`.
 func themePanelNarrowFixture() *Fixture {
 	fx := themePanelAdaptivePairFixture()
 	fx.name = "theme-panel-narrow"
+	fx.width = tui.ThemePanelMinWidthTerminal()
 	return fx
 }
 

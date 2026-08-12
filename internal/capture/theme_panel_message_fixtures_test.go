@@ -24,11 +24,9 @@ func messagePanelFixtureNames() []string {
 	}
 }
 
-const (
-	messagePanelTermWidth = 54
+const messagePanelTermWidth = 54
 
-	messagePanelFloorTermHeight = 10
-)
+var messagePanelFloorTermHeight = tui.ThemePanelFloorTerminalHeight()
 
 const themePanelConfirmCopy = "clear constant nord?  y / n"
 
@@ -194,11 +192,14 @@ func TestPanelFixture_CommitFailedBadgeUnmoved(t *testing.T) {
 
 func TestPanelFixture_MinHeightMessageFrame(t *testing.T) {
 	palette := themetest.Builtin(t, "nord")
-	frame := panelFrameAt(t, "theme-panel-min-height-message", palette, messagePanelTermWidth, messagePanelFloorTermHeight)
+	frame := panelFixtureFrame(t, "theme-panel-min-height-message", palette)
 	lines := panelLines(t, frame)
 
 	t.Run("one row shorter the panel refuses to open", func(t *testing.T) {
-		short := ansi.Strip(panelFrameAt(t, "theme-panel-min-height-message", palette, messagePanelTermWidth, messagePanelFloorTermHeight-1))
+		// The fixture this one is derived from, which declares no size: the
+		// declared floor is what a row is subtracted from, so the frame below it
+		// has to be asked for somewhere that honours the size passed.
+		short := ansi.Strip(panelFrameAt(t, "theme-panel-commit-failed", palette, tui.ThemePanelMinWidthTerminal(), messagePanelFloorTermHeight-1))
 		if strings.Contains(short, panelBorder) {
 			t.Errorf("the panel still opens one row below the captured height, so that height is above the floor rather than on it:\n%s", short)
 		}
@@ -246,7 +247,7 @@ func TestPanelFixture_MinHeightMessageTruncates(t *testing.T) {
 	palette := themetest.Builtin(t, "nord")
 
 	t.Run("the seeded failure is one line", func(t *testing.T) {
-		lines := panelLines(t, panelFrameAt(t, "theme-panel-min-height-message", palette, messagePanelTermWidth, messagePanelFloorTermHeight))
+		lines := panelLines(t, panelFixtureFrame(t, "theme-panel-min-height-message", palette))
 		start := panelLineIndex(t, lines, "couldn't save theme")
 		footerStart, _ := footerBlock(t, lines, standingFooterRows)
 		if got := footerStart - start; got != 1 {

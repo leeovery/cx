@@ -14,10 +14,9 @@
 # its preferred width while the content region is at least twice it, steps down to
 # the minimum below that, and refuses only once even the minimum cannot render.
 # The panel fixtures whose subject is the panel itself are captured wide enough to
-# take the preferred width, so the step is what this frame is for. A fixture cannot
-# resize itself either — it opens through captureKeys and is a one-shot render — so
-# the stepped-down width is reachable ONLY by capturing at a narrower terminal,
-# which is what this tape is.
+# take the preferred width, so the step is what this frame is for. The fixture
+# DECLARES the stepped-down terminal width itself, so the frame renders at the
+# minimum wherever it is driven from.
 #
 # WHAT TO LOOK AT: a panel NARROWER than the one in theme-panel-adaptive-pair.png,
 # with both `● light` and `● dark` badges still on their rows and every row still
@@ -60,8 +59,8 @@
 # didn't render" and a stale one reads as a false pass.
 #
 # To view the same screen live in a real terminal instead (press `t` by hand —
-# capturetool replays no keys; narrow the window to about 54 columns, or it will
-# render at the preferred width and show nothing this frame is about):
+# capturetool replays no keys; no window resize is needed, because the fixture
+# pins its own terminal width to the one that steps the ladder down):
 #
 #   go run ./cmd/capturetool --fixture theme-panel-narrow --theme nord
 #
@@ -74,12 +73,14 @@ Output "testdata/vhs/.gifcache/theme-panel-narrow.gif"
 Set FontFamily "JetBrains Mono"
 Set FontSize 16
 # VHS sizes the terminal in PIXELS, so the column count is recorded here rather
-# than stated in the tape: 690x800 resolves to 54 COLUMNS x 31 rows.
-# The width is the load-bearing half. 54 columns leaves 50 content columns, which
-# is below twice the 30-column preferred width, so the ladder steps down to its
-# 24-column minimum. A terminal of 64 columns or more takes the preferred width
-# and this frame shows nothing.
-Set Width 690
+# than stated in the tape: 780x800 resolves to 63 COLUMNS x 31 rows (measured by
+# running the tape, not by arithmetic — 10px per column at this font).
+# 63 columns is the width the FIXTURE declares, so the tape has to give the vhs
+# terminal at least that much or the pinned render is clipped. It matches it
+# exactly: the frame then fills the capture with nothing round it. 63 columns
+# leaves 59 content columns, below twice the 30-column preferred width, so the
+# ladder steps down to its 24-column minimum.
+Set Width 780
 Set Height 800
 # A fixed shell prompt keeps the captured frame deterministic across machines.
 Set Shell "bash"

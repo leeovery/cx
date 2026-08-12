@@ -75,10 +75,10 @@
 # render" and a stale one reads as a false pass.
 #
 # To view the same screen live in a real terminal instead (press `t` by hand —
-# capturetool replays no keys; the size is the whole subject here, so shrink the
-# window to about 54 columns x 10 rows — one row taller and the body gains a second
-# theme row, one row shorter and `t` refuses with `terminal too short for the theme
-# picker`):
+# capturetool replays no keys; no window resize is needed, because the fixture pins
+# its own terminal size — 63 columns x 10 rows — to the floor this frame is about:
+# one row taller and the body gains a second theme row, one row shorter and `t`
+# refuses with `terminal too short for the theme picker`):
 #
 #   go run ./cmd/capturetool --fixture theme-panel-min-height-message --theme nord
 #
@@ -91,18 +91,20 @@ Output "testdata/vhs/.gifcache/theme-panel-min-height-message.gif"
 Set FontFamily "JetBrains Mono"
 Set FontSize 16
 # VHS sizes the terminal in PIXELS, so the column/row counts are recorded here
-# rather than stated in the tape: 690x366 resolves to 54 COLUMNS x 10 ROWS.
-# BOTH halves are load-bearing, and this is the one tape where the height is the
-# subject. 10 rows leaves 8 content rows, which is exactly §9.8's floor: the panel
-# spends 2 on the header it DRAWS (the rule and the `Themes` label), 4 on the
-# standing footer and 1 on the message slot, leaving the ONE list row the floor
-# guarantees. 11 rows gives the body a second row
-# and the arithmetic stops being visible; 9 refuses to open at all. The width is
-# the same minimum theme-panel-confirm.tape uses — 54 columns leaves 50 content
-# columns, below twice the preferred width, so §9.8's ladder steps down to the
-# 24-column minimum — so the two frames
-# differ in nothing but height.
-Set Width 690
+# rather than stated in the tape: 780x366 resolves to 63 COLUMNS x 10 ROWS
+# (measured by running the tape, not by arithmetic — 10px per column at this font).
+# BOTH halves are the size the FIXTURE declares, so the tape has to give the vhs
+# terminal at least that much or the pinned render is clipped; it matches both
+# exactly, so the frame fills the capture with nothing round it. 10 rows leaves 8
+# content rows, which is exactly §9.8's floor: the panel spends 2 on the header it
+# DRAWS (the rule and the `Themes` label), 4 on the standing footer and 1 on the
+# message slot, leaving the ONE list row the floor guarantees. 11 rows gives the
+# body a second row and the arithmetic stops being visible; 9 refuses to open at
+# all. 63 columns leaves 59 content columns, below twice the preferred width, so
+# §9.8's ladder steps down to the 24-column minimum — the same PANEL width
+# theme-panel-confirm.png renders at (that tape reaches it from a narrower
+# terminal), so the two are directly comparable on everything but height.
+Set Width 780
 Set Height 366
 # A fixed shell prompt keeps the captured frame deterministic across machines.
 Set Shell "bash"
