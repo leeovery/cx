@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/leeovery/portal/internal/theme"
 )
@@ -140,6 +141,78 @@ func TestSwatchBandsCoverEveryPinnedTint(t *testing.T) {
 	track := lipgloss.NewStyle().Background(th.BgSubtle.Color()).Render(strings.Repeat(" ", bandWidth-subtleBarWidth))
 	if got := surfaces["bg.subtle"]; got != bar+track {
 		t.Errorf("the bg.subtle band is not the accent.primary bar over the bg.subtle track\n got %q\nwant %q", got, bar+track)
+	}
+}
+
+// Independently expressed styled-blank padding — the reference the swatch's own
+// rendering is held to, byte for byte.
+func wantFilledCanvas(th theme.Theme, view string, w, h int) string {
+	style := lipgloss.NewStyle().Background(th.Canvas.Color())
+	lines := strings.Split(view, "\n")
+	out := make([]string, 0, h)
+	for _, line := range lines {
+		if len(out) == h {
+			break
+		}
+		if gap := w - lipgloss.Width(line); gap > 0 {
+			line += style.Render(strings.Repeat(" ", gap))
+		}
+		out = append(out, line)
+	}
+	for len(out) < h {
+		out = append(out, style.Render(strings.Repeat(" ", w)))
+	}
+	return strings.Join(out, "\n")
+}
+
+func TestSwatchViewFillsTheCanvasVerbatim(t *testing.T) {
+	th := swatchTestPalette("#0B0C14", "EE")
+
+	cases := []struct {
+		name  string
+		set   bool
+		w, h  int
+		wantW int
+		wantH int
+	}{
+		{name: "explicit size", set: true, w: 100, h: 30, wantW: 100, wantH: 30},
+		{name: "truncating size", set: true, w: 40, h: 5, wantW: 40, wantH: 5},
+		{name: "sizeless fallback", wantW: 80, wantH: 24},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			s := newSwatchModel(th)
+			if c.set {
+				updated, _ := s.Update(tea.WindowSizeMsg{Width: c.w, Height: c.h})
+				s = updated.(swatchModel)
+			}
+
+			got := s.View().Content
+			want := wantFilledCanvas(th, renderSwatch(th), c.wantW, c.wantH)
+			if got != want {
+				t.Errorf("filled canvas differs from the styled-blank reference\n got %q\nwant %q", got, want)
+			}
+			if lines := strings.Split(got, "\n"); len(lines) != c.wantH {
+				t.Errorf("filled canvas is %d lines tall, want %d", len(lines), c.wantH)
+			}
+			// Padding widens short lines; an over-wide content line is left as it is.
+			for i, line := range strings.Split(got, "\n") {
+				if w := lipgloss.Width(line); w < c.wantW {
+					t.Errorf("line %d is %d cells wide, want at least %d", i, w, c.wantW)
+				}
+			}
+		})
+	}
+}
+
+func TestFillIsEmptyForNonPositiveWidth(t *testing.T) {
+	tint := swatchTestPalette("#0B0C14", "FF").BgSubtle.Color()
+
+	for _, n := range []int{0, -1, -12} {
+		if got := fill(tint, n); got != "" {
+			t.Errorf("fill(tint, %d) = %q, want an empty string", n, got)
+		}
 	}
 }
 

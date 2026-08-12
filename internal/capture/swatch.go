@@ -68,18 +68,15 @@ func (s swatchModel) fillCanvas(view string) string {
 	if h == 0 {
 		h = 24
 	}
-	canvasStyle := lipgloss.NewStyle().Background(s.th.Canvas.Color())
-	blank := canvasStyle.Render(strings.Repeat(" ", w))
+	canvas := s.th.Canvas.Color()
+	blank := fill(canvas, w)
 	lines := strings.Split(view, "\n")
 	out := make([]string, 0, h)
 	for _, line := range lines {
 		if len(out) == h {
 			break
 		}
-		gap := w - lipgloss.Width(line)
-		if gap > 0 {
-			line += canvasStyle.Render(strings.Repeat(" ", gap))
-		}
+		line += fill(canvas, w-lipgloss.Width(line))
 		out = append(out, line)
 	}
 	for len(out) < h {
@@ -158,6 +155,15 @@ func onTint(tok theme.Token, tint color.Color) lipgloss.Style {
 	return lipgloss.NewStyle().Foreground(tok.Color()).Background(tint)
 }
 
+// A non-positive width renders nothing at all — not an empty styled span — so
+// callers can hand over an unguarded width difference without adding bytes.
+func fill(tint color.Color, n int) string {
+	if n <= 0 {
+		return ""
+	}
+	return lipgloss.NewStyle().Background(tint).Render(strings.Repeat(" ", n))
+}
+
 func selectionBand(th theme.Theme) string {
 	tint := th.BgSelection.Color()
 	gap := onTint(th.TextOnSelection, tint).Render("  ")
@@ -179,13 +185,9 @@ func attentionBand(th theme.Theme) string {
 const subtleBarWidth = 18
 
 func subtleBand(th theme.Theme) string {
-	bar := lipgloss.NewStyle().
-		Background(th.AccentPrimary.Color()).
-		Render(strings.Repeat(" ", subtleBarWidth))
-	empty := lipgloss.NewStyle().
-		Background(th.BgSubtle.Color()).
-		Render(strings.Repeat(" ", bandWidth-subtleBarWidth))
-	return bar + empty
+	bar := fill(th.AccentPrimary.Color(), subtleBarWidth)
+	track := fill(th.BgSubtle.Color(), bandWidth-subtleBarWidth)
+	return bar + track
 }
 
 func borderRule(th theme.Theme) string {
@@ -193,9 +195,5 @@ func borderRule(th theme.Theme) string {
 }
 
 func padBand(content string, tint color.Color) string {
-	gap := bandWidth - lipgloss.Width(content)
-	if gap > 0 {
-		content += lipgloss.NewStyle().Background(tint).Render(strings.Repeat(" ", gap))
-	}
-	return content
+	return content + fill(tint, bandWidth-lipgloss.Width(content))
 }
