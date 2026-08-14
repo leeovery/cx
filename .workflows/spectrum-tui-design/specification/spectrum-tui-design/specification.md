@@ -44,6 +44,10 @@
 > - **§2.9's status line.** Superseded: "All values are a **hypothesis until prototyped in a real terminal (§15)**; the table is the build target, validation is the lock." Current: the values **were** prototyped and locked; the `.theme` files carry them and the table records what that validation settled. The old wording re-asserted the table as the authority the §2.9 preamble had already demoted, and stopped being true when the palette shipped.
 > - **§11's Projects claim.** Superseded: "Projects carries the transient-flash slot **alone**. Every other contender is Sessions-only **with no Projects analogue**." Current: Projects carries the transient flash **and the command-pending banner** — `activeProjectNoticeBand` (`internal/tui/notice_band.go:196-204`) ranks the flash above `commandPending`, so the slot has two contenders on that page. The 2026-08-07 entry above repeats the same imprecision in its §11 bullet and stands as the record of what that pass believed.
 
+> **⚠ Corrigendum — 2026-08-14 (theming-system review).**
+> - **§10.2 / §10.4's bootstrap step count.** Superseded: "the full **11-step** bootstrap runs synchronously", the §10.4 heading "**11 real steps** → 5 friendly labels", and the cleanup ranges "steps **8–11**" / "**9–11** marker/FIFO/stale cleanup". Current: the orchestrator runs **ten** steps — the former step 11, `CleanStale`, was re-homed onto the `_portal-saver` daemon — so the mapping is **ten real steps → 5 friendly labels** and the cleanup tail is **8–10** / **9–10**. `internal/tui/loading_progress.go` is the mapping authority and carries `totalBootstrapSteps = 10`. The same phrase was corrected in the observability spec on 2026-08-12; this one was missed in that pass.
+> Bodies below were edited in place to match; this block is the only annotation. Original wording is recoverable via `git log -p`.
+
 ## Specification
 
 > **⚠ Verification mandate — applies to every task (read before planning).**
@@ -437,7 +441,7 @@ The loading page is gated on **`serverStarted`** (set only when `EnsureServer` a
 **The flip is scoped to the COLD path only.** A cheap `tmux has-server` check decides; warm keeps today's fast synchronous path, carrying **zero new risk**.
 
 ### 10.2 The startup flip (concurrent cold-boot bootstrap)
-**Today:** the full 11-step bootstrap runs **synchronously in `PersistentPreRunE` before the TUI launches** — by the time the loading page renders, restore is already 100 % done, so the page is a cosmetic 1.2 s pad. A slow restore happens *before* the page appears (frozen terminal).
+**Today:** the full ten-step bootstrap runs **synchronously in `PersistentPreRunE` before the TUI launches** — by the time the loading page renders, restore is already 100 % done, so the page is a cosmetic 1.2 s pad. A slow restore happens *before* the page appears (frozen terminal).
 
 **Flip:** for the **cold + TUI path only** (scoped via the existing `isTUIPath`; CLI/direct-path keeps the synchronous bootstrap), launch Bubble Tea **immediately** on the loading page, run the orchestrator in a **goroutine**, stream a `tea.Msg` per real step (and per restored session), transition to Sessions on complete, **quit-with-error** on the one fatal step. A progress callback is injected at the restore per-session loop.
 - The loading page already gates Sessions enumeration on `BootstrapCompleteMsg`, and the TUI is **inert during loading** (animation only) — this **contains the race surface**.
@@ -456,8 +460,8 @@ Centred **`PORTAL ▌`** (wordmark `text.primary` + caret `accent.primary`) over
 
 Bar weight is **thick** (decided). Warm path shows no loading screen.
 
-### 10.4 Step mapping (11 real steps → 5 friendly labels)
-The bar advances on **every real bootstrap step**; the **active label** is the friendly group the current step falls in (each label spans ≥1 real step). Proposed grouping (cleanup steps 8–11 are near-instant and fold under the final label; implementation may adjust which fast step sits under which label):
+### 10.4 Step mapping (10 real steps → 5 friendly labels)
+The bar advances on **every real bootstrap step**; the **active label** is the friendly group the current step falls in (each label spans ≥1 real step). Proposed grouping (cleanup steps 8–10 are near-instant and fold under the final label; implementation may adjust which fast step sits under which label):
 
 | Friendly label | Real bootstrap step(s) |
 |---|---|
@@ -465,7 +469,7 @@ The bar advances on **every real bootstrap step**; the **active label** is the f
 | `Registered hooks` | 2 RegisterPortalHooks · 3 set `@portal-restoring` · 4 SweepOrphanDaemons · 5 EnsureSaver |
 | `Restoring sessions (N/M)` | 6 Restore — skeleton phase (the per-session loop; `N/M` is its real counter) |
 | `Replaying scrollback` | 6 Restore — geometry + scrollback replay · 7 EagerSignalHydrate |
-| `Running resume commands` | hydrate helpers firing the registered on-resume commands · 8 clear `@portal-restoring` · 9–11 marker/FIFO/stale cleanup |
+| `Running resume commands` | hydrate helpers firing the registered on-resume commands · 8 clear `@portal-restoring` · 9–10 marker/FIFO cleanup |
 
 Only `Restoring sessions` carries an `N/M` counter (the restore loop is the one real per-item progress source); other labels tick once.
 
