@@ -394,10 +394,11 @@ func assertNoThemeRecords(t *testing.T, run func()) []logtest.Record {
 		t.Errorf("the run emitted %d theme records, want none:\n  %s", len(events), strings.Join(events, "\n  "))
 	}
 
-	live := &logtest.Sink{}
-	log.SetTestHandler(t, live)
+	// Through the same sink the run was captured on: a fresh one proves only
+	// that some sink records, not that this one was installed. records is
+	// snapshotted above and Records() copies, so the probe cannot leak into it.
 	theme.NewEventLogger(log.For("theme")).Rejected("mine", "", &theme.Rejection{Reason: theme.ReasonBadColour})
-	if events := themeEvents(t, live); len(events) != 1 {
+	if events := themeEvents(t, sink); len(events) != 1 {
 		t.Fatalf("the capture harness recorded %d theme events, want 1 — the assertion above would be vacuous: %v", len(events), events)
 	}
 	return records
@@ -733,10 +734,10 @@ func TestThemeExport_BadNameFrame(t *testing.T) {
 		}
 	})
 
-	// The charset check runs ahead of the directory being located, not merely
-	// ahead of it being read: an implementation resolving the directory first
-	// would surface that failure instead of the bad-name frame.
-	t.Run("the charset check runs before the directory is located", func(t *testing.T) {
+	// A charset failure outranks an unlocatable directory: the fold to
+	// unreadable applies only to a `not found` rejection, so a bad name keeps
+	// its own frame however badly the directory resolved.
+	t.Run("a charset failure outranks an unlocatable directory", func(t *testing.T) {
 		t.Setenv("PORTAL_THEMES_DIR", "")
 		t.Setenv("XDG_CONFIG_HOME", "")
 		t.Setenv("HOME", "")

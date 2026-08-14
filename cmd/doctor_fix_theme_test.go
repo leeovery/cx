@@ -247,18 +247,23 @@ func TestDoctorFix_ScanReRunForSecondPass(t *testing.T) {
 		})
 		deps := &DoctorDeps{ThemesDir: dir}
 
-		requireAdvisoryLines(t, themeAdvisoryUnion(deps),
-			"⚠ theme a-missing: missing tokens — missing text.primary",
-			"⚠ theme b-colour: bad colour — canvas = blue",
-		)
+		// collectThemeAdvisories, not the union beneath it: it is what both
+		// render sites call and what carries the freshness claim.
+		missing := advisory{line: "⚠ theme a-missing: missing tokens — missing text.primary"}
+
+		got := collectThemeAdvisories(deps)
+		if want := []advisory{missing, {line: "⚠ theme b-colour: bad colour — canvas = blue"}}; !slices.Equal(got, want) {
+			t.Fatalf("collected block = %+v; want %+v", got, want)
+		}
 
 		if err := os.Remove(filepath.Join(dir, "b-colour.theme")); err != nil {
 			t.Fatalf("remove the broken drop-in: %v", err)
 		}
 
-		requireAdvisoryLines(t, themeAdvisoryUnion(deps),
-			"⚠ theme a-missing: missing tokens — missing text.primary",
-		)
+		got = collectThemeAdvisories(deps)
+		if want := []advisory{missing}; !slices.Equal(got, want) {
+			t.Errorf("the second collection = %+v; want %+v — it must re-read the directory rather than replay the first", got, want)
+		}
 	})
 
 	t.Run("both renders are handed a freshly collected block", func(t *testing.T) {

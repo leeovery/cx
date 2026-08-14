@@ -181,7 +181,9 @@ var doctorCmd = &cobra.Command{
 
 // runDoctorFix applies only repairs that are reversible by reconstruction, each
 // best-effort so a failure is left for the re-diagnosis to report. Themes get no
-// repair step: every available one would destroy user-authored content.
+// repair step at all: rewriting a broken theme file would destroy user-authored
+// content, and creating or seeding the themes directory is something Portal
+// never does — diagnosed or not.
 func runDoctorFix(cmd *cobra.Command, deps *DoctorDeps) {
 	w := cmd.OutOrStdout()
 	pruneDoctorStaleHooks(w, deps)

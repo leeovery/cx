@@ -195,7 +195,9 @@ func TestLoadPrefsStore_TolerantOnDegenerateFiles(t *testing.T) {
 
 func TestLoadPrefsStoreNoMigrate_ComputesAndWritesNothing(t *testing.T) {
 	t.Run("it returns a bound store against an unreadable file", func(t *testing.T) {
-		before := []byte(`{"appearance":"dark"}`)
+		// The theme key is seeded so the read below has something to return that
+		// a zero value would not.
+		before := []byte(`{"appearance":"dark","theme_dark":"` + nordSlug + `"}`)
 		path := setPrefsFile(t, string(before))
 		_ = themetest.DenyRead(t, path)
 
@@ -222,8 +224,11 @@ func TestLoadPrefsStoreNoMigrate_ComputesAndWritesNothing(t *testing.T) {
 		if err != nil {
 			t.Fatalf("LoadThemeKeys: %v", err)
 		}
-		if (keys != prefs.ThemeKeys{}) {
-			t.Errorf("keys = %+v, want zero — the non-migrating read translates nothing", keys)
+		// The file's own key, not a zero value: a store bound to nothing, or one
+		// that read nothing at all, satisfies a zero expectation and the
+		// assertion would distinguish neither from a real read.
+		if want := (prefs.ThemeKeys{Dark: nordSlug}); keys != want {
+			t.Errorf("keys = %+v, want %+v — the returned store reads the file's own keys", keys, want)
 		}
 	})
 

@@ -26,6 +26,9 @@ func TestOpenExecPath_DoesNoThemeWork(t *testing.T) {
 			"themeResolution":  true,
 			"buildThemeLoader": true,
 			"newThemeLoader":   true,
+			// A pure prefs→theme key conversion: it reads no directory and
+			// loads nothing, so it does no theme work to keep off the exec path.
+			"themeRawKeys": true,
 			// newThemeSource is deliberately absent: these names are matched in
 			// every file, so permitting it would licence a construction-time
 			// sweep anywhere. The `local` map below tracks it instead.

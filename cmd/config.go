@@ -88,8 +88,9 @@ func projectsFilePath() (string, error) {
 	return configFilePath("PORTAL_PROJECTS_FILE", "projects.json")
 }
 
-// Must stay inert: this is the read `portal doctor` uses, and anything added
-// here becomes a config mutation on doctor's read-only diagnosis path.
+// Must stay inert: this is the read `portal doctor` uses, so anything added
+// here lands on doctor's read-only diagnosis path — a read whose error is
+// discarded as surely as a write.
 func loadPrefsStoreNoMigrate() (*prefs.Store, error) {
 	path, err := prefsFilePath()
 	if err != nil {
@@ -98,11 +99,13 @@ func loadPrefsStoreNoMigrate() (*prefs.Store, error) {
 	return prefs.NewStore(path), nil
 }
 
-// Keys carries the theme setting as this launch renders it — the
-// post-translation in-memory value, not the on-disk bytes.
+// prefsLoad is what the migrating load produces: the bound store alongside the
+// state the one-shot appearance translation resolved for this launch.
 type prefsLoad struct {
 	Store *prefs.Store
-	Keys  prefs.ThemeKeys
+	// Keys carries the theme setting as this launch renders it — the
+	// post-translation in-memory value, not the on-disk bytes.
+	Keys prefs.ThemeKeys
 	// True even when nothing translated: recording the marker is what stops the
 	// condition being re-evaluated on every future launch.
 	TranslationPending bool
@@ -185,6 +188,13 @@ func translateAppearance(raw string) string {
 
 func prefsFilePath() (string, error) {
 	return configFilePath("PORTAL_PREFS_FILE", "prefs.json")
+}
+
+// themeRawKeys is the one place prefs' theme keys map onto the theme package's.
+// Spelled at a call site the triple is positional, and a one-word slip there
+// would invert every user's light and dark palettes.
+func themeRawKeys(k prefs.ThemeKeys) theme.RawKeys {
+	return theme.NewRawKeys(k.Theme, k.Light, k.Dark)
 }
 
 // Not a configFilePath member: it resolves a directory, and there is no old

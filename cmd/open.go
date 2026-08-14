@@ -498,7 +498,7 @@ func buildThemeLoader() theme.Loader {
 // the launch that translates it. A non-nil error means even the fallback theme
 // did not load: nothing is honest to paint, so the caller must construct nothing.
 func themeResolution(keys prefs.ThemeKeys, loader theme.Loader) (theme.Resolution, theme.RawKeys, error) {
-	setting, raw := theme.ResolveSetting(theme.NewRawKeys(keys.Theme, keys.Light, keys.Dark))
+	setting, raw := theme.ResolveSetting(themeRawKeys(keys))
 
 	// A themes dir that will not resolve degrades to "" rather than blocking the
 	// launch: the embedded built-ins are reachable with no path at all.
