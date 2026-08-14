@@ -3,18 +3,23 @@
 # Portal's light built-in: the Tokyo Night palette mapped onto Portal's 19 token
 # roles. The light half is NOT a lightening of the dark built-in — it is tuned
 # independently against this file's own canvas #e1e2e7, a near-white Portal owns
-# rather than pure white, and every ratio quoted below is measured against that
-# canvas and against no other reference.
+# rather than pure white. Every ratio quoted below is measured against that
+# canvas except where the note quoting it names the surface it was measured
+# against: the two text-carrying bands, the selected row #D0C6F0 and the warning
+# band #E8D6A8, are measured against the band rather than the canvas.
 #
-# Two kinds of note appear below, each beside the value it belongs to.
+# Three kinds of note appear below, each beside the value it belongs to.
 #
 # Seven values are contrast corrections, and each carries the re-derivation check
 # those corrections were put through before they were frozen here. A correction
 # has a source value whose chroma it is supposed to preserve, so each was
 # re-derived in Oklab as the minimal-distance colour from its ORIGINAL that
-# clears the same floor against #e1e2e7, the shipped value's chroma was measured
-# against that original, and the shipped value was compared against the
-# re-derivation. The metric, stated once so a later re-derivation is comparable:
+# clears the same floor against the surface that bound it — #e1e2e7 for five of
+# them, and the selected row #D0C6F0 for text.tertiary and state.positive, whose
+# corrections were driven by that leg rather than by the canvas. The shipped
+# value's chroma was measured against that original, and the shipped value was
+# compared against the re-derivation. The metric, stated once so a later
+# re-derivation is comparable:
 # ΔE is Euclidean distance in Oklab, chroma is OkLch's c (go-colorful's OkLab()
 # and OkLch()), and ΔE >= 0.05 is "moved materially" — a scale anchored by the
 # Nord port's ΔE 0.018, cited there as essentially imperceptible. All seven came
@@ -27,6 +32,11 @@
 # nothing decides between two values that both clear it — so each was lifted from
 # its dark counterpart and confirmed by human eye against #e1e2e7. That judgement
 # cannot be reconstructed from the numbers, which is why it is written down.
+#
+# One value carries the third kind of note: accent.primary is marked out of scope
+# for the re-derivation check, because it renders bars and glyphs rather than
+# body text, clears its 3.00 large/UI floor unremedied and was never darkened —
+# so there is no correction there to re-derive.
 
 # Text ramp, bright to faint.
 text.primary = #2E3C64

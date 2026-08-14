@@ -35,8 +35,8 @@ func AdaptivePair(light, dark Theme) Nomination {
 	return Nomination{state: nominationAdaptive, light: light, dark: dark}
 }
 
-// IsConstant reports whether the light/dark gate is needed at all. A zero
-// Nomination reports false.
+// IsConstant reports whether the setting names one palette, in which case the
+// light/dark gate is never consulted. A zero Nomination reports false.
 func (n Nomination) IsConstant() bool {
 	return n.state == nominationConstant
 }
@@ -64,9 +64,9 @@ func (n Nomination) Select(m Member) Theme {
 		return Theme{}
 	case n.state == nominationConstant:
 		return n.constant
-	case m == MemberDark:
-		return n.dark
-	default:
+	case m == MemberLight:
 		return n.light
+	default:
+		return n.dark
 	}
 }

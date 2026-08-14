@@ -13,6 +13,8 @@ import (
 
 const tokyoNightDaySlug = "tokyo-night-day"
 
+var tokyoNightDayPath = builtinPath(tokyoNightDaySlug)
+
 var wantTokyoNightDayTokens = []theme.Token{
 	{Name: "text.primary", Value: "#2E3C64"},
 	{Name: "text.secondary", Value: "#3F4760"},
@@ -82,6 +84,38 @@ func TestTokyoNightDayFile_PinnedTintsCarryDerivationComments(t *testing.T) {
 	marked := fmt.Sprintf("the eyeball-pinned set is the four surface tints %v", recordTokens(pinnedTints))
 
 	assertDerivationRecords(t, readBuiltinFile(t, tokyoNightDaySlug), pinnedTints, marked)
+}
+
+// The header is where the re-derivation metric, the surfaces the ratios are
+// measured against and the count of note kinds are stated once. Nothing else
+// reads it, so without this the whole header could be deleted with the suite
+// green — and a later re-derivation would have no comparable scale.
+func TestTokyoNightDayFile_HeaderStatesTheMetric(t *testing.T) {
+	header := leadingCommentBlock(t, tokyoNightDayPath, readBuiltinFile(t, tokyoNightDaySlug))
+
+	if first := firstNonBlankLine(header); !strings.HasPrefix(first, "#") {
+		t.Fatalf("%s opens with %q, want a # header comment naming the palette and its source", tokyoNightDayPath, first)
+	}
+
+	want := []string{
+		"Tokyo Night Day",
+		"https://github.com/tokyo-night/tokyo-night-vscode-theme",
+		// The canvas every other ratio is measured against, and the two
+		// text-carrying bands the header names as the exceptions.
+		"#e1e2e7", "#D0C6F0", "#E8D6A8",
+		// The metric itself, and the threshold the seven came in under.
+		"Oklab", "OkLch", "0.05",
+		// The two corrections bound by the selected-row leg rather than the canvas.
+		"text.tertiary", "state.positive",
+		// The three kinds of note, including the out-of-scope one.
+		"Three kinds of note", "out of scope",
+	}
+
+	for _, phrase := range want {
+		if !strings.Contains(header, phrase) {
+			t.Errorf("the header omits %q:\n%s", phrase, header)
+		}
+	}
 }
 
 func TestTokyoNightDayFile_AccentPrimaryUnchangedAndMarkedOutOfScope(t *testing.T) {

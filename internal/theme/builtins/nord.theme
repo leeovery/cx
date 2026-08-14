@@ -9,8 +9,10 @@
 # functional maximum (text.on-selection #FFFFFF, a contrast choice rather than a
 # palette claim). 13 + 2 + 3 + 1 = 19.
 #
-# Every ratio quoted below is measured against this file's own canvas #2E3440 —
-# nord0, a MID-dark rather than a near-black — and against no other reference.
+# Ratios quoted below are measured against this file's own canvas #2E3440 —
+# nord0, a MID-dark rather than a near-black — except where the comment beside a
+# value names the surface it was measured on instead: the selected row
+# (bg.selection) and the warning band (bg.attention).
 # The headroom that leaves is materially tighter than a near-black canvas gives,
 # and several of the legs below clear their floor by hundredths.
 #

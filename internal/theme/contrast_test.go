@@ -17,7 +17,7 @@ const (
 	floorLargeUI         = 3.0
 	floorFillPerceptible = 1.10
 
-	ratioIdentity = 1.0
+	ratioIdentity = 1.0 // no contrast at all — text.faint's lower bound, not a floor
 )
 
 // WCAG relative luminance: go-colorful's LinearRgb applies the sRGB

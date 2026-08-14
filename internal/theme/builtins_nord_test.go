@@ -114,7 +114,7 @@ func TestNordFile_CorrectionsAndInventionsCarryComments(t *testing.T) {
 }
 
 func TestNordFile_HeaderAttributesThePalette(t *testing.T) {
-	header := leadingCommentBlock(t, readBuiltinFile(t, nordSlug))
+	header := leadingCommentBlock(t, nordPath, readBuiltinFile(t, nordSlug))
 
 	if first := firstNonBlankLine(header); !strings.HasPrefix(first, "#") {
 		t.Fatalf("%s opens with %q, want a # header comment naming the palette and its source", nordPath, first)
@@ -132,7 +132,7 @@ func TestNordFile_HeaderAttributesThePalette(t *testing.T) {
 	}
 }
 
-func leadingCommentBlock(t *testing.T, text string) string {
+func leadingCommentBlock(t *testing.T, path, text string) string {
 	t.Helper()
 
 	block := []string{}
@@ -144,7 +144,7 @@ func leadingCommentBlock(t *testing.T, text string) string {
 		block = append(block, trimmed)
 	}
 	if len(block) == 0 {
-		t.Fatalf("%s opens with no # header comment", nordPath)
+		t.Fatalf("%s opens with no # header comment", path)
 	}
 	return strings.Join(block, "\n")
 }

@@ -96,8 +96,8 @@ func (s Setting) Slug(slot Slot) string {
 
 // SlugForSlot is the collapse from the persisted raw keys to the slug one slot
 // nominates: the tiebreak a constant wins, then the shipped default substituted
-// for an unset slot. Every surface that needs a single slot's slug goes through
-// it, so the two halves cannot be paired anywhere else and drift.
+// for an unset slot. The two halves are paired here rather than at a call site,
+// because pairing them there is what lets them drift apart.
 func SlugForSlot(keys RawKeys, slot Slot) string {
 	setting, _ := ResolveSetting(keys)
 	return setting.Slug(slot)
