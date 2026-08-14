@@ -50,7 +50,8 @@ func (m *Model) commitConstant(slug string) error {
 }
 
 // The message lasts until the next keypress, the state until a later commit
-// succeeds. No logging: the persister owns the `theme: commit failed` emission.
+// succeeds or reportOutstandingCommitFailure discharges it into the close's
+// flash. No logging: the persister owns the `theme: commit failed` emission.
 func (m *Model) applyCommitResult(err error) {
 	if err != nil {
 		m.reportCommitFailure()

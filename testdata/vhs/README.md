@@ -216,12 +216,14 @@ tints get settled by eye, so it takes a `--theme` like everything else.
 
 ### Adding (or removing) a fixture
 
-1. **Add the fixture** in `internal/capture/fixtures.go`: add a `case "<name>"` to
-   `FixtureByName`, add `"<name>"` to `FixtureNames`, and write a `*Fixture`-returning
-   builder with the canned seam data (sessions, projects, theme rows, cursor
-   position, …). Keep the data fixed — determinism is the gate. If the frame is
-   reached by a keystroke, declare it in `captureKeys` rather than only in the tape,
-   so the tape and the offline driver cannot drift.
+1. **Add the fixture** in `internal/capture/fixtures.go`: write a
+   `*Fixture`-returning builder with the canned seam data (sessions, projects, theme
+   rows, cursor position, …) — the builder names its own fixture — and add it to the
+   `fixtureBuilders()` list. Both `FixtureByName` and `FixtureNames` derive from that
+   one list, so there is no second registry to keep in step. Keep the data fixed —
+   determinism is the gate. If the frame is reached by a keystroke, declare it in
+   `captureKeys` rather than only in the tape, so the tape and the offline driver
+   cannot drift.
 2. **Add a tape** `testdata/vhs/<name>.tape` modelled on an existing one (see git
    history — the directory is normally empty). Set `FontFamily "JetBrains Mono"` +
    `FontSize 16`, fix `Width`/`Height` (vhs sizes in **pixels**, so record the

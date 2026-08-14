@@ -21,10 +21,16 @@ section at the bottom is left PENDING for the human to fill.
   - `testdata/vhs/contrast-validation-light.png` ← `contrast-validation-light.tape`
     (light tints against `#e1e2e7` — the wash-out risk)
   - `testdata/vhs/contrast-validation-dark.png`  ← `contrast-validation-dark.tape`
-- Numeric floor gate: `internal/tui/theme/contrast_test.go`
-  (`TestForegroundOnTintPairings`, `TestStateGreenOnSelectionRemedy` — the 1-9
-  wash-out remedy gate, `TestLightSurfaceTintsPinned`,
-  `TestLightTintFillsArePerceptible`, `TestBgWarningPairRule`, `TestBgTrackPairRule`).
+- Numeric floor gate: `internal/theme/contrast_test.go`
+  (`TestForegroundOnTintPairings`) and `internal/theme/light_pins_test.go`
+  (`TestLightSurfaceTintsPinned`, `TestLightTintFillsArePerceptible`). The
+  `internal/tui/theme` package this pointer used to name was deleted, and three of
+  the tests it named no longer exist: `TestStateGreenOnSelectionRemedy` — the 1-9
+  wash-out remedy gate — went with the override it gated (see the superseded note
+  below), and `TestBgWarningPairRule` / `TestBgTrackPairRule` went with the
+  `bg.warning` / `bg.track` token names; the band-pair rules are now
+  `TestBgAttentionPairRule` / `TestBgSubtlePairRule` in
+  `internal/theme/contrast_test.go`.
 
 Captures are byte-deterministic (two runs byte-identical). The existing Sessions /
 nocolor captures are unchanged (`sessions-flat.png` `26cc4992…`, `sessions-flat-light.png`
