@@ -64,7 +64,8 @@ func (r noticeBandRole) statusGlyph() string {
 	}
 }
 
-// Every band cell paints through this so the row is one tint with no bg island.
+// Band cells with no foreground paint through this, so the row is one tint with
+// no bg island.
 func noticeBandTintStyle(tint theme.Token, th theme.Theme, colourless bool) lipgloss.Style {
 	if colourless {
 		return lipgloss.NewStyle()

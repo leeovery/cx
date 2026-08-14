@@ -39,7 +39,7 @@ func TestFlashSlotClaim_TierOrder(t *testing.T) {
 		}
 	})
 
-	t.Run("the theme tier is not displaced while its flash is live", func(t *testing.T) {
+	t.Run("a theme flash raised after an ordinary one claims through the theme tier", func(t *testing.T) {
 		m := noticeBandModel("alpha-row")
 		m.setFlash("__ORDINARY__")
 		(&m).setThemeFlash(themePanelNoColorFlash)

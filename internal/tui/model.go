@@ -244,8 +244,9 @@ type Model struct {
 	flashText string
 	flashGen  uint64
 	flashKind flashKind
-	// flashOrigin is the precedence tier: reset by setFlash / setSuccessFlash and
-	// stamped only by setThemeFlash, so an unrelated message cannot inherit it.
+	// flashOrigin is the precedence tier: reset by setFlash — which
+	// setSuccessFlash delegates to — and stamped only by setThemeFlash, so an
+	// unrelated message cannot inherit it.
 	flashOrigin flashOrigin
 	// byTagSignpost is the "No tags yet" flag: By Tag active with zero tags
 	// anywhere. Derived — recomputed on every rebuild, never set directly.

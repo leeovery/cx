@@ -44,7 +44,9 @@ func TestPanelRule_TakesNoPageFallbackWidth(t *testing.T) {
 }
 
 // The panel's rule exists to sit in the page's rule lane, so exactly one
-// function may build the glyph run.
+// production function may build the glyph run; the scan covers production
+// sources only, so test files that build the run to assert against it are not
+// scanned and are no breach.
 func TestRuleGlyphRun_HasASingleRenderer(t *testing.T) {
 	var renderers []string
 	for _, file := range parsePackageFilesByName(t) {

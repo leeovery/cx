@@ -132,6 +132,14 @@ func TestRestylePath_RepointsListOwnedStyles(t *testing.T) {
 			assertRepointed(t, pl.name+" Paginator.InactiveDot",
 				pl.list.Paginator.InactiveDot, tokenFgSeq(t, after.TextFaint), tokenFgSeq(t, before.TextFaint))
 
+			// The paginator escalates to the arabic form whenever the dot row is
+			// wider than the list, so it must follow the swap like the dots.
+			arabic := pl.list.Styles.ArabicPagination.Render("x")
+			assertRepointed(t, pl.name+" Styles.ArabicPagination foreground",
+				arabic, tokenFgSeq(t, after.TextFaint), tokenFgSeq(t, before.TextFaint))
+			assertRepointed(t, pl.name+" Styles.ArabicPagination background",
+				arabic, tokenBgSeq(t, after.Canvas), tokenBgSeq(t, before.Canvas))
+
 			noItems := pl.list.Styles.NoItems.Render("x")
 			assertRepointed(t, pl.name+" Styles.NoItems foreground",
 				noItems, tokenFgSeq(t, after.TextMuted), tokenFgSeq(t, before.TextMuted))

@@ -488,6 +488,10 @@ func TestCommitSlotLoad_FailedCommitLoadsNothing(t *testing.T) {
 	dir := newConversionThemesDir(t)
 	m, persister, sink := newConversionPanelModel(t, dir, theme.RawKeys{Theme: conversionConstant})
 	m = openConversionPanel(t, m)
+	// A reply under a constant leaves the pinned gate unresolved, so the captured
+	// mode stays the dark fallback while the retained reply says light. Without it
+	// the answer assertion below cannot fail on a hoisted adoptRetainedReply.
+	m = deliverBackgroundReply(t, m, lightBg)
 	nomination, mode, keys := m.themeState.nomination, m.themeState.inForceMode(), m.themeState.keys
 	persister.err = errThemeCommitFailed
 

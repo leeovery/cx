@@ -518,7 +518,7 @@ func TestThemeRow_ColourlessIsGlyphBacked(t *testing.T) {
 	out := renderThemeRow(d, items, 0, 0)
 
 	assertThemeRowHasNoColour(t, out)
-	for _, glyph := range []string{flashWarningGlyph, multiSelectMarker, selectorBar} {
+	for _, glyph := range []string{flashWarningGlyph, themePanelBadgeDark, selectorBar} {
 		if !strings.Contains(out, glyph) {
 			t.Errorf("a colourless row dropped the %q glyph: %q", glyph, out)
 		}

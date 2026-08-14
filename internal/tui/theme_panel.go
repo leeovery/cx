@@ -222,18 +222,18 @@ func inForceSlot(r theme.Resolution, mode theme.Member) (theme.SlotResolution, b
 // By identity, never index — the commit recompute can insert rows above the
 // cursor. The target is the resolved slug, not the requested one: under a
 // fallback the fallback's row is the painted, selectable one.
-func (m *Model) anchorThemePanelCursor(slug string) {
-	if slug == "" {
+func (m *Model) anchorThemePanelCursor(identity string) {
+	if identity == "" {
 		return
 	}
-	m.themePanel.list.Select(themePanelRowIndex(m.themePanel.union.Rows, slug))
+	m.themePanel.list.Select(themePanelRowIndex(m.themePanel.union.Rows, identity))
 }
 
 // The Selectable filter picks the built-in out of a reserved-name collision
 // (both rows share an identity) and keeps a seed naming an unselectable row
 // from parking the cursor where the arrows cannot return.
-func themePanelRowIndex(rows []theme.Row, slug string) int {
-	identified := func(row theme.Row) bool { return row.Identity() == slug && row.Selectable() }
+func themePanelRowIndex(rows []theme.Row, identity string) int {
+	identified := func(row theme.Row) bool { return row.Identity() == identity && row.Selectable() }
 	if at := slices.IndexFunc(rows, identified); at >= 0 {
 		return at
 	}
@@ -338,7 +338,8 @@ func (m Model) updateThemePanel(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case isRuneKey(msg, "l"):
 		return m.handleSlotCommitKey(theme.MemberLight)
 	case themePanelNavKey(m.themePanel.list.KeyMap, msg):
-		return m, (&m).moveThemePanelCursor(msg)
+		cmd := (&m).moveThemePanelCursor(msg)
+		return m, cmd
 	default:
 		return m, nil
 	}

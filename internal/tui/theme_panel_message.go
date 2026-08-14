@@ -106,8 +106,11 @@ func themePanelMessageContent(message themePanelMessage, inner int, th theme.The
 	return "", theme.Token{}
 }
 
-// The slug is truncated, not the line, so `?  y / n` — the tail the user must
-// answer — always survives.
+// The slug is truncated ahead of the tail, so `?  y / n` — the tail the user must
+// answer — survives wherever the composed line fits. At the height floor
+// themePanelMessageText truncates the composed line itself, so the tail can go
+// with it; the substituted themePanelConfirmKeymap footer is what names the
+// answers there.
 func themePanelConfirmText(slug string, inner int) string {
 	return fmt.Sprintf(themePanelConfirmFormat, ansi.Truncate(slug, themePanelConfirmSlugBudget(inner), themeRowEllipsis))
 }

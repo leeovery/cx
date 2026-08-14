@@ -98,8 +98,9 @@ const (
 	dimHeight
 )
 
-// w is clamped on the refusing path too: callers ignore ok (the floor already
-// refused), and an unclamped w would render a sub-minimum panel.
+// w is clamped on the refusing path too: the width callers in theme_panel.go
+// ignore ok (the floor already refused), and an unclamped w would render a
+// sub-minimum panel.
 func themePanelWidthFor(contentW int) (w int, ok bool) {
 	if contentW >= themePanelPreferredAffordance {
 		return themePanelPreferredWidth, true

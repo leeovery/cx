@@ -46,6 +46,7 @@
 
 > **⚠ Corrigendum — 2026-08-14 (theming-system review).**
 > - **§10.2 / §10.4's bootstrap step count.** Superseded: "the full **11-step** bootstrap runs synchronously", the §10.4 heading "**11 real steps** → 5 friendly labels", and the cleanup ranges "steps **8–11**" / "**9–11** marker/FIFO/stale cleanup". Current: the orchestrator runs **ten** steps — the former step 11, `CleanStale`, was re-homed onto the `_portal-saver` daemon — so the mapping is **ten real steps → 5 friendly labels** and the cleanup tail is **8–10** / **9–10**. `internal/tui/loading_progress.go` is the mapping authority and carries `totalBootstrapSteps = 10`. The same phrase was corrected in the observability spec on 2026-08-12; this one was missed in that pass.
+> - **§2.1's colour-literal guard.** Superseded: "The **glob-based** colour-literal guard enforces it with no exemption." Current: the guard enumerates every non-test file in the package through `sourceguardtest.PackageGoFiles` — a glob would pass by matching nothing. The "no exemption" half is correct and stands. CLAUDE.md carried the same dead description and is corrected with it.
 > Bodies below were edited in place to match; this block is the only annotation. Original wording is recoverable via `git log -p`.
 
 ## Specification
@@ -193,7 +194,7 @@ The vocabulary is a **closed set of 19 named tokens**; Modern Vivid is one palet
 | `text.on-attention` | warning-flash message | `#E8C9A0` · 10.7 | `#7A4B12` · 5.1 |
 
 **Rules**
-- **Closed vocabulary** — every rendered colour is one of these 19 roles; no literal hex anywhere in the render layer, and none in the token layer either (the values live in the theme files). The glob-based colour-literal guard enforces it with no exemption.
+- **Closed vocabulary** — every rendered colour is one of these 19 roles; no literal hex anywhere in the render layer, and none in the token layer either (the values live in the theme files). The colour-literal guard enforces it with no exemption, enumerating every non-test file in the package.
 - `state.positive` carries **live / positive** signals (attached marker, Sessions count, Projects label, `✓` done-tick, success flash) — **never** chips or decoration; `state.destructive` is **destructive-only**; chips are `text.primary` on a tint, never green.
 - **One documented exception:** the **Preview scrollback capture** renders the pane's **real ANSI output**, not theme tokens — intentionally outside the palette. Only its *chrome* (frame, top bar) is themed (`accent.mode` + `text.muted`).
 - **Contrast re-verification (the canvas pass).** Every foreground token, every per-element tint/band, and every foreground-on-tint pairing is verified against **the theme's own `canvas`** — one reference per palette, never a constant, so a theme whose canvas is neither near-black nor near-white (Nord's `#2E3440`) is checked against the surface it actually paints. Remedy when a leg dips under floor: **adjust toward more contrast** — *brighten* against a dark canvas, *darken / saturate* against a light one — never drop the floor.

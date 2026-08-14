@@ -81,9 +81,7 @@ func renderFilterFooter(entries []filterFooterEntry, width int, th theme.Theme, 
 // The `? help` anchor is sourced from the sessionsKeymap descriptor so its
 // glyph/label/colour cannot drift from the standard footer's.
 func filterFooterRow(entries []filterFooterEntry, w int, th theme.Theme, colourless bool) string {
-	left := renderFilterCluster(entries, th, colourless)
-	leftWidth := lipgloss.Width(left)
-
+	// The anchor renders first so the left cluster fits around the space it reserves.
 	_, helpEntry := splitFooterEntries(sessionsKeymap())
 	rightSeg := ""
 	rightWidth := 0
@@ -91,6 +89,15 @@ func filterFooterRow(entries []filterFooterEntry, w int, th theme.Theme, colourl
 		rightSeg = renderFooterEntry(*helpEntry, th.AccentPrimary, th, colourless)
 		rightWidth = lipgloss.Width(rightSeg)
 	}
+
+	// The budget reserves the anchor plus one spacer cell, as fitLeftCluster does:
+	// unfitted, the whole cluster vanishes at once for every width between its own
+	// and cluster+1+anchor, leaving a filtering user no keymap at all.
+	budget := w
+	if rightWidth > 0 {
+		budget = max(w-rightWidth-1, 0)
+	}
+	left, leftWidth := fitFilterCluster(entries, budget, th, colourless)
 
 	return assembleRightAnchoredRow(left, leftWidth, rightSeg, rightWidth, w, th, colourless)
 }

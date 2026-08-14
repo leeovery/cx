@@ -30,6 +30,9 @@ var retiredTokenNames = map[string]string{
 }
 
 type retiredNameExemption struct {
+	// Package-qualified (`<package dir>/<file>`), not a bare base name: the scan
+	// spans two packages, so a base name would let an exemption granted for one
+	// silence a same-named file the other gains later.
 	file string
 	// name scopes the exemption to one retired name; self is the deliberate
 	// whole-file form, so an entry that simply forgets a name is not silently
@@ -43,19 +46,14 @@ var retiredNameExemptions = []retiredNameExemption{
 	// Every retired name, because this file declares the table itself. Scoped by
 	// filename alone — an empty name would blanket-exempt any file added here.
 	{
-		file:   "retired_token_guard_test.go",
+		file:   filepath.Join("tui", "retired_token_guard_test.go"),
 		self:   true,
 		reason: "declares the retired table this guard matches against",
 	},
 	{
-		file:   "active_theme_test.go",
+		file:   filepath.Join("tui", "active_theme_test.go"),
 		name:   "border.footer",
 		reason: "pins that the retired footer-rule shade renders nowhere, so the rule reads from the one border token",
-	},
-	{
-		file:   "help_modal_frame_test.go",
-		name:   "border.footer",
-		reason: "records the two frame roles that were consolidated into the one border token",
 	},
 }
 
@@ -68,7 +66,7 @@ func exemptRetiredName(file, name string) bool {
 	return false
 }
 
-var renderLayerPackageDirs = []string{".", filepath.Join("..", "capture")}
+var renderLayerPackageDirs = []string{filepath.Join("..", "tui"), filepath.Join("..", "capture")}
 
 func TestNoRetiredTokenName(t *testing.T) {
 	for _, dir := range renderLayerPackageDirs {
@@ -77,8 +75,8 @@ func TestNoRetiredTokenName(t *testing.T) {
 			t.Fatalf("enumerate the %s package sources: %v", dir, err)
 		}
 		for _, path := range matches {
-			name := filepath.Base(path)
-			t.Run(filepath.Join(filepath.Base(dir), name), func(t *testing.T) {
+			qualified := filepath.Join(filepath.Base(dir), filepath.Base(path))
+			t.Run(qualified, func(t *testing.T) {
 				fset := token.NewFileSet()
 				file, err := parser.ParseFile(fset, path, nil, parser.ParseComments|parser.SkipObjectResolution)
 				if err != nil {
@@ -86,7 +84,7 @@ func TestNoRetiredTokenName(t *testing.T) {
 				}
 				report := func(pos token.Pos, where, text string) {
 					for retired, current := range retiredTokenNames {
-						if !strings.Contains(text, retired) || exemptRetiredName(name, retired) {
+						if !strings.Contains(text, retired) || exemptRetiredName(qualified, retired) {
 							continue
 						}
 						t.Errorf("%s:%d names the retired token %q in a %s; the role is %q now", path, fset.Position(pos).Line, retired, where, current)
