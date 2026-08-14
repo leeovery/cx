@@ -74,6 +74,5 @@ func packageRelFiles(t *testing.T, dir string, includeTests bool) []string {
 		}
 		rels = append(rels, filepath.ToSlash(rel))
 	}
-	slices.Sort(rels)
 	return rels
 }

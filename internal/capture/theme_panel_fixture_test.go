@@ -414,7 +414,7 @@ func TestFakeThemeSource_NoIO(t *testing.T) {
 		}
 	})
 
-	t.Run("every method answers from declared values with the config paths poisoned", func(t *testing.T) {
+	t.Run("every method answers without touching the config paths", func(t *testing.T) {
 		missing := filepath.Join(t.TempDir(), "no-such-themes-dir")
 		t.Setenv("PORTAL_THEMES_DIR", missing)
 		t.Setenv("XDG_CONFIG_HOME", missing)

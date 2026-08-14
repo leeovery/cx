@@ -55,6 +55,8 @@ const decoySlug = "decoy-drop-in"
 func requireConfigUntouched(t *testing.T, configDir, frame string) {
 	t.Helper()
 
+	// The panel must have rendered, or the decoy's absence below proves nothing.
+	panelLines(t, frame)
 	if strings.Contains(ansi.Strip(frame), decoySlug) {
 		t.Error("the panel lists the decoy drop-in; the fixture reached the real themes directory")
 	}
