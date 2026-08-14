@@ -106,8 +106,11 @@ func themePanelMessageContent(message themePanelMessage, inner int, th theme.The
 	return "", theme.Token{}
 }
 
-// The slug is truncated, not the line, so `?  y / n` — the tail the user must
-// answer — always survives.
+// The slug is truncated ahead of the tail, so `?  y / n` — the tail the user must
+// answer — survives wherever the composed line fits. At the height floor
+// themePanelMessageText truncates the composed line itself, so the tail can go
+// with it; the substituted themePanelConfirmKeymap footer is what names the
+// answers there.
 func themePanelConfirmText(slug string, inner int) string {
 	return fmt.Sprintf(themePanelConfirmFormat, ansi.Truncate(slug, themePanelConfirmSlugBudget(inner), themeRowEllipsis))
 }
@@ -145,7 +148,7 @@ func themePanelMessageHeight(message themePanelMessage, inner int, wrap bool) in
 // threshold the extra header rows leave the slot as tight as the compact floor.
 func themePanelMessageWraps(p themePanel, height int) bool {
 	return height > themePanelFloorFor(
-		themePanelHeaderShapeFor(height, p.union.DirUnusable).rows,
+		themePanelHeaderShapeFor(height, p.bandRows, p.union.DirUnusable).rows,
 		themePanelKeymap(),
 		p.union.DirUnusable,
 	)

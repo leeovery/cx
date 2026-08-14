@@ -13,7 +13,8 @@ import (
 )
 
 var (
-	// Non-colour attributes only — tokenStyle/rowToken layer the mode-matched pair.
+	// Non-colour attributes only — tokenStyle/rowToken layer one token's
+	// foreground over the selection-or-canvas background.
 	nameBase = lipgloss.NewStyle().Bold(true)
 )
 

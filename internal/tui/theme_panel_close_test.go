@@ -220,14 +220,14 @@ func TestPanelClose_EnumerationDiscarded(t *testing.T) {
 	if got := m.themePanel.width; got != 0 {
 		t.Errorf("close retained width %d, want 0", got)
 	}
-	// `bubbles/list` exports no delegate accessor, so the keymap stands in for
-	// the delegate: a live list binds `up`, the zero value nothing.
 	if got := len(m.themePanel.list.Items()); got != 0 {
 		t.Errorf("close retained %d list items, want 0", got)
 	}
 	if w, h := m.themePanel.list.Width(), m.themePanel.list.Height(); w != 0 || h != 0 {
 		t.Errorf("close retained a list sized %dx%d, want the zero value", w, h)
 	}
+	// `bubbles/list` exports no delegate accessor, so the keymap stands in for
+	// the delegate: a live list binds `up`, the zero value nothing.
 	if got := m.themePanel.list.KeyMap.CursorUp.Keys(); len(got) != 0 {
 		t.Errorf("close retained the list's keymap (CursorUp binds %v), so the list — and the delegate it carries — was not replaced by the zero value", got)
 	}

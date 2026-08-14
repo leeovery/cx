@@ -15,7 +15,7 @@ func renderThemePanel(p themePanel, height int, th theme.Theme, colourless bool)
 	inner, bodyRows := themePanelListSize(p, height)
 	p.list.SetSize(inner, bodyRows)
 
-	header := themePanelHeaderShapeFor(height, p.union.DirUnusable)
+	header := themePanelHeaderShapeFor(height, p.bandRows, p.union.DirUnusable)
 	rows := themePanelHeaderBlock(header, p.width, th, colourless)
 	rows = appendBlock(rows, themePanelDirRow(p.union.DirUnusable, th, colourless))
 	rows = appendBlock(rows, clampBlockHeight(p.list.View(), bodyRows))
@@ -25,6 +25,10 @@ func renderThemePanel(p themePanel, height int, th theme.Theme, colourless bool)
 	return themePanelBlock(rows, header.borderFrom(), height, p.width, th, colourless)
 }
 
+// The block fills the shape it is handed: page-aligned, the rule and label land
+// in the page's rule lane and section-header row; compact, they close up at rows
+// 0 and 1.
+//
 // The rule spans the border column and sits above the label so it shares the
 // page's rule lane — do not reorder or notch it: a full-height border makes the
 // panel read as a second column rather than a layer. Rule-then-label is

@@ -76,6 +76,12 @@ type themePanel struct {
 
 	// Outer width, border column included.
 	width int
+
+	// The page's notice-band slot in rows, so the page-aligned header travels
+	// with the section header the band displaces. Stamped from the model at
+	// every size-apply and again on the way into the render, never held across
+	// a frame: a band can be raised or cleared while the panel is open.
+	bandRows int
 }
 
 // pinArrowOnlyNav is load-bearing: the v2 DefaultKeyMap binds `l` and `d` to
@@ -216,18 +222,18 @@ func inForceSlot(r theme.Resolution, mode theme.Member) (theme.SlotResolution, b
 // By identity, never index — the commit recompute can insert rows above the
 // cursor. The target is the resolved slug, not the requested one: under a
 // fallback the fallback's row is the painted, selectable one.
-func (m *Model) anchorThemePanelCursor(slug string) {
-	if slug == "" {
+func (m *Model) anchorThemePanelCursor(identity string) {
+	if identity == "" {
 		return
 	}
-	m.themePanel.list.Select(themePanelRowIndex(m.themePanel.union.Rows, slug))
+	m.themePanel.list.Select(themePanelRowIndex(m.themePanel.union.Rows, identity))
 }
 
 // The Selectable filter picks the built-in out of a reserved-name collision
 // (both rows share an identity) and keeps a seed naming an unselectable row
 // from parking the cursor where the arrows cannot return.
-func themePanelRowIndex(rows []theme.Row, slug string) int {
-	identified := func(row theme.Row) bool { return row.Identity() == slug && row.Selectable() }
+func themePanelRowIndex(rows []theme.Row, identity string) int {
+	identified := func(row theme.Row) bool { return row.Identity() == identity && row.Selectable() }
 	if at := slices.IndexFunc(rows, identified); at >= 0 {
 		return at
 	}
@@ -292,6 +298,7 @@ func (p themePanel) rowItems() []list.Item {
 // Sized to the real remainder, not themePanelMinBodyRows: `bubbles/list` derives
 // PerPage from the height it is given, so a floor-sized list pins a one-row page.
 func (m *Model) applyThemePanelListStyles() {
+	m.themePanel.bandRows = m.pageBandHeight()
 	width, rows := themePanelListSize(m.themePanel, m.contentHeight())
 	m.themePanel.list.SetSize(width, rows)
 	m.applyThemePanelCanvasMode()
@@ -331,7 +338,8 @@ func (m Model) updateThemePanel(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case isRuneKey(msg, "l"):
 		return m.handleSlotCommitKey(theme.MemberLight)
 	case themePanelNavKey(m.themePanel.list.KeyMap, msg):
-		return m, (&m).moveThemePanelCursor(msg)
+		cmd := (&m).moveThemePanelCursor(msg)
+		return m, cmd
 	default:
 		return m, nil
 	}

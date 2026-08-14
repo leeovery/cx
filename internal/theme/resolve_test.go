@@ -538,7 +538,7 @@ func osCallsReachableFrom(t *testing.T, root string) map[string]int {
 
 	graph := themeCallGraph(t)
 	if _, known := graph[root]; !known {
-		t.Fatalf("no function named %q in internal/theme — the walk below would prove nothing", root)
+		t.Fatalf("%q makes no call in internal/theme — the walk below would prove nothing", root)
 	}
 
 	counts := map[string]int{}

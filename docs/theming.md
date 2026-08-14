@@ -31,8 +31,8 @@ place it appears.
 
 ### Text ramp
 
-Six of the seven text roles form a single ramp, ordered here from **brightest to
-faintest**:
+Six of the seven roles in this section form a single ramp, ordered here from
+**brightest to faintest**:
 
 `text.primary` → `text.secondary` → `text.tertiary` → `text.muted` →
 `text.subtle` → `text.faint`
@@ -372,6 +372,10 @@ theme picker writes it for you, and **the file is hand-editable**: it is plain
 JSON, and editing it is a supported route rather than a workaround. A hand-edited
 change lands at the next launch.
 
+Under `NO_COLOR` Portal renders on the terminal's native colours and `t` is
+unavailable — there is nothing to preview — so the three theme keys (`theme`, or
+`theme_light` / `theme_dark`) are set by hand there.
+
 There are **two states, not three**.
 
 **Constant** — one theme, whatever the terminal looks like:
@@ -489,3 +493,12 @@ corrected, under Nord's own name:
 Both are minimal, perceptually close to Nord's own values, and judged by eye. The
 reasoning sits as a `#` comment beside the value in the file, so
 `portal theme export nord` prints it.
+
+### The light built-in ships with seven values corrected
+
+`tokyo-night-day` also ships contrast corrections — seven of them, each measured
+against that file's own canvas `#e1e2e7` except where the note beside it names
+the band it was measured against, and two (`text.tertiary` and `state.positive`)
+driven by the selected-row band `#D0C6F0` rather than by the canvas — with the
+same kind of `#` comment beside each value, so
+`portal theme export tokyo-night-day` prints them.

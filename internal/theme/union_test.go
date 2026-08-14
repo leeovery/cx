@@ -1,7 +1,6 @@
 package theme_test
 
 import (
-	"cmp"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -390,7 +389,7 @@ func TestUnion_BothSlotsSameMissingSlugIsOneRow(t *testing.T) {
 
 			got := []string{}
 			for _, row := range persistedRows(union) {
-				got = append(got, cmp.Or(row.Slug, row.Persisted))
+				got = append(got, row.Identity())
 			}
 			if !slices.Equal(got, tt.want) {
 				t.Errorf("persisted rows = %v, want %v", got, tt.want)

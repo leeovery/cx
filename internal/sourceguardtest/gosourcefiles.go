@@ -17,7 +17,10 @@ func GoSourceFiles(root string) ([]string, error) {
 			return walkErr
 		}
 		if entry.IsDir() {
-			if excludedGuardDir(entry.Name()) {
+			// WalkDir calls back for root itself first; excluding it on its own
+			// base name would skip the whole walk in a dot-prefixed checkout
+			// (a worktree under .worktrees/), so no guard could run there.
+			if path != root && excludedGuardDir(entry.Name()) {
 				return fs.SkipDir
 			}
 			return nil

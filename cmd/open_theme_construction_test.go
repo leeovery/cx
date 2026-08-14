@@ -360,6 +360,9 @@ func TestOpenTUI_FatalBeforeModelConstruction(t *testing.T) {
 	// is true, so the fixture sets TMUX itself rather than inheriting whatever
 	// TestMain's package-wide poison happens to supply.
 	t.Setenv("TMUX", "/nonexistent/portal-test-must-set-tmux-socket,0,0")
+	if !tmux.InsideTmux() {
+		t.Fatal("tmux.InsideTmux() is false after setting TMUX — the no-calls tripwire below would be unarmed")
+	}
 
 	commander := &recordingCommander{}
 	err := openTUI(cmdWithClient(tmux.NewClient(commander)), "", nil, false)
@@ -475,6 +478,10 @@ func restoreWrite(m tui.Model) string {
 // last-registered-first.
 func seedUnlistableThemesDir(t *testing.T, canvases map[string]string) {
 	t.Helper()
+
+	if os.Geteuid() == 0 {
+		t.Skip("running as root: mode bits do not deny, so an unlistable directory cannot be staged")
+	}
 
 	dir := useThemesDir(t)
 	for slug, canvas := range canvases {

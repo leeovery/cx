@@ -46,9 +46,13 @@ func themePanelCompactHeaderShape() themePanelHeaderShape {
 
 // Measured off the page's renderers, never literals, so the panel tracks page
 // chrome changes. Zero-width colourless measurement is safe: row counts are
-// functions of content only.
-func themePanelPageAlignedHeaderShape() themePanelHeaderShape {
-	label := lipgloss.Height(renderHeaderBlock(0, theme.Theme{}, true))
+// functions of content only. bandRows is the page's notice-band slot, which
+// composes between the header block and the list: it pushes the section-header
+// row — and every list row under it — down by its own height, and the label and
+// body must travel with them or the two columns run different rhythms. The rule
+// is unaffected: the band sits below it.
+func themePanelPageAlignedHeaderShape(bandRows int) themePanelHeaderShape {
+	label := lipgloss.Height(renderHeaderBlock(0, theme.Theme{}, true)) + bandRows
 	return themePanelHeaderShape{
 		ruleRow:  lipgloss.Height(headerBand(0, theme.Theme{}, true)),
 		labelRow: label,
@@ -58,16 +62,18 @@ func themePanelPageAlignedHeaderShape() themePanelHeaderShape {
 
 // Decides the header shape; renderers must not re-decide it. Charging the blank
 // alignment rows to the floor would refuse terminals that can render the panel.
-func themePanelHeaderShapeFor(height int, dirUnusable bool) themePanelHeaderShape {
-	pageAligned := themePanelPageAlignedHeaderShape()
+// A band's rows are charged the same way, so a banded page short enough to fail
+// the page-aligned floor drops to the compact shape rather than overflowing.
+func themePanelHeaderShapeFor(height, bandRows int, dirUnusable bool) themePanelHeaderShape {
+	pageAligned := themePanelPageAlignedHeaderShape(bandRows)
 	if height >= themePanelFloorFor(pageAligned.rows, themePanelKeymap(), dirUnusable) {
 		return pageAligned
 	}
 	return themePanelCompactHeaderShape()
 }
 
-func themePanelHeaderRows(height int, dirUnusable bool) int {
-	return themePanelHeaderShapeFor(height, dirUnusable).rows
+func themePanelHeaderRows(height, bandRows int, dirUnusable bool) int {
+	return themePanelHeaderShapeFor(height, bandRows, dirUnusable).rows
 }
 
 // ThemePanelMinWidthTerminal reports the widest terminal whose content region
@@ -92,8 +98,9 @@ const (
 	dimHeight
 )
 
-// w is clamped on the refusing path too: callers ignore ok (the floor already
-// refused), and an unclamped w would render a sub-minimum panel.
+// w is clamped on the refusing path too: the width callers in theme_panel.go
+// ignore ok (the floor already refused), and an unclamped w would render a
+// sub-minimum panel.
 func themePanelWidthFor(contentW int) (w int, ok bool) {
 	if contentW >= themePanelPreferredAffordance {
 		return themePanelPreferredWidth, true
@@ -146,7 +153,7 @@ func themePanelInnerWidth(width int) int {
 func themePanelListSize(p themePanel, height int) (width, rows int) {
 	inner := themePanelInnerWidth(p.width)
 	reserved := themePanelChromeRows(
-		themePanelHeaderRows(height, p.union.DirUnusable),
+		themePanelHeaderRows(height, p.bandRows, p.union.DirUnusable),
 		p.union.DirUnusable,
 		themePanelMessageHeight(p.message, inner, themePanelMessageWraps(p, height)),
 		themePanelFooterScope(p.message),

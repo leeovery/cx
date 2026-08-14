@@ -400,11 +400,18 @@ func TestThemeAdvisories_ScanIsReadOnly(t *testing.T) {
 
 	assertTreeUnchanged(t, root, before, "the config tree changed")
 
+	// Through a real store, never themeAdvisoriesFor's nil one: a nil PrefsStore
+	// returns before any prefs code runs, so the assertion would hold however the
+	// read behaved.
 	t.Run("it creates no prefs.json when there is none", func(t *testing.T) {
 		absent := filepath.Join(t.TempDir(), "prefs.json")
 		t.Setenv("PORTAL_PREFS_FILE", absent)
 
-		themeAdvisoriesFor(t, dir)
+		store, err := loadPrefsStoreNoMigrate()
+		if err != nil {
+			t.Fatalf("loadPrefsStoreNoMigrate: %v", err)
+		}
+		themeAdvisoryUnion(&DoctorDeps{ThemesDir: dir, PrefsStore: store})
 
 		if _, err := os.Stat(absent); !os.IsNotExist(err) {
 			t.Errorf("os.Stat(%s) = %v; the scan must never create prefs.json", absent, err)

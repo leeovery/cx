@@ -37,7 +37,9 @@ func assertMarkerValue(t *testing.T, decoded map[string]any, want bool) {
 }
 
 // One writer failing to round-trip the marker is enough to erase it on
-// re-encode, so every writer is driven.
+// re-encode, so every writer that can write over a true marker is driven.
+// SaveTranslation is deliberately absent: it declines to write at all once the
+// marker is already true, so enrolling it here would assert nothing.
 type markerWriterCase struct {
 	name       string
 	setsMarker bool

@@ -164,6 +164,67 @@ func TestPanelChrome_ListsStayInStep(t *testing.T) {
 	}
 }
 
+// The band composes between the header block and the list, so the page's
+// section header — and every row under it — moves down by the slot's height. The
+// panel is page-aligned against those rows, so it has to travel with them.
+const chromeBandFlash = "banded fixture"
+
+func newBandedChromePanelModel(t *testing.T) (Model, int) {
+	t.Helper()
+	m := newChromePanelModel(t)
+	(&m).setFlash(chromeBandFlash)
+
+	band := (&m).sessionBandHeight()
+	if band == 0 {
+		t.Fatal("fixture: no band slot is up, so this is the unbanded case again")
+	}
+	if got := m.themePanel.bandRows; got != band {
+		t.Fatalf("fixture: the panel carries %d band rows, want the page's %d — the resync did not reach it", got, band)
+	}
+	return m, band
+}
+
+func TestPanelChrome_BandedLabelSharesTheSectionHeaderRow(t *testing.T) {
+	m, band := newBandedChromePanelModel(t)
+	rows := chromeFrame(t, m)
+
+	if chromePageRow(m, rows, chromeBandFlash) < 0 {
+		t.Fatalf("no content row carries the %q band", chromeBandFlash)
+	}
+	section := chromePageRow(m, rows, sectionLabel)
+	label := chromePanelRow(m, rows, themePanelHeaderLabel)
+	if section < 0 {
+		t.Fatalf("no content row carries the page's %q section header", sectionLabel)
+	}
+	if label < 0 {
+		t.Fatalf("no content row carries the panel's %q label", themePanelHeaderLabel)
+	}
+	if label != section {
+		t.Errorf("under a %d-row band the panel's %q label renders on content row %d and the page's %q header on row %d — the band moved one column and not the other",
+			band, themePanelHeaderLabel, label, sectionLabel, section)
+	}
+}
+
+func TestPanelChrome_BandedListsStayInStep(t *testing.T) {
+	m, band := newBandedChromePanelModel(t)
+	rows := chromeFrame(t, m)
+
+	for i, name := range chromeSessionNames() {
+		session := chromePageRow(m, rows, name)
+		themeRow := chromePanelRow(m, rows, arrowSlug(i))
+		if session < 0 {
+			t.Fatalf("no content row carries session %q", name)
+		}
+		if themeRow < 0 {
+			t.Fatalf("no content row carries theme row %q", arrowSlug(i))
+		}
+		if themeRow != session {
+			t.Errorf("under a %d-row band list row %d: the theme %q is on content row %d and the session %q on row %d",
+				band, i, arrowSlug(i), themeRow, name, session)
+		}
+	}
+}
+
 func TestPanelChrome_RulesShareOneLane(t *testing.T) {
 	m := newChromePanelModel(t)
 	rows := chromeFrame(t, m)
@@ -307,10 +368,10 @@ func TestPanelChrome_FloorFollowsTheHeader(t *testing.T) {
 	}
 
 	affordance := chromeMeasuredAffordance(t, m)
-	if got := themePanelHeaderRows(affordance, false); got != affordance-themePanelFooterHeight(entries)-2 {
+	if got := themePanelHeaderRows(affordance, 0, false); got != affordance-themePanelFooterHeight(entries)-2 {
 		t.Errorf("at %d rows the header costs %d, want the rows the page spends before its first session row", affordance, got)
 	}
-	if got := themePanelHeaderRows(affordance-1, false); got != wantPanelHeaderRows {
+	if got := themePanelHeaderRows(affordance-1, 0, false); got != wantPanelHeaderRows {
 		t.Errorf("one row below the page's rhythm the header costs %d, want the %d rows it draws", got, wantPanelHeaderRows)
 	}
 

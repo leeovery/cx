@@ -17,8 +17,8 @@ const (
 	themeRowGap      = 1
 	themeRowEllipsis = "…"
 	// ansi.Truncate counts the tail inside its width, so this is three visible
-	// characters plus the ellipsis. Anything charged after the label must charge
-	// at least this much, or the row renders wider than its width.
+	// characters plus the ellipsis. The label is charged at least this floor,
+	// whatever the trailing elements have already taken.
 	themeRowLabelFloor = 4
 )
 
@@ -77,9 +77,10 @@ func (d themeRowDelegate) renderRow(it themeRowItem, selected bool) string {
 	return strings.Join(runs, "")
 }
 
-// Fixed priority — cursor column, `⚠`, badge, reason, label — so elements do
-// not collide non-deterministically as the panel narrows: the badge outranks
-// the reason for the same right edge; the label takes the remainder, floored.
+// The budget is charged in a fixed order — cursor column, badge, `⚠`, reason,
+// label — so elements do not collide non-deterministically as the panel
+// narrows: the badge outranks the reason for the same right edge; the label
+// takes the remainder, floored.
 func (d themeRowDelegate) compose(it themeRowItem) (labelBudget int, trailing []themeRowSegment) {
 	remaining := d.Width - leftBarColumnWidth
 

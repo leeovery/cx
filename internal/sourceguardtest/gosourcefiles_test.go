@@ -54,6 +54,22 @@ func TestGoSourceFiles_SkipsExcludedDirectories(t *testing.T) {
 	}
 }
 
+// WalkDir calls back for the root itself, so a root whose own base name is
+// dot-prefixed — a worktree checked out under .worktrees/ — must not be
+// excluded on the same rule as a dot-directory found inside it.
+func TestGoSourceFiles_DotPrefixedRootIsWalked(t *testing.T) {
+	root := filepath.Join(t.TempDir(), ".worktrees-checkout")
+	writeFiles(t, root, map[string]string{
+		"kept.go":            "package a\n",
+		".git/hooks/hook.go": "package a\n",
+	})
+
+	got := relFiles(t, root)
+	if want := []string{"kept.go"}; !slices.Equal(got, want) {
+		t.Errorf("GoSourceFiles = %v, want %v — the walk root was excluded on its own base name, so every guard under it scanned nothing", got, want)
+	}
+}
+
 func TestGoSourceFiles_MissingRootErrors(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "absent")
 	if _, err := sourceguardtest.GoSourceFiles(missing); err == nil {

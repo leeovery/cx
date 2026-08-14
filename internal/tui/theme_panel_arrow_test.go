@@ -504,10 +504,12 @@ func TestPanelArrow_StartupCanvasHexUnmoved(t *testing.T) {
 func TestPanelArrow_WritesNothing(t *testing.T) {
 	t.Run("arrowing persists no preference", func(t *testing.T) {
 		persister := &countingModePersister{}
+		themePersister := &countingThemePersister{}
 		dir := t.TempDir()
 		themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("#101010"))
 		m := themeCursorModel(t, dir, theme.RawKeys{Theme: "sunset"}, theme.MemberDark)
 		WithModePersister(persister)(&m)
+		WithThemePersister(themePersister)(&m)
 
 		m = pressThemeKey(t, m)
 		launch := m.themeState.active
@@ -521,6 +523,11 @@ func TestPanelArrow_WritesNothing(t *testing.T) {
 
 		if persister.calls != 0 {
 			t.Errorf("sixteen arrows persisted %d preference(s); every write is an explicit commit keypress", persister.calls)
+		}
+		// The preview seam the panel would leak through: a persisted theme is a
+		// commit, and the mode persister would never see it.
+		if themePersister.calls != 0 {
+			t.Errorf("sixteen arrows committed %d theme(s) through the theme persister; a preview persists nothing", themePersister.calls)
 		}
 
 		m = pressPanelKey(t, closeThemePanelForTest(t, m), tea.KeyPressMsg{Code: 's', Text: "s"})

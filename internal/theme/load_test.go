@@ -189,7 +189,7 @@ func TestLoadFile_EmptyInjectedReservedSetNeverRejects(t *testing.T) {
 		lines []string
 	}{
 		{name: "a built-in slug", base: "tokyo-night.theme", lines: themetest.Lines()},
-		{name: "a slug the growing set will reserve", base: "nord.theme", lines: themetest.Lines()},
+		{name: "another built-in slug", base: "nord.theme", lines: themetest.Lines()},
 		{name: "a built-in slug on an invalid file", base: "tokyo-night.theme", lines: themetest.WithoutKey(themetest.Lines(), "canvas")},
 	}
 

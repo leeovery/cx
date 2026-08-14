@@ -12,7 +12,8 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// Non-colour attributes only — rowToken layers the mode-matched colour pair.
+// Non-colour attributes only — rowToken layers one token's foreground over the
+// selection-or-canvas background.
 var projectNameBase = lipgloss.NewStyle().Bold(true)
 
 type ProjectItem struct {

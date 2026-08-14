@@ -11,8 +11,10 @@ import (
 // It resolves no paths and decides nothing about logging.
 type Loader struct {
 	// ReservedSlugs is the set of built-in slugs a user file may not take. The
-	// zero value reserves nothing, so anything resolving a user's theme must be
-	// built by NewLoader or NewSilentLoader or it has no shadowing protection.
+	// zero value reserves nothing, so a Loader not built by NewLoader or
+	// NewSilentLoader lists a drop-in holding a built-in's slug as a valid,
+	// selectable row that diagnoses healthy — and selecting it applies the
+	// built-in, never the user's file.
 	ReservedSlugs map[string]struct{}
 
 	// BuiltinSource is where LoadBuiltin gets a built-in's bytes; nil reads the

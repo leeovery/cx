@@ -382,6 +382,58 @@ func TestFooterRevision_HelpAnchorSurvivesNarrowing(t *testing.T) {
 	}
 }
 
+// The ladders assert legality and monotonicity but no absolute width, and the
+// first degrade step is the boundary an unfitted cluster falls off whole: with
+// the anchor reserved the full cluster survives at cluster+1+anchor and gives up
+// exactly one entry a cell below it.
+func TestFooterRevision_FirstDegradeWidthIsPinned(t *testing.T) {
+	th := testDarkTheme(t)
+	anchorW := helpAnchorWidth(t, th)
+
+	sessionsCore, _ := splitFooterEntries(sessionsKeymap())
+	filtering := filteringFooterEntries(th)
+
+	for _, tc := range []struct {
+		name    string
+		cluster string
+		count   int
+		render  func(w int) string
+	}{
+		{
+			name:    "sessions",
+			cluster: footerVisible(renderFooterCluster(sessionsCore, th, false)),
+			count:   len(sessionsCore),
+			render:  func(w int) string { return renderSessionsFooter(sessionsKeymap(), w, th, false) },
+		},
+		{
+			name:    "filtering",
+			cluster: footerVisible(renderFilterCluster(filtering, th, false)),
+			count:   len(filtering),
+			render:  func(w int) string { return renderFilteringFooter(w, th, false) },
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			boundary := lipgloss.Width(tc.cluster) + 1 + anchorW
+
+			cluster, anchor := splitFooterRow(footerRowVisible(t, tc.render(boundary)))
+			if cluster != tc.cluster {
+				t.Errorf("at the boundary width %d the cluster:\n got  %q\n want the full %q", boundary, cluster, tc.cluster)
+			}
+			if anchor != wantFooterHelpAnchor {
+				t.Errorf("at the boundary width %d the ? help anchor was dropped", boundary)
+			}
+
+			narrow, narrowAnchor := splitFooterRow(footerRowVisible(t, tc.render(boundary-1)))
+			if got, want := footerClusterEntryCount(narrow), tc.count-1; got != want {
+				t.Errorf("one cell below the boundary (width %d) the cluster carries %d entries, want %d — it degrades one at a time, never whole:\n%q", boundary-1, got, want, narrow)
+			}
+			if narrowAnchor != wantFooterHelpAnchor {
+				t.Errorf("at width %d the ? help anchor was dropped; the cluster gives way beneath it", boundary-1)
+			}
+		})
+	}
+}
+
 func TestFooterRevision_ExtremeNarrowLadder(t *testing.T) {
 	th := testDarkTheme(t)
 	anchorW := helpAnchorWidth(t, th)

@@ -90,7 +90,7 @@ func persistedThemeAdvisories(deps *DoctorDeps, loader theme.Loader, enumeration
 	}
 
 	keys, _ := deps.PrefsStore.LoadThemeKeys()
-	raw := theme.NewRawKeys(keys.Theme, keys.Light, keys.Dark)
+	raw := themeRawKeys(keys)
 
 	nominations := persistedThemeNominations(raw)
 

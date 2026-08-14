@@ -12,8 +12,8 @@ import (
 
 const ContrastValidationFixture = "contrast-validation"
 
-// NewContrastValidationModel takes a whole palette rather than a mode: each
-// theme's tints are judged against its own canvas.
+// NewContrastValidationModel renders one palette's tints against that
+// palette's own canvas.
 func NewContrastValidationModel(th theme.Theme) tea.Model {
 	return newSwatchModel(th)
 }

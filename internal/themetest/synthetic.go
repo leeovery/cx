@@ -65,8 +65,9 @@ func SyntheticPalette(t *testing.T, red uint8) theme.Theme {
 }
 
 // SyntheticPair builds two palettes that share no token value — the before and
-// after a swap probe diffs. Equal reds are fatal: an identical pair would make
-// every "the stale value is gone" assertion pass vacuously.
+// after a swap probe diffs. Equal reds are fatal: an identical pair makes a "the
+// new value is present" check pass whether or not the site re-pointed, and makes
+// a "the stale value is gone" check fail even where it did.
 func SyntheticPair(t *testing.T, redA, redB uint8) (a, b theme.Theme) {
 	t.Helper()
 

@@ -63,8 +63,9 @@ type themeState struct {
 
 	reply terminalReply
 
-	// Runs from a failed write until a later commit succeeds — longer than the
-	// message line, which dies on the next keypress. It lives here because it must
+	// Runs from a failed write until a later commit succeeds or the close-time
+	// report discharges it — longer than the message line, which dies on the next
+	// keypress. It lives here because it must
 	// outlive the panel struct the close discards.
 	commitFailed bool
 

@@ -157,7 +157,9 @@ func (s *Store) readFileStrict() (prefsFile, bool, error) {
 		if errors.As(err, &typeErr) && typeErr.Field != "" {
 			return f, true, nil
 		}
-		return prefsFile{}, false, err
+		// Named, not bare: this aborts a commit, and the raw decode error tells
+		// the user nothing about which file to open.
+		return prefsFile{}, false, fmt.Errorf("prefs: %s is not valid JSON: %w", s.path, err)
 	}
 
 	return f, true, nil
@@ -276,8 +278,9 @@ func (s *Store) SaveMigrationMarker() error {
 
 // SaveTranslation records the translated theme key and the migration marker in
 // one write, not two: a failure between separate writes would persist the key
-// with the marker unset, and the marker must stay unset so the next launch
-// retries.
+// with the marker unset, and the next launch would then record the marker alone.
+// One write means either both land or neither does. An absent prefs.json is a
+// silent no-op.
 func (s *Store) SaveTranslation(slug string) (persisted bool, err error) {
 	err = s.mutate(func(f *prefsFile, existed bool) bool {
 		if !existed {

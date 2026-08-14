@@ -466,7 +466,9 @@ func themePanelConstantPreviewingFixture() *Fixture {
 }
 
 // Capture at the panel's minimum width (the message slot may wrap there) with
-// `--theme tokyo-night-day`, the row under the seeded cursor.
+// `--theme tokyo-night-day`, the row under the seeded cursor. The fixture
+// declares no render size, so that width comes from the capturing terminal: at
+// a wide one the same frame renders the confirm on a single row.
 func themePanelConfirmFixture() *Fixture {
 	fx := themePanelConstantPreviewingFixture()
 	fx.name = "theme-panel-confirm"

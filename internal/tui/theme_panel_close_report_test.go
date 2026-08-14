@@ -225,7 +225,7 @@ func TestCloseReport_SuccessfulRetryIsSilent(t *testing.T) {
 
 	m, _ = pressSlotKey(t, m, slotLightPress)
 	if m.themeState.commitFailed {
-		t.Fatal("the successful commit left the failure outstanding, so the silence below is not this task's")
+		t.Fatal("the successful commit left the failure outstanding, so the silence below is not this test's")
 	}
 	gen := m.flashGen
 
@@ -279,8 +279,10 @@ func captureStderrForTest(t *testing.T, fn func()) string {
 	}
 	original := os.Stderr
 	os.Stderr = w
+	// Deferred, not restored after fn: a panic or a t.Fatalf inside fn would
+	// otherwise leave the swapped pipe installed for the rest of the package.
+	defer func() { os.Stderr = original }()
 	fn()
-	os.Stderr = original
 	if err := w.Close(); err != nil {
 		t.Fatalf("close the stderr pipe: %v", err)
 	}

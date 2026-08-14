@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/portal/internal/sourceguardtest"
 	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/themetest"
 )
@@ -60,16 +61,18 @@ const twoBuiltinTableDeclarer = "theme_testing_test.go"
 var twoBuiltinRow = regexp.MustCompile(`\{(?:\w+:\s*)?"dark",\s*(?:\w+:\s*)?(?:testDarkTheme\(t\)|theme\.MemberDark)\}`)
 
 func TestNoLocalTwoBuiltinTable(t *testing.T) {
-	entries, err := os.ReadDir(".")
+	// The shared primitive errors on an empty match, so this cannot pass by having
+	// stopped looking.
+	paths, err := sourceguardtest.PackageGoFiles(".", true)
 	if err != nil {
-		t.Fatalf("read the internal/tui package dir: %v", err)
+		t.Fatalf("enumerate the internal/tui package sources: %v", err)
 	}
-	for _, entry := range entries {
-		name := entry.Name()
-		if entry.IsDir() || !strings.HasSuffix(name, "_test.go") || name == twoBuiltinTableDeclarer {
+	for _, path := range paths {
+		name := filepath.Base(path)
+		if !strings.HasSuffix(name, "_test.go") || name == twoBuiltinTableDeclarer {
 			continue
 		}
-		src, err := os.ReadFile(filepath.Join(".", name))
+		src, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatalf("read %s: %v", name, err)
 		}

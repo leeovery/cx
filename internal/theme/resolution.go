@@ -76,16 +76,18 @@ func (l Loader) ResolveNominationFrom(e Enumeration, s Setting) (Resolution, err
 }
 
 // ResolveSlot resolves one slot against a retained Enumeration, reading nothing,
-// and does emit `theme: loaded` — a commit is a genuine load nothing else has
-// reported. The slug must already have the default substituted in, or an
-// untouched slot is reported as a fallback.
+// and does emit `theme: loaded` — a commit is a genuine load, not a
+// re-derivation of one already reported, which is what the re-resolution passes
+// do. The slug must already have the default substituted in, or an untouched
+// slot is reported as a fallback.
 func (l Loader) ResolveSlot(e Enumeration, slot Slot, slug string) (SlotResolution, error) {
 	return l.resolveSlot(slot, slug, l.commitPass(e))
 }
 
 // resolutionPass pairs where a slug loads from with how the resolved slot is
-// reported: a pass reading a retained parse is the one that must not emit
-// `theme: loaded`, so the type stops a call site pairing them the other way.
+// reported. The two are independent: a commit resolves from a retained
+// enumeration and still reports a genuine load. The three constructors below are
+// the only pairings.
 type resolutionPass struct {
 	// load is the whole by-name ladder, so the fallback resolves through the
 	// identical route the nomination did.
@@ -114,8 +116,9 @@ func (l Loader) enumerationLoad(e Enumeration) slugLoader {
 }
 
 // ResolveByNameFrom runs ResolveByName's ladder against a retained
-// Enumeration's entries instead of the themes directory: no I/O, no events. The
-// Result carries no Source bytes — an enumeration retains parses, not files.
+// Enumeration's entries instead of the themes directory: no I/O, no events. A
+// drop-in resolves Source-less, because an enumeration retains parses rather
+// than files; a built-in still comes back carrying its embedded bytes.
 func (l Loader) ResolveByNameFrom(e Enumeration, slug string) (Result, *Rejection) {
 	return l.resolveNamed(slug, func(s string) (Result, *Rejection) {
 		return entryResult(s, e)
@@ -207,7 +210,8 @@ func (l Loader) reportFallback(r SlotResolution) SlotResolution {
 
 // defaultSlugFor is the slot's shipped default, mode-matched deliberately: one
 // fixed default would throw a light-terminal user with a typo in their light
-// slot onto a dark palette.
+// slot onto a dark palette. A constant names no mode to match, so it takes the
+// dark default.
 func defaultSlugFor(slot Slot) string {
 	if slot == SlotLight {
 		return DefaultLightSlug

@@ -114,8 +114,10 @@ func renderedPanelRows(t *testing.T, m Model) []renderedPanelRow {
 	return rows
 }
 
-// A label carries no whitespace, so the first field is the label and the rest is
-// the trailer.
+// No fixture in this file carries whitespace in its label, so the first field is
+// the label and the rest is the trailer. Labels in general hold no such
+// guarantee — a bad-name row is labelled by its filename, rendered verbatim — so
+// a filename fixture with a space would mis-split here.
 func parseRenderedPanelRow(t *testing.T, line string) renderedPanelRow {
 	t.Helper()
 
