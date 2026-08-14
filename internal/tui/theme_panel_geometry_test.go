@@ -170,7 +170,7 @@ func TestPanelGeometry_ChromeRowsIsSharedByBothArithmetics(t *testing.T) {
 				inner := themePanelInnerWidth(p.width)
 				messageRows := themePanelMessageHeight(p.message, inner, themePanelMessageWraps(p, geometryContentH))
 				want := geometryContentH - themePanelChromeRows(
-					themePanelHeaderRows(geometryContentH, tc.dirUnusable),
+					themePanelHeaderRows(geometryContentH, p.bandRows, tc.dirUnusable),
 					tc.dirUnusable, messageRows, themePanelFooterScope(p.message))
 				if want <= themePanelMinBodyRows {
 					t.Fatalf("fixture: a %d-row content region leaves a %d-row body, at or below the %d-row floor — the remainder is clamped, so the assertion proves nothing",

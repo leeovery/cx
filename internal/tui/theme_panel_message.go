@@ -145,7 +145,7 @@ func themePanelMessageHeight(message themePanelMessage, inner int, wrap bool) in
 // threshold the extra header rows leave the slot as tight as the compact floor.
 func themePanelMessageWraps(p themePanel, height int) bool {
 	return height > themePanelFloorFor(
-		themePanelHeaderShapeFor(height, p.union.DirUnusable).rows,
+		themePanelHeaderShapeFor(height, p.bandRows, p.union.DirUnusable).rows,
 		themePanelKeymap(),
 		p.union.DirUnusable,
 	)

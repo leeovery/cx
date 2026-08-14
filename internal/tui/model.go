@@ -1373,6 +1373,13 @@ func (m *Model) resyncPageLayouts() {
 	}
 	m.applySessionListSize(m.contentWidth(), m.contentHeight())
 	m.applyProjectListSize(m.contentWidth(), m.contentHeight())
+	// The band moves the panel's budget too, and a flash can be raised or
+	// cleared by a message arriving while the panel is open — leaving a stale
+	// PerPage behind the pages' fresh ones. Guarded: the styles apply sizes a
+	// zero list.Model has no delegate to measure.
+	if m.themePanel.open {
+		m.applyThemePanelListStyles()
+	}
 }
 
 func (m Model) loadProjects() tea.Cmd {
@@ -2839,8 +2846,23 @@ func (m Model) overlayThemePanelOnContent(content string, contentW, contentH int
 	if !m.themePanel.open {
 		return content
 	}
-	panel := renderThemePanel(m.themePanel, contentH, m.themeState.active, m.colourless)
+	// Re-stamped per frame rather than trusted from the last size-apply: a band
+	// raised or cleared by a message the panel never sees would otherwise leave
+	// the panel a row out of step with the page under it.
+	p := m.themePanel
+	p.bandRows = m.pageBandHeight()
+	panel := renderThemePanel(p, contentH, m.themeState.active, m.colourless)
 	return overlayThemePanel(content, panel, contentW)
+}
+
+// The band the page beneath the panel composes, in rows. Measured off the same
+// slot renderers the pages' own height budgets use, so panel and page cannot
+// disagree about how far the section header moved.
+func (m Model) pageBandHeight() int {
+	if m.activePage == PageProjects {
+		return m.projectBandHeight()
+	}
+	return (&m).sessionBandHeight()
 }
 
 // Shared by both inset placers so coloured and colourless frames match in layout.

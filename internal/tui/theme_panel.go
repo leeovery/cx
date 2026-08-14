@@ -76,6 +76,12 @@ type themePanel struct {
 
 	// Outer width, border column included.
 	width int
+
+	// The page's notice-band slot in rows, so the page-aligned header travels
+	// with the section header the band displaces. Stamped from the model at
+	// every size-apply and again on the way into the render, never held across
+	// a frame: a band can be raised or cleared while the panel is open.
+	bandRows int
 }
 
 // pinArrowOnlyNav is load-bearing: the v2 DefaultKeyMap binds `l` and `d` to
@@ -292,6 +298,7 @@ func (p themePanel) rowItems() []list.Item {
 // Sized to the real remainder, not themePanelMinBodyRows: `bubbles/list` derives
 // PerPage from the height it is given, so a floor-sized list pins a one-row page.
 func (m *Model) applyThemePanelListStyles() {
+	m.themePanel.bandRows = m.pageBandHeight()
 	width, rows := themePanelListSize(m.themePanel, m.contentHeight())
 	m.themePanel.list.SetSize(width, rows)
 	m.applyThemePanelCanvasMode()

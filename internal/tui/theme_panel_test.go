@@ -62,7 +62,7 @@ func themePanelLines(block string) []string {
 }
 
 func panelHeaderRowsOf(m Model) int {
-	return themePanelHeaderRows(m.contentHeight(), m.themePanel.union.DirUnusable)
+	return themePanelHeaderRows(m.contentHeight(), m.themePanel.bandRows, m.themePanel.union.DirUnusable)
 }
 
 func themePanelContentPrefix() string {
@@ -181,7 +181,7 @@ func TestThemePanel_LeftBorderOnly(t *testing.T) {
 		rows:  themePanelTestRows(6),
 	})
 	const height = 16
-	shape := themePanelHeaderShapeFor(height, p.union.DirUnusable)
+	shape := themePanelHeaderShapeFor(height, p.bandRows, p.union.DirUnusable)
 	block := renderThemePanel(p, height, th, false)
 
 	for i, line := range themePanelLines(block) {
@@ -232,7 +232,7 @@ func TestThemePanel_HeaderIsMeasuredAndCountless(t *testing.T) {
 		rows:  rows,
 	})
 	const height = 16
-	shape := themePanelHeaderShapeFor(height, p.union.DirUnusable)
+	shape := themePanelHeaderShapeFor(height, p.bandRows, p.union.DirUnusable)
 	block := renderThemePanel(p, height, th, false)
 	lines := themePanelLines(block)
 
@@ -274,7 +274,7 @@ func TestThemePanel_DirUnreadableIsPinnedChrome(t *testing.T) {
 	})
 
 	const height = 14
-	header := themePanelHeaderRows(height, p.union.DirUnusable)
+	header := themePanelHeaderRows(height, p.bandRows, p.union.DirUnusable)
 	firstPage := themePanelLines(renderThemePanel(p, height, th, false))
 	if got, want := strings.TrimRight(firstPage[header], " "), themePanelContentPrefix()+themePanelDirUnreadable; got != want {
 		t.Fatalf("page 1 directory row = %q, want %q", got, want)
@@ -324,7 +324,7 @@ func TestThemePanel_RowsRenderBeneathDirRow(t *testing.T) {
 
 	height := themePanelMinHeight(themePanelKeymap(), p.union.DirUnusable) + 10
 	lines := themePanelLines(renderThemePanel(p, height, th, false))
-	below := strings.Join(lines[themePanelHeaderRows(height, p.union.DirUnusable)+1:], "\n")
+	below := strings.Join(lines[themePanelHeaderRows(height, p.bandRows, p.union.DirUnusable)+1:], "\n")
 
 	for _, want := range []string{builtin.Label(), persisted.Label(), themePanelBadgeText(theme.BadgeDark)} {
 		if !strings.Contains(below, want) {
@@ -355,7 +355,7 @@ func TestThemePanel_DirRowFitsMinimumWidthUntruncated(t *testing.T) {
 	})
 	const height = 10
 	lines := themePanelLines(renderThemePanel(p, height, th, false))
-	row := strings.TrimRight(lines[themePanelHeaderRows(height, p.union.DirUnusable)], " ")
+	row := strings.TrimRight(lines[themePanelHeaderRows(height, p.bandRows, p.union.DirUnusable)], " ")
 	if want := themePanelContentPrefix() + themePanelDirUnreadable; row != want {
 		t.Errorf("at the minimum width the directory row = %q, want %q", row, want)
 	}
@@ -437,7 +437,7 @@ func TestThemePanel_ListIsConstructedWithPanelChromeDisabled(t *testing.T) {
 		rows:  themePanelTestRows(12),
 	})
 	wantW, wantH := themePanelInnerWidth(themePanelPreferredWidth),
-		height-themePanelHeaderRows(height, p.union.DirUnusable)-themePanelFooterHeight(themePanelKeymap())
+		height-themePanelHeaderRows(height, p.bandRows, p.union.DirUnusable)-themePanelFooterHeight(themePanelKeymap())
 	gotW, gotH := themePanelListSize(p, height)
 	if gotW != wantW || gotH != wantH {
 		t.Fatalf("themePanelListSize = (%d, %d), want (%d, %d)", gotW, gotH, wantW, wantH)
@@ -455,7 +455,7 @@ func TestThemePanel_EveryChromeSurfaceIsATokenLookup(t *testing.T) {
 
 	// Derived so the list draws no paginator: this fixture skips the production
 	// restyle, and library-default dots would read as a surface surviving the swap.
-	pageAligned := themePanelFloorFor(themePanelPageAlignedHeaderShape().rows, themePanelKeymap(), true)
+	pageAligned := themePanelFloorFor(themePanelPageAlignedHeaderShape(0).rows, themePanelKeymap(), true)
 	height := pageAligned - themePanelMinBodyRows + len(rows) + 2
 
 	render := func(th theme.Theme) string {
@@ -777,7 +777,7 @@ func TestThemePanel_Colourless(t *testing.T) {
 		message:     messageTestConfirm(),
 	})
 	const height = 14
-	shape := themePanelHeaderShapeFor(height, p.union.DirUnusable)
+	shape := themePanelHeaderShapeFor(height, p.bandRows, p.union.DirUnusable)
 	block := renderThemePanel(p, height, th, true)
 
 	for i, line := range strings.Split(block, "\n") {

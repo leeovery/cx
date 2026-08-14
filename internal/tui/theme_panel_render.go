@@ -15,7 +15,7 @@ func renderThemePanel(p themePanel, height int, th theme.Theme, colourless bool)
 	inner, bodyRows := themePanelListSize(p, height)
 	p.list.SetSize(inner, bodyRows)
 
-	header := themePanelHeaderShapeFor(height, p.union.DirUnusable)
+	header := themePanelHeaderShapeFor(height, p.bandRows, p.union.DirUnusable)
 	rows := themePanelHeaderBlock(header, p.width, th, colourless)
 	rows = appendBlock(rows, themePanelDirRow(p.union.DirUnusable, th, colourless))
 	rows = appendBlock(rows, clampBlockHeight(p.list.View(), bodyRows))
