@@ -4,7 +4,37 @@
   "status": "in-progress",
   "created": "2026-08-15",
   "description": "Set Portal's own file-organisation standard, record it in CLAUDE.md, and split the oversized Go files along their concern seams — standard and sweep landing in the same release.",
-  "phases": {},
+  "phases": {
+    "discussion": {
+      "items": {
+        "split-oversized-go-files": {
+          "status": "in-progress",
+          "subtopics": {
+            "standard-shape": {
+              "status": "pending",
+              "parent": null
+            },
+            "sweep-scope": {
+              "status": "pending",
+              "parent": null
+            },
+            "seam-selection": {
+              "status": "pending",
+              "parent": null
+            },
+            "claude-md-and-enforcement": {
+              "status": "pending",
+              "parent": null
+            },
+            "refactor-safety": {
+              "status": "pending",
+              "parent": null
+            }
+          }
+        }
+      }
+    }
+  },
   "seeds": [
     {
       "path": "seeds/2026-08-09-split-oversized-go-files.md",
