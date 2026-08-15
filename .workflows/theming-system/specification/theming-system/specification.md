@@ -1,8 +1,5 @@
 # Specification: Theming System
 
-> **Corrigendum 2026-08-14** (from the `theming-system` implementation review): §9.1's header paragraph had the label "followed by" the one-row `border` rule — corrected: the panel renders **rule then label**, because the rule sits in the page's own rule lane, which is what lands `Themes` on the page's section-header row.
-> **Corrigendum 2026-08-14** (from the `theming-system` implementation review): §14A ranked the filter line as a band contender above the transient flash and called the theme flashes "a change to the band's precedence" — corrected: the filter line renders on the **section-header row** through `applySectionHeader` and never contends for the band slot, so the guarantee holds because the slot is free, not because a theme flash outranks anything; the band's arbitration is unchanged by this feature.
-
 ## Specification
 
 ## 1. Overview & Scope
@@ -1921,3 +1918,8 @@ Only the **new** frames are forward-looking reference material, because they des
 ---
 
 ## Working Notes
+
+## Corrigenda
+
+> **Corrigendum 2026-08-14** (from the `theming-system` implementation review): §9.1's header paragraph had the label "followed by" the one-row `border` rule — corrected: the panel renders **rule then label**, because the rule sits in the page's own rule lane, which is what lands `Themes` on the page's section-header row.
+> **Corrigendum 2026-08-14** (from the `theming-system` implementation review): §14A ranked the filter line as a band contender above the transient flash and called the theme flashes "a change to the band's precedence" — corrected: the filter line renders on the **section-header row** through `applySectionHeader` and never contends for the band slot, so the guarantee holds because the slot is free, not because a theme flash outranks anything; the band's arbitration is unchanged by this feature.

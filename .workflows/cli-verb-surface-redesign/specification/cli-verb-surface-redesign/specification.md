@@ -1,17 +1,5 @@
 # Specification: CLI Verb Surface Redesign
 
-> **Corrigendum 2026-08-07** (from `theming-system`): "`portal doctor` exits **0 iff every check passes; non-zero (1) if any check reports a problem**" — corrected: the report carries **two classes of line** and the exit code is **0 iff every Portal-health check passes**; `⚠`-marked user-content diagnostics never participate (there is deliberately no repair path for user content, so such a line would hold the exit permanently non-zero over something that is not the resurrection machinery the exit code speaks about), and every run now ends with a closing summary distinguishing the two counts.
->
-> **Corrigendum 2026-08-07** (from `theming-system`): "`portal doctor --fix` **re-runs the diagnosis after applying repairs** and exits **0 iff everything is healthy post-repair, non-zero if anything remains unhealthy or unfixable**" — corrected: the exit is driven **solely** by the post-repair *Portal-health* checks, and because the user-content scan is read-only it runs on the `--fix` path too, so its `⚠` lines and the summary's advisory suffix appear in **both** renders while `--fix` gains no repair step for them.
->
-> **Corrigendum 2026-08-07** (from `theming-system`): "The authoritative check catalog (the set `doctor` inspects — planning implements the concrete probe per check)" — corrected: that catalog is the **Portal-health** class alone; `doctor` also reads user-authored config it does not own (the themes directory and the persisted theme name) and reports those findings as `⚠` advisories outside the catalog and outside the exit code.
->
-> **Corrigendum 2026-08-12** (from `theming-system` review): the `--fix` bullet still carried the pre-amendment absolutes "exits **0 iff everything is healthy post-repair, non-zero if anything remains unhealthy or unfixable**", scoped only by a trailing "driven **solely** by the post-repair Portal-health checks" — the exact phrase the second corrigendum above quotes as corrected. Corrected in the body: the absolutes now name Portal-health checks directly, and the redundant trailing clause is dropped.
->
-> **Corrigendum 2026-08-07** (from `theming-system`): the Command Surface Summary's public table omitted **`portal theme export <slug>`** — corrected: it is a public, bootstrap-exempt verb (the `theme` group's only member) that writes one theme's file to stdout.
->
-> **Corrigendum 2026-08-07** (from `theming-system`): `uninstall`'s "config (`projects.json`, `aliases`, `hooks.json`, `prefs.json`, `terminals.json`)" — corrected: the user-authored `themes/` drop-in directory sits alongside those files under `~/.config/portal/` and is likewise untouched.
-
 ## Specification
 
 ## Overview
@@ -471,3 +459,17 @@ These are deferred future scope, not unresolved decisions — recorded so planni
 ---
 
 ## Working Notes
+
+## Corrigenda
+
+> **Corrigendum 2026-08-07** (from `theming-system`): "`portal doctor` exits **0 iff every check passes; non-zero (1) if any check reports a problem**" — corrected: the report carries **two classes of line** and the exit code is **0 iff every Portal-health check passes**; `⚠`-marked user-content diagnostics never participate (there is deliberately no repair path for user content, so such a line would hold the exit permanently non-zero over something that is not the resurrection machinery the exit code speaks about), and every run now ends with a closing summary distinguishing the two counts.
+>
+> **Corrigendum 2026-08-07** (from `theming-system`): "`portal doctor --fix` **re-runs the diagnosis after applying repairs** and exits **0 iff everything is healthy post-repair, non-zero if anything remains unhealthy or unfixable**" — corrected: the exit is driven **solely** by the post-repair *Portal-health* checks, and because the user-content scan is read-only it runs on the `--fix` path too, so its `⚠` lines and the summary's advisory suffix appear in **both** renders while `--fix` gains no repair step for them.
+>
+> **Corrigendum 2026-08-07** (from `theming-system`): "The authoritative check catalog (the set `doctor` inspects — planning implements the concrete probe per check)" — corrected: that catalog is the **Portal-health** class alone; `doctor` also reads user-authored config it does not own (the themes directory and the persisted theme name) and reports those findings as `⚠` advisories outside the catalog and outside the exit code.
+>
+> **Corrigendum 2026-08-12** (from `theming-system` review): the `--fix` bullet still carried the pre-amendment absolutes "exits **0 iff everything is healthy post-repair, non-zero if anything remains unhealthy or unfixable**", scoped only by a trailing "driven **solely** by the post-repair Portal-health checks" — the exact phrase the second corrigendum above quotes as corrected. Corrected in the body: the absolutes now name Portal-health checks directly, and the redundant trailing clause is dropped.
+>
+> **Corrigendum 2026-08-07** (from `theming-system`): the Command Surface Summary's public table omitted **`portal theme export <slug>`** — corrected: it is a public, bootstrap-exempt verb (the `theme` group's only member) that writes one theme's file to stdout.
+>
+> **Corrigendum 2026-08-07** (from `theming-system`): `uninstall`'s "config (`projects.json`, `aliases`, `hooks.json`, `prefs.json`, `terminals.json`)" — corrected: the user-authored `themes/` drop-in directory sits alongside those files under `~/.config/portal/` and is likewise untouched.

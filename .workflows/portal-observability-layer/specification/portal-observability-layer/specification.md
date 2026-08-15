@@ -1,15 +1,5 @@
 # Specification: Portal Observability Layer
 
-> **Corrigendum 2026-08-07** (from `theming-system`): the closed component value space omitted `theme` — corrected: `theme` is declared here, with its owners, attr keys, levels, cadences and event catalog.
-> **Corrigendum 2026-08-07** (from `theming-system`): "A closed subsystem-prefix taxonomy (15 components)" / "Closed component value space (15 total)" — corrected: the space holds **18** components. `spawn` (added by `multi-window-spawn`) and `resolve` (added by `cli-verb-surface-redesign`) shipped under amendments that were never landed in this file, and `theming-system` adds `theme`; membership is verified against `internal/log`'s bindings.
-> **Corrigendum 2026-08-07** (from `theming-system`): "Closed attr-key value space (49 keys)" — corrected: **64 keys**, after declaring the `spawn` (8 new), `resolve` (2 new) and `theme` (5 new) groups and counting the keys they cross-list (`session`, `target`, `reason`, `path`) once each.
-> **Corrigendum 2026-08-07** (from `theming-system`): `spawn`'s and `resolve`'s attr keys were undeclared here, for the same reason their components were — corrected: both groups are declared, verified against their emission sites.
-> **Corrigendum 2026-08-07** (from `theming-system`): "Every package that logs binds its component name once at package init" read as one package per component — corrected: the rule is bind once **per package, per component**; a component may be bound by several packages, and a package that is handed a bound logger through a seam binds nothing at all.
-> **Corrigendum 2026-08-12** (from `theming-system` review): "The 11-step bootstrap orchestrator" (the `bootstrap` owns-row, and the same phrase in the sequence-cycle list) — corrected: the orchestrator runs **ten** steps. The former step 11, `CleanStale`, was re-homed onto the `_portal-saver` daemon.
-> **Corrigendum 2026-08-14** (from `theming-system` review): the `clean` component's owns-row read "`portal clean` command path", and the rotation/retention rules carried a "`portal clean` integration" block plus two further `portal clean` references — corrected: `portal clean` is retired. The component covers the sweep paths (bootstrap's orphan-daemon and stale-marker sweeps, `internal/state`'s orphan-FIFO sweep), the forced log sweep is `portal doctor --fix`, and the leaked symlink temp is reclaimed by the same pid's next swing rather than by any sweep.
-> **Corrigendum 2026-08-14** (from `theming-system` review): the `enumerated` row claimed that an open "refused below the size floor" also emits the event — corrected: only the **post-enumeration floor re-check** does; an entry-gate refusal precedes the enumeration and emits nothing.
-> **Corrigendum 2026-08-14** (from `theming-system` review): the emission-control rules said `cmd` constructs the loader's seam with `log.Discard()` on `portal doctor`, `portal theme export` and `capturetool` — corrected: all three take **`theme.NewSilentLoader()`**, and `cmd`'s only direct seam construction is the real-logger one.
-
 ## Overview
 
 ### Purpose
@@ -1084,3 +1074,15 @@ The daemon could then read the exit-status file to log the hook's outcome. Defer
 ---
 
 ## Working Notes
+
+## Corrigenda
+
+> **Corrigendum 2026-08-07** (from `theming-system`): the closed component value space omitted `theme` — corrected: `theme` is declared here, with its owners, attr keys, levels, cadences and event catalog.
+> **Corrigendum 2026-08-07** (from `theming-system`): "A closed subsystem-prefix taxonomy (15 components)" / "Closed component value space (15 total)" — corrected: the space holds **18** components. `spawn` (added by `multi-window-spawn`) and `resolve` (added by `cli-verb-surface-redesign`) shipped under amendments that were never landed in this file, and `theming-system` adds `theme`; membership is verified against `internal/log`'s bindings.
+> **Corrigendum 2026-08-07** (from `theming-system`): "Closed attr-key value space (49 keys)" — corrected: **64 keys**, after declaring the `spawn` (8 new), `resolve` (2 new) and `theme` (5 new) groups and counting the keys they cross-list (`session`, `target`, `reason`, `path`) once each.
+> **Corrigendum 2026-08-07** (from `theming-system`): `spawn`'s and `resolve`'s attr keys were undeclared here, for the same reason their components were — corrected: both groups are declared, verified against their emission sites.
+> **Corrigendum 2026-08-07** (from `theming-system`): "Every package that logs binds its component name once at package init" read as one package per component — corrected: the rule is bind once **per package, per component**; a component may be bound by several packages, and a package that is handed a bound logger through a seam binds nothing at all.
+> **Corrigendum 2026-08-12** (from `theming-system` review): "The 11-step bootstrap orchestrator" (the `bootstrap` owns-row, and the same phrase in the sequence-cycle list) — corrected: the orchestrator runs **ten** steps. The former step 11, `CleanStale`, was re-homed onto the `_portal-saver` daemon.
+> **Corrigendum 2026-08-14** (from `theming-system` review): the `clean` component's owns-row read "`portal clean` command path", and the rotation/retention rules carried a "`portal clean` integration" block plus two further `portal clean` references — corrected: `portal clean` is retired. The component covers the sweep paths (bootstrap's orphan-daemon and stale-marker sweeps, `internal/state`'s orphan-FIFO sweep), the forced log sweep is `portal doctor --fix`, and the leaked symlink temp is reclaimed by the same pid's next swing rather than by any sweep.
+> **Corrigendum 2026-08-14** (from `theming-system` review): the `enumerated` row claimed that an open "refused below the size floor" also emits the event — corrected: only the **post-enumeration floor re-check** does; an entry-gate refusal precedes the enumeration and emits nothing.
+> **Corrigendum 2026-08-14** (from `theming-system` review): the emission-control rules said `cmd` constructs the loader's seam with `log.Discard()` on `portal doctor`, `portal theme export` and `capturetool` — corrected: all three take **`theme.NewSilentLoader()`**, and `cmd`'s only direct seam construction is the real-logger one.

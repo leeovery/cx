@@ -1,11 +1,5 @@
 # Specification: Enter Attaches From Preview
 
-> **Corrigendum (2026-05-19)**: This specification originally directed
-> `tmux attach-session -A -t '=<session>'` as the outside-tmux connector
-> argv. The `-A` flag is not valid on `attach-session` (it belongs to
-> `new-session`); the correct argv is `tmux attach-session -t '=<session>'`.
-> Corrected by work unit `drop-invalid-A-flag-from-attach-session-argv`.
-
 ## Overview
 
 Add an `Enter` binding to the scrollback preview page that attaches to the previewed session, honouring any `(window, pane)` focus the user navigated to inside preview. Today preview's `Update` handler has no `tea.KeyEnter` case — `Enter` falls through to the embedded viewport as a no-op, forcing the user to press `Esc` to dismiss and then `Enter` on the Sessions list. This feature adds the single-keystroke commit path the user's mental model expects.
@@ -325,3 +319,11 @@ This feature **does not edit** the prior spec. The prior spec is a frozen histor
 ---
 
 ## Working Notes
+
+## Corrigenda
+
+> **Corrigendum (2026-05-19)**: This specification originally directed
+> `tmux attach-session -A -t '=<session>'` as the outside-tmux connector
+> argv. The `-A` flag is not valid on `attach-session` (it belongs to
+> `new-session`); the correct argv is `tmux attach-session -t '=<session>'`.
+> Corrected by work unit `drop-invalid-A-flag-from-attach-session-argv`.
