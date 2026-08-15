@@ -176,6 +176,9 @@
     },
     "theming-system": {
       "work_type": "feature"
+    },
+    "split-oversized-go-files": {
+      "work_type": "feature"
     }
   },
   "defaults": {
