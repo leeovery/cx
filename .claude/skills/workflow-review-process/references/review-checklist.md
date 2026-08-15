@@ -97,7 +97,7 @@ For each phase:
 
 **Poor readability**: Code works but is hard to understand
 
-**Stale comment**: A comment contradicts the code it describes — a `[do-now]` note carrying the replacement text, never a blocking issue on its own
+**Stale comment**: A comment contradicts the code it describes — a finding carrying the replacement text. Classified by its remedy: comment text alone is `[contained]` and never blocks.
 
 ## Writing Feedback
 
@@ -116,7 +116,15 @@ Flag test balance issues:
 - **Under-tested**: "Task 2.1 has no test for the error case mentioned in spec section 3.2"
 - **Over-tested**: "Task 2.1 has 5 tests that all verify the same happy path with slight variations"
 
-Distinguish blocking vs non-blocking:
+Verify what you cite:
 
-- **Blocking**: Incomplete tasks, missing tests, broken functionality
-- **Non-blocking**: Code style suggestions, minor readability improvements
+- Re-read the line before quoting its number; never name a symbol you have not located
+- Count before claiming a count — "the only site", "the single caller", "eleven call sites" are claims, not colour
+- Check that the edit you prescribe is safe applied exactly as written
+- Repo-relative paths only
+
+Report only what is wrong:
+
+- **Blocking**: the work cannot be called delivered — acceptance criteria unmet in substance, or behaviour that is broken. Never a finding whose entire remedy is comment or documentation text
+- **A finding**: something broken or incorrect, or a violation of the spec, the plan, or the project's standards — carrying the concrete failure that follows from leaving it
+- **Not reported at all**: a preference none of those require. A fold, an extraction, a rename, a reordering. Ease of doing it is not a reason to raise it

@@ -61,6 +61,8 @@ Lifecycle `status` transitions go through the engine, not `set` — `engine topi
 
 Bracketed lines are placeholders, not content — create the file with the headings and leave the sections empty; never copy placeholder text into the file. Topic content nests beneath `## Specification` as `###` sections — never as sibling `##` headings.
 
+A specification corrected after its work unit completed may additionally carry a `## Corrigenda` section as its final section — the durable record of post-completion amendments, written only through `workflow-shared/references/correcting-historical-artifacts.md`, never during specification work.
+
 ---
 
 ## Sources and Incorporation Status
@@ -87,7 +89,7 @@ node .claude/skills/workflow-engine/scripts/engine.cjs manifest get {work_unit}.
 1. **When creating the specification**: All sources start as `pending` — `node .claude/skills/workflow-engine/scripts/engine.cjs manifest set {work_unit}.specification.{topic} sources.{source-name}.status pending`
 2. **After completing exhaustive extraction from a source**: Mark that source as `incorporated` — `node .claude/skills/workflow-engine/scripts/engine.cjs manifest set {work_unit}.specification.{topic} sources.{source-name}.status incorporated`
 3. **When adding a new source to an existing spec**: Add it with `status: pending` via the same command
-4. **After reconciling a `stale` source** (see **[spec-construction.md](spec-construction.md)** → Reconcile Stale Sources): mark it `incorporated` — the same command as extraction
+4. **After reconciling a `stale` source** (see **[reconcile-stale-sources.md](reconcile-stale-sources.md)**): mark it `incorporated` — the same command as extraction
 
 **How to determine if a source is incorporated:**
 

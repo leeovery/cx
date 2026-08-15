@@ -16,7 +16,7 @@ const fs = require('fs');
 const path = require('path');
 const engine = require('../../workflow-engine/scripts/lib.cjs');
 const { loadActiveManifests, listFiles, filesChecksum, fileExists } = engine.reads;
-const { phaseItems, phaseData, computeAnalysisCacheStatus } = engine.derivations;
+const { phaseItems, phaseData } = engine.derivations;
 
 // Actionable-first ordering rank for the spec menu. Lower sorts earlier:
 // proposed → in-progress → completed-with-pending → concluded → other/promoted.
@@ -182,26 +182,10 @@ function discover(cwd, workUnit) {
   allDiscFiles.sort();
   const discussionsChecksum = allDiscFiles.length > 0 ? filesChecksum(allDiscFiles) : null;
 
-  // --- Coherence advisory (single-unit scope) ---
-  // Detection stays at epic boot; the spec boundary only surfaces the state.
-  // Non-epics read `absent` for free — the kind's input floor is 2 completed
-  // discussions.
-  let coherence = { status: 'absent', pending: 0 };
-  if (workUnit && manifests.length === 1) {
-    const m = manifests[0];
-    const staging = (phaseData(m, 'discovery').analysis_staging || {})['coherence-analysis'] || {};
-    const candidates = (staging.candidates && typeof staging.candidates === 'object') ? Object.values(staging.candidates) : [];
-    coherence = {
-      status: computeAnalysisCacheStatus(m, workflowsDir, 'coherence-analysis').status,
-      pending: candidates.filter((c) => c && c.status === 'pending').length,
-    };
-  }
-
   return {
     discussions: discussions,
     specifications: specifications,
     cache: { entries: cacheEntries },
-    coherence,
     current_state: {
       discussions_checksum: discussionsChecksum,
       discussion_count: discCount,
@@ -289,11 +273,12 @@ function viewData(result, detail, keys) {
   const hintRows = new Map();
   for (const row of [...detail.actionable, ...detail.concluded]) hintRows.set(row.name, row);
   for (const s of result.specifications) {
-    lines.push(`  ${s.name}: ${s.status}, has_pending_sources=${s.has_pending_sources}`);
+    const row = hintRows.get(s.name);
+    const blockedBy = row && row.blocked ? `, blocked_by=${row.open_sources.join(',')}` : '';
+    lines.push(`  ${s.name}: ${s.status}, has_pending_sources=${s.has_pending_sources}${blockedBy}`);
     for (const src of s.sources || []) {
       lines.push(`    source: ${src.name} (${src.status}, discussion: ${src.discussion_status})`);
     }
-    const row = hintRows.get(s.name);
     for (const c of (row && row.consult) || []) {
       lines.push(`    consult: ${c.name} (${c.status}${c.hint ? ` — ${c.hint}` : ''})`);
     }

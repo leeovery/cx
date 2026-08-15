@@ -8,37 +8,33 @@ Aggregate QA findings into a review document using the **[template.md](template.
 
 Write the review to `.workflows/{work_unit}/review/{topic}/report.md`. The review is always per-plan.
 
-**QA Verdict** (from Step 5):
-- **Approve** — All acceptance criteria met, no blocking issues
-- **Request Changes** — Missing requirements, broken functionality, inadequate tests
-- **Comments Only** — Minor suggestions, non-blocking observations
+**Verdict** — derived by the synthesis stage, never chosen here. Read it from `actions.json`:
+- **Pass** — nothing outstanding needs planning. `do-now` work and `out-of-scope` findings do not block: the first is already applied, the second was never part of this specification
+- **Fail** — a blocking issue, or an action routed to `replan`. The work is not delivered while something needs going back to plan
 
-→ Proceed to **A. Categorizing and Clustering Recommendations**.
+→ Proceed to **A. Writing the Findings**.
 
 ---
 
-## A. Categorizing and Clustering Recommendations
+## A. Writing the Findings
 
-When writing the `## Recommendations` section, read the NON-BLOCKING NOTES from all `report-*.md` files and group them by their category tags:
+The `## Findings` section is the routed action list from **[prep-findings.md](prep-findings.md)**, not a re-reading of the per-task reports. Read `.workflows/.cache/{work_unit}/review/{topic}/actions.json`.
 
-- `[do-now]` → `### Do now`
-- `[quickfix]` → `### Quick-fixes`
-- `[idea]` → `### Ideas`
-- `[bug]` → `### Bugs`
+Each action is already resolved: collisions collapsed into one item, corrections applied, conditions from the guards carried in its instruction, and its route decided. Write it as it stands — never re-group, re-route, or re-judge. A second judgment here is a second source of truth, and the two drift.
 
-If a note lacks a category tag, categorize by content: zero-risk non-logic edit → do-now, mechanical but logic-touching → quickfix, needs discussion/design → idea, broken behaviour → bug.
+Group by route, omitting any with no actions:
 
-**Cluster within each subsection before numbering.** Collapse notes that share the same target file or the same theme into one item with sub-bullets, preserving each note's `file:line` and a `(Report N-M)` source tag. Same-file is the strongest signal; same-theme (e.g. "doc staleness", "test scaffolding") clusters across files. Never cluster across subsections — a `[quickfix]` and an `[idea]` about the same file stay separate. A single un-clustered note is just a one-line item carrying its `file:line`.
+- `replan` → `### Needs planning` — **these are why the review failed**. Each carries what is wrong, the failure it causes, and how far the fix reaches.
+- `do-now` → `### Corrected in this session` — the work is already applied, verified and committed by the time this report is written, so the section records what changed **as the record shows it** — the apply commit and its diff, never merely what a status claimed: the applied count, anything skipped or reverted with its reason (a reverted action is still owed), and the suite's final state.
+- `out-of-scope` → `### Out of scope` — held in the manifest for the user's call at a pass, never actioned here. Each names its kind: a feature, a bug worth investigating, or a standalone quick-fix.
 
-A clustered item:
+Each item carries its summary, the failure it names, the files it touches, and its source ids so it traces back to the verifiers that raised it. An action spanning several files is one item — never split it per file.
 
-```
-4. `state_hydrate_test.go` — tighten test scaffolding
-   - Extract `seedUnreadableSessionsJSON(t, dir)` helper; two permission tests share ~15 lines (lines 1517, 1576) (Report 2-1)
-   - Lower-bound timing test could co-locate with the handler test (lines 1050, 1212) (Report 2-3)
-```
+Close with `### Discarded` — the count and each discarded item with its reason. The record of what was raised and did not survive, so a reader sees the judgment rather than inferring it from silence.
 
-Order subsections `### Do now`, `### Quick-fixes`, `### Ideas`, `### Bugs`. Only include subsections with at least one item. Number items sequentially across all subsections (do not reset per category). Omit the entire `## Recommendations` section if no notes survive.
+#### If no findings were prepped
+
+Omit the entire `## Findings` section.
 
 → Proceed to **B. Commit and Continue**.
 

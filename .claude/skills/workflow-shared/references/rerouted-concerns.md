@@ -1,6 +1,6 @@
 # Rerouted Concerns
 
-*Shared reference. Loaded by the session wrappers of `workflow-discussion-process` and `workflow-research-process`; the session loops enter **A. Check** from their triage check each iteration.*
+*Shared reference. Loaded by the session wrappers of `workflow-discussion-process` and `workflow-research-process` (whose session loops enter **A. Check** from their triage check each iteration) and by `workflow-investigation-process` at its resumed-session check and conclusion gate.*
 
 ---
 
@@ -12,7 +12,7 @@ The caller provides these via context before loading:
 
 - `work_unit` — the work unit. Always present.
 - `topic` — the current topic, whose queue is surfaced.
-- `phase` — `discussion` or `research`. Selects the artefact and the fold shape.
+- `phase` — `discussion`, `research`, or `investigation`. Selects the artefact and the fold shape.
 
 ## A. Check
 
@@ -151,7 +151,7 @@ The concern stays queued and the opt-in is cleared — a half-walked entry keeps
 
 ## D. Fold
 
-Record the discussion in the topic's content. An outcome that re-decides ground this topic didn't introduce — it names an entity, field, rule, or classification this topic's artifact didn't define — requires the sibling consult before it is recorded: follow **G. Sibling consult at cross-topic decision points** in **[knowledge-usage.md](../../workflow-knowledge/references/knowledge-usage.md)** — query or cite, and carry the `Sibling check:` line in the recorded decision.
+Record the discussion in the topic's content. A fold whose outcome re-decides previously `decided` ground, or names an entity, field, rule, or classification this topic's artifact didn't define — citation is not definition: a term carried here only by citing a sibling's decision was defined there — runs the sibling consult before it is recorded: follow **G. Sibling consult at cross-topic decision points** in **[knowledge-usage.md](../../workflow-knowledge/references/knowledge-usage.md)** — query or cite, and the recorded decision carries the `Sibling check:` line either way, its `no overlap found.` form included.
 
 A cross-topic correction tempts you to write guidance about the documents themselves. Do not: never write rules for how documents cite, edit, or point at each other, and never write lessons about how the topics drifted apart. The fold records only what changed and why, in the topic's own terms.
 
@@ -178,6 +178,12 @@ node .claude/skills/workflow-engine/scripts/engine.cjs discussion-map set {work_
 #### If `phase` is `research`
 
 Fold the concern into the freeform body as a `### {title}` thread opening with the provenance line, followed by the body and what the discussion made of it.
+
+→ Proceed to **E. Absorb**.
+
+#### If `phase` is `investigation`
+
+Fold the concern into the investigation file in its own idiom: revise the passages the settled answer touches directly, and where the concern opened ground the file never covered, add a `### {title}` section opening with the provenance line, followed by what the investigation made of it.
 
 → Proceed to **E. Absorb**.
 

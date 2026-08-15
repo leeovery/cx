@@ -2,6 +2,11 @@
 name: workflow-investigation-process
 user-invocable: false
 allowed-tools: Bash(node .claude/skills/workflow-knowledge/scripts/knowledge.cjs), Bash(node .claude/skills/workflow-engine/scripts/engine.cjs), Bash(mkdir -p .workflows/.cache/), Bash(ls .workflows/.cache/), Bash(git log), Bash(git blame), Bash(git diff), Bash(git bisect), Bash(grep), Bash(rm .workflows/.cache/), Bash(rm -rf .workflows/.cache/)
+hooks:
+  SessionEnd:
+    - hooks:
+        - type: command
+          command: 'node "$CLAUDE_PROJECT_DIR/.claude/skills/workflow-engine/scripts/engine.cjs" session cleanup'
 ---
 
 # Investigation Process
@@ -70,6 +75,12 @@ The investigation file is your memory. Context compaction is lossy — what's no
 
 ## Step 0: Resume Detection
 
+Refresh the tmux session label — a no-op unless the user opted in and this session runs inside tmux:
+
+```bash
+node .claude/skills/workflow-engine/scripts/engine.cjs session label {work_unit} investigation {topic}
+```
+
 Check if the investigation file exists at `.workflows/{work_unit}/investigation/{topic}.md`.
 
 #### If no file exists
@@ -122,7 +133,9 @@ Load **[knowledge-usage.md](../workflow-knowledge/references/knowledge-usage.md)
 
 An earlier session already interviewed the user — don't re-interview. Fold in anything new they have mentioned this session (commit if the file changed).
 
-→ Proceed to **Step 4**.
+Then surface the triage queue — a gap routed here by a paused specification arrives as a queued concern; an empty queue is a no-op. Load **[rerouted-concerns.md](../workflow-shared/references/rerouted-concerns.md)** with work_unit = `{work_unit}`, topic = `{topic}`, phase = `investigation` — enter **A. Check**.
+
+→ On return, proceed to **Step 4**.
 
 #### Otherwise
 
@@ -143,6 +156,8 @@ Read what the Symptoms section already holds — initialisation seeded it from t
 Load **[symptom-gathering.md](references/symptom-gathering.md)** and use its questions to gather symptoms from the user.
 
 Document symptoms in the investigation file as you gather them. Commit after each significant addition.
+
+Then surface the triage queue — an empty queue is a no-op. Load **[rerouted-concerns.md](../workflow-shared/references/rerouted-concerns.md)** with work_unit = `{work_unit}`, topic = `{topic}`, phase = `investigation` — enter **A. Check**.
 
 When symptoms are sufficiently understood to begin code analysis:
 

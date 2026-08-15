@@ -23,13 +23,14 @@ const { commitScopedWithKb, commitPathspecScoped, KB_DIR } = require('./domain/c
 const { recordSubtopicAdd, recordSubtopicState, recordSubtopicStates, SUBTOPIC_STATES } = require('./domain/discussion-map.cjs');
 const { VALID_ROUTINGS } = require('./kernel/manifest-schema.cjs');
 const { sequenceMap, addItem, addItemsBatch, editItem, removeItem, renameItem, rerouteItem, handleItem, unhandleItem } = require('./domain/discovery-map.cjs');
-const { startTopic, triageTopic, queueStatus, absorbConcern, completeTopic, reopenTopic, supersedeTopic, cancelTopic, reactivateTopic } = require('./domain/transitions.cjs');
+const { startTopic, triageTopic, queueStatus, absorbConcern, completeTopic, reopenTopic, staleSources, supersedeTopic, cancelTopic, reactivateTopic } = require('./domain/transitions.cjs');
 const { initTasks, startTask, fixAttempt, completeTask, analysisCycle } = require('./domain/tasks.cjs');
 const { archiveItems, restoreItems, deleteItems } = require('./domain/inbox.cjs');
 const { stampAnalysisCache } = require('./domain/cache.cjs');
 const agentState = require('./domain/agent-state.cjs');
 const { boot } = require('./domain/boot.cjs');
 const { beatPresence, clearPresence, scanPresence, cleanupPresence, deferralSection } = require('./domain/presence.cjs');
+const { applySessionLabel, restoreSessionLabel, setLabelConfig } = require('./domain/session-label.cjs');
 const { createWorkUnit } = require('./domain/workunit-create.cjs');
 const { completeWorkUnit, cancelWorkUnit, reactivateWorkUnit, pivotWorkUnit } = require('./domain/workunit-lifecycle.cjs');
 const { absorbWorkUnit } = require('./domain/workunit-absorb.cjs');
@@ -146,11 +147,15 @@ Commands:
   presence clear <work-unit> <phase> <topic>
   presence scan <work-unit>
   presence cleanup [session-id]
+  session label <work-unit> <phase> <topic>
+  session label-config <true|false>
+  session cleanup [session-id]
   topic complete <work-unit> <phase> <topic>
   topic reopen <work-unit> <phase> <topic>
   topic supersede <work-unit> <phase> <topic> --by <topic>
-  topic cancel <work-unit> <phase> <topic>
+  topic cancel <work-unit> <phase> <topic> [--cascade]
   topic reactivate <work-unit> <phase> <topic>
+  sources stale <work-unit> <discussion> [--except <spec-topic>]
   task init <work-unit> <topic>
   task start <work-unit> <topic> <internal-id>
   task fix-attempt <work-unit> <topic> <internal-id> --findings-file <path>
@@ -160,7 +165,7 @@ Commands:
   inbox archive <path> [<path> …]
   inbox restore <path> [<path> …]
   inbox delete <path> [<path> …]
-  cache stamp <work-unit> (research-analysis|gap-analysis|coherence-analysis)
+  cache stamp <work-unit> (research-analysis|gap-analysis)
   agent dispatch <work-unit> <phase> <topic> --kind <kind> [--label <slug> …] [--set <NNN>]
   agent scan     <work-unit> <phase> <topic>
   agent ack      <work-unit> <phase> <topic> <id> (--findings <F1,F2,…> | --clean)
@@ -175,12 +180,19 @@ Commands:
   render findings-summary <wu.phase.topic> --file <payload.json>
   render finding          <wu.phase.topic> --file <payload.json>
   render finding-batch    <wu.phase.topic> --file <payload.json>
+  render review-presentation <wu.review.topic> --file <payload.json>
+  render review-gate      <wu.review.topic> --verdict pass|fail [--replan N] [--out-of-scope N]
   render triage-announce  <wu.phase.topic>
   render triage-offer     <wu.phase.topic> --file <payload.json>
   render triage-block     <wu.phase.topic>
   render reroute-offer    <wu.phase.topic> --file <payload.json>
   render reroute-candidates <wu.phase.topic> --file <payload.json>
+  render off-topic-offer  <wu.phase.topic> --file <payload.json>
   render proposed-task    <wu.phase.topic> --file <payload.json> --gate gated|auto [--comment-hint STR]
+  render incoherence-gate <wu.phase.topic> --file <payload.json> --variant conflict|gap-route|held-doc
+  render cancel-cascade-gate <wu.phase.topic>
+  render resurface-gate   <wu.phase.topic> --file <payload.json> [--view full]
+  render construction-gate <wu.phase.topic>
   render tasks-overview   <wu.phase.topic> --file <payload.json>
   render author-task-gate <wu.planning.topic> --m N --total N --title STR
   render phase-tree       <wu.planning.topic> --file <payload.json> [--approve]
@@ -190,9 +202,10 @@ Commands:
   render early-completion-gate <wu>
   render revisit-gate      <wu> --prev <phase> --next <phase>
   render epic-all-done-gate <wu>
+  render task-brief        <wu.implementation.topic> --file <payload.json>
+  render task-result       <wu.implementation.topic> --file <payload.json> --result approved|needs-changes|blocked|failed
   render task-gate         <wu.implementation.topic>
   render fix-gate          <wu.implementation.topic>
-  render fix-threshold     <wu.implementation.topic>
   render blocked-tasks
   render cycle-limit       <wu.implementation.topic>
   render cycle-gate
@@ -205,6 +218,16 @@ Commands:
   render absorb-target     <feature>
   render plan-topics       <wu>
   render revisit-phases    <wu>
+  render baseline-progress
+  render baseline-area-gate --area <name>
+  render baseline-paused
+  render baseline-receipt
+  render baseline-scope-gate --file <payload.json>
+  render baseline-round --file <payload.json>
+  render baseline-doc-gate
+  render baseline-manage-gate
+  render baseline-doc-pick
+  render baseline-offer-gate
   render signpost <label> [--style step|substep] [--width N]     (dev aid)
   render box <title> [--width N]                                 (dev aid)
   render wrap <text> [--width N] [--prefix STR]                  (dev aid)
@@ -522,6 +545,20 @@ function runDiscoverySession(argv) {
 
 const TOPIC_COMMANDS = { start: startTopic, triage: triageTopic, complete: completeTopic, reopen: reopenTopic, cancel: cancelTopic, reactivate: reactivateTopic };
 
+/**
+ * A SessionEnd hook target's session id: the argument when given, else the
+ * hook's stdin JSON.
+ * @param {string[]} rest @param {string} usage @returns {string|null}
+ */
+function hookSessionId(rest, usage) {
+  if (rest.length > 1) throw new Error(usage);
+  let sessionId = rest[0] || null;
+  if (!sessionId && !process.stdin.isTTY) {
+    try { sessionId = (JSON.parse(fs.readFileSync(0, 'utf8')) || {}).session_id || null; } catch { sessionId = null; }
+  }
+  return sessionId;
+}
+
 /** @param {string[]} argv */
 function runPresence(argv) {
   const [command, ...rest] = argv;
@@ -543,15 +580,10 @@ function runPresence(argv) {
       return;
     }
     if (command === 'cleanup') {
-      // The SessionEnd hook's target: session id from the argument or the
-      // hook's stdin JSON. Root resolution favours the invocation cwd (a
-      // project root has `.workflows`), falling back to CLAUDE_PROJECT_DIR
-      // for hooks fired from a drifted cwd.
-      if (rest.length > 1) throw new Error('Usage: engine presence cleanup [session-id]');
-      let sessionId = rest[0] || null;
-      if (!sessionId && !process.stdin.isTTY) {
-        try { sessionId = (JSON.parse(fs.readFileSync(0, 'utf8')) || {}).session_id || null; } catch { sessionId = null; }
-      }
+      // The SessionEnd hook's target. Root resolution favours the
+      // invocation cwd (a project root has `.workflows`), falling back to
+      // CLAUDE_PROJECT_DIR for hooks fired from a drifted cwd.
+      const sessionId = hookSessionId(rest, 'Usage: engine presence cleanup [session-id]');
       const cwd = fs.existsSync(path.join(process.cwd(), '.workflows'))
         ? process.cwd()
         : (process.env.CLAUDE_PROJECT_DIR || process.cwd());
@@ -559,6 +591,57 @@ function runPresence(argv) {
       return;
     }
     throw new Error('Usage: engine presence <beat|clear|scan|cleanup> …');
+  } catch (err) {
+    failJson(err);
+  }
+}
+
+/** @param {string[]} argv */
+function runSession(argv) {
+  const [command, ...rest] = argv;
+  try {
+    if (command === 'label') {
+      const [workUnit, phase, topic] = rest;
+      if (!workUnit || !phase || !topic || rest.length !== 3) {
+        throw new Error('Usage: engine session label <work-unit> <phase> <topic>');
+      }
+      respond(applySessionLabel(process.cwd(), workUnit, phase, topic));
+      return;
+    }
+    if (command === 'label-config') {
+      const [value] = rest;
+      if (rest.length !== 1 || (value !== 'true' && value !== 'false')) {
+        throw new Error('Usage: engine session label-config <true|false>');
+      }
+      respond(setLabelConfig(value === 'true'));
+      return;
+    }
+    if (command === 'cleanup') {
+      // The SessionEnd hook's target. The stash store is machine-global, so
+      // no project root is needed.
+      respond(restoreSessionLabel(hookSessionId(rest, 'Usage: engine session cleanup [session-id]')));
+      return;
+    }
+    throw new Error('Usage: engine session <label|label-config|cleanup> …');
+  } catch (err) {
+    failJson(err);
+  }
+}
+
+/** @param {string[]} argv */
+function runSources(argv) {
+  const [command, ...rest] = argv;
+  try {
+    if (command === 'stale') {
+      const { opts, positional } = parseArgs(rest);
+      const [workUnit, discussion] = positional;
+      if (!workUnit || !discussion || positional.length !== 2 || ('except' in opts && typeof opts.except !== 'string')) {
+        throw new Error('Usage: engine sources stale <work-unit> <discussion> [--except <spec-topic>]');
+      }
+      respond(staleSources(process.cwd(), workUnit, discussion, { except: opts.except }));
+      return;
+    }
+    throw new Error('Usage: engine sources <stale> …');
   } catch (err) {
     failJson(err);
   }
@@ -622,6 +705,15 @@ function runTopic(argv) {
       respond(triageTopic(process.cwd(), workUnit, phase, topic, delivering ? { concernFile: concern, slug, message } : {}));
       return;
     }
+    if (command === 'cancel') {
+      const { flags, positional } = parseArgs(rest, ['cascade']);
+      const [workUnit, phase, topic] = positional;
+      if (!workUnit || !phase || !topic || positional.length !== 3) {
+        throw new Error('Usage: engine topic cancel <work-unit> <phase> <topic> [--cascade]');
+      }
+      respond(cancelTopic(process.cwd(), workUnit, phase, topic, { cascade: flags.has('cascade') }));
+      return;
+    }
     if (!Object.prototype.hasOwnProperty.call(TOPIC_COMMANDS, command)) {
       throw new Error('Usage: engine topic <start|triage|complete|reopen|supersede|cancel|reactivate> <work-unit> <phase> <topic>');
     }
@@ -640,9 +732,10 @@ function runTopic(argv) {
 // task — implementation-task bookkeeping: format-blind, manifest-side only.
 // The engine never touches a task backend; the session does the plan surgery,
 // these commands record it. No git commit — the per-task commit is the
-// session's. Each verb answers with its one-line JSON only; the loop's gate
-// sections are fetched by their own `render` calls (task-gate, fix-gate,
-// blocked-tasks, cycle-gate) at the stage that displays them.
+// session's. Each verb answers with its one-line JSON only; the loop's
+// brief, result header, and gate sections are fetched by their own `render`
+// calls (task-brief, task-result, task-gate, fix-gate, blocked-tasks,
+// cycle-limit, cycle-gate) at the stage that displays them.
 // ---------------------------------------------------------------------------
 
 /** @param {string[]} argv */
@@ -730,7 +823,7 @@ function runCache(argv) {
   const [command, workUnit, kind] = argv;
   try {
     if (command !== 'stamp' || !workUnit || !kind) {
-      throw new Error('Usage: engine cache stamp <work-unit> <research-analysis|gap-analysis|coherence-analysis>');
+      throw new Error('Usage: engine cache stamp <work-unit> <research-analysis|gap-analysis>');
     }
     respond(stampAnalysisCache(process.cwd(), workUnit, kind));
   } catch (err) {
@@ -989,7 +1082,7 @@ function runCommit(argv) {
 /** @param {string[]} argv */
 function runRender(argv) {
   const [command, ...rest] = argv;
-  const { opts, flags, positional } = parseArgs(rest, ['approve', 'skipped-review', 'own', 'paths', 'warn', 'pipeline']);
+  const { opts, flags, positional } = parseArgs(rest, ['approve', 'skipped-review', 'own', 'paths', 'warn', 'pipeline', 'donow', 'recommendations']);
   const width = opts.width !== undefined ? parseInt(opts.width, 10) : WIDTH;
 
   if (Object.hasOwn(SURFACES, command)) {
@@ -1002,6 +1095,8 @@ function runRender(argv) {
       if (flags.has('paths')) args.paths = '1';
       if (flags.has('warn')) args.warn = '1';
       if (flags.has('pipeline')) args.pipeline = '1';
+      if (flags.has('donow')) args.donow = '1';
+      if (flags.has('recommendations')) args.recommendations = '1';
       respondSections(renderSurface(process.cwd(), command, args));
     } catch (err) {
       failJson(err);
@@ -1060,8 +1155,14 @@ function runCli(argv) {
     case 'topic':
       runTopic(rest);
       break;
+    case 'sources':
+      runSources(rest);
+      break;
     case 'presence':
       runPresence(rest);
+      break;
+    case 'session':
+      runSession(rest);
       break;
     case 'task':
       runTask(rest);

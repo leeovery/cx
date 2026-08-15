@@ -13,7 +13,7 @@
 
 const { box, renderTree, wrap, wrapWithPrefix } = require('../../kernel/render.cjs');
 const { TREE_WIDTH, titlecase, title, SPEC_LEGEND } = require('../conventions.cjs');
-const { menuFrame, cmdOption, callout } = require('./surfaces.cjs');
+const { menuFrame, cmdOption } = require('./surfaces.cjs');
 
 /** @typedef {import('../specification.cjs').SpecificationDetail} SpecificationDetail */
 /** @typedef {import('../specification.cjs').SpecRow} SpecRow */
@@ -47,26 +47,6 @@ const TIP = wrap('Tip: To restructure groupings or pull a discussion into its ow
 
 const STALE_CACHE_MSG = wrap('A previous grouping analysis exists but is outdated — discussions '
   + 'have changed since it was created. Re-analysis is required.', TREE_WIDTH).join('\n');
-
-// Coherence advisory — informational only, never blocks. Detection runs at
-// epic boot; this surface just flags what the boot check would find. Pending
-// findings (a deferred gate) outrank a stale cache: they name the more
-// specific state.
-const COHERENCE_STALE_MSG = callout('Discussions have changed since decisions were last checked for '
-  + 'conflicts. Continue the epic to re-run the coherence check before extracting.');
-
-/** @param {number} n */
-function coherencePendingMsg(n) {
-  return `  ⚑ ${n} coherence finding(s) awaiting review — decisions may\n`
-    + '    conflict. Continue the epic to resolve them before extracting.';
-}
-
-/** The coherence advisory block for a detail, or '' when clean. @param {import('../specification.cjs').SpecificationDetail} detail */
-function coherenceAdvisory(detail) {
-  if (detail.coherence_pending > 0) return coherencePendingMsg(detail.coherence_pending);
-  if (detail.coherence_status === 'stale') return COHERENCE_STALE_MSG;
-  return '';
-}
 
 // ---------------------------------------------------------------------------
 // Display building blocks
@@ -171,6 +151,15 @@ function blockedDisplay(detail) {
         + 'that specifications are built upon.', TREE_WIDTH).join('\n'),
     ]);
   }
+  if (detail.scenario === 'blocked-discussions-open') {
+    return compose([
+      'Discussions are still open.',
+      'The following discussions are in progress:',
+      bullets(detail.in_progress_discussions),
+      wrap('Specifications are built from the settled discussion record. '
+        + 'Conclude the open discussions, then re-enter.', TREE_WIDTH).join('\n'),
+    ]);
+  }
   return compose([
     'No completed discussions found.',
     'The following discussions are still in progress:',
@@ -195,6 +184,7 @@ function singleDisplay(detail) {
     name: detail.work_unit, status: 'proposed',
     sources: [{ name: single.discussion, tag: 'ready' }], consult: [],
     extracted: 0, total: 1, pending: 1, stale: 0, consult_pending: 0, verb: 'Creating',
+    open_sources: [], blocked: false,
   };
   const shown = { ...row, name: single.variant === 'grouped' ? row.name : detail.work_unit, consult: [] };
   return compose([
@@ -212,8 +202,7 @@ function groupingsDisplay(detail) {
     ...detail.actionable.map((row, i) => itemBlock(i + 1, row)),
     notReadyBlock(detail.in_progress_discussions),
     keyBlock(displayedTerms(detail.actionable)),
-    detail.actionable.length >= 2 ? TIP : '',
-    coherenceAdvisory(detail),
+    detail.actionable.length >= 2 && !detail.record_open ? TIP : '',
   ]);
 }
 
@@ -222,8 +211,6 @@ function analyzeDisplay(detail) {
   return compose([
     `${counted(detail.counts.completed_count, 'completed discussion')} found. No specifications exist yet.`,
     'Completed discussions:\n' + bullets(detail.completed_discussions),
-    notReadyBlock(detail.in_progress_discussions),
-    coherenceAdvisory(detail),
   ]);
 }
 
@@ -243,9 +230,10 @@ function specsMenuDisplay(detail) {
   }
   blocks.push(notReadyBlock(detail.in_progress_discussions));
   blocks.push(keyBlock(displayedTerms(detail.actionable)));
-  if (detail.cache_status === 'none') blocks.push('No grouping analysis exists.');
-  else if (detail.cache_status === 'stale') blocks.push(STALE_CACHE_MSG);
-  blocks.push(coherenceAdvisory(detail));
+  if (!detail.record_open) {
+    if (detail.cache_status === 'none') blocks.push('No grouping analysis exists.');
+    else if (detail.cache_status === 'stale') blocks.push(STALE_CACHE_MSG);
+  }
   return compose(blocks);
 }
 
@@ -259,6 +247,7 @@ function specificationDisplay(detail) {
   switch (detail.scenario) {
     case 'blocked-no-discussions':
     case 'blocked-none-completed':
+    case 'blocked-discussions-open':
       return blockedDisplay(detail);
     case 'single':
       return singleDisplay(detail);
@@ -325,15 +314,28 @@ function specificationMenu(detail) {
     return { keys: [], rendered: '' };
   }
 
+  // While the record is open, the analysis actions (analyze, unify,
+  // reanalyze) are withheld, and a row whose own sources reopened renders
+  // blocked — selectable only to be refused.
+  const recordOpen = detail.record_open;
+
   /** @type {SpecMenuKey[]} */
   const numbered = [];
-  if (detail.scenario === 'specs-menu') {
+  if (detail.scenario === 'specs-menu' && !recordOpen) {
     numbered.push({
       key: '', action: 'analyze', topic: null, verb: null,
       label: 'Analyze for groupings (recommended)', desc: descLines(ANALYZE_DESC),
     });
   }
   for (const row of detail.actionable) {
+    if (row.blocked) {
+      const verb = row.status === 'proposed' ? 'Start' : 'Continue';
+      numbered.push({
+        key: '', action: 'blocked_spec', topic: row.name, verb: null,
+        label: `${verb} "${titlecase(row.name)}" — blocked by ${row.open_sources.map(titlecase).join(', ')} (reopened)`,
+      });
+      continue;
+    }
     numbered.push({
       key: '',
       action: row.status === 'proposed' ? 'start_spec' : 'continue_spec',
@@ -342,7 +344,7 @@ function specificationMenu(detail) {
       label: rowLabel(row, detail.scenario),
     });
   }
-  if (detail.scenario === 'groupings') {
+  if (detail.scenario === 'groupings' && !recordOpen) {
     if (detail.actionable.length >= 2) {
       numbered.push({
         key: '', action: 'unify', topic: null, verb: 'Creating',

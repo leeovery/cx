@@ -24,7 +24,7 @@ Load **[framework.md](../workflow-shared/references/framework.md)** and follow i
 █▀█░█▀▀░█▀▀░█▀█░▀█▀░▀█▀░█▀▀ █░█░█▀█░█▀▄░█░█░█▀▀░█░░░█▀█░█░█░█▀▀
 █▀█░█░█░█▀▀░█░█░░█░░░█░░█░░ █▄█░█░█░█▀▄░█▀▄░█▀▀░█░░░█░█░█▄█░▀▀█
 ▀░▀░▀▀▀░▀▀▀░▀░▀░░▀░░▀▀▀░▀▀▀ ▀░▀░▀▀▀░▀░▀░▀░▀░▀░░░▀▀▀░▀▀▀░▀░▀░▀▀▀
-                                                        v0.6.53
+                                                        v0.6.68
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
@@ -138,7 +138,55 @@ All documents up to date.
 
 → Proceed to **Step 0.2**.
 
-### Step 0.2: Knowledge Gate
+### Step 0.2: Session Labels
+
+Branch on the boot response's `tmux_labels` — `prompt` means the session runs inside tmux and the choice was never recorded. A recorded choice (`on`/`off`) never re-prompts; `no-tmux` records nothing, so a later session inside tmux still asks.
+
+#### If `tmux_labels` is `prompt`
+
+> *Output the next fenced block as markdown (not a code block):*
+
+```
+> You're running inside tmux. The workflows can rename your tmux session to show where you're working — `myproject · payments · discussion · auth-flow` — as you move through phases, restoring the original name when the session ends. One choice for all your projects, stored in `~/.config/workflows/config.json`.
+```
+
+> *Output the next fenced block as markdown (not a code block):*
+
+```
+· · · · · · · · · · · ·
+**`◆ Label your tmux session as you work?`**
+
+**`y/yes`** → Turn session labels on
+**`n/no`**  → Leave session names alone
+```
+
+**STOP.** Wait for user response.
+
+**If `yes`:**
+
+Record the choice. If the command fails (`ok: false`), surface its error and continue — the prompt returns at a future start once the config file is fixed:
+
+```bash
+node .claude/skills/workflow-engine/scripts/engine.cjs session label-config true
+```
+
+→ Proceed to **Step 0.3**.
+
+**If `no`:**
+
+Record the choice. If the command fails (`ok: false`), surface its error and continue — the prompt returns at a future start once the config file is fixed:
+
+```bash
+node .claude/skills/workflow-engine/scripts/engine.cjs session label-config false
+```
+
+→ Proceed to **Step 0.3**.
+
+#### Otherwise
+
+→ Proceed to **Step 0.3**.
+
+### Step 0.3: Knowledge Gate
 
 Branch on the boot response — run no further commands (`compact` already ran inside boot when the knowledge base was ready).
 
@@ -147,6 +195,51 @@ Branch on the boot response — run no further commands (`compact` already ran i
 The response's `system_config` object carries what the gate needs to branch. Load **[knowledge-gate.md](references/knowledge-gate.md)** and follow its instructions as written.
 
 #### If `knowledge` is `ready`
+
+→ Proceed to **Step 0.4**.
+
+### Step 0.4: Baseline Offer
+
+Branch on the boot response's `baseline` — the one-time offer to assess a pre-existing codebase. A recorded status (`in-progress`/`completed`/`skipped`) never re-offers; the start menu and manage carry those paths.
+
+#### If `baseline` is `none` and the project carries a codebase that predates the workflows
+
+Judge the second condition from what you can already see — code and git history from before the workflows arrived, not a project that grew up on them (however large it has become) and not a fresh or near-empty repository. When in doubt, offer once: declining records the answer.
+
+> *Output the next fenced block as markdown (not a code block):*
+
+```
+> This project has an existing codebase the workflows know nothing about. A baseline assessment researches it, then interviews you to capture the intent the code can't show — landing docs the knowledge base surfaces in every later phase. Pausable any time; also available later from the workflow-start menus.
+```
+
+Fetch the offer and emit its `MENU: baseline offer` section verbatim as markdown (not a code block):
+
+```bash
+node .claude/skills/workflow-engine/scripts/engine.cjs render baseline-offer-gate
+```
+
+**STOP.** Wait for user response.
+
+**If `yes`:**
+
+Invoke `/workflow-baseline`.
+
+This skill ends. The invoked skill will load into context and provide additional instructions. Terminal.
+
+**If `no`:**
+
+Record the decline so the offer never repeats, and commit:
+
+```bash
+node .claude/skills/workflow-engine/scripts/engine.cjs manifest set project.baseline.status skipped
+node .claude/skills/workflow-engine/scripts/engine.cjs commit --workflows -m "baseline: decline the assessment offer"
+```
+
+→ Proceed to **Step 1**.
+
+#### Otherwise
+
+A recorded status (`in-progress`/`completed`/`skipped`), or no pre-existing codebase — render nothing.
 
 → Proceed to **Step 1**.
 

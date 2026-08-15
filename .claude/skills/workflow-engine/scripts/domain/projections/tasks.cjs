@@ -19,9 +19,13 @@
 //   render fix-gate      → MENU: fix gate        (gated or threshold reached;
 //                          the auto option renders only while the gate is gated)
 //                          DISPLAY: fix gate auto-accepted (auto, below threshold)
-//   render fix-threshold → DISPLAY: fix threshold (the escalation callout)
 //   render cycle-limit   → DISPLAY: cycle limit   (the over-limit callout)
 //   render cycle-gate    → MENU: cycle gate      (static)
+//
+// The task headers the gates follow — the brief (`render task-brief`) and
+// the result header (`render task-result`) — live in render.cjs: they mix
+// payload content with the state read here. The headers name the in-flight
+// task, so the gates never repeat the id.
 //
 // Every gate branch renders an artifact — a MENU where the loop stops, a
 // continuation DISPLAY where it must not. An auto branch that rendered
@@ -41,30 +45,30 @@ function blockedTasksMenu() {
     MENU_INSTRUCTION,
     menu('How would you like to proceed?', [
       cmdOption('p', 'proceed', 'Continue with the first blocked task anyway (its blocker will not be completed)'),
-      cmdOption('s', 'skip', 'Skip the blocked tasks and conclude the loop'),
+      cmdOption('s', 'skip', 'Skip the first blocked task (the loop re-checks the rest)'),
       cmdOption('t', 'stop', 'Stop implementation entirely'),
     ]),
   );
 }
 
 /**
- * The task gate: menu when gated, continuation line when auto.
- * @param {string} taskId  the internal id (the item's `current_task`)
+ * The task gate: menu when gated, continuation line when auto. The result
+ * header names the in-flight task — the gate never repeats the id.
  * @param {string} gateMode  `task_gate_mode`
  * @returns {string}
  */
-function taskGateSection(taskId, gateMode) {
+function taskGateSection(gateMode) {
   if (gateMode !== 'gated') {
     return section(
       'DISPLAY: task gate auto-approved',
       `after the result summary: ${AUTO_GATE_INSTRUCTION}`,
-      `Task ${taskId} — approved [auto]. Committing and moving to the next task.`,
+      'Task approved [auto]. Committing and moving to the next task.',
     );
   }
   return section(
     'MENU: task gate',
     MENU_INSTRUCTION,
-    menu(`Approve task ${taskId}?`, [
+    menu('Approve this task?', [
       cmdOption('y', 'yes', 'Commit and continue to next task'),
       cmdOption('a', 'auto', 'Approve this and all future tasks automatically'),
       cmdOption('t', 'technical', "Retell the result from the code's perspective"),
@@ -76,18 +80,18 @@ function taskGateSection(taskId, gateMode) {
 
 /**
  * The fix gate: menu when gated or threshold-forced, continuation line when
- * auto and below the threshold.
- * @param {string} internalId  the internal id (the item's `current_task`)
+ * auto and below the threshold. The result header names the in-flight task
+ * — the gate never repeats the id.
  * @param {string} gateMode  `fix_gate_mode`
  * @param {boolean} thresholdReached  `fix_attempts` at or past the threshold
  * @returns {string}
  */
-function fixGateSection(internalId, gateMode, thresholdReached) {
+function fixGateSection(gateMode, thresholdReached) {
   if (!thresholdReached && gateMode !== 'gated') {
     return section(
       'DISPLAY: fix gate auto-accepted',
       `after the findings summary: ${AUTO_GATE_INSTRUCTION}`,
-      `Fix analysis for task ${internalId} — accepted [auto]. Passing the findings to the executor.`,
+      'Fix analysis accepted [auto]. Passing the findings to the executor.',
     );
   }
   const options = [
@@ -104,20 +108,7 @@ function fixGateSection(internalId, gateMode, thresholdReached) {
   return section(
     'MENU: fix gate',
     MENU_INSTRUCTION,
-    menu(`Accept the reviewer's fix analysis for task ${internalId}?`, options),
-  );
-}
-
-/**
- * The threshold-escalation callout emitted before the convergence diagnostic.
- * @param {number} attempts @param {string} internalId
- * @returns {string}
- */
-function fixThresholdDisplay(attempts, internalId) {
-  return section(
-    'DISPLAY: fix threshold',
-    CONTINUE_INSTRUCTION,
-    `⚑ Fix attempt ${attempts} for task ${internalId} — escalation threshold reached.`,
+    menu("Accept the reviewer's fix analysis?", options),
   );
 }
 
@@ -146,4 +137,4 @@ function cycleGateMenu() {
   );
 }
 
-module.exports = { blockedTasksMenu, taskGateSection, fixGateSection, fixThresholdDisplay, cycleLimitDisplay, cycleGateMenu };
+module.exports = { blockedTasksMenu, taskGateSection, fixGateSection, cycleLimitDisplay, cycleGateMenu };

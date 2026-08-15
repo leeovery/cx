@@ -9,7 +9,7 @@ Follow stages A through H sequentially for each task. Do not abbreviate, skip, o
 At loop entry (crash-resume healing): if the plan marks tasks completed — completed, not skipped — that the manifest's `completed_tasks` lacks, run `engine task complete` for each missing internal id before retrieving the next task — the push is an idempotent no-op for ids already recorded, and this reseals the seam a crash between the plan mark and the bookkeeping can leave.
 
 ```
-A. Retrieve next task + mark in-progress
+A. Retrieve next task + mark in-progress + present the task brief
 B. Execute task → invoke-executor.md
 C. Handle executor block (conditional)
 D. Review task → invoke-reviewer.md
@@ -20,11 +20,11 @@ H. Update progress + phase check + commit
 → loop back to A until done
 ```
 
-**Engine gate sections**: the loop's state-derived gates render via `engine render` calls — each stage below fetches its own gate at the moment it displays it and emits what returns, so the section always sits in the tool result directly above its emission. DISPLAY sections are emitted verbatim as a code block, MENU sections verbatim as markdown (not a code block). A section is everything beneath its `===` marker up to the end of the response — the marker lines themselves are never emitted. Section content is emitted byte-for-byte — never redrawn, reflowed, or re-derived.
+**Engine sections**: the loop's state-derived sections — the task brief, the result header, and the gates — render via `engine render` calls — each stage below fetches its own section at the moment it displays it and emits what returns, so the section always sits in the tool result directly above its emission. Each section is emitted verbatim as the form its marker names. A section is everything beneath its `===` marker up to the end of the response — the marker lines themselves are never emitted. Section content is emitted byte-for-byte — never redrawn, reflowed, or re-derived.
 
 **Agent lifecycle**: every review dispatches a fresh reviewer agent, and every task's first attempt dispatches a fresh executor agent; the only continuation is re-invoking the current task's executor for a fix round, a retry, or a gate comment round. Warm context never justifies crossing these lines — **[invoke-executor.md](invoke-executor.md)** and **[invoke-reviewer.md](invoke-reviewer.md)** carry the dispatch mechanics.
 
-→ Load **[product-lens.md](../../workflow-shared/references/product-lens.md)** and follow its instructions as written — the register and depth for the review and task-result summaries in **E** and **G**. Findings cache files and records stay fully technical.
+→ Load **[product-lens.md](../../workflow-shared/references/product-lens.md)** and follow its instructions as written — the register for the task brief in **A**, and the register and depth for the review and result summaries in **E** and **G**. Findings cache files and records stay fully technical.
 
 Read `work_type` once here at loop entry — it selects the executor's workflow reference (TDD vs verification) for every task and never changes mid-loop, so **[invoke-executor.md](invoke-executor.md)** consumes it from session context rather than re-reading it per invocation:
 
@@ -93,14 +93,19 @@ Stage A re-detects any remaining blocked tasks on the loop back.
 #### If a task is available
 
 1. Normalise the task content following **[task-normalisation.md](task-normalisation.md)**.
-2. Start the task via the engine (records the task as `current_task`; a fresh task gets a clean slate — `fix_attempts` reset, fix tracking cache file cleared; re-starting the in-flight task — already `current_task` with its tracking file on disk — preserves both, so a re-run is safe):
+2. Note the task's position for the task presentations (**[display-task-brief.md](display-task-brief.md)**, **[display-task-result.md](display-task-result.md)**): list every task in plan order via the format's **reading.md** listing procedure — completed and skipped included — and record this task's ordinal and the total across the plan (`{task_number}` of `{task_total}`) and within its plan phase (`{phase_task_number}` of `{phase_task_total}`). When the format's listing cannot yield the counts, skip them — the presentations render without.
+3. Start the task via the engine (records the task as `current_task`; a fresh task gets a clean slate — `fix_attempts` reset, fix tracking cache file cleared; re-starting the in-flight task — already `current_task` with its tracking file on disk — preserves both, so a re-run is safe):
    ```bash
    node .claude/skills/workflow-engine/scripts/engine.cjs task start {work_unit} {topic} {internal_id}
    ```
    The response's `gates` carry `task_gate_mode` and `fix_gate_mode` — stages E and G branch on these values. Do not re-read them mid-task: an `a/auto` opt-in is made by this flow itself, so you already know the current mode.
-3. Mark the task as in-progress — follow the format's **updating.md** status transition.
+4. Mark the task as in-progress — follow the format's **updating.md** status transition.
 
-→ Proceed to **B. Execute Task**.
+→ Load **[display-task-brief.md](display-task-brief.md)** and follow its instructions as written.
+
+The turn does not end here — the executor dispatch follows in the same turn.
+
+→ On return, proceed to **B. Execute Task**.
 
 ---
 
@@ -122,11 +127,11 @@ Stage A re-detects any remaining blocked tasks on the loop back.
 
 ## C. Handle Executor Block
 
+→ Load **[display-task-result.md](display-task-result.md)** with result = `{the executor's STATUS: blocked or failed}`.
+
 > *Output the next fenced block as a code block:*
 
 ```
-Task {internal_id}: {Task Name} — {blocked/failed}
-
 {executor's ISSUES content}
 ```
 
@@ -134,7 +139,7 @@ Task {internal_id}: {Task Name} — {blocked/failed}
 
 ```
 · · · · · · · · · · · ·
-Task {status:[blocked|failed]}. How would you like to proceed?
+**`◆ How would you like to proceed?`**
 
 **`r/retry`** → Re-invoke the executor with your comments (provide below)
 **`s/skip`**  → Skip this task and move to the next
@@ -201,35 +206,19 @@ Record the attempt via the engine (increments `fix_attempts` and appends the fin
 node .claude/skills/workflow-engine/scripts/engine.cjs task fix-attempt {work_unit} {topic} {internal_id} --findings-file .workflows/.cache/{work_unit}/implementation/{topic}/attempt-findings.md
 ```
 
-`{N}` below is the response's `attempts`.
+→ Load **[display-task-result.md](display-task-result.md)** with result = `needs-changes`.
 
 #### If the response's `threshold_reached` is `true`
 
-Fetch and emit the `DISPLAY: fix threshold` section:
-
-```bash
-node .claude/skills/workflow-engine/scripts/engine.cjs render fix-threshold {work_unit}.implementation.{topic}
-```
-
 → Load **[convergence-analysis.md](../../workflow-shared/references/convergence-analysis.md)** with loop_type = `fix`, work_unit = `{work_unit}`, topic = `{topic}`, internal_id = `{internal_id}`.
 
-> *Output the next fenced block as a code block:*
-
-```
-Review for Task {internal_id}: {Task Name} — needs changes (attempt {N})
-```
-
 Present the reviewer's findings as a product-lens summary (markdown, not a code block): each issue in a sentence or two — what is wrong or at risk in what was built and the proposed fix, with the alternative or the reviewer's confidence only where it changes the call; non-blocking notes in one line.
+
+The turn does not end here — the gate menu follows in the same turn.
 
 → On return, proceed to **F. Fix Approval Gate**.
 
 #### If the response's `threshold_reached` is `false`
-
-> *Output the next fenced block as a code block:*
-
-```
-Review for Task {internal_id}: {Task Name} — needs changes (attempt {N})
-```
 
 Present the reviewer's findings as a product-lens summary (markdown, not a code block): each issue in a sentence or two — what is wrong or at risk in what was built and the proposed fix, with the alternative or the reviewer's confidence only where it changes the call; non-blocking notes in one line.
 
@@ -249,11 +238,15 @@ The turn does not end here — the executor dispatch follows in the same turn.
 
 **If `fix_gate_mode` is `gated`:**
 
+The turn does not end here — the gate menu follows in the same turn.
+
 → Proceed to **F. Fix Approval Gate**.
 
 ---
 
 ## F. Fix Approval Gate
+
+Every arrival emits the menu in the turn it arrives — from **E**, and back from a retell or an answer alike.
 
 Fetch the fix gate and emit its `MENU: fix gate` section (the `a/auto` option renders only while the fix gate is `gated` — a threshold-forced gate in auto mode omits it):
 
@@ -305,13 +298,7 @@ Include the reviewer's notes and the user's commentary when re-invoking.
 
 After the reviewer approves a task, present the result:
 
-> *Output the next fenced block as a code block:*
-
-```
-Task {internal_id}: {Task Name} — approved
-
-Phase: {phase number} — {phase name}
-```
+→ Load **[display-task-result.md](display-task-result.md)** with result = `approved`.
 
 Present the executor's SUMMARY as a product-lens summary (markdown, not a code block) in four beats: what this part of the product did before, what it does now, any issues hit on the way, and anything to watch. After a fix round, include what changed since the last gate. When comment corrections were applied at **D. Review Task**, add a line saying so — naming any that were dropped.
 
@@ -394,7 +381,7 @@ node .claude/skills/workflow-engine/scripts/engine.cjs task complete {work_unit}
 impl({work_unit}): T{internal_id} — {brief description}
 ```
 
-One commit per approved task, staging the listed paths explicitly — never `git add -A` or `git add .`. The subject is exactly as fenced — `T` immediately followed by the internal id; review's scope-grep finds task commits by this token. Never `engine commit` here — its scopes cover `.workflows` only, never code or the plan format's storage.
+One commit per approved task, staging the listed paths explicitly — never `git add -A` or `git add .`. The subject is exactly as fenced — `T` immediately followed by the internal id, no space (`impl(pay): Tpay-1-1 — wire the session endpoint`); review's scope-grep finds task commits by this token. Never `engine commit` here — its scopes cover `.workflows` only, never code or the plan format's storage.
 
 → Return to **A. Retrieve Next Task**.
 

@@ -14,14 +14,21 @@ const { loadManifest } = require('./reads.cjs');
 const { titlecase, WORKLIST_GLYPH } = require('./conventions.cjs');
 const { section, CONTINUE_INSTRUCTION, CONTINUE_MARKDOWN_INSTRUCTION, AUTO_GATE_INSTRUCTION, menu, cmdOption, promptOption, callout, subDetail, treeList } = require('./projections/surfaces.cjs');
 const { worklist } = require('./projections/worklist.cjs');
-const { blockedTasksMenu, taskGateSection, fixGateSection, fixThresholdDisplay, cycleLimitDisplay, cycleGateMenu } = require('./projections/tasks.cjs');
+const { blockedTasksMenu, taskGateSection, fixGateSection, cycleLimitDisplay, cycleGateMenu } = require('./projections/tasks.cjs');
 const { workunitReceipt, topicReceipt, absorbReceipt, promoteReceipt, pivotContinuationMenu, sessionReceipt } = require('./projections/transactions.cjs');
 const { absorbTargetMenu, planTopicsMenu } = require('./projections/start.cjs');
+const {
+  baselineProgress, baselineAreaGate, baselinePaused, baselineReceipt,
+  baselineScopeGate, baselineRound, baselineDocGate, baselineManageGate, baselineDocPick,
+  baselineOfferGate,
+} = require('./projections/baseline.cjs');
+const { baselineState } = require('./baseline.cjs');
 const { revisitablePhases, revisitPhasesSection } = require('./projections/workunit.cjs');
 const { WORK_UNIT_TYPES, typeConfig: workUnitTypeConfig, completedPhases } = require('./workunit-detail.cjs');
 const { computeNextPhase } = require('./derivations.cjs');
 const { manageDetail } = require('./workunit-manage.cjs');
-const { gateOf, FIX_THRESHOLD, SESSION_CYCLE_LIMIT } = require('./tasks.cjs');
+const { gateOf, counterOf, FIX_THRESHOLD, SESSION_CYCLE_LIMIT } = require('./tasks.cjs');
+const { sourceRows } = require('./transitions.cjs');
 
 // The payload-facing status vocabulary — the staging values the two
 // overview surfaces accept, validated here so the error names the surface
@@ -280,11 +287,13 @@ function taskList(cwd, { dotpath, file, variant: variantArg }) {
 }
 
 // ---------------------------------------------------------------------------
-// proposed-task / tasks-overview — the analysis and review synthesis loops'
-// shared task presentation (their prose templates were byte-identical twins).
-// Gate mode rides as a flag, not an address read: one consumer carries it in
-// the cycle response, the other in the manifest's staging.c{N} subtree — the
-// surface guarantees the form of both outputs, the flow owns the mode.
+// proposed-task / tasks-overview — the shared task presentation for the
+// analysis and review synthesis loops and the ad hoc plan-changes gate.
+// Severity/sources are the synthesis loops' fields, placement/priority/
+// depends_on the ad hoc gate's — all optional, rendered only when present.
+// Gate mode rides as a flag, not an address read: the flows carry it in a
+// cycle response or the manifest's staging subtree — the surface guarantees
+// the form of the output, the flow owns the mode.
 // ---------------------------------------------------------------------------
 
 /**
@@ -301,8 +310,11 @@ function proposedTask(cwd, args) {
 
   if (!Number.isInteger(p.current) || p.current < 1) throw new Error('render proposed-task: "current" must be a positive integer');
   if (!Number.isInteger(p.total) || p.total < p.current) throw new Error('render proposed-task: "total" must be an integer ≥ "current"');
-  for (const field of ['title', 'severity', 'sources', 'problem', 'solution', 'outcome']) {
+  for (const field of ['title', 'problem', 'solution', 'outcome']) {
     if (!isFilled(p[field])) throw new Error(`render proposed-task: "${field}" must be a non-empty string`);
+  }
+  for (const field of ['severity', 'sources', 'placement', 'priority', 'depends_on']) {
+    if (p[field] !== undefined && !isFilled(p[field])) throw new Error(`render proposed-task: "${field}" must be a non-empty string when present`);
   }
   const blocks = {};
   for (const field of ['steps', 'criteria', 'tests']) {
@@ -311,9 +323,18 @@ function proposedTask(cwd, args) {
     blocks[field] = lines;
   }
 
+  const meta = [];
+  if (isFilled(p.sources)) meta.push(`Sources: ${p.sources}`);
+  if (isFilled(p.placement)) meta.push(`Placement: ${p.placement}`);
+  if (isFilled(p.priority)) meta.push(`Priority: ${p.priority}`);
+  if (isFilled(p.depends_on)) meta.push(`Depends on: ${p.depends_on}`);
+  // The head takes the task-header marker idiom (see taskHeader): the ordinal
+  // is batch position, not a plan number — a suffix, and noise for a batch of
+  // one, so it renders only when there is a walk to pace.
+  const ordinal = p.total > 1 ? ` (${p.current} of ${p.total})` : '';
   const body = [
-    `**Task ${p.current}/${p.total}: ${p.title}** (${p.severity})`,
-    `Sources: ${p.sources}`,
+    `**\`▪ ${p.title.trim()}${ordinal}\`**${isFilled(p.severity) ? ` (${p.severity})` : ''}`,
+    ...meta,
     '',
     `**Problem**: ${p.problem}`,
     `**Solution**: ${p.solution}`,
@@ -334,7 +355,9 @@ function proposedTask(cwd, args) {
     parts.push(section(
       'DISPLAY: task auto-approved',
       `after recording the approval: ${AUTO_GATE_INSTRUCTION}`,
-      `Task ${p.current} of ${p.total}: ${p.title} — approved [auto].`,
+      p.total > 1
+        ? `Task ${p.current} of ${p.total}: ${p.title} — approved [auto].`
+        : `${p.title} — approved [auto].`,
     ));
   } else {
     const hint = isFilled(args['comment-hint']) ? args['comment-hint'] : 'Tell me what to change';
@@ -350,6 +373,221 @@ function proposedTask(cwd, args) {
     ));
   }
   return parts.join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// incoherence-gate — spec construction's Resolve Source Incoherence raises.
+// Three variants; the stops here override the construction auto mode by
+// design, so no --gate flag exists.
+//   conflict  — the settle-it-here menu: one numbered option per documented
+//               side (recommended first) plus Comment — classification is
+//               Claude's, the menu offers only the documented sides
+//   gap-route — the gap raise plus its acknowledgement gate: the menu states
+//               the routing intent and confirms it (no "no" — an objection
+//               arrives as Comment and drops into the settleable exchange)
+//   held-doc  — the fallback when a live session holds the owning document
+// The raise body takes the finding idiom: bold head, one meta bullet per
+// cited quote, a Details paragraph, stakes beneath.
+// ---------------------------------------------------------------------------
+
+const INCOHERENCE_STOP = 'emit verbatim as markdown, then STOP for the user\'s response';
+
+/**
+ * @param {string} cwd
+ * @param {{dotpath: string, file?: string, variant?: string}} args
+ * @returns {string}
+ */
+function incoherenceGate(cwd, args) {
+  const { dotpath, file, variant } = args;
+  if (variant === undefined || !['conflict', 'gap-route', 'held-doc'].includes(variant)) {
+    throw new Error('render incoherence-gate: --variant must be "conflict", "gap-route", or "held-doc"');
+  }
+  if (!file) throw new Error('render incoherence-gate: --file <payload.json> is required');
+  resolveAddress(cwd, dotpath, 'incoherence-gate');
+  const p = readJsonPayload(cwd, file, 'incoherence-gate');
+  if (!isFilled(p.doc)) throw new Error('render incoherence-gate: "doc" must be a non-empty string');
+
+  if (variant === 'conflict' || variant === 'gap-route') {
+    if (!isFilled(p.title)) throw new Error('render incoherence-gate: "title" must be a non-empty string');
+    if (!isFilled(p.context)) throw new Error('render incoherence-gate: "context" must be a non-empty string');
+    if (p.quotes !== undefined) {
+      if (!Array.isArray(p.quotes) || p.quotes.length === 0) throw new Error('render incoherence-gate: "quotes" must be a non-empty array when present');
+      p.quotes.forEach((/** @type {{doc?: string, section?: string, quote?: string}} */ q, /** @type {number} */ i) => {
+        if (!q || typeof q !== 'object' || !isFilled(q.doc) || !isFilled(q.section) || !isFilled(q.quote)) {
+          throw new Error(`render incoherence-gate: quotes[${i}] must carry doc, section, and quote`);
+        }
+      });
+    }
+    if (p.stakes !== undefined && !isFilled(p.stakes)) throw new Error('render incoherence-gate: "stakes" must be a non-empty string when present');
+    const head = variant === 'conflict' ? 'Conflict' : 'Gap';
+    const body = [`**${head} — ${p.title}**`];
+    if (p.quotes) {
+      body.push('');
+      for (const q of p.quotes) body.push(`- **${q.doc} · ${q.section}**: "${q.quote}"`);
+    }
+    body.push('', `**Details**: ${p.context}`);
+    if (p.stakes) body.push('', p.stakes);
+
+    if (variant === 'conflict') {
+      if (!Array.isArray(p.sides) || p.sides.length < 2) {
+        throw new Error('render incoherence-gate: "sides" must carry at least 2 entries');
+      }
+      p.sides.forEach((/** @type {{summary?: string, recommended?: boolean}} */ s, /** @type {number} */ i) => {
+        if (!s || typeof s !== 'object' || !isFilled(s.summary)) {
+          throw new Error(`render incoherence-gate: sides[${i}].summary must be a non-empty string`);
+        }
+      });
+      if (p.sides.filter((/** @type {{recommended?: boolean}} */ s) => s.recommended === true).length > 1) {
+        throw new Error('render incoherence-gate: at most one side may be recommended');
+      }
+      const display = section('DISPLAY: incoherence conflict', 'emit verbatim as markdown', body.join('\n'));
+      const ordered = [...p.sides].sort((a, b) => Number(b.recommended === true) - Number(a.recommended === true));
+      const options = ordered.map((s, i) =>
+        cmdOption(String(i + 1), null, `${s.summary}${s.recommended === true ? ' (recommended)' : ''}`));
+      options.push(promptOption('Comment', 'Tell me what you\'re thinking; we\'ll work it through'));
+      return [display, section('MENU: incoherence conflict', INCOHERENCE_STOP,
+        menu('', options, { question: 'Which decision stands?' }))].join('\n');
+    }
+    return [
+      section('DISPLAY: incoherence gap', 'emit verbatim as markdown', body.join('\n')),
+      section('MENU: incoherence gap', INCOHERENCE_STOP, menu(
+        `Routing this to "${p.doc}" — it reopens with the gap, and this specification pauses until the answer lands.`,
+        [
+          cmdOption('y', 'yes', 'Land the gap and pause here'),
+          promptOption('Comment', 'Tell me what you\'re thinking before it moves'),
+        ],
+        { question: 'Proceed?' },
+      )),
+    ].join('\n');
+  }
+  return section('MENU: incoherence held doc', INCOHERENCE_STOP, menu(
+    `"${p.doc}" is open in another session right now, so the fix belongs there — this topic waits for it.`,
+    [
+      cmdOption('n', 'next', 'Set this topic aside and move to the next'),
+      cmdOption('s', 'stop', 'Stop here; re-enter after that session lands it'),
+    ],
+    { question: 'How do you want to continue?' },
+  ));
+}
+
+// ---------------------------------------------------------------------------
+// cancel-cascade-gate — the collapse confirm `topic cancel`'s refusal routes
+// to: a live specification is built from the topic being cancelled, so the
+// cascade takes both. No payload — the collapse set is manifest state (the
+// same reverse join the refusal ran): started specs cancel with the topic
+// (reactivatable), proposed groupings are discarded. Always gated.
+// ---------------------------------------------------------------------------
+
+/**
+ * @param {string} cwd
+ * @param {{dotpath: string}} args
+ * @returns {string}
+ */
+function cancelCascadeGate(cwd, { dotpath }) {
+  const { topic, manifest } = resolveAddress(cwd, dotpath, 'cancel-cascade-gate');
+  const specItems = ((manifest.phases || {}).specification || {}).items || {};
+  const collapses = Object.entries(specItems).filter(([, s]) =>
+    s && typeof s === 'object' && !['cancelled', 'superseded', 'promoted'].includes(s.status)
+    && sourceRows(s.sources).some(([n]) => n === topic));
+  if (collapses.length === 0) {
+    throw new Error(`render cancel-cascade-gate: no live specification sources "${topic}" — the bare cancel proceeds`);
+  }
+  const started = collapses.filter(([, s]) => s.status !== 'proposed').map(([n]) => titlecase(n));
+  const proposed = collapses.filter(([, s]) => s.status === 'proposed').map(([n]) => titlecase(n));
+  const parts = [];
+  if (started.length > 0) parts.push(`**${started.join('**, **')}** is cancelled with it (reactivatable)`);
+  if (proposed.length > 0) parts.push(`the proposed grouping **${proposed.join('**, **')}** is discarded — the next grouping analysis rebuilds from the new world`);
+  const statement = `Cancelling **${titlecase(topic)}** collapses the specification work built from it: ${parts.join('; ')}.`;
+  return section('MENU: cancel cascade', "emit verbatim as markdown, then STOP for the user's response", menu(
+    statement,
+    [
+      cmdOption('y', 'yes', 'Cancel the topic and the specification work it sources'),
+      cmdOption('n', 'no', 'Return to menu'),
+    ],
+    { question: 'Cancel them together?' },
+  ));
+}
+
+// ---------------------------------------------------------------------------
+// resurface-gate — spec construction's Context Resurfacing gate: a diff over
+// already-approved specification content plus its approval menu. Always
+// gated — it changes blessed content, so construction auto never applies.
+// `--view full` re-presents the full updated section (from the payload's
+// `full` lines) with the menu minus the view option.
+// ---------------------------------------------------------------------------
+
+/**
+ * @param {string} cwd
+ * @param {{dotpath: string, file?: string, view?: string}} args
+ * @returns {string}
+ */
+function resurfaceGate(cwd, args) {
+  const { dotpath, file, view } = args;
+  if (view !== undefined && view !== 'full') throw new Error('render resurface-gate: --view only accepts "full"');
+  if (!file) throw new Error('render resurface-gate: --file <payload.json> is required');
+  resolveAddress(cwd, dotpath, 'resurface-gate');
+  const p = readJsonPayload(cwd, file, 'resurface-gate');
+  if (!isFilled(p.section)) throw new Error('render resurface-gate: "section" must be a non-empty string');
+
+  const parts = [];
+  const menuOptions = [cmdOption('y', 'yes', 'Apply changes to specification')];
+
+  if (view === 'full') {
+    const lines = stringLines(p.full, 'resurface-gate', 'full');
+    if (lines.length === 0) throw new Error('render resurface-gate: "full" must be non-empty for --view full');
+    parts.push(section('DISPLAY: resurfacing full', 'emit verbatim as markdown',
+      [`**Resurfacing: ${p.section}** — full updated section`, '', ...lines].join('\n')));
+  } else {
+    if (!p.diff || typeof p.diff !== 'object') throw new Error('render resurface-gate: "diff" is required');
+    const body = [
+      ...stringLines(p.diff.context_above || [], 'resurface-gate', 'diff.context_above').map((l) => ` ${l}`),
+      ...stringLines(p.diff.current || [], 'resurface-gate', 'diff.current').map((l) => `-${l}`),
+      ...stringLines(p.diff.proposed || [], 'resurface-gate', 'diff.proposed').map((l) => `+${l}`),
+      ...stringLines(p.diff.context_below || [], 'resurface-gate', 'diff.context_below').map((l) => ` ${l}`),
+    ];
+    if ((p.diff.current || []).length + (p.diff.proposed || []).length === 0) {
+      throw new Error('render resurface-gate: "diff" must carry at least one current/proposed line');
+    }
+    parts.push(section('DISPLAY: resurfacing', 'emit verbatim as markdown', `**Resurfacing: ${p.section}**`));
+    parts.push(section('DISPLAY: resurfacing diff', 'emit verbatim as a diff code block (```diff fence)', body.join('\n')));
+    if (stringLines(p.full || [], 'resurface-gate', 'full').length > 0) {
+      menuOptions.push(cmdOption('v', 'view full', 'Show the full updated section, then decide'));
+    }
+  }
+  menuOptions.push(promptOption('Tell me what to change', 'Revise before recording'));
+  parts.push(section('MENU: resurface gate', INCOHERENCE_STOP,
+    menu('', menuOptions, { question: 'Record this to the specification verbatim?' })));
+  return parts.join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// construction-gate — spec construction's per-topic approval. The draft
+// presentation stays with the flow (artifact content, presented verbatim);
+// this surface owns the state-branching moment after it: the gate mode is
+// read from the manifest's construction_gate_mode at the dotpath, answering
+// with the approval menu when gated and the auto announcement when auto.
+// ---------------------------------------------------------------------------
+
+/**
+ * @param {string} cwd
+ * @param {{dotpath: string}} args
+ * @returns {string}
+ */
+function constructionGate(cwd, { dotpath }) {
+  const { phase, topic, manifest } = resolveAddress(cwd, dotpath, 'construction-gate');
+  const item = (((manifest.phases || {})[phase] || {}).items || {})[topic] || {};
+  if (item.construction_gate_mode === 'auto') {
+    return section(
+      'DISPLAY: construction auto-approved',
+      `after logging the content: ${AUTO_GATE_INSTRUCTION}`,
+      `${titlecase(topic)} — auto-approved. Recording to the specification.`,
+    );
+  }
+  return section('MENU: construction gate', INCOHERENCE_STOP, menu('', [
+    cmdOption('y', 'yes', 'Add exactly as shown, no modifications'),
+    cmdOption('a', 'auto', 'Approve this and all remaining topics automatically'),
+    promptOption('Tell me what to change', 'Revise before recording'),
+  ], { question: 'Record this to the specification verbatim?' }));
 }
 
 /**
@@ -540,6 +778,140 @@ function findingsSummary(cwd, { dotpath, file }) {
   return section('DISPLAY: findings summary', CONTINUE_MARKDOWN_INSTRUCTION, body);
 }
 
+// review-presentation — the review's outcome, after the do-now work has
+// been applied. What is listed is only what the user acts on: the findings
+// that failed the review and must be planned. Corrections are a count —
+// they are already made, gated by the suite and verified, so a list would
+// put pages nobody reads in front of the one decision that matters. The
+// judgment (which items, worded how) rides as the payload; the shape is
+// this surface's rule, so it cannot drift per verdict or per author.
+
+/**
+ * @param {string} cwd
+ * @param {{dotpath: string, file?: string}} args
+ * @returns {string}
+ */
+function reviewPresentation(cwd, { dotpath, file }) {
+  if (!file) throw new Error('render review-presentation: --file <payload.json> is required');
+  const { phase } = resolveAddress(cwd, dotpath, 'review-presentation');
+  if (phase !== 'review') {
+    throw new Error(`render review-presentation: address must be <work_unit>.review.<topic>, got phase "${phase}"`);
+  }
+  const p = readJsonPayload(cwd, file, 'review-presentation');
+  if (!isFilled(p.topic)) throw new Error('render review-presentation: "topic" must be a non-empty string');
+  if (p.verdict !== 'pass' && p.verdict !== 'fail') {
+    throw new Error('render review-presentation: "verdict" must be "pass" or "fail"');
+  }
+  const replan = p.replan === undefined ? [] : p.replan;
+  if (!Array.isArray(replan)) throw new Error('render review-presentation: "replan" must be an array');
+  replan.forEach((r, i) => {
+    if (!isFilled(r.summary) || !isFilled(r.fails)) {
+      throw new Error(`render review-presentation: replan[${i}] needs "summary" and "fails"`);
+    }
+  });
+  // The verdict and the list must agree — a fail with nothing to plan, or a
+  // pass carrying planned work, is a caller bug, never something to render.
+  if (p.verdict === 'fail' && replan.length === 0) {
+    throw new Error('render review-presentation: a fail must carry at least one "replan" finding');
+  }
+  if (p.verdict === 'pass' && replan.length > 0) {
+    throw new Error('render review-presentation: a pass cannot carry "replan" findings');
+  }
+
+  const title = titlecase(p.topic);
+  const sections = [
+    section('TITLE', "emit verbatim as markdown — the view's chrome heading", `# **\`■ Review — ${title}\`**`),
+  ];
+  if (p.verdict === 'fail') {
+    const n = replan.length;
+    sections.push(section(
+      'DISPLAY: review verdict',
+      'emit verbatim as a properties code block — ```properties fence',
+      `⚑ Failed — ${n} finding${n === 1 ? '' : 's'} must be planned and built before this work is delivered`,
+    ));
+  } else {
+    sections.push(section(
+      'DISPLAY: review verdict',
+      CONTINUE_MARKDOWN_INSTRUCTION,
+      '**Passed** — nothing needs planning.',
+    ));
+  }
+
+  const body = [];
+  if (p.verdict === 'fail') {
+    body.push(worklist({
+      heading: { label: 'Needs planning', noun: 'finding' },
+      items: replan.map((r) => ({
+        title: r.summary,
+        note: isFilled(r.ref) ? `${r.ref} — ${r.fails}` : r.fails,
+      })),
+    }));
+  }
+  const tail = [];
+  if (p.corrected !== undefined) {
+    const c = p.corrected;
+    if (!Number.isInteger(c.applied) || c.applied < 0 || (c.suite !== 'green' && c.suite !== 'red')) {
+      throw new Error('render review-presentation: "corrected" needs integer "applied" and "suite" green|red');
+    }
+    let line = `Corrected in this session: ${c.applied} applied · suite ${c.suite}`;
+    if (Number(c.reverted) > 0) line += ` · ${c.reverted} reverted, still owed`;
+    tail.push(line + '.');
+  }
+  if (Number(p.out_of_scope) > 0) {
+    const n = Number(p.out_of_scope);
+    tail.push(`Outside this spec: ${n} finding${n === 1 ? '' : 's'} held for your call.`);
+  }
+  if (Number(p.discarded) > 0) {
+    tail.push(`Discarded: ${p.discarded} — reasons in the report.`);
+  }
+  if (tail.length) body.push(tail.join('\n'));
+  if (body.length) {
+    sections.push(section('DISPLAY: review findings', CONTINUE_MARKDOWN_INSTRUCTION, body.join('\n\n')));
+  }
+  return sections.join('\n');
+}
+
+// review-gate — the review's closing menu. Membership follows the verdict
+// and what remains: a fail routes to planning and nothing else (out-of-scope
+// findings are future work, and future work is not offered while the review
+// is failing); a pass completes, with the out-of-scope decision offered only
+// when such findings exist. The option set varies at runtime, so the column
+// is computed for whichever set survives.
+
+/**
+ * @param {string} cwd
+ * @param {{dotpath: string, verdict?: string, replan?: string, 'out-of-scope'?: string}} args
+ * @returns {string}
+ */
+function reviewGate(cwd, args) {
+  const { phase } = resolveAddress(cwd, args.dotpath, 'review-gate');
+  if (phase !== 'review') {
+    throw new Error(`render review-gate: address must be <work_unit>.review.<topic>, got phase "${phase}"`);
+  }
+  const verdict = args.verdict;
+  if (verdict !== 'pass' && verdict !== 'fail') {
+    throw new Error('render review-gate: --verdict must be "pass" or "fail"');
+  }
+  const options = [];
+  if (verdict === 'fail') {
+    const n = Number(args.replan);
+    if (!Number.isInteger(n) || n < 1) throw new Error('render review-gate: a fail needs --replan <count>');
+    options.push(cmdOption('p', 'plan', `Plan the ${n} failure${n === 1 ? '' : 's'} and reopen implementation`));
+  } else {
+    options.push(cmdOption('c', 'complete', 'Complete the review phase and continue'));
+    const oos = Number(args['out-of-scope']) || 0;
+    if (oos > 0) {
+      options.push(cmdOption('i', 'inbox', `Decide the ${oos} finding${oos === 1 ? '' : 's'} outside this spec`));
+    }
+  }
+  options.push(promptOption('Ask', 'Ask me about any finding'));
+  return section(
+    'MENU: review gate',
+    "emit verbatim as markdown, then STOP for the user's response",
+    menu('', options, { question: 'What next?' }),
+  );
+}
+
 // reroute-offer — the off-topic reroute's consent gate. The concern and,
 // when one home is clear, the resolved target with its judged landing
 // phase are judgment content; the chrome and the options are fixed.
@@ -572,6 +944,34 @@ function rerouteOffer(cwd, { dotpath, file }) {
       cmdOption('r', 'reroute', 'Send it to the topic it belongs to; it picks it up later'),
       cmdOption('k', 'keep', 'Keep it here as a subtopic'),
     ]),
+  );
+}
+
+// off-topic-offer — the single-topic counterpart of reroute-offer: with no
+// sibling topic to route the concern to, it is logged, pivoted into an epic,
+// or noted in place. The pivot row exists only for a feature — the one type
+// that can become an epic — and is derived from the manifest, never asked
+// for and never carried in the payload.
+
+/**
+ * @param {string} cwd
+ * @param {{dotpath: string, file?: string}} args
+ * @returns {string}
+ */
+function offTopicOffer(cwd, { dotpath, file }) {
+  if (!file) throw new Error('render off-topic-offer: --file <payload.json> is required');
+  const { manifest } = resolveAddress(cwd, dotpath, 'off-topic-offer');
+  const p = readJsonPayload(cwd, file, 'off-topic-offer');
+  if (!isFilled(p.concern)) throw new Error('render off-topic-offer: "concern" must be a non-empty string');
+  const options = [cmdOption('l', 'log', 'Capture it as an idea in the inbox for later')];
+  if (manifest.work_type === 'feature') {
+    options.push(cmdOption('p', 'pivot', 'Convert this work to an epic so it can hold the concern as its own topic'));
+  }
+  options.push(cmdOption('i', 'ignore', 'Note it in the research file and move on'));
+  return section(
+    'MENU: off-topic offer',
+    "emit verbatim as markdown, then STOP for the user's response",
+    menu(`**${p.concern}** is beyond this topic's scope.`, options),
   );
 }
 
@@ -612,23 +1012,42 @@ function rerouteCandidates(cwd, { dotpath, file }) {
   );
 }
 
-// finding-batch — a surfacing lane whose findings ask nothing of the user
-// beyond a yes: the `apply` batch (corrections determined by decisions
-// already made) and the `route` batch (concerns owned by a sibling topic).
-// The lane fixes the chrome; the payload carries only judgment content, so
-// the screen is one call and the prose holds no template.
+// finding-batch — a surfacing lane whose findings need at most a scan from
+// the user: the `apply` batch (corrections determined by decisions already
+// made), the `decide` batch (calls settled by the record or first
+// principles, presented for veto before they land), and the `route` batch
+// (concerns owned by a sibling topic). The lane fixes the chrome; the
+// payload carries only judgment content, so the screen is one call and the
+// prose holds no template. A screen holds at most BATCH_MAX items — a
+// larger lane renders over successive screens, each approved on its own.
 
-/** @type {Record<string, {intro: string, confirm: (n: number) => string, ask: string, fields: string[]}>} */
+const BATCH_MAX = 5;
+
+/** A confirm's remainder tail — how many of the lane wait beyond this screen. @param {number} more */
+const moreTail = (more) => (more > 0 ? ` (${more} more after this)` : '');
+
+/** @type {Record<string, {intro: (n: number) => string, confirm: (n: number, more: number) => string, discuss?: string, ask: string, fields: string[]}>} */
 const BATCH_LANES = {
   apply: {
-    intro: "The fix follows from what's already decided. Nothing here is a choice.",
-    confirm: (n) => `Apply all ${n}, then move on`,
+    intro: () => "The fix follows from what's already decided. Nothing here is a choice.",
+    confirm: (n, more) => `${n === 1 ? 'Apply it' : `Apply all ${n}`}, then move on${moreTail(more)}`,
     ask: "Tell me a number to expand, or one you don't think is settled",
     fields: ['title', 'detail'],
   },
+  decide: {
+    intro: (n) => (n === 1
+      ? "This one has a single defensible answer, settled by what's already decided or by first principles. I've made the call and named what determined it."
+      : "Each of these has one defensible answer, settled by what's already decided or by first principles. I've made each call and named what determined it."),
+    confirm: (n, more) => `${n === 1 ? 'Document it' : `Document all ${n}`} and move on${moreTail(more)}`,
+    discuss: "Say discuss and a number — I'll raise it after the rest land",
+    ask: 'Tell me a number to expand',
+    fields: ['title', 'detail'],
+  },
   route: {
-    intro: "Not this topic's to answer. Each goes to its owner's triage queue as a concern, carrying the context built here.",
-    confirm: (n) => `Send all ${n}`,
+    intro: (n) => (n === 1
+      ? "Not this topic's to answer. It goes to its owner's triage queue as a concern, carrying the context built here."
+      : "Not this topic's to answer. Each goes to its owner's triage queue as a concern, carrying the context built here."),
+    confirm: (n, more) => `${n === 1 ? 'Send it' : `Send all ${n}`}${moreTail(more)}`,
     ask: 'Tell me a number to expand, or one that should stay here',
     fields: ['title', 'target', 'detail'],
   },
@@ -650,6 +1069,13 @@ function findingBatch(cwd, { dotpath, file }) {
   if (!Array.isArray(p.items) || p.items.length === 0) {
     throw new Error(`render finding-batch: "items" must be a non-empty array of {${lane.fields.join(', ')}}`);
   }
+  if (p.items.length > BATCH_MAX) {
+    throw new Error(`render finding-batch: a screen holds at most ${BATCH_MAX} items (${p.items.length} given) — render the lane over successive screens`);
+  }
+  const more = p.remaining === undefined ? 0 : p.remaining;
+  if (!Number.isInteger(more) || more < 0) {
+    throw new Error('render finding-batch: "remaining" must be a non-negative integer — the count of this lane\'s findings beyond the screen');
+  }
   p.items.forEach((it, i) => {
     for (const field of lane.fields) {
       if (!isFilled(it[field])) throw new Error(`render finding-batch: item ${i + 1} is missing "${field}"`);
@@ -658,7 +1084,7 @@ function findingBatch(cwd, { dotpath, file }) {
   // Batch rows carry no walk-state — the lane is all-or-nothing, so no
   // glyph column. A route row's destination rides the tag slot.
   const body = worklist({
-    intro: lane.intro,
+    intro: lane.intro(p.items.length),
     items: p.items.map((it) => ({ title: it.title, tag: it.target ? `→ ${it.target}` : undefined, note: it.detail })),
   });
   return [
@@ -667,7 +1093,8 @@ function findingBatch(cwd, { dotpath, file }) {
       'MENU: finding batch',
       "emit verbatim as markdown, then STOP for the user's response",
       menu('', [
-        cmdOption('y', 'yes', lane.confirm(p.items.length)),
+        cmdOption('y', 'yes', lane.confirm(p.items.length, more)),
+        ...(lane.discuss ? [promptOption('Discuss', lane.discuss)] : []),
         promptOption('Ask', lane.ask),
       ]),
     ),
@@ -852,7 +1279,7 @@ function triageBlock(cwd, { dotpath }) {
   const { workUnit, phase, topic } = resolveAddress(cwd, dotpath, 'triage-block');
   const { files } = triageQueue(cwd, workUnit, phase, topic);
   if (!files.length) throw new Error(`render triage-block: the ${topic} ${phase} triage queue is empty — nothing blocks conclusion`);
-  const doing = phase === 'research' ? 'exploration' : 'discussion';
+  const doing = phase === 'research' ? 'exploration' : phase === 'investigation' ? 'investigation' : 'discussion';
   // A true blocker — the red register (see blocker()), guidance as markdown.
   return [
     section(
@@ -1179,6 +1606,19 @@ function entryGate(cwd, { dotpath, own }) {
           'At least one completed discussion is required before specification can begin. Run /workflow-start to continue an in-progress discussion.',
         );
       }
+      // The topic's own sources must be settled: a source discussion back
+      // in-progress (a gap routed into it) blocks this spec until it
+      // re-concludes. sourceRows decodes the map and legacy array forms.
+      const spec = itemOf(manifest, 'specification', topic);
+      const open = sourceRows(spec && spec.sources)
+        .map(([n]) => n)
+        .filter((n) => n && items[n] && items[n].status === 'in-progress');
+      if (open.length > 0) {
+        return blocker(
+          `Sources for "${t}" are back in-progress: ${open.join(', ')}`,
+          'A specification cannot be built from an in-flight record — conclude the reopened discussion(s), then re-enter this specification.',
+        );
+      }
       return '';
     }
     // feature / cross-cutting: the topic's own discussion.
@@ -1202,11 +1642,12 @@ function entryGate(cwd, { dotpath, own }) {
 }
 
 // ---------------------------------------------------------------------------
-// Task-loop gates — fetched by the implementation loop at the exact stage
-// that displays them, so the section always sits in the tool result directly
-// above its emission. State-backed: the in-flight task and gate modes come
-// from the implementation item; gate-mode branching renders inside the
-// surface. `blocked-tasks` and `cycle-gate` are static menus and take no
+// Task-loop surfaces — the brief, the result header, and the gates, fetched
+// by the implementation loop at the exact stage that displays them, so the
+// section always sits in the tool result directly above its emission.
+// State-backed: the in-flight task, gate modes, and fix attempts come from
+// the implementation item; gate-mode branching renders inside the gate
+// surfaces. `blocked-tasks` and `cycle-gate` are static menus and take no
 // address.
 // ---------------------------------------------------------------------------
 
@@ -1214,7 +1655,7 @@ function entryGate(cwd, { dotpath, own }) {
  * The implementation item at a `<wu>.implementation.<topic>` address, plus
  * its in-flight task id. Loud when the address names another phase or no
  * task is in flight — these surfaces serve the task loop, which always has
- * a current task at its gates.
+ * a current task at its presentation moments and gates.
  * @param {string} cwd @param {string} dotpath @param {string} surface
  * @returns {{item: Record<string, any>, taskId: string}}
  */
@@ -1232,27 +1673,145 @@ function implItemAt(cwd, dotpath, surface) {
   return { item, taskId };
 }
 
+/**
+ * Validate the shared task-header payload and build its two parts — the
+ * sub-step marker naming the task, and the meta rows beneath it. One
+ * definition shared by task-brief and task-result, so the two headers
+ * cannot drift; they differ only in what sits between the parts. The
+ * required `id` must name the in-flight task: both payload files are
+ * per-topic and reused task after task, and a stale one must refuse rather
+ * than render under the wrong task. Then `title` — the task's name is the
+ * plan format's, never manifest state — with its optional `current`/`total`
+ * ordinal, which the format's listing may not yield; then `phase`, optional
+ * `position`, optional `external {label, id}`.
+ * @param {any} p @param {string} taskId @param {string} surface
+ * @returns {{marker: string, rows: string[]}}
+ */
+function taskHeader(p, taskId, surface) {
+  if (!isFilled(p.id)) throw new Error(`render ${surface}: "id" must be a non-empty string`);
+  if (p.id !== taskId) {
+    throw new Error(`render ${surface}: payload "id" is "${p.id}" but the in-flight task is "${taskId}" — a stale ${surface}.json; rewrite the payload for the current task`);
+  }
+  if (!isFilled(p.title)) throw new Error(`render ${surface}: "title" must be a non-empty string`);
+  const counted = p.current !== undefined || p.total !== undefined;
+  if (counted) {
+    if (!Number.isInteger(p.current) || p.current < 1) {
+      throw new Error(`render ${surface}: "current" must be a positive integer — omit it and "total" together when the format's listing cannot yield them`);
+    }
+    if (!Number.isInteger(p.total) || p.total < p.current) {
+      throw new Error(`render ${surface}: "total" must be an integer ≥ "current"`);
+    }
+  }
+  if (!isFilled(p.phase)) throw new Error(`render ${surface}: "phase" must be a non-empty string`);
+  if (p.position !== undefined && !isFilled(p.position)) {
+    throw new Error(`render ${surface}: "position" must be a non-empty string when present`);
+  }
+  if (p.external !== undefined && (!p.external || typeof p.external !== 'object' || Array.isArray(p.external)
+    || !isFilled(p.external.label) || !isFilled(p.external.id))) {
+    throw new Error(`render ${surface}: "external" must be {label, id} when present`);
+  }
+  const marker = `**\`▪ ${p.title.trim()}${counted ? ` (${p.current} of ${p.total})` : ''}\`**`;
+  const idRow = p.external ? `\`${taskId}\` · ${p.external.label} \`${p.external.id}\`` : `\`${taskId}\``;
+  const rows = [`- **Id**: ${idRow}`, `- **Phase**: ${p.phase}`];
+  if (p.position !== undefined) rows.push(`- **Position**: ${p.position}`);
+  return { marker, rows };
+}
+
+// ---------------------------------------------------------------------------
+// task-brief — the loop's pre-dispatch announcement, rendered as the loop
+// takes up a task: between `task start` and the executor dispatch. The
+// payload's required `id` must name the in-flight task — the payload file
+// is per-topic, and a stale one would describe the previous task under the
+// current id. The marker and meta rows come from the shared task-header
+// builder; the summary and watch lines are judgment content the manifest
+// never holds — what the task is about to change, and what deserves eyes
+// when it lands. No verdict line: nothing has happened yet, and its absence
+// is what tells the brief apart from the result.
+// ---------------------------------------------------------------------------
+
+/**
+ * @param {string} cwd
+ * @param {{dotpath: string, file?: string}} args
+ * @returns {string}
+ */
+function taskBrief(cwd, args) {
+  const { dotpath, file } = args;
+  if (!file) throw new Error('render task-brief: --file <payload.json> is required');
+  const { taskId } = implItemAt(cwd, dotpath, 'task-brief');
+  const p = readJsonPayload(cwd, file, 'task-brief');
+  const { marker, rows } = taskHeader(p, taskId, 'task-brief');
+  if (!isFilled(p.summary)) throw new Error('render task-brief: "summary" must be a non-empty string');
+  const watch = p.watch === undefined ? null : stringLines(p.watch, 'task-brief', 'watch');
+  if (watch !== null && (watch.length === 0 || watch.some((l) => l.trim() === ''))) {
+    throw new Error('render task-brief: "watch" must be a non-empty array of non-empty strings when present');
+  }
+
+  const body = [marker, '', ...rows, '', p.summary.trim()];
+  if (watch !== null) body.push('', '**Watch**:', ...watch.map((l) => `- ${l.trim()}`));
+  return section('DISPLAY: task brief', CONTINUE_MARKDOWN_INSTRUCTION, body.join('\n'));
+}
+
+// ---------------------------------------------------------------------------
+// task-result — the task loop's result header: one shape for every
+// presentation moment. The verdict vocabulary and its lines are one table,
+// so membership and rendering cannot drift apart — an unknown result
+// refuses rather than borrowing another verdict's line. Verdict detail is
+// state-derived (`fix_attempts` against the threshold); the plan phase
+// label, in-phase position, and the format's display identifier ride in
+// the payload, whose required `id` must name the in-flight task — the
+// same per-topic staleness guard as the brief's. The result itself is a
+// flag — blocked/failed is executor knowledge the manifest never holds.
+// The header names the task; the gate surfaces below it never repeat the
+// id.
+// ---------------------------------------------------------------------------
+
+/** @type {Record<string, (attempts: number) => string>} */
+const TASK_RESULT_VERDICTS = {
+  approved: (attempts) => attempts > 0
+    ? `**✓ Approved** — *${attempts} fix round${attempts === 1 ? '' : 's'}*`
+    : '**✓ Approved**',
+  'needs-changes': (attempts) => attempts >= FIX_THRESHOLD
+    ? `**◐ Needs changes** — *attempt ${attempts}, escalation threshold reached*`
+    : `**◐ Needs changes** — *attempt ${attempts}, escalates at ${FIX_THRESHOLD}*`,
+  blocked: () => '**⚑ Blocked** — *the executor stopped before completing this task*',
+  failed: () => '**⚑ Failed** — *the executor could not complete this task*',
+};
+
+/**
+ * @param {string} cwd
+ * @param {{dotpath: string, file?: string, result?: string}} args
+ * @returns {string}
+ */
+function taskResult(cwd, args) {
+  const { dotpath, file, result } = args;
+  if (!file) throw new Error('render task-result: --file <payload.json> is required');
+  const verdictOf = result === undefined ? undefined : TASK_RESULT_VERDICTS[result];
+  if (!verdictOf) {
+    throw new Error(`render task-result: --result must be approved, needs-changes, blocked, or failed, got "${result}"`);
+  }
+  const { item, taskId } = implItemAt(cwd, dotpath, 'task-result');
+  const p = readJsonPayload(cwd, file, 'task-result');
+  const { marker, rows } = taskHeader(p, taskId, 'task-result');
+
+  const attempts = counterOf(item, 'fix_attempts');
+  if (result === 'needs-changes' && attempts < 1) {
+    throw new Error('render task-result: fix_attempts is 0 — run `task fix-attempt` before a needs-changes result');
+  }
+
+  return section('DISPLAY: task result', CONTINUE_MARKDOWN_INSTRUCTION, [marker, '', verdictOf(attempts), '', ...rows].join('\n'));
+}
+
 /** @param {string} cwd @param {{dotpath: string}} args @returns {string} */
 function taskGate(cwd, args) {
-  const { item, taskId } = implItemAt(cwd, args.dotpath, 'task-gate');
-  return taskGateSection(taskId, gateOf(item, 'task_gate_mode'));
+  const { item } = implItemAt(cwd, args.dotpath, 'task-gate');
+  return taskGateSection(gateOf(item, 'task_gate_mode'));
 }
 
 /** @param {string} cwd @param {{dotpath: string}} args @returns {string} */
 function fixGate(cwd, args) {
-  const { item, taskId } = implItemAt(cwd, args.dotpath, 'fix-gate');
+  const { item } = implItemAt(cwd, args.dotpath, 'fix-gate');
   const attempts = typeof item.fix_attempts === 'number' ? item.fix_attempts : 0;
-  return fixGateSection(taskId, gateOf(item, 'fix_gate_mode'), attempts >= FIX_THRESHOLD);
-}
-
-/** @param {string} cwd @param {{dotpath: string}} args @returns {string} */
-function fixThreshold(cwd, args) {
-  const { item, taskId } = implItemAt(cwd, args.dotpath, 'fix-threshold');
-  const attempts = typeof item.fix_attempts === 'number' ? item.fix_attempts : 0;
-  if (attempts < FIX_THRESHOLD) {
-    throw new Error(`render fix-threshold: fix_attempts is ${attempts}, below the threshold of ${FIX_THRESHOLD}`);
-  }
-  return fixThresholdDisplay(attempts, taskId);
+  return fixGateSection(gateOf(item, 'fix_gate_mode'), attempts >= FIX_THRESHOLD);
 }
 
 /** @param {string} cwd @param {{dotpath: string}} args @returns {string} */
@@ -1424,6 +1983,169 @@ function planTopics(cwd, args) {
   return planTopicsMenu(md);
 }
 
+// ---------------------------------------------------------------------------
+// The baseline surfaces — project-level, no address. Each handler resolves
+// the one BaselineState (domain/baseline.cjs), refuses states the calling
+// prose never reaches, and hands the pure projection its detail.
+// ---------------------------------------------------------------------------
+
+/** Resolve baseline state, refusing the never-started default. @param {string} cwd @param {string} surface */
+function resolveBaseline(cwd, surface) {
+  const d = baselineState(cwd);
+  if (d.status === 'none') {
+    throw new Error(`render ${surface}: no baseline on the project manifest`);
+  }
+  return d;
+}
+
+/** @param {string} cwd @param {object} _args @returns {string} */
+function baselineProgressSurface(cwd, _args) {
+  const d = resolveBaseline(cwd, 'baseline-progress');
+  if (d.areas.length === 0) {
+    throw new Error('render baseline-progress: the baseline has no areas');
+  }
+  return baselineProgress(d);
+}
+
+/** @param {string} cwd @param {Record<string, string|undefined>} args @returns {string} */
+function baselineAreaGateSurface(cwd, { area }) {
+  const d = resolveBaseline(cwd, 'baseline-area-gate');
+  if (!area) throw new Error('render baseline-area-gate: --area is required');
+  const entry = d.areas.find((a) => a.name === area);
+  if (!entry) throw new Error(`render baseline-area-gate: unknown area "${area}"`);
+  if (entry.status !== 'completed') {
+    throw new Error(`render baseline-area-gate: area "${area}" is "${entry.status}", not completed — the gate follows the doc landing`);
+  }
+  if (d.remaining === 0) {
+    throw new Error('render baseline-area-gate: no areas remain — the flow concludes instead of gating');
+  }
+  return baselineAreaGate(d, area);
+}
+
+/** @param {string} cwd @param {object} _args @returns {string} */
+function baselinePausedSurface(cwd, _args) {
+  const d = resolveBaseline(cwd, 'baseline-paused');
+  if (d.status !== 'in-progress') {
+    throw new Error(`render baseline-paused: the baseline is "${d.status}", not in-progress`);
+  }
+  return baselinePaused(d);
+}
+
+/** @param {string} cwd @param {object} _args @returns {string} */
+function baselineReceiptSurface(cwd, _args) {
+  const d = resolveBaseline(cwd, 'baseline-receipt');
+  if (d.status !== 'completed') {
+    throw new Error(`render baseline-receipt: the baseline is "${d.status}", not completed — the receipt follows the completion write`);
+  }
+  const unlanded = d.areas.filter((a) => a.status !== 'completed');
+  if (unlanded.length > 0) {
+    throw new Error(`render baseline-receipt: area "${unlanded[0].name}" is "${unlanded[0].status}", not completed — a receipt never names a doc that was not landed`);
+  }
+  return baselineReceipt(d);
+}
+
+// An area name doubles as the doc's knowledge-base identity — kebab-case,
+// dot- and slash-free, enforced where the proposal is rendered so an illegal
+// name never survives to the interview.
+const AREA_NAME_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+
+/** Read + validate a `--file` JSON payload. @param {string} cwd @param {string} surface @param {string|undefined} file @returns {any} */
+function readBaselinePayload(cwd, surface, file) {
+  if (!file) throw new Error(`render ${surface}: --file <payload.json> is required`);
+  let raw;
+  try {
+    raw = fs.readFileSync(path.resolve(cwd, file), 'utf8');
+  } catch {
+    throw new Error(`render ${surface}: payload file not found: ${file}`);
+  }
+  try {
+    return JSON.parse(raw);
+  } catch (err) {
+    throw new Error(`render ${surface}: payload is not valid JSON: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+/** @param {string} cwd @param {Record<string, string|undefined>} args @returns {string} */
+function baselineScopeGateSurface(cwd, { file }) {
+  const payload = readBaselinePayload(cwd, 'baseline-scope-gate', file);
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw new Error('render baseline-scope-gate: payload must be an object {mode, areas}');
+  }
+  if (payload.mode !== 'fresh' && payload.mode !== 'expand') {
+    throw new Error('render baseline-scope-gate: "mode" must be "fresh" or "expand"');
+  }
+  if (!Array.isArray(payload.areas) || payload.areas.length === 0) {
+    throw new Error('render baseline-scope-gate: "areas" must be a non-empty array of {name, detail}');
+  }
+  for (const [i, a] of payload.areas.entries()) {
+    if (!a || typeof a.name !== 'string' || !AREA_NAME_RE.test(a.name)) {
+      throw new Error(`render baseline-scope-gate: area ${i + 1} "name" must be kebab-case (dot- and slash-free — it is the doc's knowledge-base identity)`);
+    }
+    if (typeof a.detail !== 'string' || a.detail.trim() === '') {
+      throw new Error(`render baseline-scope-gate: area ${i + 1} ("${a.name}") is missing "detail" — one line on what it covers`);
+    }
+  }
+  return baselineScopeGate(payload);
+}
+
+/** @param {string} cwd @param {Record<string, string|undefined>} args @returns {string} */
+function baselineRoundSurface(cwd, { file }) {
+  const payload = readBaselinePayload(cwd, 'baseline-round', file);
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw new Error('render baseline-round: payload must be an object {area, questions}');
+  }
+  const d = resolveBaseline(cwd, 'baseline-round');
+  const entry = d.areas.find((a) => a.name === payload.area);
+  if (!entry) throw new Error(`render baseline-round: unknown area "${payload.area}"`);
+  if (entry.status !== 'researched') {
+    throw new Error(`render baseline-round: area "${payload.area}" is "${entry.status}", not researched — rounds walk a researched area's agenda`);
+  }
+  if (!Array.isArray(payload.questions) || payload.questions.length === 0 || payload.questions.length > 4) {
+    throw new Error('render baseline-round: "questions" must be an array of 1-4 {text, candidates?}');
+  }
+  for (const [i, q] of payload.questions.entries()) {
+    if (!q || typeof q.text !== 'string' || q.text.trim() === '') {
+      throw new Error(`render baseline-round: question ${i + 1} is missing "text"`);
+    }
+    if (q.candidates !== undefined && (!Array.isArray(q.candidates) || q.candidates.length > 4 || q.candidates.some((c) => typeof c !== 'string' || c.trim() === ''))) {
+      throw new Error(`render baseline-round: question ${i + 1} "candidates" must be up to 4 non-empty strings when present`);
+    }
+  }
+  return baselineRound(payload);
+}
+
+/** @param {string} _cwd @param {object} _args @returns {string} */
+function baselineDocGateSurface(_cwd, _args) {
+  return baselineDocGate();
+}
+
+/** @param {string} cwd @param {object} _args @returns {string} */
+function baselineManageGateSurface(cwd, _args) {
+  const d = resolveBaseline(cwd, 'baseline-manage-gate');
+  if (d.status !== 'completed') {
+    throw new Error(`render baseline-manage-gate: the baseline is "${d.status}", not completed — manage serves a completed assessment`);
+  }
+  return baselineManageGate();
+}
+
+/** The one-time offer gate — only sensible while the baseline was never started. @param {string} cwd @param {object} _args @returns {string} */
+function baselineOfferGateSurface(cwd, _args) {
+  const d = baselineState(cwd);
+  if (d.status !== 'none') {
+    throw new Error(`render baseline-offer-gate: the baseline is "${d.status}" — the offer fires once, before anything is recorded`);
+  }
+  return baselineOfferGate();
+}
+
+/** @param {string} cwd @param {object} _args @returns {string} */
+function baselineDocPickSurface(cwd, _args) {
+  const d = resolveBaseline(cwd, 'baseline-doc-pick');
+  if (d.status !== 'completed') {
+    throw new Error(`render baseline-doc-pick: the baseline is "${d.status}", not completed`);
+  }
+  return baselineDocPick();
+}
+
 /** The catalogue: surface name → handler. @type {Record<string, (cwd: string, args: {dotpath: string} & Record<string, string|undefined>) => string>} */
 const SURFACES = {
   'resume-gate': resumeGate,
@@ -1431,12 +2153,19 @@ const SURFACES = {
   'findings-summary': findingsSummary,
   'finding-batch': findingBatch,
   'finding': finding,
+  'review-presentation': reviewPresentation,
+  'review-gate': reviewGate,
   'triage-announce': triageAnnounce,
   'triage-offer': triageOffer,
   'triage-block': triageBlock,
   'reroute-offer': rerouteOffer,
   'reroute-candidates': rerouteCandidates,
+  'off-topic-offer': offTopicOffer,
   'proposed-task': proposedTask,
+  'incoherence-gate': incoherenceGate,
+  'cancel-cascade-gate': cancelCascadeGate,
+  'resurface-gate': resurfaceGate,
+  'construction-gate': constructionGate,
   'tasks-overview': tasksOverview,
   'author-task-gate': authorTaskGate,
   'phase-tree': phaseTree,
@@ -1446,9 +2175,10 @@ const SURFACES = {
   'early-completion-gate': earlyCompletionGate,
   'revisit-gate': revisitGate,
   'epic-all-done-gate': epicAllDoneGate,
+  'task-brief': taskBrief,
+  'task-result': taskResult,
   'task-gate': taskGate,
   'fix-gate': fixGate,
-  'fix-threshold': fixThreshold,
   'blocked-tasks': blockedTasks,
   'cycle-limit': cycleLimit,
   'cycle-gate': cycleGate,
@@ -1461,6 +2191,16 @@ const SURFACES = {
   'absorb-target': absorbTarget,
   'plan-topics': planTopics,
   'revisit-phases': revisitPhasesSurface,
+  'baseline-progress': baselineProgressSurface,
+  'baseline-area-gate': baselineAreaGateSurface,
+  'baseline-paused': baselinePausedSurface,
+  'baseline-receipt': baselineReceiptSurface,
+  'baseline-scope-gate': baselineScopeGateSurface,
+  'baseline-round': baselineRoundSurface,
+  'baseline-doc-gate': baselineDocGateSurface,
+  'baseline-manage-gate': baselineManageGateSurface,
+  'baseline-doc-pick': baselineDocPickSurface,
+  'baseline-offer-gate': baselineOfferGateSurface,
 };
 
 /**

@@ -57,12 +57,14 @@ function assertLegalWrite(phase, status) {
  * @property {string|null} committed  short commit sha, or null when nothing was staged
  * @property {string} [note]     set when committed is null
  * @property {string[]} warnings non-blocking failures (knowledge-base sync)
+ * @property {string[]} [cascaded]  started spec items cancelled with their source (cancel --cascade)
+ * @property {string[]} [discarded] proposed groupings deleted with their source (cancel --cascade)
  */
 
 /**
  * The phase item for `topic`, or a loud error.
  * @param {object} manifest @param {string} phase @param {string} topic
- * @returns {{status?: string, previous_status?: string, superseded_by?: string}}
+ * @returns {{status?: string, previous_status?: string, superseded_by?: string, sources?: Record<string, {status?: string}>|Array<{name?: string, status?: string}>}}
  */
 function phaseItem(manifest, phase, topic) {
   assertLegalWrite(phase, 'cancelled');
@@ -191,6 +193,20 @@ function nextConcernNumber(dirAbs) {
 const TERMINAL_STATUSES = ['cancelled', 'superseded', 'promoted'];
 
 /**
+ * A spec item's `sources` as `[name, row]` entries — the one decoder of the
+ * map form and the legacy array form. Rows that aren't objects are dropped.
+ * @param {object|Array<{name?: string, status?: string}>|undefined} sources
+ * @returns {[string, {status?: string}][]}
+ */
+function sourceRows(sources) {
+  if (!sources || typeof sources !== 'object') return [];
+  const entries = Array.isArray(sources)
+    ? sources.map((r) => /** @type {[string, unknown]} */ ([r && typeof r === 'object' ? r.name || '' : '', r]))
+    : Object.entries(sources);
+  return /** @type {[string, {status?: string}][]} */ (entries.filter(([, r]) => r && typeof r === 'object'));
+}
+
+/**
  * The `topic`-named row of a spec item's `sources`, object or legacy array
  * form, or undefined.
  * @param {object|Array<{name?: string}>|undefined} sources
@@ -198,11 +214,8 @@ const TERMINAL_STATUSES = ['cancelled', 'superseded', 'promoted'];
  * @returns {{status?: string}|undefined}
  */
 function sourceRow(sources, topic) {
-  if (!sources || typeof sources !== 'object') return undefined;
-  const row = Array.isArray(sources)
-    ? sources.find((s) => s && typeof s === 'object' && s.name === topic)
-    : sources[/** @type {keyof typeof sources} */ (topic)];
-  return row && typeof row === 'object' ? row : undefined;
+  const entry = sourceRows(sources).find(([name]) => name === topic);
+  return entry ? entry[1] : undefined;
 }
 
 /**
@@ -216,9 +229,11 @@ function sourceRow(sources, topic) {
  * triage landing, never the later re-completion. One hop only: the downstream
  * phase's own reconciliation earns (or doesn't earn) the next.
  *
- * Discussion's downstream is the reverse join through spec `sources` (a
- * grouped spec's own name may differ from the discussion's); every other
- * phase flags the same-named item in the work type's next pipeline phase.
+ * A source phase's downstream — discussion or investigation — is the reverse
+ * join through spec `sources` (a grouped spec's own name may differ from the
+ * source's); every other phase flags the same-named item in the work type's
+ * next pipeline phase, as does an investigation no spec's sources name (the
+ * legacy bugfix shape).
  * Only a `completed` item takes the flag (value = the upstream phase name,
  * consumed and cleared by the entry skills' reconcile advisory; an existing
  * flag is never clobbered). An `incorporated` source row on any non-terminal
@@ -231,9 +246,10 @@ function sourceRow(sources, topic) {
  * @param {string} workType
  * @param {string} phase  the phase going stale
  * @param {string} topic
+ * @param {{except?: string}} [opts]  spec item to skip in the discussion join — the invoking spec's own extraction is current by construction
  * @returns {DownstreamFlagResult}
  */
-function flagDownstream(manifest, workType, phase, topic) {
+function flagDownstream(manifest, workType, phase, topic, opts = {}) {
   /** @type {DownstreamFlagResult} */
   const result = { flagged: [], staled: [] };
   const itemsOf = (p) => {
@@ -248,18 +264,21 @@ function flagDownstream(manifest, workType, phase, topic) {
     }
   };
 
-  if (phase === 'discussion') {
+  if (phase === 'discussion' || phase === 'investigation') {
+    let joined = false;
     for (const [name, item] of Object.entries(itemsOf('specification') || {})) {
+      if (name === opts.except) continue;
       if (!item || typeof item !== 'object' || TERMINAL_STATUSES.includes(item.status)) continue;
       const row = sourceRow(item.sources, topic);
       if (!row) continue;
+      joined = true;
       if (row.status === 'incorporated') {
         row.status = 'stale';
         result.staled.push(name);
       }
       flag('specification', name, item);
     }
-    return result;
+    if (phase === 'discussion' || joined) return result;
   }
 
   const pipeline = WORK_TYPE_PIPELINES[/** @type {keyof typeof WORK_TYPE_PIPELINES} */ (workType)] || [];
@@ -430,8 +449,8 @@ function triageTopic(cwd, workUnit, phase, topic, opts = {}) {
  * @returns {TopicQueueResult}
  */
 function queueStatus(cwd, workUnit, phase, topic) {
-  if (phase !== 'research' && phase !== 'discussion') {
-    throw new Error(`triage queues exist for research|discussion only — got "${phase}"`);
+  if (phase !== 'research' && phase !== 'discussion' && phase !== 'investigation') {
+    throw new Error(`triage queues exist for research|discussion|investigation only — got "${phase}"`);
   }
   assertLegalTopicName(topic);
   if (!fs.existsSync(path.join(cwd, '.workflows', workUnit))) {
@@ -535,6 +554,14 @@ function completeTopic(cwd, workUnit, phase, topic) {
       const to = 'promoted_to' in item ? ` (to "${item.promoted_to}")` : '';
       throw new Error(`${phase} item "${topic}" is promoted${to} — promotion is terminal; continue it from the cross-cutting work unit`);
     }
+    if (phase === 'specification') {
+      const blocking = sourceRows(item.sources)
+        .filter(([, r]) => r.status !== 'incorporated')
+        .map(([name]) => name);
+      if (blocking.length > 0) {
+        throw new Error(`specification "${topic}" has unresolved source rows (${blocking.join(', ')}) — extract pending sources and reconcile stale ones before concluding`);
+      }
+    }
     item.status = 'completed';
 
     saveWorkUnitManifest(cwd, workUnit, manifest);
@@ -592,6 +619,51 @@ function reopenTopic(cwd, workUnit, phase, topic) {
     if (fd.flagged.length > 0) result.reconcile_flagged = fd.flagged;
     if (fd.staled.length > 0) result.sources_staled = fd.staled;
     return result;
+  });
+}
+
+/**
+ * @typedef {object} StaleSourcesResult
+ * @property {string} discussion
+ * @property {{phase: string, topic: string}[]} flagged  completed specs now carrying `reconcile_needed`
+ * @property {string[]} staled  spec items whose source row for the discussion flipped `incorporated` → `stale`
+ */
+
+/**
+ * Mark every spec extraction of a discussion stale after its document moved
+ * without a lifecycle transition — the spec-side resolution flow's safety
+ * valve: a decision repaired in place during specification construction runs
+ * the same reverse join a reopen would, minus the reopen. `--except` names
+ * the invoking spec, whose own extraction of the resolution is current by
+ * construction. The discussion item's status is untouched. No git commit —
+ * the calling flow commits the doc edit alongside.
+ * @param {string} cwd project root
+ * @param {string} workUnit
+ * @param {string} discussion
+ * @param {{except?: string}} [opts]
+ * @returns {StaleSourcesResult}
+ */
+function staleSources(cwd, workUnit, discussion, opts = {}) {
+  return withWorkUnitLock(cwd, workUnit, () => {
+    const manifest = loadWorkUnitManifest(cwd, workUnit);
+    const itemsOf = (/** @type {string} */ p) => {
+      const ph = manifest.phases && typeof manifest.phases === 'object' ? manifest.phases[p] : undefined;
+      const items = ph && typeof ph === 'object' ? ph.items : undefined;
+      return items && typeof items === 'object' ? items : undefined;
+    };
+    const discussions = itemsOf('discussion');
+    if (!discussions || !(discussion in discussions)) {
+      throw new Error(`discussion item "${discussion}" not found in work unit "${workUnit}"`);
+    }
+    // A mistyped --except would silently stale the invoking spec's own row —
+    // the exact self-inflicted state the flag exists to prevent. Loud beats
+    // silent: the named spec must exist.
+    if (opts.except !== undefined && !((itemsOf('specification') || {})[opts.except])) {
+      throw new Error(`--except "${opts.except}" names no specification item in work unit "${workUnit}"`);
+    }
+    const fd = flagDownstream(manifest, manifest.work_type, 'discussion', discussion, { except: opts.except });
+    saveWorkUnitManifest(cwd, workUnit, manifest);
+    return { discussion, flagged: fd.flagged, staled: fd.staled };
   });
 }
 
@@ -670,19 +742,53 @@ function supersedeTopic(cwd, workUnit, phase, topic, { by }) {
  * Cancel an epic topic: stash the current status into `previous_status`, set
  * `status: cancelled`, drop the topic's discovery-map `order`, remove its
  * knowledge-base chunks (warn-don't-block), commit scoped to the work unit.
+ *
+ * Cancelling a discussion a live specification sources collapses that spec:
+ * the bare cancel refuses, naming the affected spec item(s); `cascade: true`
+ * cancels the discussion and those spec items in one transaction.
  * @param {string} cwd project root
  * @param {string} workUnit
  * @param {string} phase
  * @param {string} topic
+ * @param {{cascade?: boolean}} [opts]
  * @returns {TopicTransitionResult}
  */
-function cancelTopic(cwd, workUnit, phase, topic) {
+function cancelTopic(cwd, workUnit, phase, topic, opts = {}) {
+  /** @type {string[]} */
+  const cascaded = [];
+  /** @type {string[]} */
+  const discarded = [];
   withWorkUnitLock(cwd, workUnit, () => {
     const manifest = loadWorkUnitManifest(cwd, workUnit);
     const item = phaseItem(manifest, phase, topic);
     if (item.status === 'cancelled') {
       throw new Error(`${phase} item "${topic}" is already cancelled`);
     }
+
+    if (phase === 'discussion' || phase === 'investigation') {
+      const specItems = (manifest.phases && manifest.phases.specification && manifest.phases.specification.items) || {};
+      const sourcing = Object.entries(specItems).filter(([, s]) =>
+        s && typeof s === 'object' && !TERMINAL_STATUSES.includes(s.status) && s.status !== 'cancelled'
+        && sourceRow(s.sources, topic) !== undefined);
+      if (sourcing.length > 0 && !opts.cascade) {
+        throw new Error(`cancelling ${phase} "${topic}" collapses the specification(s) sourcing it: ${sourcing.map(([n]) => n).join(', ')} — confirm the cascade (--cascade cancels them together)`);
+      }
+      const specItemsMap = (manifest.phases && manifest.phases.specification && manifest.phases.specification.items) || {};
+      for (const [name, spec] of sourcing) {
+        if (spec.status === 'proposed') {
+          // A proposed grouping is a regenerable suggestion — discard it
+          // outright; a cancelled stub would collide with the next
+          // analysis's anchoring.
+          delete specItemsMap[name];
+          discarded.push(name);
+          continue;
+        }
+        spec.previous_status = spec.status;
+        spec.status = 'cancelled';
+        cascaded.push(name);
+      }
+    }
+
     item.previous_status = item.status;
     item.status = 'cancelled';
 
@@ -701,10 +807,15 @@ function cancelTopic(cwd, workUnit, phase, topic) {
   /** @type {string[]} */
   const warnings = [];
   knowledge(cwd, ['remove', '--work-unit', workUnit, '--phase', phase, '--topic', topic], 'knowledge remove', warnings);
+  for (const name of cascaded) {
+    knowledge(cwd, ['remove', '--work-unit', workUnit, '--phase', 'specification', '--topic', name], 'knowledge remove', warnings);
+  }
 
   const outcome = commitTailWithKb(cwd, `.workflows/${workUnit}`, `workflow(${workUnit}): cancel ${topic} (${phase})`, warnings);
   /** @type {TopicTransitionResult} */
   const result = { topic, phase, status: 'cancelled', committed: outcome.committed, warnings };
+  if (cascaded.length > 0) result.cascaded = cascaded;
+  if (discarded.length > 0) result.discarded = discarded;
   noteCommitOutcome(result, outcome);
   return result;
 }
@@ -760,4 +871,4 @@ function reactivateTopic(cwd, workUnit, phase, topic) {
   return result;
 }
 
-module.exports = { startTopic, triageTopic, queueStatus, absorbConcern, completeTopic, reopenTopic, supersedeTopic, cancelTopic, reactivateTopic };
+module.exports = { startTopic, triageTopic, queueStatus, absorbConcern, completeTopic, reopenTopic, staleSources, supersedeTopic, cancelTopic, reactivateTopic, sourceRows };
