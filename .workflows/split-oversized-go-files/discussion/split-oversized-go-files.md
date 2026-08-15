@@ -81,13 +81,17 @@ This means the standard is not being invented. It is being written down, and the
 
 It also shows the tree's test convention is *not* a mirror of production files: it is one purpose-named file per behaviour area, and it is finer-grained than production. `cmd/open_targets.go` is 75 lines and carries two test files (`open_targets_test.go`, `open_targets_guard_test.go`). The monsters violate that convention by being named for a *file* rather than for a behaviour.
 
+**The test rule was put as a fork and resolved toward the tree.** Two formulations were available: *a test file mirrors its production file* (simple, predictable, no judgment call — but it would force `open_targets_test.go` to absorb `open_targets_guard_test.go`, undoing a split the tree deliberately made), or *one purpose-named test file per behaviour area* (what the tree actually practises, finer-grained, at the cost of "behaviour area" being a judgment call the mirror rule avoids). The user took the behaviour-area form, on the principle that **file count is cheap** — ten small test files are preferable to one large one. That principle is worth carrying beyond the test rule: it means no lower bound is wanted, and a proposed split is never rejected on grounds of "that's too many files".
+
 ### Decision
 
-*(converging — shape and prod/test split agreed; the exact formulation of the test-side rule is open)*
+*(converging — shape, prod/test split, and the test-side rule agreed; the derivation of the production number, the operative form of the cohesion half, and what "justify itself" concretely means remain open)*
 
 - **Shape: C.** The standard is a cohesion rule — one concern per file within a package — with a line count acting as a tripwire that presumes a violation and demands justification, never as a violation in itself.
 - **Rationale is context cost, not line count.** A file too large to read in one pass forces chunked reads and burns context; a production file usually must be understood before editing, so it pays that cost in full, while a test file is usually appended to and reachable surgically.
 - **The tripwire differs by file kind** for that reason: stricter for production, looser for tests. Working values: production 800 (the observed cliff in Portal's own tree), tests 2,000 (the agent read window; selects exactly the four seed-named monsters).
+- **The test-side rule is behaviour-area, not mirror.** A test file is named for the behaviour it covers, not derived from a production filename — one purpose-named test file per behaviour area, which is what the tree already practises and is finer-grained than the production file layout. The four monsters violate it by being named for a file rather than a behaviour.
+- **File count is cheap.** Many small files beat one large one; there is no lower bound and no "too many files" objection to a proposed split.
 
 ---
 
