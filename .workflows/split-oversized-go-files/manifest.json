@@ -15,7 +15,7 @@
               "parent": null
             },
             "sweep-scope": {
-              "status": "pending",
+              "status": "exploring",
               "parent": null
             },
             "seam-selection": {

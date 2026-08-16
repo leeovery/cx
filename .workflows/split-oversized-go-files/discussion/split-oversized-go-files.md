@@ -159,6 +159,43 @@ A hook for `claude-md-and-enforcement`, not decided here: the marker can serve a
 
 ---
 
+## Sweep Scope
+
+### Context
+
+What this release actually changes. The inherited framing is "as far as is practical, in the same release", which anticipates not finishing — but the standard's own machinery constrains how an unfinished sweep can be expressed.
+
+### Journey
+
+**The `// portal:oversized` marker cannot be used to defer, and that forces the posture choice.** Its contract is that it states the single concern the file owns, so a later reader can falsify it. A monster cannot make that claim — "this is a bucket and we have not got to it yet" is an admission, not a rebuttal. So there is no honest way to ship the standard while leaving known violators marked-and-standing, and the release must pick between making the tripwire true on day one and shipping the standard as forward-looking with a backlog.
+
+**Posture chosen: make the mechanical detector true on day one.** The scope is everything over the 1,000-line tripwire — `model.go` plus the fourteen test files over the line — **34,370 lines across 15 files in 8 packages** (`internal/tui`, `internal/tmux`, `cmd`, `cmd/bootstrap`, `internal/state`, `internal/hooks`, `internal/resolver`, `internal/theme`). The line falls out of the two detectors: the tripwire is the mechanical half, so it can be made true and then held by a guard; the exclusion test is the human half by construction, so it applies to work as it happens. A guard born with a fifteen-entry exemption list protects nothing.
+
+**Accepted consequence, stated rather than discovered later:** `internal/tmux/tmux.go` (775) and `cmd/open.go` (735) are **not** in scope. Both fail the exclusion test plainly, and both stay as they are — possibly for a long time — because the human detector only bites on code someone is already editing. The alternative is hand-auditing 275 production files before release, which is not practical.
+
+### The mechanical-safety question, measured
+
+The concern raised was whether changing tests risks production behaviour — and specifically whether the split is genuine cut-and-paste or whether it forces mid-function cuts and helper re-derivation. Measured against the four monsters:
+
+- **Helpers do not move, and that is the load-bearing fact.** Go test files in one package share a single scope, so a helper defined in `model_test.go` stays visible to a test relocated into a new sibling. Nothing is re-derived or duplicated. This matters given the density: `cmd/open_test.go` carries 47 non-test top-level funcs and 23 package-level vars, `portal_saver_test.go` 42 helpers.
+- **No mid-function splitting is required.** Largest test function per file: `portal_saver_test.go` 77 lines, `open_test.go` 234, `tmux_test.go` 274. `model_test.go` is the outlier — `TestCommandPendingMode` 479, `TestProjectsPage` 443, `TestLoadingPage` 415 — but each is already a behaviour area and moves whole. The unit of movement is the entire `func TestX`.
+- **No build tags on any of the four**, so the integration-lane hazard (a `//go:build integration` tag failing to ride along to a new sibling, silently moving a test between lanes) does not apply to these files. It still applies to any tagged file a later split touches.
+
+### The one real risk, now measured rather than hypothesised
+
+Go runs tests in source order, and files in lexical filename order, so **splitting changes execution order**. The `cmd` package injects mocks through package-level mutable state (`openDeps`, `bootstrapDeps`, `doctorDeps`) cleaned via `t.Cleanup()`; a leaked cleanup makes a test order-dependent, and reordering exposes it — arriving mid-refactor looking exactly like sweep damage.
+
+`go test -shuffle=on` measures this in advance. Run across the tree:
+
+- **Every package passes shuffled except `cmd`** — including `internal/tui` and `internal/tmux`, the two largest sweep targets.
+- **`cmd` fails intermittently, on roughly one shuffle order in three.** Reproduced: `TestCompletionHidesInternalSurface/top-level completion excludes the hidden state namespace` fails with `candidates=[]` — top-level completion offering nothing at all, meaning an earlier test mutated the root command and did not restore it. Five `cmd` test files mutate the root command, `open_test.go` among them.
+
+This is a **pre-existing latent bug**, present today and independent of any split. The finding converts the sweep's ordering risk from unknown to located: it is confined to one package, and it is visible before a line moves.
+
+**`go test -shuffle=on` becomes the sweep's verification gate** — run per package before and after a split. Green before and after proves both that the move preserved behaviour and that it introduced no order coupling. Shuffle-clean before splitting is the precondition; `cmd` does not currently meet it.
+
+---
+
 ## Refactor Safety
 
 ### Context
