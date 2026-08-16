@@ -95,9 +95,26 @@ That kills 2,000 as a standard: it would never trip a single behaviour-named fil
 
 The second detector is name-shaped rather than line-shaped, and it generalises the finding that produced the test rule. The same pattern is visible on the production side within one package: every file in `internal/tui` is named for a behaviour or a component — `notice_band.go`, `burst_progress.go`, `loading_view.go`, `session_item.go`, `edit_modal.go`, `pagepreview.go`, all 284–433 lines — except `model.go`, which is named after a *type* and is eight times larger than the next biggest. `internal/tmux/tmux.go` is named after its package. Two production data points, so suggestive rather than proven, but pointing the same way the test-side evidence did.
 
-This also supplies the operative content the cohesion half was missing: **"one concern per file" is tested by asking whether the file can be named after the one behaviour it owns.** A file that cannot is holding more than one, at any size. `tmux.go` fails it at 775 lines, where the line tripwire says nothing.
+This also supplies the operative content the cohesion half was missing — the objection that sank option B *(resolves review-001 F2)*. The first formulation was "the file can be named after the one behaviour it owns", and it was **too loose, in the over-indicting direction**: measured against the tree, **217 of 595 test files are mirror-named**, and 173 of those are under 500 lines. `internal/project/pathkey_test.go` beside a small `pathkey.go` is a perfectly good file. Read literally, a rule against mirror-naming indicts 217 files to fix about a dozen.
 
-An implication for `sweep-scope`, not decided here: the sweep's candidate set is no longer "everything over the line" — a file can fail the naming test while sitting under 1,000.
+Mirror-naming is therefore a **correlate, not the property** — it correlates because a production filename is usually the broadest label available for that material. The property actually doing the work is whether the name *excludes* anything:
+
+> A file's name must be specific enough to exclude things. If material that plausibly belongs in the package could be dropped into the file without contradicting its name, the name is a bucket label and the file will grow without bound.
+
+It separates every case examined so far, in both directions:
+
+| File | Could plausible new material go in without contradicting the name? | Verdict |
+|---|---|---|
+| `cmd/theme_test.go` (1,035) | yes — any theme-command test | bucket |
+| `internal/tui/theme_panel_geometry_test.go` (997) | no — commit tests contradict it | bounded |
+| `internal/tui/model.go` (3,448) | yes — any TUI code | bucket |
+| `internal/tui/notice_band.go` (284) | no | bounded |
+| `internal/tmux/tmux.go` (775) | yes — any client method | bucket |
+| `internal/project/pathkey_test.go` | no | bounded, and mirror-named |
+
+It also explains the mirror correlation rather than merely observing it: `theme` is a poor name not because it matches a filename but because nothing theme-related contradicts it. Accepted cost: "could this plausibly go in?" remains a judgment call — sharper than "one concern", but not mechanical, and two readers could differ on a borderline name. That is not avoidable; the tripwire is the mechanical half, and this is the half that needs a person.
+
+An implication for `sweep-scope`, not decided here: the sweep's candidate set is no longer "everything over the line" — a file can fail the exclusion test while sitting under 1,000.
 
 ### Decision
 
@@ -105,8 +122,8 @@ An implication for `sweep-scope`, not decided here: the sweep's candidate set is
 
 - **Shape: C.** The standard is a cohesion rule — one concern per file within a package — with a line count acting as a tripwire that presumes a violation and demands justification, never as a violation in itself.
 - **Rationale is context cost, not line count.** A file too large to read in one pass forces chunked reads and burns context; a production file usually must be understood before editing, so it pays that cost in full, while a test file is usually appended to and reachable surgically.
-- **Two detectors, not one.** A line tripwire and a naming test, working at different scales. The line tripwire catches files that have grown past the point of being readable in one pass; the naming test catches files holding more than one concern at *any* size, which is the majority of the tree and the whole range the tripwire is blind to.
-- **The naming test is the operative form of the cohesion rule.** "One concern per file" is tested by asking whether the file can be named after the one behaviour it owns — a file that cannot is holding more than one. This is what makes C more than a ceiling: it bites below the line, where the tripwire is silent (`internal/tmux/tmux.go`, 775 lines, seven-odd concerns, permanently compliant with the number).
+- **Two detectors, not one.** A line tripwire and a name-exclusion test, working at different scales. The tripwire catches files grown past being readable in one pass; the exclusion test catches files holding more than one concern at *any* size — the majority of the tree, and the whole range the tripwire is blind to.
+- **The exclusion test is the operative form of the cohesion rule.** *A file's name must be specific enough to exclude things. If material that plausibly belongs in the package could be dropped into the file without contradicting its name, the name is a bucket label and the file will grow without bound.* This is what makes C more than a ceiling: it bites below the line, where the tripwire is silent (`internal/tmux/tmux.go`, 775 lines, seven-odd concerns, permanently compliant with the number). Mirror-naming is a correlate of failure, never the test itself — 217 of 595 test files are mirror-named and most are perfectly well-bounded.
 - **One tripwire, 1,000 lines, both file kinds.** Set just above the band Portal's own well-named files already occupy (production tops at 775; behaviour-named test files at 997), so a properly-organised file essentially never trips. The earlier two-number split (production 800 / tests 2,000) is dropped: 2,000 would never fire on anything the tree does, and 200 lines of separation did not earn a second number.
 - **The prod/test difference lives in the burden of rebuttal, not in the number.** A test file that trips can usually justify itself in a sentence (table-driven cases, fixture setup); a production file that trips usually cannot. Same detector, different burden of proof — which preserves the read-cost asymmetry without a second threshold.
 - **The number is a procedural attention device, not a quality metric.** Its job is to make someone stop and check, because cohesion is hard to judge and otherwise nobody does. It is never the thing being satisfied — a file under 1,000 is not thereby well-organised.
