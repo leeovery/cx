@@ -116,6 +116,27 @@ It also explains the mirror correlation rather than merely observing it: `theme`
 
 An implication for `sweep-scope`, not decided here: the sweep's candidate set is no longer "everything over the line" — a file can fail the exclusion test while sitting under 1,000.
 
+**The rebuttal was given a durable home, because without one the shape is not C at all** *(resolves review-001 F3)*. Presumption-and-rebuttal is the entire practical difference between this shape and a plain ceiling: remove the ability to record a rebuttal and the tripwire behaves as a hard limit; leave the rebuttal implicit and it behaves as the pure cohesion rule already rejected for decaying. The document had defined the tripwire to the line and left "has to justify itself" undefined.
+
+The worked case: `internal/capture/fixtures.go` is 762 lines and grows by construction — every new TUI screen contributes a fixture. Say it reaches 1,150. It trips, someone establishes it genuinely is one concern (table-shaped fixture definitions, the "repetitive by construction" case), and moves on. Six weeks later an agent opens it, sees 1,150 lines, and redoes the whole analysis. Then the next one does. **That re-litigation is precisely the context cost the standard exists to remove**, so the rebuttal must be durable.
+
+The standard's own rationale picks the location: **in the file**. Any other home — an allow-list, a doc, a commit message — forces a second read to answer a question raised by the first; in the file, the answer rides the read already being made. This fits the surviving convention rather than reversing the comment-strip sweep: 90 of 870 Go files still carry a leading doc comment.
+
+The justification **states the concern the file claims to own**, so a later reader can falsify it by reading rather than having to trust it. A bare "large on purpose" rots silently — the file gains a second concern and the old note keeps vouching for it.
+
+**On drift detection, the governing principle is: record nothing that must be updated when the file changes.** Candidates weighed — a content hash self-invalidates on every edit including a typo in the marker itself (and cannot include itself without excluding its own line), a line count is a poor proxy in both directions (a file can absorb a whole new concern at net-zero line change, or grow 200 lines of the same table and look drifted when nothing changed), and mtime is not committed and is reset by checkout. All three share the fatal property that they must be maintained, and across a set of perhaps three to eight marked files over years they will not be — an unmaintained staleness marker is worse than none, because it lies.
+
+What survives are fields that are true at tagging time and never need touching: the **date** and the **commit verified against**. Both stay honest forever — they assert "this claim was checked against this state", and going stale is information rather than an error. The commit reference is strictly better than a hash: it does not self-invalidate, and it yields the actual diff (`git diff <sha>..HEAD -- <file>`) rather than a boolean. The date is nearly redundant against the commit but is kept because it reads at a glance with no tooling.
+
+Adopted form — a greppable prefix (no `portal:` comment pragma exists in the tree today, so the namespace is free):
+
+```go
+// portal:oversized 2026-08-16 @ f238265 — Fixture definitions only; each TUI
+// screen contributes one. No logic lives here.
+```
+
+A hook for `claude-md-and-enforcement`, not decided here: the marker can serve as its own allow-list — a guard walking `.go` files and flagging anything over 1,000 without the marker needs no separate list, and grep is the enumeration. That also answers the objection that in-file justifications are not enumerable.
+
 ### Decision
 
 *(converging — shape, the single tripwire, the two detectors, and the test-side rule agreed; what "justify itself" concretely means remains open)*
@@ -128,6 +149,8 @@ An implication for `sweep-scope`, not decided here: the sweep's candidate set is
 - **The prod/test difference lives in the burden of rebuttal, not in the number.** A test file that trips can usually justify itself in a sentence (table-driven cases, fixture setup); a production file that trips usually cannot. Same detector, different burden of proof — which preserves the read-cost asymmetry without a second threshold.
 - **The number is a procedural attention device, not a quality metric.** Its job is to make someone stop and check, because cohesion is hard to judge and otherwise nobody does. It is never the thing being satisfied — a file under 1,000 is not thereby well-organised.
 - **The test-side rule is behaviour-area, not mirror.** A test file is named for the behaviour it covers, not derived from a production filename — one purpose-named test file per behaviour area, which is what the tree already practises and is finer-grained than the production file layout. This is load-bearing rather than cosmetic: a mirror name is unbounded by construction (nothing about "tests for X.go" ever says the file is full), while a behaviour name is self-limiting. Every test file in the tree over 1,000 lines is mirror-named; none of the behaviour-named ones has run away.
+- **A trip is rebutted in the file, with a `// portal:oversized {date} @ {commit} — {claim}` marker.** The claim names the single concern the file owns, so a later reader can falsify it by reading. The location follows from the standard's own rationale: a rebuttal stored anywhere else forces a second read to answer a question raised by the first.
+- **The marker records only fields that never need updating** — date and verified-at commit. No content hash, line count, or mtime: each must be maintained on every edit, and across a handful of files over years it will not be. A stale marker that lies is worse than no marker; a date and a commit that simply age are honest, and yield the diff on demand.
 - **File count is cheap.** Many small files beat one large one; there is no lower bound and no "too many files" objection to a proposed split.
 
 ---
