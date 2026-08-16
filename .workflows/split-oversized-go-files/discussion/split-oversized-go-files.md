@@ -186,6 +186,34 @@ Reading the two the review cited showed they fail in **opposite** ways, which is
 
 ---
 
+## Claude Md And Enforcement
+
+### Context
+
+`CLAUDE.md` is the standard's destination — the point of the work is that the discipline holds for future contributors and agents, which requires it written down where they read. It is also, uniquely, the one document loaded into **every** session's context unconditionally, which makes its size a permanent cost rather than a per-read one.
+
+### Journey
+
+**The document is simultaneously the standard's home and the sweep's collateral** *(resolves review-001 F7)*. It names **69 distinct `.go` files across 84 mentions**, and several are claims a `model.go` split falsifies directly: `model.go`'s `rebuildSessionList` is described as "the single mode-aware re-render chokepoint" in two separate sections, and the outer canvas fill as "the last layer in `model.go`'s `View`". The same release therefore writes a file-organisation standard into the document and invalidates file-level claims already in it.
+
+That half was called rather than debated: updating them is in scope. A stale map costs exactly what the standard exists to save — an agent trusts `CLAUDE.md`, goes to `model.go` for `rebuildSessionList`, and does not find it. Leaving it stale contradicts the rationale every other decision here rests on.
+
+**The second half is an own-goal risk that only appeared once the references were counted.** `CLAUDE.md` is organised *by file*. If the sweep turns `model.go` into eight files and the convention is followed, the document gains eight entries; multiplied across the sweep it grows — and it is the one document whose cost is paid unconditionally on every run. A standard justified entirely by reducing context cost would, run through the existing documentation convention, *increase* the only context cost that is never optional.
+
+### Decision
+
+- **Stale file-level claims are corrected as part of the sweep**, not left to fall out silently. Derivation: a map an agent trusts and that is wrong costs more than the read the standard saves.
+- **`CLAUDE.md` is restructured away from file-indexing.** It describes **concerns and invariants**, naming a file only where the file itself is load-bearing — a guard that must not be dropped, a chokepoint everything routes through, an explicit "do not touch this". Filenames stop being the organising key.
+- **The naming standard is what makes that affordable.** Once files are named for the behaviour they own, the filename is *predictable* — the notice-band code is in `notice_band.go` — so an index is redundant rather than merely expensive. What is lost is "where does X live?" lookup from the document; grep and gopls answer that better, and without rotting.
+
+### Open in this subtopic
+
+- Whether anything mechanically enforces the 1,000-line tripwire (a guard test walking `.go` files and flagging any over the line without the `// portal:oversized` marker — the marker would serve as its own allow-list, with grep as the enumeration).
+- Routed here from `refactor-safety`: whether concern-pinning guards (`applyThemeCallSitesIn(…) == 0` encoding "this file does not own that concern") are adopted as a mechanism for the exclusion test, or left as an available tool where a boundary is load-bearing. The exclusion test was settled as a human check, so a general obligation would be out of proportion.
+- The exact wording of the standard as it lands in `CLAUDE.md`.
+
+---
+
 ## Summary
 
 ### Key Insights
