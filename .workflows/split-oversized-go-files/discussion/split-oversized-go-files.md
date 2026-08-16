@@ -194,6 +194,17 @@ This is a **pre-existing latent bug**, present today and independent of any spli
 
 **`go test -shuffle=on` becomes the sweep's verification gate** — run per package before and after a split. Green before and after proves both that the move preserved behaviour and that it introduced no order coupling. Shuffle-clean before splitting is the precondition; `cmd` does not currently meet it.
 
+**The `cmd` fork was taken toward fixing the leak rather than dropping the package.** The alternative was excluding `cmd` from the sweep, which would have cut the scope from fifteen files to nine — but `cmd` holds six of the fourteen over-the-line test files (`open_test.go` 3,581, `state_hydrate_test.go` 1,849, `doctor_test.go` 1,495, `state_daemon_run_test.go` 1,217, `state_commit_now_test.go` 1,163, `theme_test.go` 1,035). Leaving them standing breaks the day-one posture, and the marker cannot honestly paper over it, so deferring `cmd` would have reinstated the forward-looking posture by the back door. Deciding factor: dropping `cmd` costs the posture that makes a guard possible at all, whereas the leak is a real bug that will bite regardless of this work.
+
+### Decision
+
+- **Scope is every Go file over the 1,000-line tripwire** — `model.go` plus the fourteen test files, 34,370 lines across 15 files in 8 packages. At release the mechanical detector is true of the whole tree.
+- **Files failing only the exclusion test are out of scope**, explicitly and knowingly — `internal/tmux/tmux.go` (775) and `cmd/open.go` (735) among them. The human detector applies to work as it happens; hand-auditing 275 production files before release is not practical.
+- **The split is a pure relocation of whole top-level test functions.** Helpers stay where they are and stay visible (one package, one scope); nothing is re-derived or duplicated; no test function is cut mid-body. Verified against all four monsters.
+- **`go test -shuffle=on` is the verification gate**, per package, before and after each split. Shuffle-clean beforehand is a precondition of splitting a package.
+- **The `cmd` order-dependency leak is fixed first, as a precondition** — its own change, independently verifiable, not folded into a split commit. It is a pre-existing test-isolation bug (an unrestored root-command mutation) in a package this work must touch.
+- Any split that touches a build-tagged file must carry `//go:build integration` to every new sibling — a dropped tag silently moves a test between lanes. None of the four monsters is tagged, so this binds only on later splits.
+
 ---
 
 ## Refactor Safety
