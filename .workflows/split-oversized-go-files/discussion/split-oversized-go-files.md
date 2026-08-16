@@ -161,6 +161,31 @@ A hook for `claude-md-and-enforcement`, not decided here: the marker can serve a
 
 ---
 
+## Refactor Safety
+
+### Context
+
+The sweep is a large mechanical move: code changes files without changing behaviour. The premise inherited from the seed is that this is free — *"files inside a package split with no import, caller or test changes"* — which is true for the compiler and load-bearing for the whole case that the work is cheap. What that premise misses is anything in the repo that is keyed to a **filename** rather than to a symbol.
+
+### Journey
+
+**The free-move premise does not hold for this repo's source guards** *(resolves review-001 F6)*. Measured: **46 test files hardcode a `.go` filename**. A share of those are temp-dir fixtures (`alpha.go`, `kept.go`, `thing.go`) and are irrelevant; the rest pin real source files — `model.go`, `tmux.go`, `theme.go`, `open.go`, `doctor.go`, `theme_panel.go`, `theme_panel_commit.go`, `restore.go`, `pagepreview.go`, `setting.go`, `state_daemon.go`, `harness.go`, `modal.go`.
+
+Reading the two the review cited showed they fail in **opposite** ways, which is the operative distinction:
+
+- **Assert-presence self-destructs, safely.** `internal/tui/pagepreview_filter_test.go` reads `model.go`, extracts `updateSessionList`'s body and counts `tea.KeySpace` occurrences. Move that function to a new sibling and the extraction returns empty, and the test does `t.Fatalf("could not locate updateSessionList in model.go")`. It fails loudly — the desired behaviour.
+- **Assert-absence goes vacuous, silently.** `internal/tui/theme_panel_commit_test.go` asserts `theme_panel_commit.go` contains *zero* `ApplyTheme` call sites. Move the commit path to a new file and the assertion still passes: it now proves that a file which no longer holds the code does not call the thing. Green suite, dead guard.
+
+**The tree already contains the countermeasure, applied to one side of a pair.** Immediately after the hollow assertion sits a companion asserting `theme_panel.go` holds *at least one* `ApplyTheme` site, commented *"it would pass over the commit path whatever that file held."* The anti-vacuity pattern was already invented here; it was simply not applied to the absence-assertion beside it.
+
+### Decision
+
+- **The sweep carries an explicit guard-audit obligation.** For every filename-pinned guard whose target file loses code, either repoint it at the file the code moved to, or give it the anti-vacuity companion the tree already demonstrates. **A green suite after the sweep is not evidence the guards still cover anything** — this is the same failure `sourceguardtest.PackageGoFiles` was built to prevent (erroring on an empty match so a guard cannot pass by having stopped looking), one level up.
+- **The audit is scoped by the distinction above**, not by the raw count: assert-presence guards announce their own breakage and need only repointing when they fire; assert-absence guards are the silent class and must be checked deliberately.
+- Routed to `claude-md-and-enforcement`, not decided here: the review's second angle — that a concern-pinning guard (`applyThemeCallSitesIn(…) == 0` is literally *"this file does not own that concern"*) could be a **mechanism** for the exclusion test rather than only a hazard. It is a real option, but the exclusion test was already settled as a human check, so making concern-boundary guards a general obligation would be out of proportion.
+
+---
+
 ## Summary
 
 ### Key Insights
