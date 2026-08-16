@@ -11,7 +11,7 @@
           "status": "in-progress",
           "subtopics": {
             "standard-shape": {
-              "status": "converging",
+              "status": "decided",
               "parent": null
             },
             "sweep-scope": {

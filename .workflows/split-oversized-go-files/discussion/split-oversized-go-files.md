@@ -145,8 +145,6 @@ A hook for `claude-md-and-enforcement`, not decided here: the marker can serve a
 
 ### Decision
 
-*(converging — shape, the single tripwire, the two detectors, and the test-side rule agreed; what "justify itself" concretely means remains open)*
-
 - **Shape: C.** The standard is a cohesion rule — one concern per file within a package — with a line count acting as a tripwire that presumes a violation and demands justification, never as a violation in itself.
 - **Rationale is context cost, not line count.** A file too large to read in one pass forces chunked reads and burns context; a production file usually must be understood before editing, so it pays that cost in full, while a test file is usually appended to and reachable surgically.
 - **Two detectors, not one.** A line tripwire and a name-exclusion test, working at different scales. The tripwire catches files grown past being readable in one pass; the exclusion test catches files holding more than one concern at *any* size — the majority of the tree, and the whole range the tripwire is blind to.
