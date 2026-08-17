@@ -260,7 +260,9 @@ These groupings are indicative rather than binding — the decision is the crite
 
 ### Decision
 
-- **A package-named file cannot earn its name and is dissolved, not reduced.** `internal/tmux/tmux.go` ceases to exist; there is no residual, because no amount of stripping makes "tmux" exclude anything inside package `tmux`.
+- **A package-named file cannot earn its name and is dissolved, not reduced.** Three in-scope files are package-named and all three cease to exist, leaving no residual, because no amount of stripping makes the package's own name exclude anything inside that package: `internal/tmux/tmux.go`, **`internal/tmux/tmux_test.go`** (3,211 — `package tmux_test`) and **`cmd/bootstrap/bootstrap_test.go`** (1,287 — `package bootstrap`).
+
+  **Settled by derivation** — not discussed. Determined by the dissolution rule already decided for `tmux.go`, plus the removal of the production/test classification, which leaves no test-file exemption to invoke (review-004 F2). The two test files were never named anywhere in this document — they and `internal/resolver/query_test.go` are the over-the-line test files the record never enumerated — which is how 4,498 of the 35,880 in-scope lines came to sit outside a rule that governs them. `query_test.go` is unaffected: its package is `resolver_test`, so its stem is not the package name.
 - **`cmd/open.go` keeps its name.** Residual: the command declaration, flag registration, `init()` and package-level vars — bounded, because resolution, path-opening, theme and TUI work all contradict it.
 - **Every in-scope file's completion condition is the exclusion test, not the tripwire.** For the two below-the-line files the tripwire was never the reason they are in scope and cannot signal that their split is done.
 - **A residual keeps its name; the split has to earn it.** Draining a bucket-named file does not require renaming the file that remains — but the remainder must be reduced until the name genuinely excludes things, judged against contents rather than against the name alone.
