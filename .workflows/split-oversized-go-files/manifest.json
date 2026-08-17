@@ -19,7 +19,7 @@
               "parent": null
             },
             "seam-selection": {
-              "status": "pending",
+              "status": "exploring",
               "parent": null
             },
             "claude-md-and-enforcement": {

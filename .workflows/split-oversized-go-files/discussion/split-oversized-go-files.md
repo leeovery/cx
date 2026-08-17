@@ -235,6 +235,29 @@ Measured: **3,706 tests in the unit lane, 3,791 with the integration tag** (85 i
 
 ---
 
+## Seam Selection
+
+### Context
+
+Where the files actually split. Go makes the mechanical half free within a package, so this is the judgement half of the work — and the exclusion test is what a proposed seam is judged against.
+
+### Journey
+
+**The residual problem: draining a bucket-named file does not fix its name** *(resolves review-002 F7)*. `model.go` is indicted by the exclusion test — named after a type, excluding nothing. Splitting it into behaviour-named siblings leaves a residual (the `Model` type, `Init`/`Update`/`View`, whatever else stays) in a file whose name still excludes nothing, so the residual would pass the tripwire and fail the exclusion test on day one, inside the sweep meant to make the standard true. A rename is not free either: `model.go` is one of the 46 filename-pinned guard targets and `CLAUDE.md` names it in two separate sections.
+
+The resolution is that **the exclusion test is evaluated against what a file holds, not against its name in the abstract** — a name can only exclude things relative to a concern. Today's `model.go` fails because it holds nine: the model type, the option constructors, list styling, sizing arithmetic, the grouping glue, the update router, the projects page and its edit modal, the sessions-page key arms, view composition, and roughly 160 lines of ANSI SGR rewriting. Stripped to the `Model` struct, `New`, and the three `tea.Model` methods, the name does exclude things — edit-modal chip logic, canvas backfill and projects-page arms all contradict it.
+
+What makes that legitimate rather than special pleading is a property that also separates the cases already judged: **does the name denote something with a natural boundary, or an open-ended subject area?** `model.go` holding the type and its interface methods is bounded by an external contract — `tea.Model` has exactly three methods and a struct is a struct, so nothing can accrete. `cmd/theme_test.go` is "everything about the theme command", bounded by nothing, which is why it reached 1,035 lines. This is the production-side form of the earlier finding that mirror names are unbounded by construction.
+
+### Decision
+
+- **A residual keeps its name; the split has to earn it.** Draining a bucket-named file does not require renaming the file that remains — but the remainder must be reduced until the name genuinely excludes things, judged against contents rather than against the name alone.
+- **Acceptance criterion for `model.go`:** post-split it holds the `Model` type, its construction, and the three `tea.Model` methods, and nothing else. If `rebuildSessionList` or the canvas-fill machinery is still there, the split is not finished. Roughly a 400–600 line residual against today's 3,448.
+- **A name is judged on whether its concern has a natural boundary.** Bounded by an external contract (an interface, a struct, a protocol) passes; an open-ended subject area ("everything about X") does not, because it can accrete indefinitely.
+- Keeping the name is what preserves the guards and `CLAUDE.md` entries that point at `model.go` — they stay valid because the file still exists and still holds the model.
+
+---
+
 ## Refactor Safety
 
 ### Context
