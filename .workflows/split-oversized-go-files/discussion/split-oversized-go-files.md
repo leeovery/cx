@@ -303,6 +303,17 @@ That half was called rather than debated: updating them is in scope. A stale map
 - **`CLAUDE.md` is restructured away from file-indexing.** It describes **concerns and invariants**, naming a file only where the file itself is load-bearing — a guard that must not be dropped, a chokepoint everything routes through, an explicit "do not touch this". Filenames stop being the organising key.
 - **The naming standard is what makes that affordable.** Once files are named for the behaviour they own, the filename is *predictable* — the notice-band code is in `notice_band.go` — so an index is redundant rather than merely expensive. What is lost is "where does X live?" lookup from the document; grep and gopls answer that better, and without rotting.
 
+**The restructure was then bounded and given a stopping condition** *(resolves review-002 F6)*. As decided it had a direction but no scope and no success criterion, and the two readings differ by an order of magnitude: the package table is **26 rows, lines 58–85, and 31% of the document by word count** (3,413 of 10,969), so a broad reading means rewriting a third of `CLAUDE.md` in the same release as a 35,880-line sweep.
+
+Measuring it also showed the document is closer to the target than the finding assumed. The table is indexed **by package**, not by file, and names files selectively within a row — the `tui` row names four (`grouping.go`, `session_item.go`, `model.go`, `restore.go`) out of roughly thirty in the package. There is no "document every file" convention to dismantle; the wanted convention is largely already the practice.
+
+With one exception, which is the precedent that matters: the theming feature's entry enumerates **ten files for one concern** (`theme_panel.go`, `theme_panel_geometry.go`, `theme_panel_render.go`, `theme_panel_commit.go`, `theme_panel_confirm.go`, `theme_panel_message.go`, `theme_panel_footer.go`, `theme_row.go`, `theme_seams.go`, `theme_state.go`). That is what happened the last time a concern was split into siblings — each new file got documented. Repeated across a 17-file sweep it produces exactly the bloat the restructure exists to prevent. The anti-pattern is already in the tree, and not repeating it is the operative instruction.
+
+### Decision (restructure scope)
+
+- **Narrow scope with a stated rule**, not a rewrite: correct the claims the sweep falsifies, applying *name a file only where the file itself is load-bearing* — a guard that must not be dropped, a chokepoint everything routes through, an explicit do-not-touch. In practice a broken reference is re-pointed at the **concern**, never replaced by an enumeration of the new siblings implementing it.
+- **Stopping condition: `CLAUDE.md`'s word count must not increase.** Baseline **10,969 words**. Checkable in one command, targets the actual harm (the unconditional per-session cost), and demands no shrink that would drag unrelated sections into scope. A sweep that adds files and leaves the document no larger is the intended outcome; a shrink from applying the load-bearing rule is better.
+
 ### Open in this subtopic
 
 - Whether anything mechanically enforces the 1,000-line tripwire (a guard test walking `.go` files and flagging any over the line without the `// portal:oversized` marker — the marker would serve as its own allow-list, with grep as the enumeration).
