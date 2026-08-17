@@ -200,6 +200,20 @@ This is a **pre-existing latent bug**, present today and independent of any spli
 
 **A third option the review floated was rejected on the record**, so specification does not reopen it: splitting `cmd` under a weakened gate, on the argument that a red-before/red-after run proves nothing either way. A gate that cannot fail is not a gate, and it would put the leak inside the sweep's blast radius instead of ahead of it.
 
+**The build-tag hazard was audited across the full scope and does not apply** *(resolves review-002 F5)*. All fifteen in-scope files were checked: **none carries a build tag.** The review's specific suspicion — that `state_commit_now_test.go` (1,163) might be integration-tagged, inferred from `CLAUDE.md` naming "the commit-now suite" — is wrong: that file is plain unit-lane, and the commit-now integration tests live in separate files (`state_commit_now_symptom_integration_test.go` 365, `_reentrancy_` 176, `_daemon_merge_` 129). Tree-wide there are **47 integration-tagged test files and the largest is 710 lines**, so no tagged file is in scope at all.
+
+That is not luck, and it corroborates the naming thesis on the axis where it matters most: the repo already segregates integration tests by *filename*, and `*_integration_test.go` is a name that excludes things — new integration material cannot drift into a unit-lane file without contradicting its name. It is why none of the 47 has grown past 710.
+
+**Pulling on the general case surfaced a worse failure mode neither review caught: silent test loss.** In a 34,370-line relocation, a test function dropped on the floor leaves the suite green — no compiler error, no failing test, and the shuffle gate cannot see it either. It is strictly more likely than a dropped build tag and has no signal at all.
+
+One inventory gate covers both, and is stronger than a tag check because it asserts identity rather than a property:
+
+```
+go test -list '.*' ./...            # sorted, before and after — must be identical
+```
+
+Measured: **3,706 tests in the unit lane, 3,791 with the integration tag** (85 integration-only). A dropped `//go:build integration` moves a test from integration-only into both lanes, so the unit list *grows*; a lost test makes it *shrink*. Accepted limit: the inventory cannot see a test moved *and* quietly altered — it checks identity, not content. A pure relocation does not alter bodies, and the suite passing covers the rest.
+
 **The `cmd` fork was taken toward fixing the leak rather than dropping the package.** The alternative was excluding `cmd` from the sweep, which would have cut the scope from fifteen files to nine — but `cmd` holds six of the fourteen over-the-line test files (`open_test.go` 3,581, `state_hydrate_test.go` 1,849, `doctor_test.go` 1,495, `state_daemon_run_test.go` 1,217, `state_commit_now_test.go` 1,163, `theme_test.go` 1,035). Leaving them standing breaks the day-one posture, and the marker cannot honestly paper over it, so deferring `cmd` would have reinstated the forward-looking posture by the back door. Deciding factor: dropping `cmd` costs the posture that makes a guard possible at all, whereas the leak is a real bug that will bite regardless of this work.
 
 ### Decision
@@ -209,7 +223,8 @@ This is a **pre-existing latent bug**, present today and independent of any spli
 - **The split is a pure relocation of whole top-level test functions.** Helpers stay where they are and stay visible (one package, one scope); nothing is re-derived or duplicated; no test function is cut mid-body. Verified against all four monsters.
 - **A fixed seed set is the verification gate** — `go test -shuffle=N` over seeds `1`–`10`, per package, before and after each split, the same ten permutations both sides. Never `-shuffle=on`: it samples one random ordering per run and a failure cannot be reproduced from the command that produced it. Shuffle-clean beforehand is a precondition of splitting a package.
 - **The `cmd` order-dependency leak is fixed first, as a precondition** — its own change, independently verifiable, not folded into a split commit. It is a pre-existing test-isolation bug (an unrestored root-command mutation) in a package this work must touch.
-- Any split that touches a build-tagged file must carry `//go:build integration` to every new sibling — a dropped tag silently moves a test between lanes. None of the four monsters is tagged, so this binds only on later splits.
+- **A test-inventory diff is the second gate** — `go test -list '.*' ./...`, sorted, identical before and after. It catches **silent test loss** (a function dropped during relocation leaves the suite green — no compiler error, no failing test, no signal from the shuffle gate) and a dropped `//go:build integration` tag in the same command, the first shrinking the list and the second growing it. Baseline: 3,706 unit-lane tests, 3,791 with the integration tag.
+- Build tags bind on later splits only: **none of the fifteen in-scope files is tagged**, and tree-wide the largest of the 47 integration-tagged files is 710 lines. Any future split that does touch one must carry `//go:build integration` to every new sibling; the inventory gate is what detects a failure to.
 
 ---
 
