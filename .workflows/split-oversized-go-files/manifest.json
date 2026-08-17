@@ -23,7 +23,7 @@
               "parent": null
             },
             "claude-md-and-enforcement": {
-              "status": "exploring",
+              "status": "decided",
               "parent": null
             },
             "refactor-safety": {

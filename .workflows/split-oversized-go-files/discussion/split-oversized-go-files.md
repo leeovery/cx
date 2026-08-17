@@ -314,11 +314,28 @@ With one exception, which is the precedent that matters: the theming feature's e
 - **Narrow scope with a stated rule**, not a rewrite: correct the claims the sweep falsifies, applying *name a file only where the file itself is load-bearing* — a guard that must not be dropped, a chokepoint everything routes through, an explicit do-not-touch. In practice a broken reference is re-pointed at the **concern**, never replaced by an enumeration of the new siblings implementing it.
 - **Stopping condition: `CLAUDE.md`'s word count must not increase.** Baseline **10,969 words**. Checkable in one command, targets the actual harm (the unconditional per-session cost), and demands no shrink that would drag unrelated sections into scope. A sweep that adds files and leaves the document no larger is the intended outcome; a shrink from applying the load-bearing rule is better.
 
+### Journey (enforcement)
+
+**The tripwire is mechanically enforced by a source guard.** The pieces already exist: `internal/log/discard_guard_test.go` is the precedent for a repo-wide source guard (`portalbintest.ProjectRoot()`, walk the source, fail on a forbidden construction), `sourceguardtest.GoSourceFiles(root)` already performs the tree walk with its dot-dir and vendor exclusions, and the root package already carries test files (`main_test.go`, `main_panic_test.go`, `main_theme_fatal_test.go`), so a repo-wide structural guard has a home without inventing a package for it.
+
+One difference from the precedent favours this guard. The discard guard carries a **hardcoded allow-list map** naming the single file permitted to construct a discard logger — remote from the code it exempts, and exactly the kind of list that rots. This guard needs none: the `// portal:oversized` marker in the file *is* the allow-list, so the exemption lives at the site it exempts and can only rot if the file itself does.
+
+The case against was **exemption inflation** — an easy escape hatch teaching a marker-adding reflex, degrading the guard into ceremony. The mitigation is the marker's own contract: silencing the guard requires naming the single concern the file owns, which is a claim a reviewer can read and falsify, the same deterrent a `//nolint` with a required reason relies on. Soft, but not nothing. The no-guard alternative — standard in `CLAUDE.md`, agents read `CLAUDE.md`, sweep proves intent — was rejected because it relies on precisely the discipline that produced a 3,448-line `model.go` in a package already demonstrating the sibling pattern.
+
+### Decision (enforcement)
+
+*Derivation: the choice was delegated rather than argued to a conclusion; taken on the three arguments below.*
+
+- **A source guard enforces the tripwire.** It walks every `.go` file and fails on any over 1,000 lines lacking a `// portal:oversized` marker. Taken because it is the only mechanism that fires when someone writes the 1,001st line rather than at an audit nobody schedules — which is the stated reason for having a number at all; because the sweep leaves zero files tripping, making this the cheapest moment a guard will ever be introduced; and because it is the repo's existing idiom, twenty-five guards deep.
+- **Raw line count, no refined counting.** Blank-and-comment subtleties buy nothing for an attention device.
+- **The marker is the allow-list.** No hardcoded exemption map; grep is the enumeration.
+- **Unit lane.** It is a hermetic source walk — no tmux, no daemon, no built binary.
+- **Accepted risk:** exemption inflation, mitigated only by the marker's claim contract being reviewable.
+- **Concern-pinning guards are not adopted as a general obligation.** A guard encoding "this file does not own that concern" (as `applyThemeCallSitesIn(…) == 0` already does) stays an available tool where a boundary is load-bearing, not a requirement per split. The exclusion test was settled as a human check; mandating a mechanical shadow of it would contradict that and multiply guards across every split file.
+
 ### Open in this subtopic
 
-- Whether anything mechanically enforces the 1,000-line tripwire (a guard test walking `.go` files and flagging any over the line without the `// portal:oversized` marker — the marker would serve as its own allow-list, with grep as the enumeration).
-- Routed here from `refactor-safety`: whether concern-pinning guards (`applyThemeCallSitesIn(…) == 0` encoding "this file does not own that concern") are adopted as a mechanism for the exclusion test, or left as an available tool where a boundary is load-bearing. The exclusion test was settled as a human check, so a general obligation would be out of proportion.
-- The exact wording of the standard as it lands in `CLAUDE.md`.
+- The exact wording of the standard as it lands in `CLAUDE.md` — specification's to draft from the decisions above.
 
 ---
 
