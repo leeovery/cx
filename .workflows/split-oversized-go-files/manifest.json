@@ -19,7 +19,7 @@
               "parent": null
             },
             "seam-selection": {
-              "status": "exploring",
+              "status": "decided",
               "parent": null
             },
             "claude-md-and-enforcement": {
@@ -27,7 +27,7 @@
               "parent": null
             },
             "refactor-safety": {
-              "status": "exploring",
+              "status": "decided",
               "parent": null
             }
           }
