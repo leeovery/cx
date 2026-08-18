@@ -195,4 +195,88 @@ Dropping `cmd` from the sweep would cut the scope from seventeen files to ten, b
 
 ---
 
+### 5. Seam Selection
+
+Go makes the mechanical half of a split free within a package — files split with no import, caller or test changes — so seam choice is the judgment half of the work. A proposed seam is judged against the exclusion test (§1.1).
+
+#### 5.1 Completion condition
+
+**Every in-scope file's completion condition is the exclusion test, not the tripwire.** For the two below-the-line files the tripwire was never the reason they are in scope and cannot signal that their split is done.
+
+#### 5.2 A package-named file is dissolved, not reduced
+
+A residual keeps its name only if the split can make that name exclude things. A **package-named file can never reach that state** — "could any material in this package go in?" is permanently yes. There is therefore no legitimate residual, and the file ceases to exist.
+
+Three in-scope files are package-named and all three dissolve:
+
+| File | Lines | Clause | Stem |
+|---|---|---|---|
+| `internal/tmux/tmux.go` | 775 | `tmux` | `tmux` |
+| `internal/tmux/tmux_test.go` | 3,211 | `tmux_test` | `tmux` |
+| `cmd/bootstrap/bootstrap_test.go` | 1,287 | `bootstrap` | `bootstrap` |
+
+`internal/resolver/query_test.go` is **not** package-named — its clause is `resolver_test` and its stem is `query`, so it splits under the ordinary rules.
+
+The stem is what is judged, so an external-clause test file named after the package (`tmux_test.go` in `package tmux_test`) dissolves on the same footing as the production file. There is no test-file exemption to invoke: the rule names no categories (§1.2).
+
+`tmux.go`'s 53 functions fall into method groups already visible in its outline — the `Commander` seam and command execution; the `Client` type and its constructors; server lifecycle; session operations; window and pane operations; pane-target formatting; hook-key and structural-key derivation primitives; server and session options; the raw global-hook operations (which join the package's existing `hooks_*` family, distinct from the registration logic in `hooks_register.go`); and environment. Roughly ten files averaging under eighty lines, which §1.4 settles without argument. **This grouping is indicative, not binding** — the decision is the criterion each file must meet, not the particular grouping that satisfies it.
+
+#### 5.3 A residual keeps its name, and the split has to earn it
+
+Draining a bucket-named file does not require renaming the file that remains — but the remainder must be reduced until the name **genuinely excludes things, judged against contents rather than against the name alone** (§1.1).
+
+Keeping the name is also what preserves the filename-pinned guards and `CLAUDE.md` entries that point at the file — they stay valid because the file still exists and still holds the concern it names.
+
+#### 5.4 `internal/tui/model.go` — acceptance criterion
+
+Post-split `model.go` holds:
+
+- the `Model` type,
+- its construction,
+- the three `tea.Model` methods (`Init`, `Update`, `View`),
+- the `page` enum the router switches on,
+- the accessors that expose **model-level** rather than page-level state,
+
+**and nothing else.** If `rebuildSessionList` or the canvas-fill machinery is still there, the split is not finished. Any 400–600 line figure is indicative and never a target: the completion condition is the exclusion test, not an arithmetic one.
+
+Today the file fails because it holds ten concerns — the model type, the option constructors, list styling, sizing arithmetic, the grouping glue, the update router, the projects page and its edit modal, the sessions-page key arms, view composition, and roughly 160 lines of ANSI SGR rewriting. Stripped to the above, the name does exclude things: edit-modal chip logic, canvas backfill and projects-page arms all contradict it.
+
+What makes that legitimate rather than special pleading is §1.1's natural-boundary property. `model.go` holding the type and its interface methods is bounded by an **external contract** — `tea.Model` has exactly three methods and a struct is a struct, so nothing can accrete. `cmd/theme_test.go` is "everything about the theme command", bounded by nothing, which is why it reached 1,035 lines.
+
+#### 5.5 `cmd/open.go` — acceptance criterion
+
+`open.go` **keeps its name** and survives as a residual, because it holds an `init()` and is therefore governed by the absolute no-move rule (§6.1).
+
+Its residual is the `openCmd` declaration, flag registration, `init()`, and the package-level vars. That earns the name: new resolution behaviour, TUI construction or path-opening logic all contradict "the open command's declaration and wiring" and belong in siblings. The package already establishes that family — `open_targets.go`, `open_surfaces.go`, `open_burst.go`, `open_burst_run.go` — so the split extends a convention rather than inventing one.
+
+What leaves, indicatively: the two connectors and TUI-result handling; `openSession`; the path-opening chain (`PathOpener.Open`, `openPath`, the quick-start and execer adapters); the resolution chain (`resolvePinAndOpen`, `openResolved`, `buildQueryResolver`, `emitResolveDecision`, `resolveDecision`); ack-marker writing; command-argument parsing; theme loading and resolution; and TUI construction (`buildTUIModel`, `openTUI`).
+
+#### 5.6 The package clause is a boundary seam selection respects, never crosses
+
+**All eight in-scope directories are dual-clause** — `tui`/`tui_test`, `tmux`/`tmux_test`, `cmd`/`cmd_test`, `bootstrap`/`bootstrap_test`, `state`/`state_test`, `hooks`/`hooks_test`, `resolver`/`resolver_test`, `theme`/`theme_test`.
+
+A sibling **inherits its source file's clause by default** — splitting `model_test.go` yields `package tui_test` siblings. A sibling declaring the internal clause sees none of the external clause's helpers and cannot reach an unexported identifier, and vice versa.
+
+Getting this wrong is a **compile error**, so it is a constraint on seam choice rather than a runtime hazard, and no verification gate needs to catch it.
+
+#### 5.7 `<behaviour>_internal_test.go` — the established paired form
+
+A behaviour area may be a **pair** of files where the clause forces one, and `<behaviour>_internal_test.go` is the established form for the internal half. The behaviour part of the name does the excluding and satisfies the exclusion test; `_internal` is a clause qualifier riding along.
+
+The tree already runs this convention in seven files: `internal/state/capture_internal_test.go`, `internal/state/daemon_state_internal_test.go`, `internal/theme/load_internal_test.go`, `internal/theme/union_internal_test.go`, `internal/tmux/exact_target_internal_test.go`, `internal/tmux/option_discriminator_internal_test.go`, `internal/tui/loading_fatal_internal_test.go`.
+
+This is the one point where §1.4 meets a language constraint rather than a preference, and the constraint wins because it is not negotiable.
+
+#### 5.8 Declaration-only material distributes to the behaviour file that owns it
+
+**No exemption from the exclusion test.** `model.go` holds roughly 290 lines of declarations: thirteen exported DI seam interfaces (`SessionLister`, `PreviewAttacher`, `ProjectStore`, `SessionKiller`, `SessionCreator`, `SessionRenamer`, `ModePersister`, `ThemePersister`, `ProjectEditor`, `AliasEditor` and the theme/preview seams), eight exported message types plus `LoadingMinDuration` and the `page`/`editField`/`editMode` enums, and around thirty-five one-line accessor methods that exist because `model_test.go` is an external `package tui_test`.
+
+The obvious destinations are the ones the standard forbids: a bare `seams.go`, `messages.go` or `accessors.go` in package `tui` excludes nothing and is a bucket label by the same reasoning that dissolves `tmux.go`. Exempting declarations from the test was also rejected — declarations accumulating unchecked is part of how `model.go` reached 3,448 lines, and a `messages.go` would grow without bound for exactly the reason the test exists to catch.
+
+**Each declaration goes where its behaviour went**: the session seams and `SessionsMsg`/`SessionCreatedMsg` with the sessions code, the project seams and `ProjectsLoadedMsg` with the projects code, the bootstrap and loading messages with the loading page, `editField`/`editMode` with the edit modal, the `With…` options with the concern each configures. `theme_seams.go` is the in-tree proof that this produces bounded names — it excludes every seam that is not a theme seam.
+
+Nothing blocks it mechanically: every file in package `tui` can declare methods on `Model`, so distributing accessors costs nothing and the external test package is unaffected.
+
+---
+
 ## Working Notes
