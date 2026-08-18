@@ -349,4 +349,65 @@ A 35,880-line relocation degrades line-level history. `git blame -C` recovers mo
 
 ---
 
+### 7. Verification Gates
+
+#### 7.1 The `cmd` order-dependency leak is fixed first, as a precondition
+
+Go runs tests in source order, and files in lexical filename order, so **splitting changes execution order**. The `cmd` package injects mocks through package-level mutable state (`openDeps`, `bootstrapDeps`, `doctorDeps`) cleaned via `t.Cleanup()`; a leaked cleanup makes a test order-dependent, and reordering exposes it — arriving mid-refactor looking exactly like sweep damage.
+
+Measured across the tree: **every package passes shuffled except `cmd`**, including `internal/tui` and `internal/tmux`, the two largest sweep targets. `cmd` fails intermittently, on roughly **one shuffle order in three**. Reproduced: `TestCompletionHidesInternalSurface/top-level completion excludes the hidden state namespace` fails with `candidates=[]` — top-level completion offering nothing at all, meaning an earlier test mutated the root command and did not restore it. Five `cmd` test files mutate the root command, `open_test.go` among them.
+
+This is a **pre-existing latent bug**, present today and independent of any split. It is fixed **as its own change, independently verifiable, not folded into a split commit**. Shuffle-clean is a precondition of splitting a package, and `cmd` does not currently meet it.
+
+#### 7.2 Gate one — the seeded shuffle run
+
+**A fixed seed set, `go test -shuffle=N` over seeds `1`–`10`, per package, before and after each split.**
+
+**Never `-shuffle=on`.** Reproducibility is the whole of the advantage: a red run must be replayable from the seed that produced it. `-shuffle=on` reseeds randomly per invocation, so a red run cannot be reproduced from the command that produced it. The measurement that located the `cmd` leak is the evidence — run 1 passed, run 2 passed, run 3 failed. A one-run gate would have declared `cmd` clean twice before anyone got unlucky, and catching that failure is the entire reason the gate is trusted.
+
+Ten is a **working figure, not a derived one** — overwhelming against a 1-in-3 dependency, thin against a 1-in-50. Accepted on the reasoning that a rarer order-dependency survives the sweep unchanged rather than being caused by it.
+
+**What the gate does not prove.** In `$(go env GOROOT)/src/testing/testing.go`, `-shuffle=N` seeds a PRNG that shuffles `m.tests` **in place**, and `m.tests` arrives in source order — so a split changes the input and the same seed yields a *different* run order afterwards. The gate does **not** put the same permutations on both sides, and it does not prove a split "introduced no order coupling". It samples ten orderings before and ten different orderings after. **Accepted residual:** an order-dependency the sampled seeds miss was equally present before the split, so it is an undiscovered latent flake rather than damage the sweep caused. `cmd` is where that difference will be felt.
+
+**A weakened gate for `cmd` was rejected on the record** — splitting under a red-before/red-after run on the argument that it proves nothing either way. A gate that cannot fail is not a gate, and it would put the leak inside the sweep's blast radius instead of ahead of it.
+
+#### 7.3 Lane split for the shuffle gate
+
+**The full seed set runs in the unit lane; a single fixed seed runs in the integration lane**, and only for packages that carry integration tests — `cmd` (15 tagged test files), `cmd/bootstrap` (18), `internal/tmux` (3), `internal/state` (1). The other four in-scope packages have none, `internal/tui` among them, so splits there cannot disturb an integration lane at all.
+
+The two lanes are asked different questions. The unit lane is asked *is this package order-independent* — a property, which sampling ten orderings probes, and which is cheap enough to run. The integration lane is asked *did this split change anything under a fixed ordering* — a comparison, which one ordering answers. Ten seeded integration runs per package per split, at `-p 1`, with no CI and on the repo's most timing-coupled tests, would buy a stronger claim about a property nobody asserted, at a cost high enough that the gate would stop being run — and a gate nobody runs is worse than a cheaper one they do.
+
+**Accepted residual:** an integration test order-dependent in a way the fixed seed misses was equally order-dependent before the split.
+
+#### 7.4 Gate two — the test-inventory diff
+
+```
+go test -list '.*' ./...          # sorted, before and after — must be identical
+```
+
+**This is a before/after identity check on the same tree, not a comparison against a recorded constant.** For orientation, measured at specification time: **3,707 tests in the unit lane, 3,792 with the integration tag** (85 integration-only).
+
+It catches two failures in one command:
+
+- **Silent test loss** — the most dangerous failure mode of a large relocation. A test function dropped during a 35,880-line move leaves the suite **green**: no compiler error, no failing test, and no signal from the shuffle gate. The list *shrinks*.
+- **A dropped `//go:build integration` tag** — which moves a test from integration-only into both lanes, so the unit list *grows*.
+
+It is stronger than a tag check because it asserts **identity** rather than a property.
+
+**Accepted limit:** the inventory cannot see a test moved *and* quietly altered — it checks identity, not content. A pure relocation does not alter bodies (§6.4), and the suite passing covers the rest.
+
+#### 7.5 If the `cmd` leak proves deeper
+
+**Decision required — the discussion named this an open thread and closed nothing around it.**
+
+**The obligation is unbounded: the leak is fixed however deep it goes.** Five `cmd` test files mutate the root command and only one unrestored mutation has been reproduced, so the true size is the one piece of in-scope work whose extent is not yet known.
+
+**Derivation:** the two alternatives are already closed on the record — dropping `cmd` was rejected because it breaks the day-one posture that makes the guard possible, and weakening the gate was rejected because a gate that cannot fail is not a gate. The deciding argument for taking `cmd` on survives the leak being larger: it is a real test-isolation bug that will bite regardless of this work, in the package that already holds the repo's most fragile mock-injection state.
+
+**Sequencing hedge: `cmd` is split last**, after the other seven packages are complete and verified. This is ordering only — not the rejected exclusion — and it is free: it keeps a deeper-than-expected leak from holding seven finished package splits hostage, and it means the decision to cut, if it is ever taken, is taken with the leak's real size known rather than guessed.
+
+**Accepted cost:** the highest-risk file in the sweep (`cmd/open.go`, §4.5) is also the last touched, so the sweep's riskiest work lands when release pressure is highest. Taken because the alternative — leading with `cmd` — puts the unbounded item first and blocks everything behind it.
+
+---
+
 ## Working Notes
