@@ -40,7 +40,7 @@
           "status": "in-progress",
           "sources": {
             "split-oversized-go-files": {
-              "status": "pending"
+              "status": "incorporated"
             }
           },
           "review_cycle": 0,

@@ -410,4 +410,66 @@ It is stronger than a tag check because it asserts **identity** rather than a pr
 
 ---
 
+### 8. `CLAUDE.md` Changes
+
+`CLAUDE.md` is the standard's destination — the discipline only holds for future contributors and agents if it is written where they read. It is also the one document loaded into **every** session's context unconditionally, which makes its size a permanent cost rather than a per-read one.
+
+#### 8.1 The document is also the sweep's collateral
+
+It names **68 distinct `.go` files across 83 mentions**, and several are claims the sweep falsifies directly:
+
+- `model.go`'s `rebuildSessionList` is described as "the single mode-aware re-render chokepoint" in **two separate sections** — line 67 (the `tui` package-table row) and line 185 (the session-grouping section). A third mention at line 191 constrains its behaviour rather than locating it.
+- The outer canvas fill is described as "the last layer in `model.go`'s `View`" at line 174.
+
+**Stale file-level claims are corrected as part of the sweep**, not left to fall out silently. A map an agent trusts and that is wrong costs more than the read the standard saves: the agent goes to `model.go` for `rebuildSessionList` and does not find it. Leaving it stale contradicts the rationale every other decision here rests on.
+
+#### 8.2 The restructure — direction
+
+`CLAUDE.md` is restructured **away from file-indexing**. It describes **concerns and invariants**, naming a file only where the file itself is load-bearing:
+
+- a guard that must not be dropped,
+- a chokepoint everything routes through,
+- an explicit "do not touch this".
+
+Filenames stop being the organising key.
+
+**The naming standard is what makes that affordable.** Once files are named for the behaviour they own, the filename is *predictable* — the notice-band code is in `notice_band.go` — so an index is redundant rather than merely expensive.
+
+**What is lost:** "where does X live?" lookup from the document. Grep and gopls answer that better, and without rotting.
+
+#### 8.3 The restructure — scope
+
+**Narrow, with a stated rule. Not a rewrite.**
+
+The document is closer to the target than it first appears. The package table is indexed **by package**, not by file, and names files selectively within a row — the `tui` row names four (`grouping.go`, `session_item.go`, `model.go`, `restore.go`) out of roughly thirty in the package. There is no "document every file" convention to dismantle; the wanted convention is largely already the practice.
+
+A broad reading would mean rewriting **31% of the document** (the table is 3,419 of 10,969 words, 26 rows at lines 58–85) in the same release as a 35,880-line sweep.
+
+**The scope is therefore: correct the claims the sweep falsifies, applying the rule *name a file only where the file itself is load-bearing*.** In practice a broken reference is **re-pointed at the concern**, never replaced by an enumeration of the new siblings implementing it.
+
+**The anti-pattern to not repeat.** The theming feature's entry enumerates **ten files for one concern** — `theme_panel.go`, `theme_panel_geometry.go`, `theme_panel_render.go`, `theme_panel_commit.go`, `theme_panel_confirm.go`, `theme_panel_message.go`, `theme_panel_footer.go`, `theme_row.go`, `theme_seams.go`, `theme_state.go`. That is what happened the last time a concern was split into siblings: each new file got documented. Repeated across a 17-file sweep it produces exactly the bloat the restructure exists to prevent.
+
+#### 8.4 Stopping condition — the word budget
+
+**`CLAUDE.md`'s word count must not increase**, measured over the document **excluding the new standard section**. Baseline: **10,969 words**.
+
+Checkable in one command, targets the actual harm (the unconditional per-session cost), and demands no shrink that would drag unrelated sections into scope. A sweep that adds files and leaves the document no larger is the intended outcome; a shrink from applying the load-bearing rule is better.
+
+**The budget excludes the standard's own section.** The new standard text is the deliverable and is not funded by shrinking anything: a gate that forbids the deliverable is incoherent, and the only other way to pay for it is broadening the restructure past the narrow scope just chosen — the scope creep the narrow reading exists to prevent. The standard section is nonetheless **written tight**; it is read every session like everything else in the file.
+
+#### 8.5 What the standard section must say
+
+The exact prose is not fixed here. Its **required content** is:
+
+1. The cohesion rule — one concern per file within a package (§1).
+2. The name-exclusion test as the rule's operative form, stated in full (§1.1).
+3. The 1,000-line tripwire, **and what it is not** — a procedural attention device, never a quality metric or a bar to clear (§1.2).
+4. The `// portal:oversized {date} @ {commit} — {claim}` marker: its form, its placement in the leading comment block, what the claim must state, and that the commit is the one **verified against** (§2).
+5. The behaviour-area naming rule for test files (§1.3).
+6. The source guard that enforces the tripwire, and that the marker is its own allow-list (§3).
+
+**Optional, and explicitly not part of the rule:** a line of guidance that a repetitive-by-construction file (a table-driven test, a fixture table) will justify itself easily. The rule names no categories (§1.2), so nothing in it tells a contributor that — someone may argue harder for such a file than needed. If that reassurance is wanted it belongs here as guidance, **never as a category in the rule**.
+
+---
+
 ## Working Notes
