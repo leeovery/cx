@@ -87,4 +87,50 @@ The commit recorded is the one the claim was **verified against** — the parent
 
 ---
 
+### 3. The Tripwire Source Guard
+
+A repo-wide source guard mechanically enforces the tripwire.
+
+#### 3.1 Behaviour
+
+It walks every `.go` file in the repository and **fails on any file over 1,000 lines that does not carry a `// portal:oversized` marker**. Raw line count, per §1.2.
+
+#### 3.2 Why a guard exists at all
+
+A number whose stated job is to make someone stop only delivers that if something fires when the 1,001st line is written, rather than at an audit nobody schedules. The no-guard alternative — standard in `CLAUDE.md`, agents read `CLAUDE.md`, the sweep proves intent — relies on precisely the discipline that produced a 3,448-line `model.go` in a package already demonstrating the sibling pattern.
+
+The sweep leaves **zero files tripping** at release, which makes this the cheapest moment a guard will ever be introduced: a guard born with a fifteen-entry exemption list protects nothing.
+
+#### 3.3 Construction
+
+It follows the repo's established source-guard idiom, ~25 guards deep:
+
+- `internal/log/discard_guard_test.go` is the precedent for a repo-wide source guard — `portalbintest.ProjectRoot()`, walk the source, fail on a forbidden construction.
+- `sourceguardtest.GoSourceFiles(root)` already performs the tree walk with its dot-dir, `vendor` and `node_modules` exclusions, and is the walk this guard uses.
+- The root package already carries test files (`main_test.go`, `main_panic_test.go`, `main_theme_fatal_test.go`), so a repo-wide structural guard has a home without inventing a package for it.
+
+**Unit lane.** It is a hermetic source walk — no tmux, no daemon, no built binary.
+
+#### 3.4 No exemption list
+
+Unlike the discard guard, which carries a hardcoded allow-list map naming the single file permitted to construct a discard logger — remote from the code it exempts, and exactly the kind of list that rots — this guard needs none. The marker in the file **is** the allow-list, so the exemption lives at the site it exempts and can only rot if the file itself does.
+
+#### 3.5 What the guard checks in the marker
+
+**Decision required — the discussion left this open.** The guard **greps the `// portal:oversized` prefix only**. It does not validate the date's or commit's shape, and it does not read the claim.
+
+**Derivation:** every field the guard could validate is one the marker deliberately does not maintain (§2.3) — a shape check on a date or a SHA confirms only that characters were typed in the right pattern, never that the claim was verified or is still true. The thing that makes a marker honest is the claim, which is unvalidatable by construction and is deliberately left to a reviewer (§1.1, §3.6). A validator that checks the two fields it can and skips the one that matters converts a human obligation into a passed test.
+
+**Accepted cost:** `// portal:oversized` with no fields and no claim silences the guard. That is the same escape hatch §3.6 already accepts, not a new one.
+
+#### 3.6 Accepted risk — exemption inflation
+
+An easy escape hatch can teach a marker-adding reflex and degrade the guard into ceremony. The only mitigation is the marker's own contract: silencing the guard requires naming the single concern the file owns, which is a claim a reviewer can read and falsify — the same deterrent a `//nolint` with a required reason relies on. Soft, and accepted as the residual.
+
+#### 3.7 Concern-pinning guards are not a general obligation
+
+A guard encoding "this file does not own that concern" — as `applyThemeCallSitesIn(…) == 0` already does in `internal/tui/theme_panel_commit_test.go` — remains an available tool where a boundary is load-bearing. It is **not** a requirement per split. The exclusion test is settled as a human check; mandating a mechanical shadow of it would contradict that and multiply guards across every split file.
+
+---
+
 ## Working Notes
