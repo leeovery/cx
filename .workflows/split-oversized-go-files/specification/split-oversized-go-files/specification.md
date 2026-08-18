@@ -40,4 +40,51 @@ Many small files beat one large one. There is **no lower bound**, and no "that's
 
 ---
 
+### 2. The `// portal:oversized` Marker
+
+A file that trips the tripwire rebuts the presumption **in the file**, with a marker of this form:
+
+```go
+// portal:oversized 2026-08-16 @ f238265 — Fixture definitions only; each TUI
+// screen contributes one. No logic lives here.
+```
+
+#### 2.1 Why in the file
+
+A rebuttal stored anywhere else — an allow-list, a doc, a commit message — forces a second read to answer a question raised by the first. In the file, the answer rides the read already being made. This follows from the standard's own rationale and fits the surviving convention in the tree: 90 of 870 Go files still carry a leading doc comment.
+
+The rebuttal must be **durable**, not re-derived. Without a recorded rebuttal a tripping file is re-adjudicated by every agent that opens it, which is precisely the context cost the standard exists to remove.
+
+#### 2.2 What the claim must say
+
+The claim **states the single concern the file owns**, so a later reader can falsify it by reading. A bare "large on purpose" rots silently — the file gains a second concern and the note keeps vouching for it.
+
+#### 2.3 What the marker records, and what it must not
+
+Only fields **true at tagging time that never need updating**: the **date** and the **commit verified against**.
+
+- **No content hash** — self-invalidates on every edit, including a typo in the marker itself, and cannot include itself without excluding its own line.
+- **No line count** — a poor proxy in both directions: a file can absorb a whole new concern at net-zero line change, or grow 200 lines of the same table and look drifted when nothing changed.
+- **No mtime** — not committed, and reset by checkout.
+
+All three must be maintained on every edit, and across a handful of files over years they will not be. **A stale marker that lies is worse than no marker.** A date and a commit simply age: they assert "this claim was checked against this state", so going stale is information rather than error. The commit reference is strictly better than a hash — it does not self-invalidate, and it yields the actual diff on demand (`git diff <sha>..HEAD -- <file>`). The date is nearly redundant against the commit and is kept because it reads at a glance with no tooling.
+
+#### 2.4 The commit field's semantics
+
+The commit recorded is the one the claim was **verified against** — the parent of the commit that introduces the marker, not the commit that introduces it. This must be stated wherever the form is written down, or the first author will think the field is wrong.
+
+#### 2.5 Placement
+
+**Decision required — the discussion left this open.** The marker must sit in the file's **leading comment block**, above the `package` clause.
+
+**Derivation:** §2.1 places the rebuttal in the file so it rides the read already being made — which only holds if the reader meets it first. A marker buried at line 900 of a 1,200-line file is discovered by grep, not by reading, and grep is the property §2.6 needs, not the property §2.1 asked for. The leading position is also the one the tree's surviving doc-comment convention already occupies.
+
+**Accepted cost:** a file whose leading comment block already carries a doc comment gains a second paragraph there.
+
+#### 2.6 The prefix is a namespace
+
+`portal:` is free — no comment pragma of that form exists in the tree today. The `// portal:oversized` prefix is greppable, and grep over it is the enumeration of every rebutted file: **the marker is its own allow-list**, so no separate exemption list exists to rot.
+
+---
+
 ## Working Notes
