@@ -133,4 +133,66 @@ A guard encoding "this file does not own that concern" — as `applyThemeCallSit
 
 ---
 
+### 4. Sweep Scope
+
+#### 4.1 Posture
+
+The release makes the mechanical detector **true on day one**. The alternative — ship the standard as forward-looking with a backlog — is closed off by the marker's own contract: a monster cannot claim to own one concern, and "this is a bucket and we have not got to it yet" is an admission rather than a rebuttal. There is no honest way to ship the standard while leaving known violators marked-and-standing.
+
+The mechanical half can be made true and then held by a guard. The exclusion test is the human half by construction, so it applies to work as it happens.
+
+#### 4.2 The in-scope set — 17 files, 35,880 lines, 8 packages
+
+Everything over the 1,000-line tripwire, plus the two below-the-line exclusion-test failures this work has already adjudicated.
+
+| File | Lines | Package clause | In scope because |
+|---|---|---|---|
+| `internal/tui/model_test.go` | 7,116 | `tui_test` | over the line |
+| `internal/tmux/portal_saver_test.go` | 3,772 | `tmux_test` | over the line |
+| `cmd/open_test.go` | 3,581 | `cmd` | over the line |
+| `internal/tui/model.go` | 3,448 | `tui` | over the line |
+| `internal/tmux/tmux_test.go` | 3,211 | `tmux_test` | over the line |
+| `cmd/state_hydrate_test.go` | 1,849 | `cmd` | over the line |
+| `internal/state/capture_test.go` | 1,626 | `state_test` | over the line |
+| `cmd/doctor_test.go` | 1,495 | `cmd` | over the line |
+| `internal/hooks/store_test.go` | 1,425 | `hooks_test` | over the line |
+| `cmd/bootstrap/bootstrap_test.go` | 1,287 | `bootstrap` | over the line |
+| `cmd/state_daemon_run_test.go` | 1,217 | `cmd` | over the line |
+| `cmd/state_commit_now_test.go` | 1,163 | `cmd` | over the line |
+| `internal/resolver/query_test.go` | 1,129 | `resolver_test` | over the line |
+| `cmd/theme_test.go` | 1,035 | `cmd` | over the line |
+| `internal/theme/resolution_test.go` | 1,016 | `theme_test` | over the line |
+| `internal/tmux/tmux.go` | 775 | `tmux` | adjudicated exclusion-test failure |
+| `cmd/open.go` | 735 | `cmd` | adjudicated exclusion-test failure |
+
+Over-the-line subtotal: 15 files, 34,370 lines. The two adjudicated failures add 1,510.
+
+Packages touched: `internal/tui`, `internal/tmux`, `cmd`, `cmd/bootstrap`, `internal/state`, `internal/hooks`, `internal/resolver`, `internal/theme`.
+
+`cmd` alone holds seven of the seventeen.
+
+#### 4.3 Why the two below-the-line files are in
+
+`internal/tmux/tmux.go` (775) wraps sessions, windows and panes, hook-key derivation, environment, server lifecycle, options and global hooks — comfortably more than five concerns, and permanently invisible to any line detector. `cmd/open.go` (735) fails the same way.
+
+Both were **already adjudicated** in this work. Excluding them would discard work already done and would ship a standard true on the mechanical detector and knowingly false on the human one, for files someone has actually examined. They cost 1,510 lines against a 34,370-line sweep.
+
+Neither can carry a `// portal:oversized` marker to defer — they are under the line, and the marker's contract rules out "not got to it yet" regardless.
+
+#### 4.4 Unadjudicated exclusion-test failures stay out, explicitly
+
+The human detector applies to work as it happens. Hand-auditing 275 production files before release is not practical, and the two above are in *because* they were already adjudicated — a set bounded by construction at two, not the start of an audit.
+
+**No second marker.** A `// portal:split-pending` (or similar) declaring a known-but-deferred failure was rejected on two grounds. First, the two detectors are not symmetric: the tripwire presumes guilt and demands an answer, so 1,150 lines obliges a decision; the exclusion test carries no presumption — it is the question asked when deciding where to put code. Nobody is required to adjudicate `tmux.go`, so there is no standing verdict to record, and the derivation happens only when someone is about to act on it, which is when it is cheapest because they are already reading. Second, having declined the 275-file audit, only the failures someone happened to notice would ever be marked, which is arbitrary.
+
+#### 4.5 `cmd/open.go` is the sweep's highest-risk file
+
+It is the product's main entry path — resolution grammar, domain pinning, TUI construction, burst dispatch — and **the only file in scope where a bad seam changes behaviour rather than merely relocating it**. Everything else in scope is a test file, `model.go` (clean panel-shaped seams), or `tmux.go` (a method-bag wrapper that splits by method group). It is taken anyway, understood as such.
+
+#### 4.6 `cmd` is not deferred
+
+Dropping `cmd` from the sweep would cut the scope from seventeen files to ten, but `cmd` holds six of the fourteen over-the-line test files plus `open.go`. Leaving them standing breaks the day-one posture, and the marker cannot honestly paper over it — so deferring `cmd` reinstates the forward-looking posture by the back door. The deciding factor: dropping `cmd` costs the posture that makes a guard possible at all, whereas the order-dependency leak it carries (§7.1) is a real bug that will bite regardless of this work.
+
+---
+
 ## Working Notes
