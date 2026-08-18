@@ -279,4 +279,74 @@ Nothing blocks it mechanically: every file in package `tui` can declare methods 
 
 ---
 
+### 6. Refactor Safety
+
+The sweep is a large mechanical move: code changes files without changing behaviour. That is true for the compiler, but not for anything in the repo keyed to a **filename** rather than to a symbol, nor for anything keyed to **file order**.
+
+#### 6.1 `init()` functions never move — absolute
+
+A file containing an `init()` **keeps it, and keeps its package-level declarations with it.**
+
+Go presents a package's files to the compiler in sorted filename order. `init()` functions run in that order, and package-level variables initialise in dependency order first, then declaration order across that same file sequence — so splitting a production file changes both, and nothing catches it.
+
+`cmd` is where this concentrates: **seventeen `init()` functions**, every one registering onto the same root command, with `open.go` carrying one at line 712 plus nine package-level vars (`openCmd`, `pinResolvers`, `openDeps`, `openTUIFunc`, `openPathFunc`, `openSessionFunc`, `resolveLogger`, `themeLogger`, `openDomainPinFlags`).
+
+The rule makes such a split **init-order-neutral by construction** rather than by argument — nothing to prove, nothing for the next person to re-prove, and a reviewer can verify it by looking. Proving each case order-insensitive (cobra sorts commands for display, `log.For` is cached at package init) was rejected as the resolution: the proof would have to be redone by whoever next chooses a seam, and it is the kind of reasoning that is right until it quietly is not.
+
+**Accepted cost:** a residual may hold a variable whose only consumer now lives elsewhere. Untidy and safe, taken over tidy and argued.
+
+#### 6.2 Package-level variables may move only under both conditions
+
+A package-level variable may move with its concern **only when the file has no `init()` and its initialiser is side-effect-free** — a sentinel `errors.New`, a literal, a const.
+
+Where a file has an `init()`, §6.1 governs absolutely and no inspection is needed.
+
+This exists for `tmux.go`, which dissolves entirely (§5.2) and so has no residual to hold declarations back: it has no `init()`, and its package-level state is `ErrOptionNotFound`, a literal string slice, and type/const declarations — order-independent by inspection.
+
+#### 6.3 Filename-pinned source guards — the audit obligation
+
+**46 test files hardcode a `.go` filename.** Some are temp-dir fixtures (`alpha.go`, `kept.go`, `thing.go`) and are irrelevant; the rest pin real source files — `model.go`, `tmux.go`, `theme.go`, `open.go`, `doctor.go`, `theme_panel.go`, `theme_panel_commit.go`, `restore.go`, `pagepreview.go`, `setting.go`, `state_daemon.go`, `harness.go`, `modal.go`.
+
+They fail in **opposite** ways, and that distinction scopes the audit:
+
+- **Assert-presence self-destructs, safely.** `internal/tui/pagepreview_filter_test.go` reads `model.go`, extracts `updateSessionList`'s body and counts `tea.KeySpace` occurrences. Move that function to a new sibling and the extraction returns empty, and the test does `t.Fatalf("could not locate updateSessionList in model.go")`. It fails loudly — the desired behaviour.
+- **Assert-absence goes vacuous, silently.** `internal/tui/theme_panel_commit_test.go` asserts `theme_panel_commit.go` contains *zero* `ApplyTheme` call sites. Move the commit path to a new file and the assertion still passes: it now proves that a file which no longer holds the code does not call the thing. Green suite, dead guard.
+
+**The obligation.** For every filename-pinned guard whose target file loses code, either **repoint it at the file the code moved to**, or **give it the anti-vacuity companion the tree already demonstrates**.
+
+The tree already contains that countermeasure, applied to one side of a pair: immediately after the hollow assertion sits a companion asserting `theme_panel.go` holds *at least one* `ApplyTheme` site, commented *"it would pass over the commit path whatever that file held."* The pattern was invented here; it was simply not applied to the absence-assertion beside it.
+
+**The audit is scoped by the presence/absence distinction, not by the raw count of 46.** Assert-presence guards announce their own breakage and need only repointing when they fire. **Assert-absence guards are the silent class and must be checked deliberately.**
+
+**A green suite after the sweep is not evidence the guards still cover anything.** This is the same failure `sourceguardtest.PackageGoFiles` was built to prevent — erroring on an empty match so a guard cannot pass by having stopped looking — one level up.
+
+#### 6.4 Pure relocation, and what carries to production files
+
+**The split is a pure relocation of whole top-level functions.** Helpers stay where they are and stay visible **within a package clause** (§5.6); nothing is re-derived or duplicated; no function is cut mid-body. Verified against the four largest test files:
+
+- Go test files sharing a clause share a single scope, so a helper defined in `model_test.go` stays visible to a relocated test provided the sibling declares the same clause. This matters given the density: `cmd/open_test.go` carries 47 non-test top-level funcs and 23 package-level vars, `portal_saver_test.go` 42 helpers.
+- **No mid-function splitting is required.** Largest test function per file: `portal_saver_test.go` 77 lines, `open_test.go` 234, `tmux_test.go` 274. `model_test.go` is the outlier — `TestCommandPendingMode` 479, `TestProjectsPage` 443, `TestLoadingPage` 415 — but each is already a behaviour area and moves whole. The unit of movement is the entire `func TestX`.
+
+The pure-relocation evidence **carries to production files**: it rests on one-package-one-scope, which is identical for production and test code. Ordering was the only production-specific hazard, and §6.1 removes it.
+
+#### 6.5 Build tags
+
+**None of the seventeen in-scope files carries a build tag**, `internal/tmux/tmux.go` and `cmd/open.go` included. Tree-wide there are **47 integration-tagged test files and the largest is 710 lines**, so no tagged file is in scope at all.
+
+That is not luck: the repo already segregates integration tests by *filename*, and `*_integration_test.go` is a name that excludes things — new integration material cannot drift into a unit-lane file without contradicting its name.
+
+`cmd/state_commit_now_test.go` (1,163) is plain **unit-lane** despite `CLAUDE.md` naming "the commit-now suite"; the commit-now integration tests live in separate files (`state_commit_now_symptom_integration_test.go` 365, `_reentrancy_` 176, `_daemon_merge_` 129).
+
+**Build tags bind on later splits only.** Any future split that does touch a tagged file must carry `//go:build integration` to every new sibling; the inventory gate (§7.4) is what detects a failure to.
+
+#### 6.6 Behaviour-preservation evidence for the three production files
+
+For `internal/tui/model.go`, `internal/tmux/tmux.go` and `cmd/open.go`, the evidence is **the full suite green in both lanes, plus the no-move rule of §6.1**. The shuffle and inventory gates stay test-lane instruments and are not asked to cover what they cannot see.
+
+#### 6.7 `git blame` continuity — accepted cost
+
+A 35,880-line relocation degrades line-level history. `git blame -C` recovers most of it. Accepted; no mitigation is built.
+
+---
+
 ## Working Notes
