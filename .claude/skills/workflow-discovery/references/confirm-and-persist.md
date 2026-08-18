@@ -4,7 +4,7 @@
 
 ---
 
-Persists the topic set produced by [topic-synthesis.md](topic-synthesis.md) to the manifest, writes the **Topics Identified** section of the session log, finalises the **Conclusion** placeholder, and closes the session — the close transaction clears the active-session marker and indexes the finalised log into the knowledge base.
+Persists the sort produced by [topic-synthesis.md](topic-synthesis.md) — the topic working list, the park set, and the pull-forward set — writes the **Topics Identified** section of the session log, finalises the **Conclusion** placeholder, and closes the session — the close transaction clears the active-session marker and indexes the finalised log into the knowledge base.
 
 Edits to existing items committed via [map-operations.md](map-operations.md) during the session loop. For edits-only sessions, the manifest-writes step is empty but the Conclusion finalisation and the session close still run.
 
@@ -14,9 +14,9 @@ The topic set was confirmed at the end of [topic-synthesis.md](topic-synthesis.m
 
 #### If the working list is empty
 
-No new topics — this is an edits-only or browse-only session.
+No new topics — this is an edits-only, parks-only, or browse-only session.
 
-→ Proceed to **B. Write Topics Identified**.
+→ Proceed to **A2. Persist Parks, Pull-Forwards, and Binds**.
 
 #### Otherwise
 
@@ -45,6 +45,34 @@ Notes:
 - Batch entries always land with `source: discovery`, marking topics the user surfaced during discovery — distinct from items added later with other provenance (e.g. `research-analysis`, `gap-analysis`).
 - The response's `map_total` is `{T}` for the Conclusion line in **C**, and `added` lists every persisted topic — no re-read needed.
 - `brief_path` records where the topic's brief lives; the brief file itself was written at harvest by [brief-synthesis.md](brief-synthesis.md).
+
+→ Proceed to **A2. Persist Parks, Pull-Forwards, and Binds**.
+
+## A2. Persist Parks, Pull-Forwards, and Binds
+
+Each verb validates and self-commits; record every landing under the log's **Edits** (`Parked: {name} → {horizon}` / `Pulled forward: {name}` / `Bound: {name} → {topic}`). Skip whichever set is empty.
+
+**Park set** — one batch over the file the synthesis gate already wrote in full (provenance included; nothing to rewrite):
+
+```bash
+node .claude/skills/workflow-engine/scripts/engine.cjs roadmap add-batch --file .workflows/.cache/{work_unit}/discovery/proposed-parks.json
+```
+
+**Pull-forward set** — one call per item (the map topic + its join, one commit each):
+
+```bash
+node .claude/skills/workflow-engine/scripts/engine.cjs roadmap pull-forward {name} --into {work_unit} --routing {research|discussion}
+```
+
+A refusal naming a previously dismissed topic is the user's earlier removal speaking — the gate's confirmation was the deliberate re-add, so re-run with `--force-dismissed`.
+
+**Binds** — the harvest's closing move for items pulled into this epic before it had a map. Read the roadmap state (`engine roadmap state`); for every item whose row names this work unit with **no `topic`**, bind it to the confirmed topic its ground crystallised as — usually the same-named one; when its ground split across several topics, the one carrying its identity:
+
+```bash
+node .claude/skills/workflow-engine/scripts/engine.cjs roadmap bind {item} --topic {topic}
+```
+
+A harvest that renamed a bound item's topic re-runs the bind — re-binding re-aims the join.
 
 → Proceed to **B. Write Topics Identified**.
 

@@ -6,6 +6,18 @@
 
 The caller provides `work_unit`, `topic`, and the `concern` with its discussed context. The concern is already judged off-topic for this discussion — on an epic it belongs to a sibling topic, existing or new. Offer the reroute, resolve the target yourself, and land the concern where it belongs.
 
+**If the concern is a staged product capability** — the user placed it beyond this epic (*"that's a v2 thing"*), or your proposed placement is confirmed in conversation: its home is the roadmap, not a sibling topic. Park it (born at the first park; the verb validates and self-commits), note it in the discussion's running record, and continue — capture-weight, never shaping:
+
+```bash
+node .claude/skills/workflow-engine/scripts/engine.cjs roadmap add {name} --horizon {horizon} --summary "{one-liner}" --origin park:{work_unit} --source {work_unit}/discussion/{topic}.md
+```
+
+→ Return to caller for **B. Session Loop**.
+
+**Otherwise:**
+
+→ Proceed to **A. Resolve the Target**.
+
 ## A. Resolve the Target
 
 Read the live map:

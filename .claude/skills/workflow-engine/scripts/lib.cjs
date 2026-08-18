@@ -28,6 +28,8 @@ const conventions = require('./domain/conventions.cjs');
 const reads = require('./domain/reads.cjs');
 const derivations = require('./domain/derivations.cjs');
 const discoverySession = require('./domain/discovery-session.cjs');
+const roadmapDomain = require('./domain/roadmap.cjs');
+const roadmapProjections = require('./domain/projections/roadmap.cjs');
 const presence = require('./domain/presence.cjs');
 const gateway = require('./gateway.cjs');
 const epic = require('./domain/epic-detail.cjs');
@@ -86,6 +88,9 @@ module.exports = {
   session: {
     nextSessionNumber: discoverySession.nextSessionNumber,
   },
+  roadmap: {
+    roadmapState: roadmapDomain.roadmapState,
+  },
   presence: {
     scanPresence: presence.scanPresence,
     fmtAge: presence.fmtAge,
@@ -120,6 +125,11 @@ module.exports = {
     epicReactivateMenu: epicProjections.epicReactivateMenu,
     discoveryMapView: discoveryProjections.discoveryMapView,
     discoverySynthesisView: discoveryProjections.discoverySynthesisView,
+    roadmapTitle: roadmapProjections.roadmapTitle,
+    roadmapMapView: roadmapProjections.roadmapMapView,
+    roadmapProposalView: roadmapProjections.roadmapProposalView,
+    roadmapPullSetView: roadmapProjections.roadmapPullSetView,
+    roadmapHomeMenu: roadmapProjections.roadmapHomeMenu,
     discussionMap: discussionProjections.discussionMap,
     discussionDeferGate: discussionProjections.discussionDeferGate,
     startOverview: startProjections.startOverview,

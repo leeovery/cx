@@ -36,6 +36,14 @@ Apply the independence test and anti-patterns. Two surfaces that share a domain,
 
 For continuing sessions, also check: does any new candidate overlap with an existing map item? If so, the exploration likely belongs *inside* that item's future discussion or research, not as a new sibling.
 
+**The harvest sorts two ways.** A candidate the exploration staged beyond this epic — the user placed it (*"that's v2"*) or the record reads that way — is not a topic: set it aside to the **park set** (`{name, horizon, summary}`, capability-grain, the user's own horizon words). Parks not yet confirmed ride to the gate in **E** beside the topic proposal.
+
+#### If no candidates remain and the park set is non-empty
+
+Everything the harvest surfaced stages beyond this epic — nothing routes; the sort is the roadmap's.
+
+→ Proceed to **F. Parks-Only Gate**.
+
 #### If no candidates remain
 
 Every candidate folded into an existing map item, or the exploration surfaced none — there is no proposal to render and nothing to confirm. Tell the user briefly (the exploration itself is captured in the session log). Synthesis outcome: `confirmed`, with an **empty working list** — Step 12 confirm-and-persist finalises and closes the session without new topics.
@@ -77,25 +85,33 @@ The output arrives in demarcated sections. Read `=== DATA` to reason from (never
 - `exists_on_map=true` — the name collides with an active map item. Fold the exploration into that item or pick a different name (revise the set, rewrite the file, re-run) before rendering the gate.
 - `legal_name=false` — dots or slashes break manifest addressing. Rename and re-run.
 - `matches_dismissed=true` — the name was previously dismissed. Fine to proceed — confirming at the gate below is the re-add decision; hold the flag for Step 12, which passes `--force-dismissed` on the write.
+- `waiting_on_roadmap=true` — the anti-twin rule: a waiting roadmap item already holds this ground, and a fresh topic beside it would strand its record. Never leave it in the working list — move it to the **pull-forward set** when it belongs in this epic (Step 12 lands it as a map topic and writes its join), or drop it from the proposal to leave it waiting.
 
 Emit the `=== DISPLAY` section verbatim **as a code block** — it shows the proposed topics with the existing map unchanged below, so the full picture is visible.
 
-> *Output the next fenced block as markdown (not a code block):*
+**If the park set is non-empty:** write it to `.workflows/.cache/{work_unit}/discovery/proposed-parks.json` in the shape Step 12 persists as-is — provenance included:
 
+```json
+[{"name": "{item}", "horizon": "{horizon}", "summary": "{one-line summary}", "origin": "park:{work_unit}", "sources": ["{work_unit}/discovery/sessions/session-{session_number}.md"]}]
 ```
-· · · · · · · · · · · ·
-**`◆ Confirm to commit, or tell me what to adjust.`**
 
-**`y/yes`**     → Commit these topics and conclude
-**`e/explore`** → Go back to exploration; not ready to commit yet
-**Adjust**    → Tell me what to change (split, merge, rename, re-route, edit summary)
+Then render the roadmap overlay beneath the topic proposal, emitting its `=== DISPLAY` section verbatim as a code block (its DATA flags follow the same rules — `exists_on_roadmap=true` folds into the existing item or renames):
+
+```bash
+node .claude/skills/workflow-roadmap/scripts/gateway.cjs proposal --file .workflows/.cache/{work_unit}/discovery/proposed-parks.json
+```
+
+Fetch the gate and emit its section verbatim per its marker:
+
+```bash
+node .claude/skills/workflow-engine/scripts/engine.cjs render synthesis-gate
 ```
 
 **STOP.** Wait for user response.
 
 #### If `yes`
 
-The topic set is confirmed. Hold it in conversation memory as the **working list** for Step 12 confirm-and-persist, along with any `matches_dismissed` names from the DATA flags (Step 12 passes `--force-dismissed` for those). Do not write Topics Identified to the log yet — Step 12 writes the manifest items and the log section together. Synthesis outcome: `confirmed`.
+The sort is confirmed. Hold in conversation memory for Step 12 confirm-and-persist: the **working list** (topics, with any `matches_dismissed` names from the DATA flags — Step 12 passes `--force-dismissed` for those), the **park set**, and the **pull-forward set**. Do not write Topics Identified to the log yet — Step 12 writes the manifest items and the log section together. Synthesis outcome: `confirmed`.
 
 → Load **[brief-synthesis.md](brief-synthesis.md)** and follow its instructions as written.
 
@@ -116,8 +132,51 @@ Apply the named adjustments to the working set:
 - **Rename** *"X should be called Z"* — swap the name
 - **Re-route** *"Y should be research"* — flip routing
 - **Edit summary** *"Y's summary should be ..."* — replace the summary line
+- **Re-sort** *"X is this epic after all"* / *"actually Y can wait — v2"* — move between the working list and the park set (a parked item gains its horizon, an unparked one its routing)
 - **Drop** *"Forget Z entirely"* — remove from set (note: this means Claude misread the exploration; reflect on what was overweighted)
 
 After applying, rewrite `proposed-topics.json`, re-render the proposal (back to the top of **E**), and ask again. Loop until confirmed or `explore` is chosen.
 
 → Return to **E. Render Proposal**.
+
+## F. Parks-Only Gate
+
+Reached from **C** when the harvest produced parks and no topics. Write the park set to `.workflows/.cache/{work_unit}/discovery/proposed-parks.json` in the shape Step 12 persists as-is — provenance included:
+
+```json
+[{"name": "{item}", "horizon": "{horizon}", "summary": "{one-line summary}", "origin": "park:{work_unit}", "sources": ["{work_unit}/discovery/sessions/session-{session_number}.md"]}]
+```
+
+Render the roadmap overlay, emitting its `=== DISPLAY` section verbatim as a code block (its DATA flags follow **E**'s park rules):
+
+```bash
+node .claude/skills/workflow-roadmap/scripts/gateway.cjs proposal --file .workflows/.cache/{work_unit}/discovery/proposed-parks.json
+```
+
+Fetch the gate and emit its section verbatim per its marker:
+
+```bash
+node .claude/skills/workflow-engine/scripts/engine.cjs render roadmap-parks-gate
+```
+
+**STOP.** Wait for user response.
+
+#### If `yes`
+
+Synthesis outcome: `confirmed`, with an **empty working list** and the park set held for Step 12.
+
+→ Load **[brief-synthesis.md](brief-synthesis.md)** and follow its instructions as written — with the empty working list, its pass covers the existing map topics this session's exploration materially deepened.
+
+→ Return to caller.
+
+#### If `explore`
+
+The user isn't ready — no working list, and no parks land. Synthesis outcome: `explore`.
+
+→ Return to caller.
+
+#### If adjust
+
+Apply the changes — move between horizons, rename, re-word summaries, drop. Rewrite `proposed-parks.json` and re-ask.
+
+→ Return to **F. Parks-Only Gate**.

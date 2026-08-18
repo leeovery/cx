@@ -38,6 +38,8 @@ const { promoteWorkUnit } = require('./domain/workunit-promote.cjs');
 const { openDiscoverySession, closeDiscoverySession } = require('./domain/discovery-session.cjs');
 const { runFieldCommand, isRead } = require('./domain/fields.cjs');
 const { renderSurface, SURFACES } = require('./domain/render.cjs');
+const roadmap = require('./domain/roadmap.cjs');
+const roadmapSession = require('./domain/roadmap-session.cjs');
 
 /** @param {string} msg @returns {never} */
 function die(msg) {
@@ -165,6 +167,26 @@ Commands:
   inbox archive <path> [<path> …]
   inbox restore <path> [<path> …]
   inbox delete <path> [<path> …]
+  roadmap state
+  roadmap add <name> --horizon <h> --summary <text> [--origin <tag>] [--source <path> …]
+  roadmap add-batch --file <items.json>
+  roadmap edit <name> --summary <text>
+  roadmap rename <old> <new>
+  roadmap move <name> --horizon <h>
+  roadmap remove <name>
+  roadmap pull <name> [<name> …] --into <work-unit>
+  roadmap bind <name> --topic <topic>
+  roadmap pull-forward <name> --into <epic> --routing <research|discussion> [--force-dismissed]
+  roadmap flag <name>
+  roadmap session open --session-log-file <path>
+  roadmap session close -m <message>
+  roadmap import <path> [<path> …]
+  roadmap horizon add <name> [--position <n>]
+  roadmap horizon rename <old> <new>
+  roadmap horizon reorder <name> [<name> …]   (the complete order)
+  roadmap horizon merge <from> --into <to>
+  roadmap horizon split <name> --new <name> --items <a,b,…> [--position <n>]
+  roadmap horizon remove <name>
   cache stamp <work-unit> (research-analysis|gap-analysis)
   agent dispatch <work-unit> <phase> <topic> --kind <kind> [--label <slug> …] [--set <NNN>]
   agent scan     <work-unit> <phase> <topic>
@@ -174,6 +196,7 @@ Commands:
   agent incorporate <work-unit> <phase> <topic> <id>
   commit <work-unit> -m <message> [--plan <topic>]
   commit --inbox -m <message>
+  commit --roadmap -m <message>
   commit --workflows -m <message>
   render resume-gate <wu.phase.topic> [--triage N] [--variant plan|review|scoping|session]  (session: bare <wu>)
   render task-list   <wu.planning.topic> --file <payload.json>
@@ -187,7 +210,7 @@ Commands:
   render triage-block     <wu.phase.topic>
   render reroute-offer    <wu.phase.topic> --file <payload.json>
   render reroute-candidates <wu.phase.topic> --file <payload.json>
-  render off-topic-offer  <wu.phase.topic> --file <payload.json>
+  render off-topic-offer  <wu.phase.topic> --file <payload.json> [--variant discussion]
   render proposed-task    <wu.phase.topic> --file <payload.json> --gate gated|auto [--comment-hint STR]
   render incoherence-gate <wu.phase.topic> --file <payload.json> --variant conflict|gap-route|held-doc
   render cancel-cascade-gate <wu.phase.topic>
@@ -218,6 +241,17 @@ Commands:
   render absorb-target     <feature>
   render plan-topics       <wu>
   render revisit-phases    <wu>
+  render roadmap-view
+  render roadmap-add-gate --horizon <name>
+  render roadmap-session-receipt [--warn]
+  render roadmap-harvest-gate
+  render roadmap-parks-gate
+  render roadmap-shape-gate
+  render roadmap-conclude-gate
+  render name-gate [--variant collision]
+  render shape-gate
+  render synthesis-gate
+  render query-failure-gate
   render baseline-progress
   render baseline-area-gate --area <name>
   render baseline-paused
@@ -813,6 +847,157 @@ function runInbox(argv) {
 }
 
 // ---------------------------------------------------------------------------
+// roadmap — the product-roadmap layer on the project manifest
+// (domain/roadmap.cjs): horizons + capability-grain items, lifecycle by
+// join. Every mutation is one transaction under the project lock with its
+// own pathspec commit of the project manifest — no work-unit cadence covers
+// it, and a park fired mid-session must be durable immediately. `state` is
+// the derived read every consumer shares.
+// ---------------------------------------------------------------------------
+
+/** @param {string[]} argv */
+function runRoadmap(argv) {
+  const [command, ...rest] = argv;
+  const cwd = process.cwd();
+  try {
+    if (command === 'state') {
+      if (rest.length !== 0) throw new Error('Usage: engine roadmap state');
+      respond(roadmap.roadmapState(cwd));
+      return;
+    }
+    if (command === 'session') {
+      const [sub, ...srest] = rest;
+      if (sub === 'open') {
+        /** @type {string|null} */ let sessionLogFile = null;
+        for (let i = 0; i < srest.length; i++) {
+          if (srest[i] === '--session-log-file') sessionLogFile = srest[++i];
+          else throw new Error(`unexpected argument "${srest[i]}"`);
+        }
+        if (!sessionLogFile) throw new Error('Usage: engine roadmap session open --session-log-file <path>');
+        respond(roadmapSession.openRoadmapSession(cwd, { sessionLogFile }));
+        return;
+      }
+      if (sub === 'close') {
+        /** @type {string|null} */ let message = null;
+        for (let i = 0; i < srest.length; i++) {
+          if (srest[i] === '-m' || srest[i] === '--message') message = srest[++i];
+          else throw new Error(`unexpected argument "${srest[i]}"`);
+        }
+        if (!message) throw new Error('Usage: engine roadmap session close -m <message>');
+        respond(roadmapSession.closeRoadmapSession(cwd, { message }));
+        return;
+      }
+      throw new Error('Usage: engine roadmap session <open|close> …');
+    }
+    if (command === 'import') {
+      if (rest.length === 0 || rest.some((a) => a.startsWith('--'))) {
+        throw new Error('Usage: engine roadmap import <path> [<path> …]');
+      }
+      respond(roadmapSession.importRoadmapFiles(cwd, rest));
+      return;
+    }
+    if (command === 'horizon') {
+      const [sub, ...hrest] = rest;
+      const { opts, positional } = parseArgs(hrest);
+      /** @type {number|undefined} */
+      let position;
+      if (opts.position !== undefined) {
+        position = parseInt(opts.position, 10);
+        if (!Number.isInteger(position)) throw new Error(`--position must be a number (got "${opts.position}")`);
+      }
+      if (sub === 'add') {
+        if (positional.length !== 1) throw new Error('Usage: engine roadmap horizon add <name> [--position <n>]');
+        respond(roadmap.addHorizon(cwd, positional[0], { position }));
+      } else if (sub === 'rename') {
+        if (positional.length !== 2) throw new Error('Usage: engine roadmap horizon rename <old> <new>');
+        respond(roadmap.renameHorizon(cwd, positional[0], positional[1]));
+      } else if (sub === 'reorder') {
+        if (positional.length === 0) throw new Error('Usage: engine roadmap horizon reorder <name> [<name> …] (the complete order)');
+        respond(roadmap.reorderHorizons(cwd, positional));
+      } else if (sub === 'merge') {
+        if (positional.length !== 1 || !opts.into) throw new Error('Usage: engine roadmap horizon merge <from> --into <to>');
+        respond(roadmap.mergeHorizons(cwd, positional[0], opts.into));
+      } else if (sub === 'split') {
+        if (positional.length !== 1 || !opts.new || !opts.items) {
+          throw new Error('Usage: engine roadmap horizon split <name> --new <name> --items <a,b,…> [--position <n>]');
+        }
+        const items = opts.items.split(',').map((s) => s.trim()).filter((s) => s !== '');
+        respond(roadmap.splitHorizon(cwd, positional[0], { newName: opts.new, items, position }));
+      } else if (sub === 'remove') {
+        if (positional.length !== 1) throw new Error('Usage: engine roadmap horizon remove <name>');
+        respond(roadmap.removeHorizon(cwd, positional[0]));
+      } else {
+        throw new Error('Usage: engine roadmap horizon <add|rename|reorder|merge|split|remove> …');
+      }
+      return;
+    }
+    const { opts, flags, lists, positional } = parseArgs(rest, ['force-dismissed'], ['source']);
+    if (command === 'add') {
+      // Strict positional count: an unquoted summary would spill into
+      // positionals and silently truncate the text — refuse instead.
+      if (positional.length !== 1) {
+        throw new Error('Usage: engine roadmap add <name> --horizon <h> --summary <text> [--origin <tag>] [--source <path> …]');
+      }
+      respond(roadmap.addRoadmapItem(cwd, positional[0], {
+        horizon: opts.horizon,
+        summary: opts.summary,
+        origin: opts.origin,
+        sources: lists.source || [],
+      }));
+    } else if (command === 'add-batch') {
+      if (positional.length !== 0 || !opts.file) throw new Error('Usage: engine roadmap add-batch --file <items.json>');
+      let parsed;
+      try {
+        parsed = JSON.parse(fs.readFileSync(path.resolve(cwd, opts.file), 'utf8'));
+      } catch (err) {
+        throw new Error(`roadmap add-batch: cannot read payload: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      respond(roadmap.addRoadmapItemsBatch(cwd, parsed));
+    } else if (command === 'edit') {
+      if (positional.length !== 1 || opts.summary === undefined) {
+        throw new Error('Usage: engine roadmap edit <name> --summary <text>');
+      }
+      respond(roadmap.editRoadmapItem(cwd, positional[0], { summary: opts.summary }));
+    } else if (command === 'rename') {
+      if (positional.length !== 2) throw new Error('Usage: engine roadmap rename <old> <new>');
+      respond(roadmap.renameRoadmapItem(cwd, positional[0], positional[1]));
+    } else if (command === 'move') {
+      if (positional.length !== 1 || !opts.horizon) throw new Error('Usage: engine roadmap move <name> --horizon <h>');
+      respond(roadmap.moveRoadmapItem(cwd, positional[0], opts.horizon));
+    } else if (command === 'remove') {
+      if (positional.length !== 1) throw new Error('Usage: engine roadmap remove <name>');
+      respond(roadmap.removeRoadmapItem(cwd, positional[0]));
+    } else if (command === 'pull') {
+      if (positional.length === 0 || !opts.into) {
+        throw new Error('Usage: engine roadmap pull <name> [<name> …] --into <work-unit>');
+      }
+      respond(roadmap.pullItems(cwd, positional, { into: opts.into }));
+    } else if (command === 'bind') {
+      if (positional.length !== 1 || !opts.topic) {
+        throw new Error('Usage: engine roadmap bind <name> --topic <topic>');
+      }
+      respond(roadmap.bindItem(cwd, positional[0], { topic: opts.topic }));
+    } else if (command === 'pull-forward') {
+      if (positional.length !== 1 || !opts.into || !opts.routing) {
+        throw new Error('Usage: engine roadmap pull-forward <name> --into <epic> --routing <research|discussion> [--force-dismissed]');
+      }
+      respond(roadmap.pullForwardItem(cwd, positional[0], {
+        into: opts.into,
+        routing: opts.routing,
+        forceDismissed: flags.has('force-dismissed'),
+      }));
+    } else if (command === 'flag') {
+      if (positional.length !== 1) throw new Error('Usage: engine roadmap flag <name>');
+      respond(roadmap.flagJoined(cwd, positional[0]));
+    } else {
+      throw new Error('Usage: engine roadmap <state|add|add-batch|edit|rename|move|remove|pull|bind|pull-forward|flag|horizon> …');
+    }
+  } catch (err) {
+    failJson(err);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // cache — analysis-cache stamping. Checksums the current completed inputs
 // exactly as the read side does and writes the cache object. No git commit —
 // the calling flow's commit cadence picks the manifest change up.
@@ -979,6 +1164,7 @@ function runCommit(argv) {
     /** @type {string|null} */ let topicSpec = null;
     let inbox = false;
     let workflows = false;
+    let roadmapScope = false;
     let kb = false;
     for (let i = 0; i < argv.length; i++) {
       const a = argv[i];
@@ -988,14 +1174,15 @@ function runCommit(argv) {
       else if (a === '--kb') kb = true;
       else if (a === '--inbox') inbox = true;
       else if (a === '--workflows') workflows = true;
+      else if (a === '--roadmap') roadmapScope = true;
       else if (workUnit === null) workUnit = a;
       else throw new Error(`unexpected argument "${a}"`);
     }
-    const scopeCount = [inbox, workflows, workUnit !== null].filter(Boolean).length;
+    const scopeCount = [inbox, workflows, roadmapScope, workUnit !== null].filter(Boolean).length;
     if (!message || scopeCount !== 1 || (plan !== null && workUnit === null) || plan === '' || plan === undefined ||
         (topicSpec !== null && workUnit === null) || topicSpec === '' || topicSpec === undefined ||
         (topicSpec !== null && plan !== null) || (kb && topicSpec === null)) {
-      throw new Error('Usage: engine commit <work-unit> -m <message> [--plan <topic> | --topic <phase>/<topic> [--kb]] | engine commit --inbox -m <message> | engine commit --workflows -m <message>');
+      throw new Error('Usage: engine commit <work-unit> -m <message> [--plan <topic> | --topic <phase>/<topic> [--kb]] | engine commit --inbox -m <message> | engine commit --roadmap -m <message> | engine commit --workflows -m <message>');
     }
     const cwd = process.cwd();
     /** @type {string|string[]} */ let scope;
@@ -1003,6 +1190,15 @@ function runCommit(argv) {
       scope = '.workflows';
     } else if (inbox) {
       scope = '.workflows/.inbox';
+    } else if (roadmapScope) {
+      // The product session's cadence commit: the roadmap dir (sessions,
+      // imports) plus the project manifest (the roadmap node lives there).
+      const specs = stageableSpecs(cwd, [roadmapSession.ROADMAP_DIR, '.workflows/manifest.json']);
+      if (specs.length === 0) {
+        respond({ committed: null, note: 'nothing to commit' });
+        return;
+      }
+      scope = specs;
     } else {
       const wu = /** @type {string} */ (workUnit);
       if (wu === '' || wu.includes('/') || wu.includes('..')) throw new Error(`invalid work unit name "${wu}"`);
@@ -1169,6 +1365,9 @@ function runCli(argv) {
       break;
     case 'inbox':
       runInbox(rest);
+      break;
+    case 'roadmap':
+      runRoadmap(rest);
       break;
     case 'cache':
       runCache(rest);

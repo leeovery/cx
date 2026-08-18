@@ -6,38 +6,31 @@
 
 The caller provides `work_type`, `work_unit`, `topic`, and the `concern` with its discussed context. The concern is already judged off-topic — single-topic work types have no sibling topic to route to, so it is preserved outside this discussion or noted and set aside.
 
-#### If `work_type` is `feature`
+Write the offer payload to `.workflows/.cache/{work_unit}/discussion/{topic}/off-topic-offer.json` with the Write tool (`{"concern": "…"}` — the concern's short title), then render it (the pivot row is derived from the work type; the discussion variant carries the roadmap park):
 
-> *Output the next fenced block as markdown (not a code block):*
-
-```
-· · · · · · · · · · · ·
-**{concern}** is beyond this topic's scope.
-
-**`l/log`**    → Capture it as an idea in the inbox for later
-**`p/pivot`**  → Convert this work to an epic so it can hold the concern as its own topic
-**`i/ignore`** → Note it in the Summary and move on
+```bash
+node .claude/skills/workflow-engine/scripts/engine.cjs render off-topic-offer {work_unit}.discussion.{topic} --file .workflows/.cache/{work_unit}/discussion/{topic}/off-topic-offer.json --variant discussion
 ```
 
-**STOP.** Wait for user response.
-
-#### Otherwise
-
-> *Output the next fenced block as markdown (not a code block):*
-
-```
-· · · · · · · · · · · ·
-**{concern}** is beyond this topic's scope.
-
-**`l/log`**    → Capture it as an idea in the inbox for later
-**`i/ignore`** → Note it in the Summary and move on
-```
+Emit the call's MENU section verbatim per its marker.
 
 **STOP.** Wait for user response.
 
 **If `log`:**
 
 Capture the concern via the `workflow-log-idea` skill so it lands in the inbox for later triage.
+
+→ Return to caller for **B. Session Loop**.
+
+**If `roadmap`:**
+
+Confirm the horizon in conversation (propose from the user's own staging words when they placed it; ask when they didn't), then park — the roadmap is born at the first park, and the verb validates and self-commits:
+
+```bash
+node .claude/skills/workflow-engine/scripts/engine.cjs roadmap add {name} --horizon {horizon} --summary "{one-liner}" --origin park:{work_unit} --source {work_unit}/discussion/{topic}.md
+```
+
+Note the park in the Summary so the discussion records where the concern went.
 
 → Return to caller for **B. Session Loop**.
 

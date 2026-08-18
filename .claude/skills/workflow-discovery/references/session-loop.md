@@ -14,6 +14,23 @@ Read `discovery_map` and `dismissed` from the most recent discovery output. `des
 
 If `.workflows/.baseline/overview.md` exists, read it in full — silent ambient context about the product the workflows were installed into (the baseline's other docs surface per-topic through the knowledge base). Never narrate it back.
 
+#### If `pull_continuation` is set (an epic just born at a roadmap pull)
+
+The slice was fenced at the pull and its record backfilled into `session-{session_number}.md` — the conversation continues, narrower. Name the fenced slice in one conversational sentence (the pulled items, by name), then render the transition:
+
+> *Output the next fenced block as a code block:*
+
+```
+Topics come later — they fall out once we've deepened the slice;
+the pulled items are the rough shapes.
+
+Anything to reshape before we go deeper — or shall we dig in?
+```
+
+**STOP.** Wait for user response.
+
+→ Proceed to **B. Session Loop**.
+
 #### If `macro_continuation` is set (new epic, just confirmed)
 
 The macro shaping at Step 4 already explored the work enough to confirm it's an epic and surfaced the first topic seeds; the confirm-trigger backfilled that into `session-{session_number}.md`. Don't re-open with a cold prompt — the conversation is already live. Render a brief transition that moves from "what is this" into exploring the whole:
@@ -130,6 +147,20 @@ No fixed cadence — follow the conversation, not a checklist. **The loop is the
 2. **Recognise intent.** The user's message may contain:
    - **Exploration content** — answers to your questions, new surfaces, descriptions of how parts work or connect, positions taken on a decision. Continue the conversation: push on the thread the user opened, counter-frame, follow where it leads. See [discovery-guidelines.md](discovery-guidelines.md) → *The Exploration Stance — How* for the register and where to push.
    - **An edit operation on an existing map item** — *"remove X"*, *"rename X to Y"*, *"edit summary of X"*, etc. Only possible when the map is non-empty. Delegate to [map-operations.md](map-operations.md) — it handles the operation, writes to the **Edits** section, commits.
+   - **A staged product capability — the park valve.** The user places a surfaced capability beyond this epic (*"that's a v2 thing"*), or confirms your proposed placement. Park it on the roadmap (born at the first park; the verb validates and self-commits), record it under **Edits** (`Parked: {name} → {horizon}` — the lazy-creation rule applies when no log exists yet, [template.md](template.md)), and continue — capture-weight, never shaping:
+
+     ```bash
+     node .claude/skills/workflow-engine/scripts/engine.cjs roadmap add {name} --horizon {horizon} --summary "{one-liner}" --origin park:{work_unit} --source {work_unit}/discovery/sessions/session-{session_number}.md
+     ```
+
+     A thought about an item already **pulled into in-flight work** is that work's business, not a park — when this session materially deepened its ground, flag the join instead (`engine roadmap flag {name}`). An unplaced tangent stays the inbox's (the scope-down in the detection core).
+   - **A roadmap item pulled forward** — *"actually, bring loyalty into this epic"*. One composed transaction lands it as a map topic (source `roadmap`) and writes its join; record it under **Edits** (`Pulled forward: {name}`):
+
+     ```bash
+     node .claude/skills/workflow-engine/scripts/engine.cjs roadmap pull-forward {name} --into {work_unit} --routing {research|discussion}
+     ```
+
+     A refusal naming a previously dismissed topic needs the user's deliberate re-add — confirm it, then re-run with `--force-dismissed`.
    - **A request to see the map** — *"show map"*, *"what's on the map"*. Re-run `gateway.cjs map-view {work_unit}` and emit its TITLE section (markdown) then its `=== DISPLAY` section verbatim as a code block. No STOP gate; just render and continue.
    - **A request to see dismissed items** — *"show dismissed"*, *"what was removed"*. Load [show-dismissed.md](show-dismissed.md).
    - **A KB query for prior context** — when a conversational thread would benefit from prior work on this or sibling work units, invoke `knowledge query` with a query derived from the thread (see [contextual-query.md](../../workflow-knowledge/references/contextual-query.md) for the pattern).
