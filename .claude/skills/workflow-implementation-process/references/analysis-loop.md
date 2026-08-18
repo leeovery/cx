@@ -38,7 +38,7 @@ The session died between the last gate decision and the plan write — the appro
 
 #### If an `analysis-tasks-c{N}.md` staging file exists on disk with no matching manifest cycle
 
-A crash between the synthesizer's write and the init — initialise the cycle from the file's task count (the batched `pending` set from **[invoke-synthesizer.md](invoke-synthesizer.md)**). Only the `analysis-tasks-` family counts: `review-tasks-c*.md` and `ad-hoc-tasks-*.md` files in the same directory belong to the review item and the ad hoc plan-changes flow.
+A crash between the synthesizer's write and the init — initialise the cycle from the file's task count (the batched `pending` set from **[invoke-synthesizer.md](invoke-synthesizer.md)**). Only the `analysis-tasks-` family counts: `review-tasks-c*.md`, `ad-hoc-tasks-*.md`, and `consolidation-tasks-p*.md`/`consolidation-findings-p*.md` files in the same directory belong to the review item, the ad hoc plan-changes flow, and the consolidation boundary.
 
 → Proceed to **E. Approval Overview**.
 
@@ -168,7 +168,19 @@ Commit the analysis findings — the scoped commit covers the findings files and
 node .claude/skills/workflow-engine/scripts/engine.cjs commit {work_unit} -m "impl({work_unit}): analysis cycle {N} — findings"
 ```
 
-#### If all three agents returned `STATUS: clean`
+Read the bank (an absent field prints empty):
+
+```bash
+node .claude/skills/workflow-engine/scripts/engine.cjs manifest get {work_unit}.implementation.{topic} bank
+```
+
+#### If all three agents returned `STATUS: clean` and the bank holds entries
+
+The phase boundaries left residue — the synthesizer runs over the bank alone for its verdicts.
+
+→ Proceed to **D. Dispatch Synthesis Agent**.
+
+#### If all three agents returned `STATUS: clean` and the bank is empty
 
 → Return to **[the skill](../SKILL.md)** for **Step 8**.
 
