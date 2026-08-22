@@ -341,6 +341,40 @@ Both halves land in one release.
 **Accepted cost:** a misbehaving release cannot be bisected between "the new key works" and "the old machinery is gone". This is deliberate. Splitting them is the pattern rejected in §7.1 and §8, and this is a single-install tool that can be rolled back wholesale.
 
 
+### 8. Migration
+
+#### 8.1 No migration code ships
+
+Existing `hooks.json` entries are keyed `<@portal-id or session_name>:<window>.<pane>`; the token-only key (§3.1) changes every key on disk. **No migration code is written, and none ships.**
+
+Portal has one install and no evidence of any other. The user's call is that a second install, if one exists, is not worth carrying compatibility code for.
+
+Two alternatives were rejected:
+
+- **Using `CleanStale` as the migration** — the precedent from spec `resume-hooks-lost-on-server-restart` (2026-04-30), which accepted a breaking key change and let the sweep absorb the old entries. Repeating it here would silently destroy every existing hook on the first sweep after upgrade.
+- **A one-release migration, isolated and deleted in the next release** — ships code whose whole purpose is to become obsolete, and leaves a removal the user has to remember.
+
+#### 8.2 The conversion is a throwaway script, outside this work unit
+
+The re-key is a one-time transformation of one file on one machine: resolve each entry's positional key to its live pane, stamp a token on that pane, rewrite the entry under the token. It is authored as a script **outside Portal, and outside this specification and its plan**. It is not a deliverable here and no work item covers it.
+
+#### 8.3 What makes that safe rather than reckless
+
+§5.2. The reaper retains any key it cannot parse as a token, and an old-format key never can be, so:
+
+- an unconverted entry sits **inert** rather than being deleted;
+- a partial conversion costs nothing — the converted entries work, the unconverted ones wait;
+- the protection is by **key shape**, so it holds wherever the rule lives, including `portal doctor --fix`, which shares the same code path.
+
+The one thing not covered by code is ordering: an entry registered *between* the upgrade and the script's run is already token-keyed and needs no conversion, while one registered before it is old-format and does. Running the script after upgrading is the mitigation, not a code path.
+
+#### 8.4 The user's own integration
+
+`~/.claude/hooks/portal-resume-hook.sh` re-implements `HookKeyFormat` verbatim (`:87-95`) and matches it against `portal hook list` output. It needs updating in step with this change. It is out of scope (§1.3) and named here only because the conversion script and the hook script are the same person's job on the same day.
+
+It fails safe in the meantime: the script documents the coupling, an unrecognised key scheme yields an empty key, and its guards then refuse to remove anything. So a key-scheme change degrades it silently rather than erroring — its SessionEnd branch stops deregistering, and those entries are absorbed by the reaper exactly as they always have been.
+
+
 ---
 
 ## Working Notes
