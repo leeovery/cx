@@ -19,9 +19,10 @@ Neither section says what happens when the saved token is empty. Two behaviours 
 §3.4 covers the empty key at the *bake* and *lookup* boundaries but is explicitly about `collectArmInfos` and `LookupOnResume`, not about the re-stamp, so it does not close this. The source's guard-conflation refinement (§5.4 in the spec) shows the authors were alert to "unstamped is normal" elsewhere; the re-stamp path did not receive the same treatment.
 
 **Proposed Change**:
+Skip the `set-option -p` entirely when the saved `PortalPaneID` is empty — no option written, nothing logged — stated in §2.3's Restore bullet, with §2.4's WARN paragraph scoped so it can only fire for a genuine tmux failure.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied to §2.3 and §2.4. Skip chosen over writing an empty option: an empty value is indistinguishable on read-back from absence, and would turn the lost-identity WARN into per-boot noise across the unstamped majority.
 
 ---
 
