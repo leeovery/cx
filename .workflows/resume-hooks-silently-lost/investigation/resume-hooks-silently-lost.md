@@ -186,7 +186,7 @@ still open; a caller without that guard still hits it, and even the guarded call
   **Confirmed** by full trace — see Code Trace finding 1. A repo-wide search finds no hook-key
   shape validation anywhere.
 
-- **H2 — Coordinate drift orphans a live pane's hook, and the daemon then reaps it** [suspected]
+- **H2 — Coordinate drift orphans a live pane's hook, and the daemon then reaps it** [confirmed]
   The key bakes `window_index.pane_index`; tmux renumbers on pane close, window close (with
   `renumber-windows on`), `break-pane` and `move-pane`. Nothing re-keys the entry.
   `runHookStaleCleanup` -> `hooks.CleanStale` then removes it, correct by its own rule.
@@ -198,16 +198,21 @@ still open; a caller without that guard still hits it, and even the guarded call
   of the key immutable. The *pane* half is still a position. H1 and H2 are the same missing
   piece seen at two moments: identity unverified at write, identity unstable over the lifetime.
 
-- **H4 — Whatever replaces coordinates must survive a tmux server restart** [suspected]
+- **H4 — Whatever replaces coordinates must survive a tmux server restart** [confirmed, and satisfiable]
   Spec `resume-hooks-lost-on-server-restart` (2026-04-30) chose positional keys *deliberately*,
   replacing pane IDs, because `%N` is reassigned by the server on restart. Drift is the bill for
-  that trade. Any fix has to pay the restart problem back, not re-open it.
+  that trade. Any fix has to pay the restart problem back, not re-open it. **Confirmed as the
+  binding constraint, and shown satisfiable** — see finding 5: a tmux *pane* user-option
+  survives every in-server rearrangement, and the reboot gap is closed the same way the session
+  half already closes it (carry in `sessions.json`, re-stamp at restore).
 
-- **H5 — The reaper and doctor are why this ran for months unnoticed** [suspected]
+- **H5 — The reaper and doctor are why this ran for months unnoticed** [confirmed]
   The daemon prune emits `clean-stale entries=N` with no key at INFO (per-key detail is DEBUG,
   `internal/hooks/store.go:220`). `portal doctor`'s stale-hook check (`cmd/doctor.go:289`)
   measures against the same live-key rule that does the reaping, so it reports green while
-  hooks are being deleted. Contributing factor rather than root cause.
+  hooks are being deleted. Contributing factor rather than root cause. **Confirmed** — see
+  finding 4. The reaper runs every 10s, so by the time a human runs `doctor` the loss has
+  already been normalised away; doctor is structurally incapable of seeing it.
 
 ### Code Trace
 
@@ -226,6 +231,95 @@ still open; a caller without that guard still hits it, and even the guarded call
 6. `cmd/doctor.go` stale-hooks check — why it reports green.
 
 **Findings:**
+
+#### Finding 2 — the four key-producing sites agree; the format is the problem (trace line 2)
+
+Every site derives the key by the same rule, so there is no cross-site drift — the July
+`session-rename-orphans-resume-hook` invariant holds:
+
+| Site | Call | Source of truth |
+|---|---|---|
+| Registration | `cmd/hooks.go:50` -> `ResolveHookKey` | live tmux read |
+| Stale sweep | `cmd/run_hook_stale_cleanup.go:26` -> `ListAllPaneHookKeys` | live tmux read |
+| Doctor | `cmd/doctor.go:289` -> `ListAllPaneHookKeys` | live tmux read |
+| Restore / firing | `internal/restore/session.go:62` -> `tmux.HookKey` | **saved** `sessions.json` |
+
+The defect is in the format itself, `internal/tmux/tmux.go:565`:
+
+```
+#{?@portal-id,#{@portal-id},#{session_name}}:#{window_index}.#{pane_index}
+└──────────── immutable identity ───────────┘ └──── mutable position ────┘
+```
+
+The session half was made rename-immune in July. The pane half is still a coordinate tmux
+recomputes from layout. **H3 confirmed**: one root cause, two symptoms.
+
+#### Finding 3 — how fast the reaper acts (H2 confirmed)
+
+`hookCleanupInterval = 10 * time.Second` (`cmd/state_daemon.go:105`), run from
+`maybeRunHookCleanup` on the daemon's **idle** branch (`cmd/state_daemon.go:174-180`) — i.e.
+precisely when nothing else is happening, which is when a user is rearranging panes. So a hook
+is reaped within ~10s of the pane moving. This is not slow decay; the entry is gone almost
+immediately, minutes or months before the reboot that needed it.
+
+`runHookStaleCleanup` carries exactly one guard — an empty live set is treated as a bad read
+and skipped (`cmd/run_hook_stale_cleanup.go:41-47`). Nothing protects a *single* entry whose
+pane merely moved, and nothing could: at the point of comparison a moved pane and a dead pane
+are indistinguishable. The reaper is behaving correctly on false information.
+
+Timing matches the seed's instance exactly: `OCCvED` registered 22:17:55, pruned 22:22:16 —
+the pane was rearranged somewhere in that window and the next idle sweep took it.
+
+#### Finding 4 — why nothing reported it (H5 confirmed)
+
+Two independent blind spots:
+
+- **The prune is count-only at production level.** `internal/hooks/store.go:220` logs each
+  removed key at DEBUG; the only INFO line is the batch summary `clean-stale entries=N`
+  (`internal/storelog/clean_stale.go`). At the production default (INFO) the key that was
+  deleted is never recorded, so the log cannot answer "what did I lose?".
+- **`portal doctor` measures against the rule that does the reaping.** `checkStaleHooks`
+  (`cmd/doctor.go:280`) asks "does every persisted key match a live pane?". The daemon has
+  already deleted every entry that failed that test, within 10s. Doctor therefore reports
+  `no stale hooks` *because* the loss completed, not despite it.
+
+The deeper gap: **nothing anywhere asks the inverse question** — "is a live pane that should
+have a hook missing one?". Portal holds no record of which panes are meant to be protected, so
+an unprotected pane is invisible to every diagnostic. That is why the 2026-08-16 audit had to
+be done by hand, diffing `hooks.json` against the live pane list.
+
+#### Finding 5 — durable pane identity is available (H4 confirmed and satisfiable)
+
+Sandbox, isolated `-L` socket, tmux 3.7c (note: `CLAUDE.md` says 3.6b — stale). A tmux **pane**
+user-option `@portal-pane-id` was stamped on one pane and tracked through every mutation the
+seed names:
+
+| Operation | Key coords before -> after | Stamp |
+|---|---|---|
+| initial | `t:1.2` | `STAMP1` |
+| `break-pane` | `t:1.2` -> `t:3.1` | survives |
+| `kill-window` + `renumber-windows on` | `t:3.1` -> `t:2.1` | survives |
+| `move-pane` back | `t:2.1` -> `t:1.2` | survives |
+| **`respawn-pane -k`** | `t:1.2` (unchanged) | **survives** |
+| `rename-session` | `t:1.2` -> `newname:1.2` | survives |
+
+Four distinct hook keys for one pane that never changed; the stamp held throughout.
+`respawn-pane -k` surviving is load-bearing — that is exactly what restore's arm phase does to
+每 pane (`internal/restore`), so a stamp applied before arming is still there afterwards.
+
+Also verified: **no inheritance** — a pane created by `split-window` or `new-window` from a
+stamped pane reads back empty, so a split cannot duplicate an id. `set-option -p -u` clears
+cleanly.
+
+The one thing a pane option cannot survive is the tmux server dying — which is the exact
+constraint that made spec `resume-hooks-lost-on-server-restart` choose coordinates in 2026-04-30.
+That gap is already solved once, for the session half: `sessions.json` carries `Session.PortalID`
+and `internal/restore/session.go:76` re-stamps it on the recreated session. The pane half is the
+same move one level down — `state.Pane` (`internal/state/schema.go:40`) takes an additive field
+exactly as `Session.PortalID` did (`json` tolerant-decode, no `SchemaVersion` bump), capture
+appends one more `captureFormat` column, and restore re-stamps per pane.
+
+**So H4's constraint is real and is satisfiable without re-opening the 2026-04-30 bug.**
 
 #### Finding 1 — the degenerate-key write path (H1 confirmed)
 
