@@ -60,6 +60,7 @@ No source material — this phase looks inward only.
    - Terms used inconsistently across sections
    - "It should" without defining what "it" is
    - Implicit assumptions that aren't stated
+   - Open-decision markers — "Decision required", "TBD", "to be decided", or any marker parking an unmade decision in the artifact. A specification decides nothing and defers nothing; flag every marker as Critical, category **Unsourced decision** — the marker itself is the evidence that no validated decision stands behind the text, no source comparison needed. The orchestrator routes these back toward the source record — never propose spec text for them
 
    **Contradictions**
    - Requirements that conflict with each other
@@ -96,13 +97,14 @@ No source material — this phase looks inward only.
 **MANDATORY. No exceptions.**
 
 1. **No git writes** — do not commit or stage. Writing the output file is your only file write.
-2. **One concern only** — standalone document quality. Do not compare against source material — that's the input review agent's job.
+2. **One concern only** — standalone document quality. Do not compare against source material — that's the input review agent's job — and never measure claims against the codebase — that's the claims verification agent's job.
 3. **Don't expand scope** — look for gaps *within* what's specified, not suggesting features the product should have. A feature spec for "user login" doesn't need you to ask about password reset if it wasn't in scope.
 4. **No gold-plating** — only flag gaps that would actually impact implementation of what's specified.
 5. **Don't second-guess decisions** — the spec reflects validated decisions. Check for clarity and completeness, not re-open debates.
 6. **Never propose that the specification state its own pipeline position** — readiness for planning, incorporation status, or review-cycle counts. That state lives in the work unit's manifest; a Proposed Change may remove such a statement, never add one.
 7. **No tracking file when clean** — only write the output file if findings exist.
 8. **Never lose your findings** — when findings exist they must survive the run, and the tracking file is how they survive. Produce the tracking file via the `.txt`-then-rename mechanism; if a step errors, quote the error verbatim in your status. Never conclude the write is blocked without attempting it. Only if the write itself has errored may you return the findings in full in your final message for the orchestrator to persist — an absolute last resort, never an alternative to writing.
+9. **Additive by default** — propose missing content, never a rework of sound content. Wrong content — whatever wrote it, construction or an earlier cycle — is proposed for removal or in-place correction, never explanation: no correction notes, no contrast with what the text used to say, no mention of review, cycles, or process. A tweak to sound content needs a genuine defect, not a preference — and a restatement of a fact that already has a home is wrong content, not sound content (the one-home rule). The `## Working Notes` section is the phase's own record and exempt from the process-mention bar.
 
 ## Output File Format
 
@@ -116,7 +118,7 @@ Write to `.workflows/{work_unit}/specification/{topic}/review-gap-analysis-track
 ### 1. {Brief Title}
 
 **Source**: Specification analysis
-**Category**: Enhancement to existing topic | New topic | Gap/Ambiguity | Duplication
+**Category**: Enhancement to existing topic | New topic | Gap/Ambiguity | Duplication | Unsourced decision
 **Priority**: Critical | Important | Minor
 **Affects**: {which section(s) of the specification}
 
@@ -124,10 +126,10 @@ Write to `.workflows/{work_unit}/specification/{topic}/review-gap-analysis-track
 {Explanation of what was found and why it matters}
 
 **Current**:
-{For findings that modify existing content (Enhancement, Duplication) — copy the existing specification content that will be modified. This enables diff presentation to the user. Omit for New topic and Gap/Ambiguity findings.}
+{For findings that modify existing content (Enhancement, Duplication) — copy the existing specification content that will be modified. This enables diff presentation to the user. Omit for New topic, Gap/Ambiguity, and Unsourced decision findings.}
 
 **Proposed Change**:
-{What you would add or change in the specification — leave blank until discussed}
+{What you would add or change in the specification — leave blank until discussed. Leave blank permanently for Unsourced decision: the fix belongs to the source record}
 
 **Resolution**: Pending
 **Notes**:

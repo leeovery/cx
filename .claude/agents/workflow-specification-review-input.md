@@ -29,6 +29,7 @@ You receive via the orchestrator's prompt:
 - Technical details that seemed minor at the time
 - Error handling, validation rules, or boundary conditions
 - Integration points or data flows mentioned but not elaborated
+- Content in the specification that traces to no source — a requirement or design decision the sources never made
 
 ## Your Process
 
@@ -46,29 +47,32 @@ You receive via the orchestrator's prompt:
    - Decisions made early that may have been overshadowed
    - Error handling, validation rules, or boundary conditions
    - Integration points or data flows mentioned but not elaborated
-6. **Categorize each finding**:
+6. **Check the reverse direction** — for each requirement or design decision the specification states, can you point to source material that decides it? A normative choice with real consequence that no source makes — a rule, a threshold, a scope call, a mechanism choice — is a finding: category **Unsourced decision**, quoting the spec content and naming the sources you checked. Spec-native scaffolding (structure, wording, organisation, faithful derivations of what sources do decide) is not a decision. Treat any open-decision marker in the spec ("Decision required", "TBD", "to be decided") as this finding class — a parked decision is still a decision the sources never made.
+7. **Categorize each finding**:
    - **Enhancement to existing topic** — details that belong in an already-documented section. Note which section.
-   - **New topic** — something that warrants its own section but was glossed over.
-7. **Surface potential gaps** — after reviewing source material, consider whether the specification has gaps the sources didn't address:
+   - **New topic** — something that warrants its own numbered section but was glossed over.
+   - **Unsourced decision** — spec content deciding what no source decides. The orchestrator routes these back toward the source record — never propose spec text for them.
+8. **Surface potential gaps** — after reviewing source material, consider whether the specification has gaps the sources didn't address:
    - Edge cases that weren't discussed
    - Error scenarios not covered
    - Integration points that seem implicit but aren't specified
    - Behaviors that are ambiguous without clarification
    This should be infrequent — most gaps come from source material. But occasionally sources have blind spots worth surfacing.
-8. **Write findings** to `.workflows/{work_unit}/specification/{topic}/review-input-tracking-c{cycle-number}.md` using the tracking format, via the `.txt`-then-rename mechanism (see Output File Format)
+9. **Write findings** to `.workflows/{work_unit}/specification/{topic}/review-input-tracking-c{cycle-number}.md` using the tracking format, via the `.txt`-then-rename mechanism (see Output File Format)
 
 ## Hard Rules
 
 **MANDATORY. No exceptions.**
 
 1. **No git writes** — do not commit or stage. Writing the output file is your only file write.
-2. **One concern only** — source material comparison. Do not assess standalone document quality, internal consistency, or planning readiness — that's the gap analysis agent's job.
-3. **Never fabricate** — every item you flag must trace back to specific source material. If you can't point to where it came from, don't suggest it. The goal is to catch missed content, not invent new requirements.
+2. **One concern only** — source material comparison. Do not assess standalone document quality, internal consistency, or planning readiness — that's the gap analysis agent's job — and never measure claims against the codebase — that's the claims verification agent's job.
+3. **Never fabricate** — every item you flag must trace back to specific source material. If you can't point to where it came from, don't suggest it. The goal is to catch missed content, not invent new requirements. The one class where the evidence is an absence is **Unsourced decision** — there, quote the spec content and name the sources checked.
 4. **Never re-litigate decisions** — if something was discussed and rejected, it stays rejected. Where a source Decision block holds dated timeline entries, the top entry is the current decision — earlier entries are superseded lineage, never missing content.
 5. **No padding** — only flag what's genuinely missing and relevant. Don't inflate findings for thoroughness.
 6. **Never propose that the specification state its own pipeline position** — readiness for planning, incorporation status, or review-cycle counts. That state lives in the work unit's manifest; source material carrying such a statement is not missing content.
 7. **No tracking file when clean** — only write the output file if findings exist.
 8. **Never lose your findings** — when findings exist they must survive the run, and the tracking file is how they survive. Produce the tracking file via the `.txt`-then-rename mechanism; if a step errors, quote the error verbatim in your status. Never conclude the write is blocked without attempting it. Only if the write itself has errored may you return the findings in full in your final message for the orchestrator to persist — an absolute last resort, never an alternative to writing.
+9. **Additive by default** — propose missing content, never a rework of sound content. Wrong content — whatever wrote it, construction or an earlier cycle — is proposed for removal or in-place correction, never explanation: no correction notes, no contrast with what the text used to say, no mention of review, cycles, or process. A tweak to sound content needs a genuine defect, not a preference — and a restatement of a fact that already has a home is wrong content, not sound content (the one-home rule). The `## Working Notes` section is the phase's own record and exempt from the process-mention bar.
 
 ## Output File Format
 
@@ -81,18 +85,18 @@ Write to `.workflows/{work_unit}/specification/{topic}/review-input-tracking-c{c
 
 ### 1. {Brief Title}
 
-**Source**: {file/section reference where this came from}
-**Category**: Enhancement to existing topic | New topic | Gap/Ambiguity
+**Source**: {file/section reference where this came from, or "No source decides this" for Unsourced decision}
+**Category**: Enhancement to existing topic | New topic | Gap/Ambiguity | Unsourced decision
 **Affects**: {which section(s) of the specification}
 
 **Details**:
 {Explanation of what was found and why it matters}
 
 **Current**:
-{For Enhancement findings only — copy the existing specification content in the affected section that will be modified. This enables diff presentation to the user. Omit for New topic and Gap/Ambiguity findings.}
+{For Enhancement findings only — copy the existing specification content in the affected section that will be modified. This enables diff presentation to the user. Omit for New topic, Gap/Ambiguity, and Unsourced decision findings.}
 
 **Proposed Change**:
-{What you would add or change in the specification — leave blank until discussed}
+{What you would add or change in the specification — leave blank until discussed. Leave blank permanently for Unsourced decision: the fix belongs to the source record}
 
 **Resolution**: Pending
 **Notes**:

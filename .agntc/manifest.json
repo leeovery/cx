@@ -1,7 +1,7 @@
 {
   "leeovery/agentic-workflows": {
-    "ref": "v0.7.0",
-    "commit": "f0bfaf21fb5cf45975dc7260dc0cf3bc18840127",
+    "ref": "v0.7.3",
+    "commit": "df2a7495106a27971ebef383863a69eb1dec54dd",
     "agents": [
       "claude"
     ],
@@ -587,17 +587,18 @@
       ".claude/agents/workflow-review-fix-applier.md",
       ".claude/agents/workflow-review-fix-verifier.md",
       ".claude/agents/workflow-review-task-verifier.md",
+      ".claude/agents/workflow-specification-review-claims.md",
       ".claude/agents/workflow-specification-review-gap-analysis.md",
       ".claude/agents/workflow-specification-review-input.md"
     ],
     "type": "plugin",
     "cloneUrl": "https://github.com/leeovery/agentic-workflows.git",
-    "installedAt": "2026-08-18T17:47:56.498Z",
+    "installedAt": "2026-08-22T08:36:03.709Z",
     "constraint": "^0.7.0"
   },
   "samber/cc-skills-golang": {
-    "ref": "v1.9.1",
-    "commit": "15b1a0fcf1b39f7aa7075094e1228cf4cbbb7c3b",
+    "ref": "v2.0.0",
+    "commit": "053894c088317d7ba2038cffcbf5fd57b5494fa6",
     "agents": [
       "claude"
     ],
@@ -784,6 +785,8 @@
       ".claude/skills/golang-grpc/references/testing.md",
       ".claude/skills/golang-how-to/",
       ".claude/skills/golang-how-to/SKILL.md",
+      ".claude/skills/golang-how-to/assets/",
+      ".claude/skills/golang-how-to/assets/cursor-go-skills.mdc",
       ".claude/skills/golang-how-to/references/",
       ".claude/skills/golang-how-to/references/by-category.md",
       ".claude/skills/golang-how-to/references/disambiguation.md",
@@ -1036,7 +1039,7 @@
     ],
     "type": "plugin",
     "cloneUrl": "https://github.com/samber/cc-skills-golang.git",
-    "installedAt": "2026-07-27T12:48:34.522Z",
-    "constraint": "^1.5.1"
+    "installedAt": "2026-08-22T08:36:46.296Z",
+    "constraint": "^2.0.0"
   }
 }

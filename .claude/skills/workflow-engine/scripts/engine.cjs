@@ -188,7 +188,7 @@ Commands:
   roadmap horizon split <name> --new <name> --items <a,b,…> [--position <n>]
   roadmap horizon remove <name>
   cache stamp <work-unit> (research-analysis|gap-analysis)
-  agent dispatch <work-unit> <phase> <topic> --kind <kind> [--label <slug> …] [--set <NNN>]
+  agent dispatch <work-unit> <phase> <topic> --kind <kind> [--label <slug> …] [--set <NNN>] [--final]
   agent scan     <work-unit> <phase> <topic>
   agent ack      <work-unit> <phase> <topic> <id> (--findings <F1,F2,…> | --clean)
   agent announce <work-unit> <phase> <topic> <id>
@@ -205,6 +205,10 @@ Commands:
   render finding-batch    <wu.phase.topic> --file <payload.json>
   render review-presentation <wu.review.topic> --file <payload.json>
   render review-gate      <wu.review.topic> --verdict pass|fail [--replan N] [--out-of-scope N]
+  render spec-review-gate <wu.specification.topic> --variant continue|reloop
+  render spec-completion-gate <wu.specification.topic> --variant assessment|signoff
+  render carry-note-gate  <wu.research.topic> --file <payload.json>
+  render convergence-diagnostic <wu.phase.topic> --file <payload.json>
   render triage-announce  <wu.phase.topic>
   render triage-offer     <wu.phase.topic> --file <payload.json>
   render triage-block     <wu.phase.topic>
@@ -1024,14 +1028,14 @@ function runCache(argv) {
 function runAgent(argv) {
   const [command, ...rest] = argv;
   try {
-    const { opts, flags, lists, positional } = parseArgs(rest, ['clean'], ['label']);
+    const { opts, flags, lists, positional } = parseArgs(rest, ['clean', 'final'], ['label']);
     const [workUnit, phase, topic, id, finding] = positional;
     const cwd = process.cwd();
     if (command === 'dispatch') {
       if (!workUnit || !phase || !topic || positional.length !== 3 || !opts.kind) {
-        throw new Error('Usage: engine agent dispatch <work-unit> <phase> <topic> --kind <kind> [--label <slug> …] [--set <NNN>]');
+        throw new Error('Usage: engine agent dispatch <work-unit> <phase> <topic> --kind <kind> [--label <slug> …] [--set <NNN>] [--final]');
       }
-      respond(agentState.dispatchAgent(cwd, workUnit, phase, topic, { kind: opts.kind, labels: lists.label || [], set: opts.set }));
+      respond(agentState.dispatchAgent(cwd, workUnit, phase, topic, { kind: opts.kind, labels: lists.label || [], set: opts.set, final: flags.has('final') }));
       return;
     }
     if (command === 'scan') {

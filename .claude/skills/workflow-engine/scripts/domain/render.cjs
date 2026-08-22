@@ -386,9 +386,221 @@ function proposedTask(cwd, args) {
 }
 
 // ---------------------------------------------------------------------------
-// incoherence-gate — spec construction's Resolve Source Incoherence raises.
-// Three variants; the stops here override the construction auto mode by
-// design, so no --gate flag exists.
+// spec-review-gate — the review loop's two gates, variant-keyed and
+// payload-less: the options are static, the state that picks the variant
+// (cycle count, gate mode, finding statuses) lives with the caller.
+//   continue — the cycle-count escape hatch: keep reviewing or skip out
+//   reloop   — after findings: another full cycle or proceed to completion
+// ---------------------------------------------------------------------------
+
+/**
+ * @param {string} cwd
+ * @param {{dotpath: string, variant?: string}} args
+ * @returns {string}
+ */
+function specReviewGate(cwd, { dotpath, variant }) {
+  if (variant === undefined || !['continue', 'reloop'].includes(variant)) {
+    throw new Error('render spec-review-gate: --variant must be "continue" or "reloop"');
+  }
+  const { phase } = resolveAddress(cwd, dotpath, 'spec-review-gate');
+  if (phase !== 'specification') {
+    throw new Error(`render spec-review-gate: address must be <work_unit>.specification.<topic>, got phase "${phase}"`);
+  }
+  if (variant === 'continue') {
+    return section('MENU: spec review continue gate', STOP_FOR_RESPONSE, menu('', [
+      cmdOption('p', 'proceed', 'Continue review'),
+      cmdOption('s', 'skip', 'Skip review, proceed to completion'),
+    ], { question: 'Continue with review?' }));
+  }
+  return section('MENU: spec review reloop gate', STOP_FOR_RESPONSE, menu('', [
+    cmdOption('r', 'reanalyse', 'Run another review cycle (all three phases)'),
+    cmdOption('p', 'proceed', 'Proceed to completion'),
+  ], { question: 'Run another review cycle?' }));
+}
+
+// ---------------------------------------------------------------------------
+// convergence-diagnostic — the review/fix escalation diagnostic. The judgment
+// (trend classification, finding titles, root-cause hypotheses) rides as the
+// payload; the arithmetic (counts from the arrays, review growth) and the
+// advisory flags are this surface's own — a flag whose condition lives in
+// prose fires by mood.
+// ---------------------------------------------------------------------------
+
+const CONVERGENCE_LOOPS = { fix: 'Fix Loop', analysis: 'Analysis', 'planning-review': 'Plan Review', 'spec-review': 'Spec Review' };
+const CONVERGENCE_TRENDS = {
+  churning: 'Findings resolve but are replaced at the same rate — the edits are likely generating new findings. Consider consolidating duplicated statements rather than running another cycle.',
+  converging: 'Continuing is likely to resolve remaining items.',
+  stable: 'Same issues are cycling. Consider manual intervention on the recurring items.',
+  diverging: 'Fixes are introducing new issues. Consider reviewing the approach.',
+};
+
+/**
+ * @param {string} cwd
+ * @param {{dotpath: string, file?: string}} args
+ * @returns {string}
+ */
+function convergenceDiagnostic(cwd, { dotpath, file }) {
+  if (!file) throw new Error('render convergence-diagnostic: --file <payload.json> is required');
+  resolveAddress(cwd, dotpath, 'convergence-diagnostic');
+  const p = readJsonPayload(cwd, file, 'convergence-diagnostic');
+  if (!(p.loop_type in CONVERGENCE_LOOPS)) {
+    throw new Error(`render convergence-diagnostic: "loop_type" must be one of ${Object.keys(CONVERGENCE_LOOPS).join('/')}`);
+  }
+  if (!(p.trend in CONVERGENCE_TRENDS)) {
+    throw new Error(`render convergence-diagnostic: "trend" must be one of ${Object.keys(CONVERGENCE_TRENDS).join('/')}`);
+  }
+  if (!Number.isInteger(p.latest_cycle) || p.latest_cycle < 2) {
+    throw new Error('render convergence-diagnostic: "latest_cycle" must be an integer ≥ 2 — the diagnostic needs at least 2 cycles of data');
+  }
+  /** @param {unknown} arr @param {string} name @param {string[]} fields @returns {Array<Record<string, unknown>>} */
+  const findings = (arr, name, fields) => {
+    if (!Array.isArray(arr)) throw new Error(`render convergence-diagnostic: "${name}" must be an array`);
+    arr.forEach((it, i) => {
+      for (const f of fields) {
+        const ok = f === 'last_seen_cycle' ? Number.isInteger(it[f]) : isFilled(it[f]);
+        if (!ok) throw new Error(`render convergence-diagnostic: ${name}[${i}] is missing "${f}"`);
+      }
+    });
+    return arr;
+  };
+  const resolved = findings(p.resolved, 'resolved', ['title', 'last_seen_cycle']);
+  const recurring = findings(p.recurring, 'recurring', ['title', 'cycles', 'hypothesis']);
+  const fresh = findings(p.new, 'new', ['title']);
+
+  const multi = p.loop_type === 'spec-review' || p.loop_type === 'planning-review';
+  if (multi) {
+    if (!Array.isArray(p.stream_counts) || p.stream_counts.length < 2) {
+      throw new Error(`render convergence-diagnostic: "${p.loop_type}" carries "stream_counts" — one {label, count} per tracking stream`);
+    }
+    p.stream_counts.forEach((st, i) => {
+      if (!isFilled(st.label) || !Number.isInteger(st.count)) {
+        throw new Error(`render convergence-diagnostic: stream_counts[${i}] needs "label" and an integer "count"`);
+      }
+    });
+  } else if (p.stream_counts !== undefined) {
+    throw new Error(`render convergence-diagnostic: "${p.loop_type}" is single-stream — omit "stream_counts"`);
+  }
+  const hasGrowth = p.review_baseline_words !== undefined || p.live_words !== undefined;
+  if (hasGrowth) {
+    if (p.loop_type !== 'spec-review') {
+      throw new Error('render convergence-diagnostic: document growth belongs to spec-review — omit the word counts');
+    }
+    if (!Number.isInteger(p.review_baseline_words) || !Number.isInteger(p.live_words) || p.review_baseline_words < 0 || p.live_words < 0) {
+      throw new Error('render convergence-diagnostic: "review_baseline_words" and "live_words" travel together as non-negative integers');
+    }
+  }
+
+  const growth = hasGrowth ? p.live_words - p.review_baseline_words : 0;
+  const head = [
+    `${CONVERGENCE_LOOPS[p.loop_type]} — cycle ${p.latest_cycle} diagnostic`,
+    '',
+    `  Trend: ${p.trend}`,
+    `  Latest cycle: ${fresh.length + recurring.length} findings (${fresh.length} new, ${recurring.length} recurring)`,
+  ];
+  if (multi) head.push(`  Per stream: ${p.stream_counts.map((st) => `${st.label} ${st.count}`).join(' · ')}`);
+  if (hasGrowth) head.push(`  Document growth: ${p.review_baseline_words} → ${p.live_words} words (${growth >= 0 ? `+${growth}` : growth} net across review)`);
+
+  const parts = [head.join('\n')];
+  if (resolved.length > 0) {
+    parts.push(['  Resolved:', ...resolved.map((f) => `    • ${f.title} (fixed in cycle ${f.last_seen_cycle})`)].join('\n'));
+  }
+  if (recurring.length > 0) {
+    parts.push(['  Recurring:', ...recurring.map((f) => `    • ${f.title} (cycles ${f.cycles})\n      ${f.hypothesis}`)].join('\n'));
+  }
+  if (fresh.length > 0) {
+    parts.push(['  New this cycle:', ...fresh.map((f) => `    • ${f.title}`)].join('\n'));
+  }
+
+  const flags = [callout(CONVERGENCE_TRENDS[p.trend])];
+  if (p.loop_type === 'spec-review' && p.trend === 'churning' && growth > 0) {
+    flags.push(callout('The cycles are adding words while findings churn — later reviews are reviewing earlier reviews\' writing, a shape the review rules forbid: findings add missing source content or remove wrong content, never rework sound ground. Check the recent additions against the sources before running another cycle.'));
+  }
+  if (hasGrowth && growth > p.review_baseline_words / 4) {
+    flags.push(callout(`Review has added ${growth} words to a ${p.review_baseline_words}-word construction. Growth that traces to source material is the loop working; check that these additions do — additions from nowhere mean the loop is feeding on itself.`));
+  }
+  parts.push(flags.join('\n'));
+
+  return section('DISPLAY: convergence diagnostic', 'emit verbatim as a code block', parts.join('\n\n'));
+}
+
+// ---------------------------------------------------------------------------
+// spec-completion-gate — the conclusion flow's two consent gates,
+// variant-keyed and payload-less: the surrounding content (the assessment
+// display, the completion state) is the caller's; only the ask renders here.
+//   assessment — confirm the epic cross-cutting assessment
+//   signoff    — the final conclude consent
+// ---------------------------------------------------------------------------
+
+/**
+ * @param {string} cwd
+ * @param {{dotpath: string, variant?: string}} args
+ * @returns {string}
+ */
+function specCompletionGate(cwd, { dotpath, variant }) {
+  if (variant === undefined || !['assessment', 'signoff'].includes(variant)) {
+    throw new Error('render spec-completion-gate: --variant must be "assessment" or "signoff"');
+  }
+  const { phase } = resolveAddress(cwd, dotpath, 'spec-completion-gate');
+  if (phase !== 'specification') {
+    throw new Error(`render spec-completion-gate: address must be <work_unit>.specification.<topic>, got phase "${phase}"`);
+  }
+  if (variant === 'assessment') {
+    return section('MENU: spec assessment gate', STOP_FOR_RESPONSE, menu('', [
+      cmdOption('y', 'yes', 'Confirm assessment'),
+      promptOption('Comment', 'Suggest a different classification'),
+    ], { question: 'Confirm this assessment?' }));
+  }
+  return section('MENU: spec signoff gate', STOP_FOR_RESPONSE, menu('', [
+    cmdOption('y', 'yes', 'Conclude specification and mark as completed'),
+    promptOption('Comment', 'Add context before concluding'),
+  ], { question: 'Ready to conclude?' }));
+}
+
+// ---------------------------------------------------------------------------
+// carry-note-gate — research document review's per-note landing consent: the
+// note itself and its judged target ride as the payload, the ask renders
+// here. The statement label carries the reopen warning, so the menu keeps it.
+// ---------------------------------------------------------------------------
+
+/**
+ * @param {string} cwd
+ * @param {{dotpath: string, file?: string}} args
+ * @returns {string}
+ */
+function carryNoteGate(cwd, { dotpath, file }) {
+  if (!file) throw new Error('render carry-note-gate: --file <payload.json> is required');
+  const { phase } = resolveAddress(cwd, dotpath, 'carry-note-gate');
+  if (phase !== 'research') {
+    throw new Error(`render carry-note-gate: address must be <work_unit>.research.<topic>, got phase "${phase}"`);
+  }
+  const p = readJsonPayload(cwd, file, 'carry-note-gate');
+  const note = stringLines(p.note, 'carry-note-gate', 'note');
+  if (note.length === 0) throw new Error('render carry-note-gate: "note" must be non-empty');
+  if (!isFilled(p.target)) throw new Error('render carry-note-gate: "target" must be a non-empty string');
+  if (p.landing_phase !== 'research' && p.landing_phase !== 'discussion') {
+    throw new Error(`render carry-note-gate: "landing_phase" must be "research" or "discussion", got "${p.landing_phase}"`);
+  }
+  const display = section('DISPLAY: carry note', 'emit verbatim as markdown', [
+    ...note,
+    '',
+    `*Addressed to: ${p.target} — lands in its ${p.landing_phase} triage queue*`,
+  ].join('\n'));
+  const gate = section('MENU: carry note gate', STOP_FOR_RESPONSE, menu(
+    `This note lands in "${p.target}"'s triage queue; if "${p.target}" is completed, landing reopens it.`,
+    [
+      cmdOption('y', 'yes', 'Land it there; this document keeps a reroute record'),
+      cmdOption('s', 'skip', 'Leave it as prose in this document'),
+      promptOption('Comment', 'Tell me what to change (target, phase, or content)'),
+    ],
+    { question: 'Land it there?' },
+  ));
+  return [display, gate].join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// incoherence-gate — the Resolve Source Incoherence raises (spec construction
+// and the review findings walk). Three variants; the stops here override the
+// calling flow's auto mode by design, so no --gate flag exists.
 //   conflict  — the settle-it-here menu: one numbered option per documented
 //               side (recommended first) plus Comment — classification is
 //               Claude's, the menu offers only the documented sides
@@ -473,7 +685,7 @@ function incoherenceGate(cwd, args) {
   return section('MENU: incoherence held doc', INCOHERENCE_STOP, menu(
     `"${p.doc}" is open in another session right now, so the fix belongs there — this topic waits for it.`,
     [
-      cmdOption('n', 'next', 'Set this topic aside and move to the next'),
+      cmdOption('n', 'next', 'Queue the resolution and carry on here'),
       cmdOption('s', 'stop', 'Stop here; re-enter after that session lands it'),
     ],
     { question: 'How do you want to continue?' },
@@ -1119,6 +1331,13 @@ function findingBatch(cwd, { dotpath, file }) {
   ].join('\n');
 }
 
+// The finding payload's category vocabulary. Only the gate-rendered four are
+// legal here — the two source-lane categories (Source defect, Unsourced
+// decision) route via resolve-source-incoherence before any render, so their
+// arrival at this surface is a caller bug and refuses by name.
+const FINDING_CATEGORIES = ['enhancement', 'new-topic', 'gap', 'duplication'];
+const ROUTED_CATEGORIES = ['source-defect', 'unsourced-decision'];
+
 /**
  * @param {string} cwd
  * @param {{dotpath: string, file?: string}} args
@@ -1137,6 +1356,12 @@ function finding(cwd, { dotpath, file }) {
   }
   if (!isFilled(p.details)) throw new Error('render finding: "details" must be a non-empty string');
   if (p.diff && p.content) throw new Error('render finding: pass "diff" or "content", not both');
+  if (p.category !== undefined && !FINDING_CATEGORIES.includes(p.category)) {
+    if (ROUTED_CATEGORIES.includes(p.category)) {
+      throw new Error(`render finding: "${p.category}" findings route via resolve-source-incoherence and never render at the gate`);
+    }
+    throw new Error(`render finding: unknown category "${p.category}" (expected ${FINDING_CATEGORIES.join('/')})`);
+  }
 
   const applyLabel = isFilled(p.apply_label) ? p.apply_label : 'Apply verbatim';
   const appliedLabel = isFilled(p.applied_label) ? p.applied_label : 'approved. Applied.';
@@ -1168,7 +1393,9 @@ function finding(cwd, { dotpath, file }) {
   }
 
   const items = (((manifest.phases || {})[phase] || {}).items || {})[topic] || {};
-  const gateMode = items.finding_gate_mode === 'auto' ? 'auto' : 'gated';
+  // A gap finding is a question, not a correction — auto covers applying
+  // agreed corrections, never answering questions on the user's behalf.
+  const gateMode = items.finding_gate_mode === 'auto' && p.category !== 'gap' ? 'auto' : 'gated';
 
   if (gateMode === 'auto') {
     parts.push(section(
@@ -1179,8 +1406,12 @@ function finding(cwd, { dotpath, file }) {
   } else {
     const options = [cmdOption('y', 'yes', applyLabel)];
     if (p.diff) options.push(cmdOption('v', 'view full', 'Show full Current and Proposed content'));
+    // A gate forced by category over an auto manifest offers no a/auto row —
+    // auto is already set, and this stop exists despite it.
+    if (items.finding_gate_mode !== 'auto') {
+      options.push(cmdOption('a', 'auto', 'Approve this and all remaining findings automatically'));
+    }
     options.push(
-      cmdOption('a', 'auto', 'Approve this and all remaining findings automatically'),
       cmdOption('s', 'skip', 'Leave as-is, move to next finding'),
       promptOption('Provide feedback', feedbackHint),
     );
@@ -2287,6 +2518,10 @@ const SURFACES = {
   'finding': finding,
   'review-presentation': reviewPresentation,
   'review-gate': reviewGate,
+  'spec-review-gate': specReviewGate,
+  'spec-completion-gate': specCompletionGate,
+  'convergence-diagnostic': convergenceDiagnostic,
+  'carry-note-gate': carryNoteGate,
   'triage-announce': triageAnnounce,
   'triage-offer': triageOffer,
   'triage-block': triageBlock,
