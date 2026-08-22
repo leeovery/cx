@@ -601,6 +601,11 @@ changes, agreed together:
     keeps session grouping and readability, but `move-pane -t <other-session>` changes the
     session half and drift returns. The user rearranges panes across sessions; readability is
     recoverable by rendering the resolved location in `portal hook list`, a drift path is not.
+    **That recovery is part of the fix, not a possibility left open**: `hook list` gains a fourth
+    tab-separated column carrying the token's resolved `<session>:<window>.<pane>` location,
+    appended so the existing `key`/`event`/`command` field positions are undisturbed. A token
+    that resolves to no live pane — including when no tmux server is running, which `hook` is
+    bootstrap-exempt from starting — renders the column empty rather than failing the command.
   - **Stamping is lazy, at `hook set`.** Portal does not create panes — the user splits them —
     so there is no creation point to stamp at, and a pane with no hook needs no token.
   - Residual: a crash between `hook set` and the next capture commit loses the stamp (window
