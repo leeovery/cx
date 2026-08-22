@@ -40,9 +40,10 @@ On the read path the source's own evidence says tmux gives nothing to detect: `d
 The second paragraph of §4.2 hints at the latter ("A pane with no token has no entry to remove; `hook rm` reports that and exits non-zero"), which would make the first paragraph's "fails non-zero when the pane does not exist" an outcome rather than a check. If that collapse is intended it should be stated, because the §9.2 test row asserts the behaviour ("`hook rm` on an unresolvable `$TMUX_PANE` — exits non-zero and writes nothing") and an implementer needs to know which mechanism is being pinned.
 
 **Proposed Change**:
+Both commands read the pane's token with `show-options -p`, which exits non-zero for a pane that does not exist — a read-only probe, so removal carries the identical guard without minting. §4.1's step list is rewritten around that read (check precedes mint); §4.2's first paragraph points at the same read.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied to §4.1 and §4.2. The contradiction was real — §4.1's guard was the mint, which §4.2 forbids. Measured on tmux 3.7c: `show-options -p` distinguishes gone (exit 1, `no such pane`), live-unstamped (exit 1, `invalid option`) and stamped (exit 0); `display-message -p` exits 0 for the first two alike, so the naive read cannot tell them apart. Portal treats the non-zero exit as the whole signal and never parses tmux's message text.
 
 ---
 

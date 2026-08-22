@@ -167,11 +167,19 @@ tmux -L <sock> set-option -p -t %999 @portal-pane-id X
 → no such pane: %999   (exit 1; tmux 3.7c)
 ```
 
-So verification is **tmux-native** rather than a shape heuristic on a returned string. The sequence is:
+So verification is **tmux-native** rather than a shape heuristic on a returned string, and it is available on the read as well as the write. `show-options -p` separates all three cases in one read-only call (tmux 3.7c):
+
+| `tmux show-options -p -t <target> @portal-pane-id` | Result |
+|---|---|
+| pane does not exist | exit 1, `no such pane: %999` |
+| live pane, no token | exit 1, `invalid option: @portal-pane-id` |
+| live pane, stamped | exit 0, `@portal-pane-id TOKEN1` |
+
+Portal never parses that message text: a non-zero exit is the whole signal, and tmux's words are passed through to the user unaltered. The sequence is:
 
 1. `requireTmuxPane` — `$TMUX_PANE` must be non-empty (unchanged).
-2. Read `@portal-pane-id` for that pane. A non-empty token is reused (§2.2).
-3. On empty, mint a token and `set-option -p` it onto the pane. A non-zero exit here fails the command with tmux's own message.
+2. Read the pane's token with `show-options -p`. A gone pane fails here, before anything is written. A live pane with a token reuses it (§2.2).
+3. A live pane with no token is minted one and stamped with `set-option -p`, which errors on a bogus target in its own right — a second, redundant guard that costs nothing.
 4. Write the entry under the token key.
 5. Touch `save.requested` (§2.2).
 
@@ -179,7 +187,7 @@ Steps 3 and 4 must not be reordered: a write that precedes the stamp would persi
 
 #### 4.2 Removal verifies the same way — on the `$TMUX_PANE` path only
 
-`portal hook rm --on-resume` run from a pane resolves the key by reading `@portal-pane-id`, and fails non-zero when the pane does not exist. This is the same guard as §4.1, applied to the half of the CLI surface the blast radius named and the original framing of B did not cover.
+`portal hook rm --on-resume` run from a pane resolves the key with the same `show-options -p` read as §4.1 step 2, and fails non-zero on the same non-zero exit. This is literally the same guard, not an analogue of it — which is what lets removal carry it without minting anything. It covers the half of the CLI surface the blast radius named and the original framing of B did not.
 
 Removal does **not** mint. A pane with no token has no entry to remove; `hook rm` reports that and exits non-zero rather than silently succeeding, which is the same silent-success shape as the `:.` bug on the write side.
 
