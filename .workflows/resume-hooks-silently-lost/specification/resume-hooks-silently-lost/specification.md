@@ -154,6 +154,58 @@ Two independent guards, both required:
 - **`LookupOnResume` must not honour an empty key.** An empty `hookKey` argument returns "no hook" before the map is consulted, regardless of what the file holds.
 
 
+### 4. Registration, Removal and Listing
+
+#### 4.1 Registration verifies the pane exists
+
+`portal hook set --on-resume "<cmd>"` refuses a `$TMUX_PANE` that names no live pane, exits non-zero, and writes nothing to `hooks.json`.
+
+This is the only change that closes the write-time moment, because tmux offers no error to detect on the read path: `display-message -p` against a bogus target exits 0 (§1.1). Under §2.2 the stamp precedes the write, and the stamp *is* the check — `set-option -p` against a bogus target exits **1**:
+
+```
+tmux -L <sock> set-option -p -t %999 @portal-pane-id X
+→ no such pane: %999   (exit 1; tmux 3.7c)
+```
+
+So verification is **tmux-native** rather than a shape heuristic on a returned string. The sequence is:
+
+1. `requireTmuxPane` — `$TMUX_PANE` must be non-empty (unchanged).
+2. Read `@portal-pane-id` for that pane. A non-empty token is reused (§2.2).
+3. On empty, mint a token and `set-option -p` it onto the pane. A non-zero exit here fails the command with tmux's own message.
+4. Write the entry under the token key.
+5. Touch `save.requested` (§2.2).
+
+Steps 3 and 4 must not be reordered: a write that precedes the stamp would persist an entry keyed to a token no pane carries.
+
+#### 4.2 Removal verifies the same way — on the `$TMUX_PANE` path only
+
+`portal hook rm --on-resume` run from a pane resolves the key by reading `@portal-pane-id`, and fails non-zero when the pane does not exist. This is the same guard as §4.1, applied to the half of the CLI surface the blast radius named and the original framing of B did not cover.
+
+Removal does **not** mint. A pane with no token has no entry to remove; `hook rm` reports that and exits non-zero rather than silently succeeding, which is the same silent-success shape as the `:.` bug on the write side.
+
+#### 4.3 `--pane-key` stays a literal pass-through
+
+`portal hook rm --on-resume --pane-key <key>` performs **no validation of any kind** and touches tmux not at all. The key is used verbatim.
+
+This is deliberate and is not weakened by B. Spec `hooks-rm-pane-key-flag` (2026-05-26) made the flag a pass-through precisely so an entry whose pane no longer exists can be pruned — validating it would defeat its only purpose. The rule that separates the two paths: **a key Portal resolves must identify a live pane; a key the caller hands over explicitly must not be second-guessed.**
+
+`--pane-key` is also the route by which an old-format entry can be removed by hand after this change, since no live pane will ever resolve to one.
+
+#### 4.4 `portal hook list` renders the resolved location
+
+`hook list` gains a fourth tab-separated column carrying the token's resolved `<session>:<window>.<pane>` location:
+
+```
+k3Bq7z	on-resume	cd "/x" && claude --resume 9e4d…	agentic-workflows-refactor-wt:1.1
+```
+
+The column is **appended**, so the existing `key` / `event` / `command` field positions are undisturbed for any caller parsing the output.
+
+This is what pays back the readability the token-only key costs (§3.1). Without it the file is a list of opaque six-character tokens with no way to answer "which pane is this?" short of a manual `list-panes` diff — the same hand audit this defect already forced once.
+
+Resolution is one `list-panes -a` read over the token format (§3.3), reused across all rows. A token that resolves to no live pane renders the column **empty** rather than failing the command — including the case where no tmux server is running at all, which `hook` is bootstrap-exempt from starting. An old-format key likewise renders empty, since no live pane can answer to one.
+
+
 ---
 
 ## Working Notes
