@@ -250,6 +250,58 @@ The guard's question is *"did the tmux read succeed?"*, which the **pane row cou
 `checkStaleHooks` is amended in step: its stale count is taken over token-shaped keys only, so retained old-format entries never push a healthy install to a non-zero exit code.
 
 
+### 6. `hooks.json` Concurrency
+
+#### 6.1 The open window
+
+`internal/hooks` has no locking of any kind (`grep -rn 'sync\.\|Mutex\|flock\|Lock()' internal/hooks internal/fileutil | grep -v _test.go` → no matches). `Store.Set`, `Store.Remove` and `Store.CleanStale` are each `Load()` → mutate in memory → `fileutil.AtomicWrite`. `AtomicWrite` makes each *write* atomic; nothing guards the read-modify-write window, and the writers are in **different processes** — the CLI (`portal hook set`, fired by a Claude Code SessionStart) against the daemon's sweep every 10s, and CLI against CLI (a SessionStart in one pane concurrent with a SessionEnd in another).
+
+```
+daemon  CleanStale  t0    Load() → 41 entries
+CLI     hook set    t0+e  Load() → 41, add K, AtomicWrite → 42
+daemon             t0+d  writes its t0 snapshot minus stale → 40      K is gone
+```
+
+The end state is indistinguishable from the drift symptom: an INFO `hooks: set … hook_key=K` breadcrumb, K absent minutes later, and the intervening `clean-stale entries=1` naming a *different* key even at DEBUG.
+
+**This is present but unquantified.** No observed loss is proven to be a race — the two named instances have ~4-minute gaps between registration and prune, which rules a race out for them. It is not ruled out for any other instance. The window is two file reads plus a marshal, so per-event probability is low; the daemon sweeps ~8,640 times a day against a 40+ pane working set.
+
+It is untouched by A: durable identity does not close a lost update. It is included because the cost is small, the pattern is already in the codebase, and the alternative is knowingly leaving a silent-data-loss path open in the one file this work unit exists to protect.
+
+#### 6.2 A sidecar lock file, never `hooks.json` itself
+
+The lock is taken on a dedicated file derived from the resolved `hooks.json` path (`<hooks.json path>.lock`), so it follows a `PORTAL_HOOKS_FILE` override wherever it points.
+
+Locking `hooks.json` itself would provide **no exclusion at all**. `fileutil.AtomicWrite` writes a temp file and `os.Rename`s it over the target (`internal/fileutil/atomic.go:77`), so the target's inode is replaced on every write — a lock held on the pre-rename inode is a lock on an unlinked file. The precedent this copies, `state.AcquireDaemonLock`, is correct precisely *because* it locks a dedicated `daemon.lock`.
+
+The lock file is opened `O_CREAT` and **never unlinked**. `AcquireDaemonLock`'s inode cross-check and bounded retry ladder exist to absorb an unlink-and-recreate race; nothing here unlinks, so that machinery is deliberately not reproduced.
+
+#### 6.3 Readers take a shared lock, writers exclusive
+
+`flock` shared (`LOCK_SH`) for reads, exclusive (`LOCK_EX`) for the whole read-modify-write.
+
+`Store.Load` is on the path of `hook list`, `LookupOnResume`, `checkStaleHooks` and the sweep's own pre-read. During a restore of a 40+ pane working set every hydrate helper calls `LookupOnResume` at once; a blanket-exclusive lock on `Load` would serialise them for no benefit.
+
+The exclusive hold must span the **whole** mutation, not each file operation. `Set`, `Remove` and `CleanStale` each read, mutate and write; taking a shared lock to read and an exclusive lock to write would reopen the identical window. The exported methods acquire once and hold across their internal load and save.
+
+#### 6.4 The locked region covers the file only
+
+**No tmux call may sit inside the lock.** A lock spanning a tmux enumeration would let one hung tmux read block every `hook set` on the machine behind it.
+
+This falls out naturally at the sweep's call site: `runHookStaleCleanup` performs its `ListAllPaneHookKeys` read before it touches the store at all, and the guard on that read (§5.4) resolves before any lock is taken.
+
+#### 6.5 Acquisition is bounded, and a timeout degrades rather than wedges
+
+Acquisition waits, but not indefinitely. On timeout:
+
+- the **daemon sweep** skips this cycle with a WARN and retries on the next 10s cadence — a deferred prune costs nothing, since stale entries are inert;
+- the **CLI** (`hook set`, `hook rm`, `hook list`) exits non-zero with the reason, rather than hanging a shell the user is sitting in.
+
+An unbounded `LOCK_EX` is simpler and carries no stale-lock hazard — `flock` is kernel-released on process death. It is rejected because D introduces a blocking path into a loop the daemon runs every 10 seconds, which the investigation named as the single riskiest part of this work unit; a holder wedged by a stopped process or a hung filesystem would take the daemon's tick loop with it.
+
+The bound is **2 seconds**. The critical section is one small-file read, a marshal, and a rename — sub-millisecond in practice — so 2s sits roughly three orders of magnitude above the expected hold while staying well inside the sweep's own 10s cadence. A timeout at that bound means something is genuinely wrong, not merely contended, which is what makes the WARN worth emitting.
+
+
 ---
 
 ## Working Notes
