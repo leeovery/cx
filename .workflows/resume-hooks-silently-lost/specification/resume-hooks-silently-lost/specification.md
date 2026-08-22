@@ -191,6 +191,10 @@ Steps 3 and 4 must not be reordered: a write that precedes the stamp would persi
 
 Removal does **not** mint. A pane with no token has no entry to remove; `hook rm` reports that and exits non-zero rather than silently succeeding, which is the same silent-success shape as the `:.` bug on the write side.
 
+**This failure fires routinely, and that is expected.** Deregistration against an already-closed pane is the ordinary case, not an error case: 61 of the 63 `:.` lines in a month of `portal.log` were `op=rm`, near-daily, every one a Claude Code SessionEnd — and SessionEnd commonly fires *because* the pane was closed, so tmux has reclaimed the pane id before the hook runs. Today that sequence exits 0, removes nothing that matters, and the real entry is absorbed by the sweep once the pane is genuinely gone; the end state is benign, which is why it went unnoticed. After this change the same sequence exits non-zero every time.
+
+That is the point — a caller can no longer read `rc == 0` as proof anything happened — but it means a caller treating non-zero as an error will begin seeing one as a matter of course. This is the second reason the external integration needs updating in step (§8.4), alongside the key-scheme change.
+
 #### 4.3 `--pane-key` stays a literal pass-through
 
 `portal hook rm --on-resume --pane-key <key>` performs **no validation of any kind** and touches tmux not at all. The key is used verbatim.

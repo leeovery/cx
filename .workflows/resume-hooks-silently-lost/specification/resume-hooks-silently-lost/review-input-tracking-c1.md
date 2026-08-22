@@ -71,9 +71,10 @@ Removal does **not** mint. A pane with no token has no entry to remove; `hook rm
 ```
 
 **Proposed Change**:
+Two paragraphs appended to §4.2 recording that deregistration against an already-closed pane is the routine SessionEnd case (61 of 63 `:.` lines were `op=rm`), that its current benign exit-0 end state is why it went unnoticed, and that a caller reading `rc` will now see non-zero as a matter of course — the second reason §8.4's external script needs updating in step.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Auto-approved. Records the operational consequence only; the decision to extend B to `hook rm` is settled in the source and is not reopened.
 
 ---
 
