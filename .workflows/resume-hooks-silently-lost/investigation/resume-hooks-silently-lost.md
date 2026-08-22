@@ -608,10 +608,16 @@ changes, agreed together:
     the existing `save.requested` dirty flag (`state.TouchSaveRequested`).
 - **B — verify at write.** `hook set` refuses a key that identifies no live pane and exits
   non-zero. This is the only change that closes H1, since tmux offers no error to detect.
-- **C — the reaper stops destroying data.** Grace period, tombstone, or no automatic deletion —
-  the mechanism is a specification decision. It does not by itself restore a drifted hook (see
-  Discussion), but it converts any future key defect from silent data loss into recoverable
-  noise, and it is what would have made this bug visible.
+- **C — the reaper becomes shape-aware and says what it took.** *(Reduced from "stops destroying
+  data" after fix validation — see Refinements.)* It deletes a token-shaped key whose token names
+  no live pane, exactly as today; it **retains any key it cannot parse as a token**; and it names
+  the deleted key at INFO rather than only counting it.
+
+  The reduction follows from A: once the key is a durable token, a moved pane keeps its token, so
+  drift can no longer look like death and the reaper's judgement becomes trustworthy. What remains
+  worth protecting is the case the reaper genuinely cannot judge — an unconverted old-format key,
+  which is not evidence of a dead pane but of an unconverted entry, and is distinguishable by
+  shape.
 - **D — close the unlocked read-modify-write.** A cross-process file lock around
   `hooks.json` load→mutate→write. `sync.Mutex` is useless here (the writers are separate
   processes); the in-house precedent is `state.AcquireDaemonLock`'s `flock` on `daemon.lock`,
@@ -635,10 +641,12 @@ positional key to its live pane, stamp a token, rewrite — authored as a throwa
 **outside Portal and outside this work unit's specification and plan**. It is not a deliverable
 here.
 
-C is what makes this safe rather than reckless: under a non-destructive reaper an unconverted
-entry sits inert instead of being deleted, so a partial conversion costs nothing. Ordering at
-upgrade time (upgrade, then run the script) is the mitigation for entries registered in between,
-not code.
+C is what makes this safe rather than reckless: the reaper retains any key it cannot parse as a
+token, and an old-format key never can be, so an unconverted entry sits inert instead of being
+deleted and a partial conversion costs nothing. The protection is by **key shape**, so it holds
+wherever the rule lives — including `portal doctor --fix`, which shares the same code path.
+Ordering at upgrade time (upgrade, then run the script) is the mitigation for entries registered
+in between, not code.
 
 **Explicitly out of scope:** `~/.claude/hooks/portal-resume-hook.sh`. It reimplements the key
 format and parses `portal hook list`, and it will need updating in step — but it is the user's
@@ -653,6 +661,29 @@ was confirmed sound — every refinement below closes a gap inside it rather tha
 exits **1** with `no such pane: %999` (sandbox-verified, tmux 3.7c) — unlike `display-message -p`,
 which exits 0. Under A the stamp precedes the write, so the existence check is **tmux-native**
 rather than a shape heuristic on the returned string.
+
+**C reduced (risks 1, 2, 9).** C was justified as protection against the reaper's false
+positives — but **A removes the false positives**. A moved pane keeps its token, so an absent
+token now means a genuinely absent pane, and the reaper's judgement becomes trustworthy the
+moment A lands. C therefore reduces to *shape-aware* deletion: delete token-shaped keys whose
+token is absent, retain anything unparseable as a token, name what was deleted at INFO. This
+resolves all three risks at once:
+
+- **`doctor --fix` (risk 1)** keeps its documented prune unchanged. Unconverted entries are
+  protected by key *shape*, so the protection holds wherever the rule lives — the
+  "C at the daemon call site vs inside `CleanStale`" dilemma disappears, and with it the window
+  in which one `doctor --fix` run would have destroyed all 41 entries.
+- **`portal doctor` (risk 2)** stays green and keeps its "exit 0 iff all pass" contract. A closed
+  pane's entry is deleted as it is today, so retained entries never accumulate into `checkFail`.
+- **Accumulation (risk 9)** does not arise. The external script's SessionEnd branch will stop
+  deregistering under a token key (`stored_resume_id` returns empty), but the reaper absorbs
+  those entries as it always has.
+
+*Accepted cost:* full retention would have made a **future** key defect visible instead of
+silent; shape-aware deletion does not. What survives of that property is the INFO-level naming of
+deleted keys — which is the part that was actually missing, since the reaper never recorded what
+it took. The inverse diagnostic ("a live pane that should have a hook does not have one") remains
+unaddressed by either option; it is a diagnostic gap, not part of the causal chain.
 
 **Settled refinements:**
 
@@ -766,17 +797,20 @@ The user then went further and put the script outside the plan entirely.
   precisely why the behaviour was filed as a test obstacle rather than a bug.
 - **A lost-update test for D** — interleaved writers across the `Load`→`AtomicWrite` window,
   asserting no entry disappears.
-- **Reaper retention (C)** — an entry with no matching live pane is retained, and whatever
-  surfaces it names the key rather than only a count.
+- **Reaper shape-awareness (C)** — an old-format (non-token) key is retained by both the daemon
+  sweep and `portal doctor --fix`; a token-shaped key whose token is absent is still deleted; the
+  deletion names the key rather than only a count.
+- **`portal doctor` exit code stays 0** with retained old-format entries present.
 
 ### Risk Assessment
 
 - **Fix complexity:** Medium-High. Spans `internal/hooks`, `internal/tmux`, the `internal/state`
   schema and capture format, `internal/restore`, the daemon, and `portal doctor`.
 - **Regression risk:** Medium. The additive `sessions.json` field is well-precedented by
-  `Session.PortalID` (tolerant decode, no `SchemaVersion` bump). The two riskier pieces are C —
-  it changes the behaviour of the mechanism that currently protects against mass deletion — and
-  D, which introduces a blocking path into a loop the daemon runs every 10 seconds.
+  `Session.PortalID` (tolerant decode, no `SchemaVersion` bump). The riskiest piece is D, which
+  introduces a blocking path into a loop the daemon runs every 10 seconds. C's reduction to
+  shape-aware deletion lowered its own risk materially — it no longer changes *whether* the
+  reaper deletes, only *what it can identify* and *what it records*.
 - **Data risk:** the key change is breaking, with no in-product migration by decision. C bounds
   the blast: unconverted entries are inert rather than destroyed.
 - **Recommended approach:** regular release. Not a hotfix — a breaking key change plus a schema
