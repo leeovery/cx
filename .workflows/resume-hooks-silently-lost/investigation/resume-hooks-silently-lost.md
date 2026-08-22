@@ -79,8 +79,12 @@ of resuming its work.
 - **Severity:** High — silent loss of session continuity across reboots, the exact case the
   resurrection feature exists to cover.
 - **Scope:** Single user (personal tool), but a large working set. A 2026-08-16 audit found
-  6 of 42 panes running Claude with no hook registered. A 2026-06-29 crash-recovery reboot
-  had ~4 of 32 sessions come back without resuming.
+  6 of 42 panes running Claude with no hook registered. *(Qualified 2026-08-22.)* That count is
+  **not wholly attributable to the Portal defects in scope** — the caller-side subagent
+  SessionEnd clobber (out of scope, fixed in dotfiles `26fded9` the same day) and an ordinary
+  SessionEnd removal on a live pane both produce the same end state. It evidences that panes go
+  unprotected at a material rate; it does not size this bug. The 2026-06-29 reboot instance is
+  separately explained and out of scope (below).
 - **Business impact:** Undercuts the "everything comes back" guarantee; the user must notice
   which panes did not resume and restart that work by hand.
 
@@ -182,7 +186,7 @@ still open; a caller without that guard still hits it, and even the guarded call
   prints `:.`** — tmux does not error on an unresolvable pane target for a `-p` message; it
   expands the format against nothing and every field comes back empty. `ResolveHookKey`
   (`internal/tmux/tmux.go:236`) returns that verbatim, `resolveCurrentPaneKey`
-  (`cmd/hooks.go:36`) passes it through, and `store.Set` writes it. No validation at any layer.
+  (`cmd/hooks.go:37`) passes it through, and `store.Set` writes it. No validation at any layer.
   **Confirmed** by full trace — see Code Trace finding 1. A repo-wide search finds no hook-key
   shape validation anywhere.
 
@@ -190,8 +194,10 @@ still open; a caller without that guard still hits it, and even the guarded call
   The key bakes `window_index.pane_index`; tmux renumbers on pane close, window close (with
   `renumber-windows on`), `break-pane` and `move-pane`. Nothing re-keys the entry.
   `runHookStaleCleanup` -> `hooks.CleanStale` then removes it, correct by its own rule.
-  Evidence: 13 genuine `clean-stale entries=1` prunes 2026-08-17..08-21 (after `:.` writes had
-  stopped), plus the two named instances in the seed.
+  Evidence: the two named instances in the seed (pane demonstrably alive, only its coordinates
+  changed), plus a direct sandbox reproduction. The 13 `clean-stale` prunes of 08-17..08-21 are
+  *consistent* with this but prove nothing on their own — see the correction in Standing
+  Evidence.
 
 - **H3 — The identity design is half-finished, and that is the single root cause** [suspected]
   `@portal-id` (spec `session-rename-orphans-resume-hook`, 2026-07-04) made the *session* half
@@ -205,6 +211,16 @@ still open; a caller without that guard still hits it, and even the guarded call
   binding constraint, and shown satisfiable** — see finding 5: a tmux *pane* user-option
   survives every in-server rearrangement, and the reboot gap is closed the same way the session
   half already closes it (carry in `sessions.json`, re-stamp at restore).
+
+- **H6 — Restore renumbers windows, orphaning the key it just fired** [confirmed]
+  Raised by root-cause validation, 2026-08-22; independently reproduced. A third occurrence of
+  the same defect, at a moment the original three hypotheses did not cover. See finding 6.
+
+- **H7 — `hooks.json` has no cross-process locking; a lost update loses hooks** [confirmed
+  as present; unquantified as a cause]
+  Raised by root-cause validation, 2026-08-22. Verified: no lock of any kind in
+  `internal/hooks` or `internal/fileutil`. A separate loss path that survives the fix as
+  framed. See finding 7.
 
 - **H5 — The reaper and doctor are why this ran for months unnoticed** [confirmed]
   The daemon prune emits `clean-stale entries=N` with no key at INFO (per-key detail is DEBUG,
@@ -274,10 +290,14 @@ the pane was rearranged somewhere in that window and the next idle sweep took it
 
 Two independent blind spots:
 
-- **The prune is count-only at production level.** `internal/hooks/store.go:220` logs each
-  removed key at DEBUG; the only INFO line is the batch summary `clean-stale entries=N`
-  (`internal/storelog/clean_stale.go`). At the production default (INFO) the key that was
-  deleted is never recorded, so the log cannot answer "what did I lose?".
+- **The daemon's prune is count-only at production level.** `internal/hooks/store.go:220` logs
+  each removed key at DEBUG; the only INFO line is the batch summary `clean-stale entries=N`
+  (`internal/storelog/clean_stale.go`). At the production default the key that was deleted is
+  never recorded, so the log cannot answer "what did I lose?".
+  *(Corrected 2026-08-22.)* This is true of the **automatic** path only. `portal doctor --fix`
+  routes through the same `runHookStaleCleanup` with an `onRemoved` callback that prints
+  `Pruned stale hook: <key>` (`cmd/doctor.go:200-202`). The manual backstop names the key; the
+  reaper that actually does the deleting does not.
 - **`portal doctor` measures against the rule that does the reaping.** `checkStaleHooks`
   (`cmd/doctor.go:280`) asks "does every persisted key match a live pane?". The daemon has
   already deleted every entry that failed that test, within 10s. Doctor therefore reports
@@ -325,18 +345,18 @@ appends one more `captureFormat` column, and restore re-stamps per pane.
 
 ```
 cmd/hooks.go:91   hooksSetCmd.RunE
-  -> cmd/hooks.go:36   resolveCurrentPaneKey()
-     -> cmd/hooks.go:23  requireTmuxPane()  — only checks TMUX_PANE is non-empty
+  -> cmd/hooks.go:37   resolveCurrentPaneKey()
+     -> cmd/hooks.go:25  requireTmuxPane()  — only checks TMUX_PANE is non-empty
      -> internal/tmux/tmux.go:236  Client.ResolveHookKey(paneID)
         -> internal/tmux/tmux.go:42   RealCommander.Run("display-message","-p","-t",paneID,HookKeyFormat)
-           -> internal/tmux/tmux.go:49  runCommand -> exec.Cmd.Output()
+           -> internal/tmux/tmux.go:50  runCommand -> exec.Cmd.Output()
               BUG: tmux exits 0 for an unresolvable pane target, printing ":."
                    so err is nil and the caller has no signal
   -> internal/hooks/store.go:81  Store.Set(":.", "on-resume", cmd, "cli")  — writes it
 ```
 
 Every layer behaves correctly in isolation; the contract breaks at the tmux boundary. `Run`
-maps a zero exit to `err == nil` (`internal/tmux/tmux.go:52`) — right for every other tmux
+maps a zero exit to `err == nil` (`internal/tmux/tmux.go:55`) — right for every other tmux
 call. `ResolveHookKey`'s doc comment already warns that a *read failure* must never fall back
 to a name-based key, but tmux never reports this as a failure, so the guard never engages.
 There is no shape validation in `resolveCurrentPaneKey`, in `Store.Set`, or anywhere in the
@@ -358,6 +378,87 @@ successful removal that removed nothing.
 `":." -> "cd \"/Users/leeovery\" && claude --resume 9e4d7901-…"` — a genuine registration that
 went to the junk key instead of the pane. The caller logged `rc=0` and moved on.
 
+#### Finding 6 — restore renumbers windows and orphans the key it just fired (H6)
+
+*Raised by root-cause validation (`root-cause-validation-001`), traced and reproduced
+independently 2026-08-22. This answers agreed trace line 4, which the first analysis pass
+listed and then never executed.*
+
+Capture stores the pane's **real** `#{window_index}` (`internal/state/capture.go:26`). Restore
+recreates each extra window with `NewWindow(target, …)` where `target` is `"<session>:"` and
+**no index is passed** (`internal/restore/session.go:95`, `internal/tmux/tmux.go:676`), so tmux
+assigns the next free index rather than the saved one.
+
+Whenever the saved window indices are non-contiguous, the restored ones do not match.
+Sandbox reproduction (`tmux -f /dev/null`, pristine config — `renumber-windows off`, tmux's
+default):
+
+```
+build windows          0 1 2
+kill middle window     0 2      <- what capture saves
+                                   saved hook key = t:2.0
+restore replay:
+  new-session -d -s t
+  new-window -t 't:'   0 1      <- what restore recreates
+  live pane keys:      t:0.0  t:1.0
+  => nothing answers to t:2.0
+```
+
+The consequence is a distinct third moment in a hook's life:
+
+1. The hook **fires correctly** on the first reboot — `collectArmInfos`
+   (`internal/restore/session.go:62`) bakes the key from saved state, so firing is a pure
+   function of `sessions.json` and is unaffected by the live renumbering.
+2. Once `@portal-restoring` clears, the daemon's 10s sweep enumerates live keys, finds nothing
+   answering to the saved key, and reaps the entry.
+3. The **second** reboot has no hook.
+
+This is exactly the shape recorded in the project's own standing note — *reboot hooks DO fire;
+the real issue is hooks going missing between reboots* — and it had never been connected to a
+mechanism.
+
+**Why it has not dominated this user's evidence:** their tmux config runs `renumber-windows on`,
+which keeps window indices contiguous, so saved and restored indices agree. It is a general
+defect on tmux's default settings, latent here.
+
+**The pane half is not affected.** `pane_index` is always contiguous within a window (tmux
+recomputes it from layout on every close), and restore recreates panes by repeated
+`SplitWindow` in saved order, so pane indices come back identical.
+
+**What it changes about a fix.** Making pane identity durable is necessary but not sufficient:
+at restore, the entry on disk is keyed by the *old* coordinates, so `hooks.json` itself has to
+be re-keyed — or keyed off something restore re-establishes — rather than only re-stamping
+identity onto tmux. A fix that stops at "stamp a durable id" still loses the hook here.
+
+#### Finding 7 — `hooks.json` has no cross-process locking (H7)
+
+*Raised by root-cause validation, verified independently 2026-08-22.*
+
+`grep` for `sync.`/`Mutex`/`flock`/`Lock()` across `internal/hooks` and `internal/fileutil`
+returns nothing. `Store.Set`, `Store.Remove` and `Store.CleanStale` are each `Load()` → mutate
+in memory → `fileutil.AtomicWrite`. `AtomicWrite` makes each *write* atomic; nothing guards the
+read-modify-write window, and the writers are in **different processes** — the CLI
+(`portal hook set`, fired by a Claude SessionStart) against the daemon's sweep every 10s.
+
+```
+daemon  CleanStale  t0    Load() -> 41 entries
+CLI     hook set    t0+e  Load() -> 41, add K, AtomicWrite -> 42
+daemon             t0+d  writes its t0 snapshot minus stale -> 40      K is gone
+```
+
+The end state is indistinguishable from the drift symptom: an INFO `hooks: set … hook_key=K`
+breadcrumb, K absent minutes later, and the intervening `clean-stale entries=1` naming a
+*different* key even at DEBUG.
+
+**Status: present, not quantified.** The window is two file reads plus a marshal, so per-event
+probability is low — but the daemon sweeps ~8,640 times a day against a 40+ pane working set,
+and the same race exists CLI-against-CLI (a SessionStart in one pane concurrent with a
+SessionEnd in another). The two named instances have ~4-minute gaps between registration and
+prune, which rules a race out *for them*; it is not ruled out for any other instance.
+
+**It is untouched by the key fix.** Durable identity does not close a lost update. Whether it is
+in scope is a fix-direction decision, not a diagnosis one.
+
 ### Root Cause
 
 **The hook key is not a durable, verified reference to a pane.** It is half identity and half
@@ -370,7 +471,7 @@ position, and Portal never checks that a key it writes down identifies anything 
 └──────────── immutable identity ───────────┘ └──── mutable position ────┘
 ```
 
-Both reported symptoms are that one defect observed at two moments in a hook's life:
+The reported symptoms are that one defect observed at three moments in a hook's life:
 
 - **At write time** — tmux expands the format against an unresolvable target and exits **0**
   with `:.`. `Run` maps a zero exit to `err == nil`, and no layer validates shape, so a hook
@@ -378,10 +479,15 @@ Both reported symptoms are that one defect observed at two moments in a hook's l
 - **Over the pane's lifetime** — tmux recomputes `window_index.pane_index` from layout. Any
   rearrangement changes the key, nothing re-keys the entry, and the daemon's sweep — which
   cannot distinguish a moved pane from a dead one — removes it, correctly by its own rule.
+- **At the reboot boundary** — restore recreates windows without passing the saved index, so
+  tmux renumbers them. The baked key still fires (it is a pure function of saved state), but no
+  live pane answers to it afterwards, and the sweep reaps it within ~10s. The hook survives
+  exactly one reboot. See finding 6.
 
 **Why this happens:** a hook is a promise attached to one pane, but the thing Portal writes
 down to name that pane is derived from where the pane currently sits rather than from what it
-is. `hooks.json` is written once at registration and never revisited, so any value in the key
+is — and *where it sits* is recomputed by tmux on layout change, and reassigned again by Portal
+itself at restore. `hooks.json` is written once at registration and never revisited, so any value in the key
 that tmux is free to recompute rots the moment it changes. Half of the key was already fixed —
 `@portal-id` (spec `session-rename-orphans-resume-hook`, 2026-07-04) made the session component
 immune to renames for exactly this reason. The pane component was left positional, so the same
@@ -451,6 +557,28 @@ class of bug persisted one level down.
   concept should be checked against them rather than assumed separate.
 - `internal/tmux` `StructuralKeyFormat` / `ResolveStructuralKey` / `ListAllPanes` — the
   name-based positional siblings, now used only for the marker/cleanup paths above.
+
+**Added after root-cause validation (2026-08-22):**
+
+- **The 41 existing on-disk `hooks.json` keys.** Every live entry is keyed `<portal-id>:w.p`;
+  changing the pane half changes every key on disk. Precedent matters here: the 2026-04-30 spec
+  accepted a breaking key change and used `CleanStale` *as* the migration
+  (`resume-hooks-lost-on-server-restart/specification.md:67`). Repeating that would silently
+  destroy all 41 hooks on the first sweep after upgrade. Migration is a fix-direction question
+  that must be answered, not assumed.
+- **A fifth key-producing site, outside this repo.** `~/.claude/hooks/portal-resume-hook.sh:93-95`
+  re-implements `HookKeyFormat` verbatim and matches it against `portal hook list`'s
+  tab-separated output. The script documents the coupling and fails safe (an unrecognised scheme
+  yields empty, and its guards then refuse to remove anything) — so a key-scheme change degrades
+  it silently rather than erroring. Any change to the key rule or to `hook list` output has to be
+  assessed against that file.
+- **`buildHydrateCommand` (`internal/restore/session.go:141`).** The key is interpolated into
+  `portal state hydrate --hook-key %s` via `shellQuoteSingle` and baked into a `respawn-pane -k`
+  command line. A change to the key's character set or length lands on this quoting boundary.
+- **`internal/transienttest` `SeedHooksJSON` / `HooksJSONBytes`.** The single-sourced hook seeder
+  for the two destructive integration suites; a key-shape change must route through it.
+- **`hooks.json` concurrency (finding 7).** Unlocked read-modify-write across processes — in the
+  blast radius of any fix that adds a writer or changes write frequency.
 
 **Not affected:** scrollback capture and replay (positions are re-derived live each restore),
 `sessions.json` correctness (regenerated from live tmux every tick), session grouping, spawn.
