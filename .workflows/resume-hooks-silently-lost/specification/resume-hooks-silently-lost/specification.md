@@ -206,6 +206,50 @@ This is what pays back the readability the token-only key costs (§3.1). Without
 Resolution is one `list-panes -a` read over the token format (§3.3), reused across all rows. A token that resolves to no live pane renders the column **empty** rather than failing the command — including the case where no tmux server is running at all, which `hook` is bootstrap-exempt from starting. An old-format key likewise renders empty, since no live pane can answer to one.
 
 
+### 5. Stale Cleanup
+
+#### 5.1 What the reaper does now
+
+`runHookStaleCleanup` (`cmd/run_hook_stale_cleanup.go`) enumerates live pane keys, loads `hooks.json`, and deletes every persisted key absent from the live set. It runs from two call sites over the same code path: the daemon's idle branch every 10s (`cmd/state_daemon.go` `maybeRunHookCleanup`), and `portal doctor --fix` (`cmd/doctor.go` `pruneDoctorStaleHooks`), which supplies an `onRemoved` callback printing `Pruned stale hook: <key>`.
+
+Two changes, and no more. **Whether the reaper deletes is not changed** — only what it can identify, and what it records.
+
+#### 5.2 Deletion becomes shape-aware
+
+- A **token-shaped** key (§3.2) whose token is absent from the live set is deleted, exactly as today.
+- A key that is **not token-shaped** is **retained**, untouched, on every run.
+
+The justification is that A removes the reaper's false positives. Under a positional key a moved pane and a dead pane are indistinguishable at the point of comparison, so the reaper was acting correctly on false information. Under a token key a moved pane keeps its token, so an absent token now means a genuinely absent pane and the reaper's judgement becomes trustworthy. What remains worth protecting is the one case it still cannot judge: an unconverted old-format key, which is not evidence of a dead pane but of an unconverted entry — and is distinguishable by shape.
+
+Three consequences follow from putting the protection on shape rather than on a call site:
+
+- **`portal doctor --fix` keeps its documented prune unchanged.** The protection travels with the rule, so it holds wherever the rule lives. There is no "guard at the daemon call site versus inside `CleanStale`" split, and no window in which one `doctor --fix` run destroys every unconverted entry.
+- **`portal doctor` stays green and keeps its "exit 0 iff all pass" contract.** A closed pane's entry is still deleted, so retained old-format entries are the only thing that persists — and `checkStaleHooks` (§5.4) is amended not to count them as failures.
+- **Retained entries do not accumulate without bound.** A live pane's entry is never stale, and a closed pane's entry is absorbed as it always has been. The retained set is the old-format residue only, which the out-of-band conversion (§8) clears.
+
+**Accepted cost:** full retention — deleting nothing, ever — would have made a *future* key defect visible instead of silent, because the entries would still be sitting there. Shape-aware deletion does not preserve that property. What survives of it is §5.3, which is the part that was actually missing: the reaper never recorded what it took.
+
+#### 5.3 The reaper names what it deleted
+
+Each removed key is logged at **INFO** under the `hooks` component, not only at DEBUG.
+
+Today the per-key line is `logger.Debug("clean-stale", "op", "clean-stale", "hook_key", key, "via", "internal")` (`internal/hooks/store.go:220`) and production INFO gets only the batch summary `hooks: clean-stale op=clean-stale entries=N` from `storelog.EmitCleanStaleSummary`. At the production default level the log therefore cannot answer "what did I lose?" after the fact — which is why the two named instances in the investigation had to be reconstructed by correlating a registration breadcrumb against a bare count.
+
+The batch summary is retained alongside. The existing `hooks` component attr vocabulary (`op`, `hook_key`, `via`, `entries`) is sufficient — no new component and no new attr key.
+
+`portal doctor --fix`'s `Pruned stale hook: <key>` output is unchanged; it already named the key.
+
+#### 5.4 The mass-deletion guard keys off live *panes*, not live *tokens*
+
+`runHookStaleCleanup` carries one guard: an empty live set is treated as a bad tmux read rather than as authority, and the sweep defers to the next run with a WARN (`cmd/run_hook_stale_cleanup.go:41-47`). `checkStaleHooks` carries the matching not-evaluable branch (`cmd/doctor.go`), and `pruneDoctorStaleHooks` documents that it deliberately adds no second guard.
+
+Under lazy stamping (§2.2), **zero stamped panes is the ordinary steady state** — every pane before its first `hook set`, and the whole install during the upgrade window. If the guard tested the token set it would fire every 10s with a WARN naming a mass-deletion hazard that does not exist.
+
+The guard's question is *"did the tmux read succeed?"*, which the **pane row count** answers. The token set answers a different question — *"which panes are protected?"* — and the two must not be conflated. This is why the enumeration returns one row per live pane including empties (§3.3): the guard counts rows, the stale comparison uses the non-empty subset.
+
+`checkStaleHooks` is amended in step: its stale count is taken over token-shaped keys only, so retained old-format entries never push a healthy install to a non-zero exit code.
+
+
 ---
 
 ## Working Notes
