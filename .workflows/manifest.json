@@ -179,6 +179,9 @@
     },
     "split-oversized-go-files": {
       "work_type": "feature"
+    },
+    "resume-hooks-silently-lost": {
+      "work_type": "bugfix"
     }
   },
   "defaults": {
