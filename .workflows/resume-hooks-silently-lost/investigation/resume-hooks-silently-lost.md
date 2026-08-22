@@ -593,7 +593,7 @@ class of bug persisted one level down.
 key at write, stop the reaper destroying data, and close the unlocked write window.** Four
 changes, agreed together:
 
-- **A — durable per-pane identity.** Mint an opaque token, stamp it as a tmux **pane**
+- **A — durable per-pane identity, replacing `@portal-id` rather than joining it.** Mint an opaque token, stamp it as a tmux **pane**
   user-option, carry it in `sessions.json` alongside the existing `Session.PortalID`, and
   re-stamp it at restore. This is the `@portal-id` pattern (spec
   `session-rename-orphans-resume-hook`, 2026-07-04) applied one level down.
@@ -684,6 +684,38 @@ silent; shape-aware deletion does not. What survives of that property is the INF
 deleted keys — which is the part that was actually missing, since the reaper never recorded what
 it took. The inverse diagnostic ("a live pane that should have a hook does not have one") remains
 unaddressed by either option; it is a diagnostic gap, not part of the causal chain.
+
+**The `@portal-id` machinery is removed in this work unit (risk 8).** Every non-test consumer of
+`@portal-id` exists to build the hook key and nothing else — the stamps at
+`internal/session/create.go:92` and `internal/session/quickstart.go:59`, the `#{@portal-id}`
+`captureFormat` column and `Session.PortalID` (`internal/state/capture.go:26,87,174`,
+`internal/state/schema.go:25`), the restore re-stamp and key bake
+(`internal/restore/session.go:62,78`), and `HookKeyFormat` / `HookKey` / `ResolveHookKey` /
+`ListAllPaneHookKeys` in `internal/tmux/tmux.go`. A token-only pane key makes all of it dead at
+once.
+
+The deciding argument is not the dead weight but the supersession: `@portal-id` exists so a
+session rename cannot orphan a hook (spec `session-rename-orphans-resume-hook`, 2026-07-04). A
+token-only key carries no session identity, so **renames become irrelevant by construction** —
+A subsumes that fix's purpose, not just its machinery. Retaining it would leave two identity
+systems, one inert, with comments cross-referencing a key format that no longer exists.
+
+`cmd/state_migrate_rename.go` goes with it: it rewrites keys by `<oldName>:` prefix and can match
+nothing under a token key. It is already inert — registration never installs its hook and
+`managedEvents` binds `session-renamed` to `notifyCommand`
+(`internal/tmux/hooks_register.go:22-45`) — but it is still registered as a hidden subcommand at
+`:71`. **One piece is not removable**: the `migrateRenameSubstring` teardown reference
+(`internal/tmux/hooks_register.go:45,64-67`) exists to reap hooks that *older binaries* installed,
+so it has a live job that outlives the command itself and must stay.
+
+`Session.PortalID` leaving the schema is a field **removal** from a tolerant-decode struct: an
+existing `sessions.json` carrying `portal_id` decodes fine and the value is ignored. No
+`SchemaVersion` bump, no migration.
+
+*Accepted cost:* the replacement and the removal land in one release, so a misbehaving release
+cannot be bisected between the two halves. Deliberate — splitting them is the "ship it and
+remember to delete it later" pattern rejected for the migration, and this is a single-install
+tool that can be rolled back.
 
 **Settled refinements:**
 
@@ -804,8 +836,9 @@ The user then went further and put the script outside the plan entirely.
 
 ### Risk Assessment
 
-- **Fix complexity:** Medium-High. Spans `internal/hooks`, `internal/tmux`, the `internal/state`
-  schema and capture format, `internal/restore`, the daemon, and `portal doctor`.
+- **Fix complexity:** High. Spans `internal/hooks`, `internal/tmux`, the `internal/state` schema
+  and capture format, `internal/restore`, `internal/session`, the daemon, and `portal doctor` —
+  and carries the removal of the `@portal-id` machinery alongside the replacement.
 - **Regression risk:** Medium. The additive `sessions.json` field is well-precedented by
   `Session.PortalID` (tolerant decode, no `SchemaVersion` bump). The riskiest piece is D, which
   introduces a blocking path into a loop the daemon runs every 10 seconds. C's reduction to
