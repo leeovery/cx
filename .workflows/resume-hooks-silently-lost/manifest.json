@@ -4,7 +4,15 @@
   "status": "in-progress",
   "created": "2026-08-22",
   "description": "Per-pane resume hooks go missing without any error — registration accepts a pane that doesn't resolve and writes a degenerate key, and valid entries are orphaned when a pane's window/pane coordinates change — so panes come back from a reboot with no resume.",
-  "phases": {},
+  "phases": {
+    "investigation": {
+      "items": {
+        "resume-hooks-silently-lost": {
+          "status": "in-progress"
+        }
+      }
+    }
+  },
   "seeds": [
     {
       "path": "seeds/2026-08-16-hook-set-persists-degenerate-pane-key.md",
