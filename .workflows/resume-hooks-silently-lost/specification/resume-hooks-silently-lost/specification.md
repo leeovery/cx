@@ -375,6 +375,59 @@ The one thing not covered by code is ordering: an entry registered *between* the
 It fails safe in the meantime: the script documents the coupling, an unrecognised key scheme yields an empty key, and its guards then refuse to remove anything. So a key-scheme change degrades it silently rather than erroring — its SessionEnd branch stops deregistering, and those entries are absorbed by the reaper exactly as they always have been.
 
 
+### 9. Testing
+
+#### 9.1 Lane placement
+
+The project's lane rule is unchanged and binding: every test that spawns a `portal state daemon` or execs a built `portal` binary carries `//go:build integration`; the unit lane holds the rest, including the fast real-tmux **client** tests under `internal/tmux/*_realtmux_test.go` (per-test `-L` sockets, no daemons, no subprocess binaries).
+
+Two consequences for this work:
+
+- The tmux behaviours B rests on are pinned in `internal/tmux` real-tmux client tests, where that pattern already lives. A `cmd`-level test then asserts the CLI propagates the failure, with its `*Deps` seam injected — `cmd`'s `TestMain` poisons `TMUX` package-wide, so a real-tmux `cmd` test would have to supply its own socket and is avoided.
+- Anything driving restore's arm phase execs `portal state hydrate` through `respawn-pane -k`, so it is integration-lane and builds its binary via `portalbintest`.
+
+#### 9.2 New tests
+
+**The gap that let this bug live for months** is that no test ever moved a pane. The existing cross-site tests prove every site derives the same key for a pane *at rest* — the case that works.
+
+| Test | What it asserts | Lane |
+|---|---|---|
+| **A pane that moves keeps its hook** | Register a hook; `break-pane` it out, close an earlier window under `renumber-windows on`, `move-pane` it back, `move-pane` it to another session; the hook still resolves after each. | unit (real-tmux) |
+| **Non-contiguous saved window indices** | Restore a session whose saved window indices are non-contiguous, with `renumber-windows off` (tmux's default, not the user's setting); assert the hook fires **and** survives the post-restore sweep. This is the H6 case — it fires correctly once today and then dies. | integration |
+| **`set-option -p` rejects a bogus pane** | `set-option -p -t %999 @portal-pane-id X` exits non-zero, unlike `display-message -p` against the same target, which exits 0. The behaviour B is built on. | unit (real-tmux) |
+| **`hook set` on an unresolvable `$TMUX_PANE`** | Exits non-zero and writes nothing to `hooks.json`. | unit |
+| **`hook rm` on an unresolvable `$TMUX_PANE`** | Exits non-zero and writes nothing, while `hook rm --pane-key <anything>` still succeeds unchanged (§4.3). | unit |
+| **`hook set` reuses an existing token** | A second registration on the same pane writes under the same key and mints nothing (§2.2). | unit (real-tmux) |
+| **Reaper shape-awareness** | An old-format (non-token) key is retained by both the daemon sweep and `portal doctor --fix`; a token-shaped key whose token is absent is still deleted; the deletion names the key at INFO rather than only counting it (§5.2, §5.3). | unit |
+| **`portal doctor` exit code stays 0** | With retained old-format entries present (§5.4). | unit |
+| **No spurious mass-deletion WARN** | A server with hooks present and zero stamped panes does not emit the guard's WARN (§5.4). | unit |
+| **An empty key fires on nothing** | A `""` entry in `hooks.json` fires on no restored pane; `collectArmInfos` bakes no empty key (§3.4). | unit |
+| **Lost update** | Interleaved writers across the `Load`→`AtomicWrite` window; no entry disappears. **The assertion must exercise the `AtomicWrite` rename specifically** — two writers will usually serialise by luck and pass against a broken lock, so the test must show exclusion holds across an inode swap, which is what a lock taken on `hooks.json` itself would fail (§6.2). | unit |
+| **Restore re-stamp failures are surfaced** | A failed pane re-stamp produces a WARN naming the session and pane, and does not abort the restore (§2.4). | unit |
+| **`armPanes` short-list stamps nothing** | With live and saved pane counts differing, the unpaired remainder carries no token (§2.4). | unit |
+| **`hook list` fourth column** | Renders the resolved location for a live token, and empty for a token that resolves to no live pane (§4.4). | unit (real-tmux) |
+
+#### 9.3 Existing tests to re-point or retire
+
+- **`internal/tmux/resolve_hookkey_realtmux_test.go`** — its comment states the `:.` behaviour outright: *"tmux 3.7's display-message tolerates a bogus -t target (it returns `:.` with exit 0), so killing the server first is the only reliable way to drive the read-failure path."* The knowledge was in the repo the whole time, filed as a testing obstacle rather than a bug. Its premise changes: the bogus-target case is now a real failure, via `set-option -p`.
+- **`internal/tmux/hookkey_cross_site_realtmux_test.go`**, `hookkey_format_realtmux_test.go`, `hookkey_realtmux_shared_test.go`, `hookkey_test.go`, `list_all_pane_hookkeys_realtmux_test.go` — re-pointed at the token key and the token enumeration.
+- **`cmd/hookkey_no_regression_upgrade_test.go`** — asserts an un-stamped session's name-keyed hook survives, which is precisely the `@portal-id` fallback branch being deleted. Retired.
+- **`cmd/rename_restore_cleanup_survival_integration_test.go`**, `internal/restore/rename_reboot_hook_integration_test.go`, `rename_reboot_durability_integration_test.go` — these prove the July rename fix. Renames are now irrelevant by construction (§7.1), so what they should assert is that a rename *still* cannot orphan a hook, now for a different reason. Re-pointed, not retired: the user-visible guarantee is unchanged and is worth keeping under test.
+- **`internal/transienttest`** `SeedHooksJSON` / `HooksJSONBytes` (`internal/transienttest/hooks.go:38,57`) — the single-sourced hook seeder for the two destructive integration suites. The key-shape change routes through it, so it is amended once rather than at each consumer.
+- **`internal/session/create_test.go`**, `quickstart_test.go`, `internal/state/*`, `internal/restore/session_test.go`, `cmd/hooks_test.go`, `cmd/state_hydrate_test.go` — updated in step with §7.2.
+
+#### 9.4 Guards
+
+Two literal-binding guards exist for `@portal-id` and must be re-pointed at `@portal-pane-id` rather than deleted — the hazard they encode is unchanged:
+
+- **`cmd/portal_id_binding_guard_test.go`** asserts `session.PortalIDOption == "@portal-id"` and that `tmux.HookKeyFormat` contains it. `cmd` can import both packages cycle-free, which is what lets the constant and the format string be compared at all.
+- **`internal/state/portal_id_literal_guard_test.go`** asserts `captureFormat` contains the literal, spelled out rather than imported because `internal/session` transitively depends on `internal/state` and the import would cycle. **That cycle is unchanged**, so the `@portal-pane-id` literal remains duplicated between the option constant and `captureFormat`, and the guard remains the only thing binding them.
+
+#### 9.5 The positional siblings are checked, not assumed separate
+
+`state.SanitizePaneKey` and `internal/tmux`'s `StructuralKeyFormat` / `ResolveStructuralKey` / `ListAllPanes` key the hydrate FIFO paths and `@portal-skeleton-*` markers off the same positional addressing (§1.3). They are not changed, but the addressing assumption is identical, so their existing coverage is run against the change rather than assumed unaffected — specifically that a restore whose window indices are renumbered still pairs FIFOs and markers correctly, which is the §9.2 non-contiguous-index test observing a second surface.
+
+
 ---
 
 ## Working Notes
