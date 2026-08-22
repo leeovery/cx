@@ -110,6 +110,42 @@ The subagent-SessionEnd clobber in `~/.claude/hooks/portal-resume-hook.sh` (a su
 SessionEnd deletes the pane's real resume hook; needs a `session_id` guard) is a separate
 failure mode on the caller side, not in Portal.
 
+### Standing Evidence (verified 2026-08-22, live install, read-only)
+
+**The install is currently clean.** `hooks.json` holds 42 entries; every one matches a live
+pane key. 45 live panes; the 3 without hooks are `_portal-bootstrap:1.1`, `_portal-saver:1.1`
+and `los3Lo:1.2` (a second pane, not a Claude pane). So the bug is not currently manifesting
+— it is intermittent and trigger-driven, not a standing corruption.
+
+**Every live hook key is `<id>:1.1`.** The working set is overwhelmingly one window, one pane
+per session, which is why drift is occasional rather than constant — the coordinates only move
+when a session grows a second window/pane and later loses it.
+
+**`portal.log` census across 2026-07-23 → 2026-08-22** (retention is 30 days; nothing earlier
+survives):
+
+- 63 lines carrying `hook_key=:.` — **61 `op=rm`, 2 `op=set`**. The two sets are
+  2026-07-27T16:37:29 (`value="cd "/Users/leeovery" && claude --resume 9e4d…"`, v0.10.3 — a
+  real registration lost) and 2026-08-16T19:06:49 (`value=noop`, v0.11.0 — the deliberate
+  repro from the seed).
+- The `rm :.` lines run near-daily from 07-23 to 2026-08-12 and stop after 2026-08-16. Each is
+  a Claude SessionEnd whose `resolveCurrentPaneKey()` returned `:.` — so the degenerate
+  resolution is common at SessionEnd, not a rarity. The matching SessionStart registrations
+  were therefore also frequently degenerate; only 2 `set :.` lines survive in the retained
+  window because most degenerate SessionStarts were suppressed by the caller (below) or fell
+  outside retention.
+- `hooks: clean-stale entries=1` continues **after** the `:.` writes stop — 13 prunes between
+  2026-08-17 and 2026-08-21 inclusive. With no degenerate key left to reap, each of those is a
+  genuine hook being removed. Independent confirmation that a second loss mechanism is live and
+  distinct from the `:.` issue.
+
+**A caller-side workaround already masks part of the symptom.** `~/.claude/hooks/portal-resume-hook.sh`
+(dotfiles commit `26fded9`, 2026-08-16 19:44) added a pane-ownership guard for the nested/subagent
+clobber and a `[[ -z "$key" || "$key" == ":." ]] && return 0` bail in `stored_resume_id`. That is
+why `rm :.` noise stops on 08-16. **Portal itself is unchanged** — the degenerate write path is
+still open; a caller without that guard still hits it, and even the guarded caller still calls
+`portal hooks set` blind (it reads `rc`, which is 0).
+
 ### References
 
 - `seeds/2026-08-16-hook-set-persists-degenerate-pane-key.md`
