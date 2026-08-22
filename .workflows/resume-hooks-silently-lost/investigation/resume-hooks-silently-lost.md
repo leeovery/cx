@@ -360,19 +360,100 @@ went to the junk key instead of the pane. The caller logged `rc=0` and moved on.
 
 ### Root Cause
 
-(pending)
+**The hook key is not a durable, verified reference to a pane.** It is half identity and half
+position, and Portal never checks that a key it writes down identifies anything at all.
+
+`internal/tmux/tmux.go:565`:
+
+```
+#{?@portal-id,#{@portal-id},#{session_name}}:#{window_index}.#{pane_index}
+└──────────── immutable identity ───────────┘ └──── mutable position ────┘
+```
+
+Both reported symptoms are that one defect observed at two moments in a hook's life:
+
+- **At write time** — tmux expands the format against an unresolvable target and exits **0**
+  with `:.`. `Run` maps a zero exit to `err == nil`, and no layer validates shape, so a hook
+  that identifies no pane is persisted and reported as success.
+- **Over the pane's lifetime** — tmux recomputes `window_index.pane_index` from layout. Any
+  rearrangement changes the key, nothing re-keys the entry, and the daemon's sweep — which
+  cannot distinguish a moved pane from a dead one — removes it, correctly by its own rule.
+
+**Why this happens:** a hook is a promise attached to one pane, but the thing Portal writes
+down to name that pane is derived from where the pane currently sits rather than from what it
+is. `hooks.json` is written once at registration and never revisited, so any value in the key
+that tmux is free to recompute rots the moment it changes. Half of the key was already fixed —
+`@portal-id` (spec `session-rename-orphans-resume-hook`, 2026-07-04) made the session component
+immune to renames for exactly this reason. The pane component was left positional, so the same
+class of bug persisted one level down.
 
 ### Contributing Factors
 
-(pending)
+- **tmux reports success for an unresolvable pane target.** `display-message -p -t %999 <fmt>`
+  exits 0 printing `:.` (tmux 3.7c, sandbox-verified). There is no error for Portal to detect,
+  so `ResolveHookKey`'s own documented guard — never synthesise a key on read failure — never
+  engages, because this is not a read failure as far as tmux is concerned.
+- **The reaping cadence is 10 seconds, on the daemon's idle branch.** `hookCleanupInterval`
+  (`cmd/state_daemon.go:105`) fires precisely when the user is rearranging panes rather than
+  working, so the gap between drift and deletion is negligible.
+- **`renumber-windows on`** in the user's tmux config widens the drift surface: closing any
+  window renumbers every later one, moving panes that were never touched.
+- **The 2026-04-30 constraint was never revisited.** Spec `resume-hooks-lost-on-server-restart`
+  chose positional keys deliberately, because pane IDs (`%N`) do not survive a server restart.
+  That reasoning was sound and remains true; what changed since is that Portal gained a restore
+  layer able to carry and re-apply identity across the reboot gap (`Session.PortalID`), which
+  removes the constraint that forced positions.
+- **The registering caller cannot verify its own success.** `~/.claude/hooks/portal-resume-hook.sh`
+  reads `rc` from `portal hooks set`, which is 0 on both paths.
 
 ### Why It Wasn't Caught
 
-(pending)
+- **The `:.` behaviour was found and then filed as a testing obstacle, not a bug.**
+  `internal/tmux/resolve_hookkey_realtmux_test.go:73` states it outright: *"tmux 3.7's
+  display-message tolerates a bogus -t target (it returns `:.` with exit 0), so killing the
+  server first is the only reliable way to drive the read-failure path."* The test then kills
+  the server to force a genuine error — testing the path that does work, and routing around the
+  one that does not. The knowledge was in the repo the whole time, framed as an inconvenience.
+- **No test moves a pane.** The cross-site consistency tests
+  (`internal/tmux/hookkey_cross_site_realtmux_test.go`) prove every site derives the *same* key
+  for a pane at rest. Nothing registers a hook, rearranges the pane, and re-reads — the exact
+  sequence that breaks.
+- **Both diagnostics ask the reaper's own question.** `portal doctor`'s `checkStaleHooks`
+  (`cmd/doctor.go:280`) and the daemon sweep apply the same live-key rule; the daemon has
+  already acted on it within 10s, so doctor reports `no stale hooks` *because* the deletion
+  completed.
+- **The prune records the count, not the key.** Per-key detail is DEBUG
+  (`internal/hooks/store.go:220`); production INFO gets `clean-stale entries=N`. The log cannot
+  answer "what did I lose?" after the fact.
+- **Nothing records intent.** Portal holds no notion of which panes are *meant* to be protected,
+  so an unprotected pane is invisible to every check. The 2026-08-16 audit that found 6 of 42
+  panes hookless had to be done by hand.
 
 ### Blast Radius
 
-(pending)
+**Directly affected:**
+
+- `hooks.json` entries and the `on-resume` promise they carry — the user-visible loss.
+- `portal hook set` / `portal hook rm` (`cmd/hooks.go`) — both accept a key identifying nothing
+  and report success.
+- The daemon stale sweep (`cmd/run_hook_stale_cleanup.go`, `internal/hooks/store.go`).
+- `portal doctor`'s stale-hook check and `--fix` prune (`cmd/doctor.go:280`).
+- Hook firing at restore (`internal/restore/session.go:62`, `portal state hydrate`).
+- `internal/state` capture/schema and `internal/restore` — the carrier for any durable pane
+  identity, additive alongside `Session.PortalID`.
+
+**Shares the pattern, not currently failing:**
+
+- `state.SanitizePaneKey(session, window, pane)` keys the hydrate FIFO paths and the
+  `@portal-skeleton-*` markers off the same positional addressing. These exist only for the
+  duration of one bootstrap and are rebuilt from live coords each time, so drift has no window
+  in which to occur — but the addressing assumption is identical, and a change to the pane-key
+  concept should be checked against them rather than assumed separate.
+- `internal/tmux` `StructuralKeyFormat` / `ResolveStructuralKey` / `ListAllPanes` — the
+  name-based positional siblings, now used only for the marker/cleanup paths above.
+
+**Not affected:** scrollback capture and replay (positions are re-derived live each restore),
+`sessions.json` correctness (regenerated from live tmux every tick), session grouping, spawn.
 
 ---
 
