@@ -587,7 +587,132 @@ class of bug persisted one level down.
 
 ## Fix Direction
 
-(pending — written when the fix discussion concludes)
+### Chosen Approach
+
+**Replace the hook key's positional pane component with a durable per-pane identity, verify the
+key at write, stop the reaper destroying data, and close the unlocked write window.** Four
+changes, agreed together:
+
+- **A — durable per-pane identity.** Mint an opaque token, stamp it as a tmux **pane**
+  user-option, carry it in `sessions.json` alongside the existing `Session.PortalID`, and
+  re-stamp it at restore. This is the `@portal-id` pattern (spec
+  `session-rename-orphans-resume-hook`, 2026-07-04) applied one level down.
+  - **The key becomes the pane token alone**, not `<portal-id>:<pane-token>`. A composite key
+    keeps session grouping and readability, but `move-pane -t <other-session>` changes the
+    session half and drift returns. The user rearranges panes across sessions; readability is
+    recoverable by rendering the resolved location in `portal hook list`, a drift path is not.
+  - **Stamping is lazy, at `hook set`.** Portal does not create panes — the user splits them —
+    so there is no creation point to stamp at, and a pane with no hook needs no token.
+  - Residual: a crash between `hook set` and the next capture commit loses the stamp (window
+    <= `MaxGap` 30s, or ~1s when the dirty flag is set). Mitigated by having `hook set` touch
+    the existing `save.requested` dirty flag (`state.TouchSaveRequested`).
+- **B — verify at write.** `hook set` refuses a key that identifies no live pane and exits
+  non-zero. This is the only change that closes H1, since tmux offers no error to detect.
+- **C — the reaper stops destroying data.** Grace period, tombstone, or no automatic deletion —
+  the mechanism is a specification decision. It does not by itself restore a drifted hook (see
+  Discussion), but it converts any future key defect from silent data loss into recoverable
+  noise, and it is what would have made this bug visible.
+- **D — close the unlocked read-modify-write.** A cross-process file lock around
+  `hooks.json` load→mutate→write. `sync.Mutex` is useless here (the writers are separate
+  processes); the in-house precedent is `state.AcquireDaemonLock`'s `flock` on `daemon.lock`,
+  and `flock` is kernel-released on process death, so there is no stale-lock hazard.
+  **Constraint: the locked region covers the file only, never the tmux enumeration that precedes
+  it** — a lock spanning that read would let a hung tmux block every `hook set` behind it.
+
+**Deciding factor for A over the alternatives:** drift breaks the *lookup*, not just the
+storage, so no amount of retention fixes it — the key itself has to stop being positional. And
+of the durable options, only a per-pane token survives every rearrangement Portal has no control
+over. Feasibility is verified rather than assumed (finding 5).
+
+### Migration — deliberately none in the product
+
+Existing `hooks.json` entries are keyed `<portal-id>:w.p`; the new scheme changes every key on
+disk. **No migration code ships.** Portal has one install and no evidence of any other; the user's
+call is that a second install, if one exists, is not worth carrying compatibility code for.
+
+The re-key is a one-time transformation of one file on one machine — resolve each entry's
+positional key to its live pane, stamp a token, rewrite — authored as a throwaway script
+**outside Portal and outside this work unit's specification and plan**. It is not a deliverable
+here.
+
+C is what makes this safe rather than reckless: under a non-destructive reaper an unconverted
+entry sits inert instead of being deleted, so a partial conversion costs nothing. Ordering at
+upgrade time (upgrade, then run the script) is the mitigation for entries registered in between,
+not code.
+
+**Explicitly out of scope:** `~/.claude/hooks/portal-resume-hook.sh`. It reimplements the key
+format and parses `portal hook list`, and it will need updating in step — but it is the user's
+own integration, not part of the Portal product, and no Portal work item covers it.
+
+### Options Explored
+
+- **Stop the daemon deleting entries (retention alone)** — *rejected as a fix, retained as C.*
+  Firing looks up a key baked from saved state (`internal/restore/session.go:62`). A moved pane
+  is captured at its new coordinates, so restore bakes the new key while `hooks.json` holds the
+  old one. The entry would survive and still not fire. Retention is a safety net, not a repair.
+- **Composite key `<portal-id>:<pane-token>`** — *rejected.* Readable and preserves session
+  grouping, but re-opens drift for `move-pane` across sessions.
+- **Re-key against tmux's own `%N` pane id instead of a Portal token** — *rejected.* `%N` is
+  stable only within a server lifetime and can be recycled by tmux, so it needs the same
+  carry-and-re-stamp machinery as a minted token while being less trustworthy.
+- **One-release migration, isolated and deleted in the next release** — *rejected.* Ships code
+  whose whole purpose is to become obsolete, and leaves a removal the user has to remember.
+- **Adoption rule inside the sweep** ("an entry whose positional key resolves to exactly one live
+  pane is re-keyed to that pane's token") — *rejected.* Needs no removal, but once every key is a
+  token the branch never fires again; it is dead code presented as general behaviour.
+
+### Discussion
+
+The exploration turned on one finding: **drift breaks the lookup, not just the storage.** That
+ruled out the intuitive fix (stop deleting) before it was proposed, and forced the key itself to
+change.
+
+The composite-versus-token decision was settled by the user's actual usage: they move panes and
+promote panes to windows deliberately, and want resume to survive it. A composite key would have
+kept `portal hook list` readable at the cost of a live drift path for cross-session moves. The
+readability loss is recoverable at the render layer; the drift path is not.
+
+On D, the user asked directly whether there was a reason not to. The honest argument against is
+that it is unquantified — no observed loss is proven to be a race, and it widens the work beyond
+the reported bug. It was included anyway: the cost is small, the pattern is already in the
+codebase, and the alternative is knowingly leaving a silent-data-loss path open in the one file
+this work unit exists to protect.
+
+Migration was where the user pushed back hardest, on a general principle: no dead or
+compatibility code left behind for removed functionality. Working through it showed the migration
+did not need to be code at all — a single install, 41 entries, all currently resolving exactly.
+The user then went further and put the script outside the plan entirely.
+
+### Testing Recommendations
+
+- **A test that moves a pane.** The existing cross-site tests
+  (`internal/tmux/hookkey_cross_site_realtmux_test.go`) prove every site derives the same key for
+  a pane *at rest* — the case that works. Register a hook, then `break-pane` / close an earlier
+  window / `move-pane` across sessions, and assert the hook still resolves. This is the gap that
+  let the bug live for months.
+- **A restore test with non-contiguous saved window indices**, run with `renumber-windows off`
+  (tmux's default, not the user's setting), asserting the hook survives the *post-restore* sweep
+  — the H6 case, which fires correctly once and then dies.
+- **`hook set` against an unresolvable `$TMUX_PANE`** must exit non-zero and write nothing. Must
+  be a real-tmux test: a fake `Commander` cannot reproduce tmux's exit-0-with-`:.`, which is
+  precisely why the behaviour was filed as a test obstacle rather than a bug.
+- **A lost-update test for D** — interleaved writers across the `Load`→`AtomicWrite` window,
+  asserting no entry disappears.
+- **Reaper retention (C)** — an entry with no matching live pane is retained, and whatever
+  surfaces it names the key rather than only a count.
+
+### Risk Assessment
+
+- **Fix complexity:** Medium-High. Spans `internal/hooks`, `internal/tmux`, the `internal/state`
+  schema and capture format, `internal/restore`, the daemon, and `portal doctor`.
+- **Regression risk:** Medium. The additive `sessions.json` field is well-precedented by
+  `Session.PortalID` (tolerant decode, no `SchemaVersion` bump). The two riskier pieces are C —
+  it changes the behaviour of the mechanism that currently protects against mass deletion — and
+  D, which introduces a blocking path into a loop the daemon runs every 10 seconds.
+- **Data risk:** the key change is breaking, with no in-product migration by decision. C bounds
+  the blast: unconverted entries are inert rather than destroyed.
+- **Recommended approach:** regular release. Not a hotfix — a breaking key change plus a schema
+  addition plus a new lock is not hotfix-shaped.
 
 ---
 
