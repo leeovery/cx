@@ -49,7 +49,7 @@ The source material does not carry this claim — the investigation names the in
 **Proposed Change**:
 > Every non-test consumer of `@portal-id` exists to build the hook key and nothing else (`grep -rn "PortalIDOption\|@portal-id\|PortalID" internal cmd --include="*.go" | grep -v _test.go` → 21 lines across 7 files, one of them a doc comment in `cmd/run_hook_stale_cleanup.go`). A token-only pane key makes all of it dead at once.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim to §7.1. Corrected file count 8 → 7 and named the doc-comment hit that distinguishes the grep's file set from §7.2's removal table.
 
 ---

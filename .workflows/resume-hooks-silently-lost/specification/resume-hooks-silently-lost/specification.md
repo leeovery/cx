@@ -308,7 +308,7 @@ The bound is **2 seconds**. The critical section is one small-file read, a marsh
 
 `@portal-id` exists for exactly one reason: so a session rename cannot orphan a resume hook (spec `session-rename-orphans-resume-hook`, 2026-07-04). A token-only key (§3.1) carries no session identity at all, so **renames become irrelevant by construction** — A subsumes that fix's purpose, not merely its machinery.
 
-Every non-test consumer of `@portal-id` exists to build the hook key and nothing else (`grep -rn "PortalIDOption\|@portal-id\|PortalID" internal cmd --include="*.go" | grep -v _test.go` → 21 lines across 8 files). A token-only pane key makes all of it dead at once.
+Every non-test consumer of `@portal-id` exists to build the hook key and nothing else (`grep -rn "PortalIDOption\|@portal-id\|PortalID" internal cmd --include="*.go" | grep -v _test.go` → 21 lines across 7 files, one of them a doc comment in `cmd/run_hook_stale_cleanup.go`). A token-only pane key makes all of it dead at once.
 
 The deciding argument is the supersession, not the dead weight. Retaining it would leave two identity systems, one inert, with source comments cross-referencing a key format that no longer exists — the exact "ship it and remember to delete it later" pattern rejected for the migration (§8).
 
