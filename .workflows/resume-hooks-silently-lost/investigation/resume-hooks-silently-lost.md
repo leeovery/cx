@@ -92,17 +92,32 @@ of resuming its work.
 - `dex` window 2 (pane `d5H0DK:2.1`) — hook registered 2026-08-20T22:48:07 under key
   `d5H0DK:1.2`, pruned 2026-08-21.
 
-### Folded-in Sighting (unconfirmed fit)
+### Folded-in Sighting — resolved, out of scope (2026-08-22)
 
 The 2026-06-29 capture — after a crash-recovery reboot with 32 Claude sessions, ~28 resumed
-and ~4 did not, tmux sessions present but on-resume behaviour absent — was folded in as a
-symptom-level sighting of the same failure. The user's hunch at the time was that the
-non-resuming ones were older sessions; an older pane has had more opportunity to be
-rearranged, so its key drifts and the sweep reaps it, which matches both the minority-subset
-shape and the age correlation. **Residual risk carried deliberately:** if those four panes
-failed for a different reason — legacy sessions missing markers the restore path expects,
-which that capture also floats — then an unrelated symptom is being carried through this
-fix. The investigation must say so rather than force the fit.
+and ~4 did not, tmux sessions present but on-resume behaviour absent — is **explained, and is
+not a Portal defect**. Claude Code garbage-collects session transcripts on a retention window
+that defaulted to 30 days. The stored hook command is `cd "<launch-dir>" && claude --resume
+<session_id>`; once the transcript for that id is gone, `claude --resume` fails and the hydrate
+helper's chain (`sh -c '<HOOK>; exec $SHELL'`) falls through to a bare shell. Pane present,
+no resume, nothing reported — exactly the observed shape, and it explains the age correlation
+(only sessions older than the retention window are affected) and the minority subset.
+
+The user has since raised Claude Code's retention to 3,500 days, which closes it at source.
+Carried here for reference only; **no fix work in this unit addresses it**, and the residual
+risk discovery flagged (that an unrelated symptom would be dragged through the fix) is
+discharged rather than carried.
+
+### Scope
+
+Two mechanisms are in scope, both live and both Portal defects:
+
+1. **Degenerate key at registration** — `hook set` accepts an unresolvable pane, writes `:.`,
+   exits 0.
+2. **Coordinate drift over the pane's lifetime** — the key bakes `window.pane`, tmux renumbers
+   under ordinary rearrangement, the daemon reaps the orphaned entry. The user moves panes and
+   promotes panes to windows deliberately and needs resume to survive it — so re-keying, not
+   discouraging the rearrangement, is the target.
 
 ### Known-adjacent, explicitly out of scope
 
