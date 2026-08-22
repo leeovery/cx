@@ -176,13 +176,15 @@ still open; a caller without that guard still hits it, and even the guarded call
 
 **Checkpoint depth:** check-ins
 
-- **H1 — `hook set` persists a degenerate key because tmux reports success** [suspected]
+- **H1 — `hook set` persists a degenerate key because tmux reports success** [confirmed]
   Sandbox repro (2026-08-22, isolated `-L` socket): `tmux display-message -p -t %999
   '#{?@portal-id,#{@portal-id},#{session_name}}:#{window_index}.#{pane_index}'` **exits 0 and
   prints `:.`** — tmux does not error on an unresolvable pane target for a `-p` message; it
   expands the format against nothing and every field comes back empty. `ResolveHookKey`
   (`internal/tmux/tmux.go:236`) returns that verbatim, `resolveCurrentPaneKey`
   (`cmd/hooks.go:36`) passes it through, and `store.Set` writes it. No validation at any layer.
+  **Confirmed** by full trace — see Code Trace finding 1. A repo-wide search finds no hook-key
+  shape validation anywhere.
 
 - **H2 — Coordinate drift orphans a live pane's hook, and the daemon then reaps it** [suspected]
   The key bakes `window_index.pane_index`; tmux renumbers on pane close, window close (with
@@ -225,7 +227,42 @@ still open; a caller without that guard still hits it, and even the guarded call
 
 **Findings:**
 
-(pending)
+#### Finding 1 — the degenerate-key write path (H1 confirmed)
+
+```
+cmd/hooks.go:91   hooksSetCmd.RunE
+  -> cmd/hooks.go:36   resolveCurrentPaneKey()
+     -> cmd/hooks.go:23  requireTmuxPane()  — only checks TMUX_PANE is non-empty
+     -> internal/tmux/tmux.go:236  Client.ResolveHookKey(paneID)
+        -> internal/tmux/tmux.go:42   RealCommander.Run("display-message","-p","-t",paneID,HookKeyFormat)
+           -> internal/tmux/tmux.go:49  runCommand -> exec.Cmd.Output()
+              BUG: tmux exits 0 for an unresolvable pane target, printing ":."
+                   so err is nil and the caller has no signal
+  -> internal/hooks/store.go:81  Store.Set(":.", "on-resume", cmd, "cli")  — writes it
+```
+
+Every layer behaves correctly in isolation; the contract breaks at the tmux boundary. `Run`
+maps a zero exit to `err == nil` (`internal/tmux/tmux.go:52`) — right for every other tmux
+call. `ResolveHookKey`'s doc comment already warns that a *read failure* must never fall back
+to a name-based key, but tmux never reports this as a failure, so the guard never engages.
+There is no shape validation in `resolveCurrentPaneKey`, in `Store.Set`, or anywhere in the
+repo (searched).
+
+**Why `$TMUX_PANE` is unresolvable so often.** The 61 `rm :.` lines are all Claude `SessionEnd`
+events, and all predate the caller-side guard. The pre-guard script (dotfiles `26fded9^`) called
+`portal hooks rm --on-resume` unconditionally at SessionEnd. SessionEnd commonly fires *because
+the pane was closed* — tmux destroys the pane, Claude gets SIGHUP and exits, and the hook then
+runs against a pane id tmux has already reclaimed.
+
+**The `rm` side has its own consequence, distinct from the `set` side.** When deregistration
+resolves to `:.`, `store.Remove` deletes nothing that matters — so the pane's *real* hook entry
+survives its Claude session. It is then reaped later by the stale sweep (pane genuinely gone),
+so the end state is usually benign; but the same silent-success shape means Portal reports a
+successful removal that removed nothing.
+
+**Impact of the `set` side is real, not just noise.** 2026-07-27T16:37:29 wrote
+`":." -> "cd \"/Users/leeovery\" && claude --resume 9e4d7901-…"` — a genuine registration that
+went to the junk key instead of the pane. The caller logged `rc=0` and moved on.
 
 ### Root Cause
 
