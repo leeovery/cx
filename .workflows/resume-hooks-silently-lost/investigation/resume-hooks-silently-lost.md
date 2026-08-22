@@ -305,7 +305,7 @@ seed names:
 
 Four distinct hook keys for one pane that never changed; the stamp held throughout.
 `respawn-pane -k` surviving is load-bearing — that is exactly what restore's arm phase does to
-每 pane (`internal/restore`), so a stamp applied before arming is still there afterwards.
+every pane (`internal/restore`), so a stamp applied before arming is still there afterwards.
 
 Also verified: **no inheritance** — a pane created by `split-window` or `new-window` from a
 stamped pane reads back empty, so a split cannot duplicate an id. `set-option -p -u` clears
