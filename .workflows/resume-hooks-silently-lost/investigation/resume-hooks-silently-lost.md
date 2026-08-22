@@ -644,6 +644,74 @@ not code.
 format and parses `portal hook list`, and it will need updating in step — but it is the user's
 own integration, not part of the Portal product, and no Portal work item covers it.
 
+### Refinements from Fix Validation (2026-08-22)
+
+Ten risks were raised against the agreed direction (`fix-validation-001`). The direction itself
+was confirmed sound — every refinement below closes a gap inside it rather than changing it.
+
+**B is stronger than first described, and nearly free.** `set-option -p -t %999 @portal-pane-id X`
+exits **1** with `no such pane: %999` (sandbox-verified, tmux 3.7c) — unlike `display-message -p`,
+which exits 0. Under A the stamp precedes the write, so the existence check is **tmux-native**
+rather than a shape heuristic on the returned string.
+
+**Settled refinements:**
+
+- **`hook rm` gets the same verification as `hook set` — but only on the `$TMUX_PANE` path.**
+  The blast radius named both halves; B as first written covered only `set`. The
+  `--pane-key` flag stays a literal pass-through with no validation: spec `hooks-rm-pane-key-flag`
+  (2026-05-26) made it one deliberately, because pruning an entry whose pane no longer exists is
+  its whole purpose. A key that resolves from `$TMUX_PANE` must identify a live pane; a key handed
+  over explicitly must not be second-guessed.
+
+- **The lock is a sidecar, never `hooks.json` itself.** `fileutil.AtomicWrite`
+  (`internal/fileutil/atomic.go:77`) writes a temp file and `os.Rename`s it over the target, so
+  the target's inode is replaced on every write — a lock held on the pre-rename inode is a lock on
+  an unlinked file and provides no exclusion at all. The precedent this copies,
+  `state.AcquireDaemonLock`, is correct precisely *because* it locks a dedicated `daemon.lock`.
+  Same shape here: a dedicated lock file beside `hooks.json`.
+
+- **Readers take a shared lock, writers exclusive.** `Store.Load` is on the path of `hook list`,
+  `LookupOnResume`, doctor's check and the sweep's own pre-read. During a restore of a 40+ pane
+  working set every hydrate helper calls `LookupOnResume` at once; a blanket-exclusive lock on
+  `Load` would serialise them for no benefit.
+
+- **The mass-deletion guard keys off live *panes*, not live *tokens*.** Under lazy stamping,
+  "zero stamped panes" is the ordinary steady state during the upgrade window, and
+  `ListAllPaneHookKeys` returning empty would fire `runHookStaleCleanup`'s bad-read guard
+  (`cmd/run_hook_stale_cleanup.go:41-47`) every 10s with a WARN naming a mass-deletion hazard that
+  does not exist. The guard's question is "did the tmux read succeed?", which is answered by the
+  pane enumeration; the token set answers a different question and must not be conflated with it.
+
+- **An empty token is rejected at the bake and lookup boundaries, not only at write.**
+  `hooks.LookupOnResume` (`internal/hooks/lookup.go:16`) does a bare `h[hookKey]`, so a single
+  `""` entry would fire on **every unstamped restored pane on the machine**. B stops the CLI
+  writing one; a hand-edit or a conversion-script bug still could. `collectArmInfos` must not bake
+  an empty key and `LookupOnResume` must not honour one.
+
+- **The restore re-stamp must not be a swallowed error.** It would naturally copy
+  `_ = r.Client.SetSessionOption(...)` (`internal/restore/session.go:79`), where discarding the
+  error is fine because a missed `@portal-id` stamp costs only rename-immunity. For the pane token
+  the stamp *is* the identity: a swallowed failure permanently orphans that pane's hook with no
+  trace. It warrants at least a WARN.
+
+- **A restore pane mispairing must not stamp.** `armPanes`
+  (`internal/restore/session.go:125-128`) warns and pairs up to the shorter list when live and
+  saved pane counts differ. Today a mispairing misplaces a FIFO and a hook key for one boot and
+  self-corrects at the next capture. Under A the same mispairing writes a **durable** token onto
+  the wrong pane, and the hook then fires on the wrong pane on every subsequent reboot — transient
+  becomes permanent. The unpaired remainder must not be stamped.
+
+**New tests these add** (beyond those already listed):
+
+- `hook rm` from an unresolvable `$TMUX_PANE` exits non-zero and writes nothing, while
+  `hook rm --pane-key <anything>` still succeeds unchanged.
+- A `""` key in `hooks.json` fires on no restored pane.
+- The lost-update test must exercise the `AtomicWrite` **rename** specifically — two writers
+  interleaved over `Load`→`AtomicWrite` will usually serialise by luck and pass against a broken
+  lock. The assertion is that exclusion holds across an inode swap.
+- A server with hooks present and no stamped panes does not emit the mass-deletion WARN.
+- A failed restore re-stamp is surfaced, and the `armPanes` short-list branch stamps nothing.
+
 ### Options Explored
 
 - **Stop the daemon deleting entries (retention alone)** — *rejected as a fix, retained as C.*
