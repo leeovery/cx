@@ -302,6 +302,45 @@ An unbounded `LOCK_EX` is simpler and carries no stale-lock hazard — `flock` i
 The bound is **2 seconds**. The critical section is one small-file read, a marshal, and a rename — sub-millisecond in practice — so 2s sits roughly three orders of magnitude above the expected hold while staying well inside the sweep's own 10s cadence. A timeout at that bound means something is genuinely wrong, not merely contended, which is what makes the WARN worth emitting.
 
 
+### 7. Removing the `@portal-id` Machinery
+
+#### 7.1 Why it goes, and why now
+
+`@portal-id` exists for exactly one reason: so a session rename cannot orphan a resume hook (spec `session-rename-orphans-resume-hook`, 2026-07-04). A token-only key (§3.1) carries no session identity at all, so **renames become irrelevant by construction** — A subsumes that fix's purpose, not merely its machinery.
+
+Every non-test consumer of `@portal-id` exists to build the hook key and nothing else (`grep -rn "PortalIDOption\|@portal-id\|PortalID" internal cmd --include="*.go" | grep -v _test.go` → 21 lines across 8 files). A token-only pane key makes all of it dead at once.
+
+The deciding argument is the supersession, not the dead weight. Retaining it would leave two identity systems, one inert, with source comments cross-referencing a key format that no longer exists — the exact "ship it and remember to delete it later" pattern rejected for the migration (§8).
+
+#### 7.2 What is removed
+
+| Site | What goes |
+|---|---|
+| `internal/session/create.go` | `PortalIDOption` const; the `SetSessionOption` stamp in `CreateSession` |
+| `internal/session/quickstart.go` | the `set-option -t <name> @portal-id <token>` link in the chained `ExecArgs` |
+| `internal/state/capture.go` | the `#{@portal-id}` `captureFormat` column (replaced per §2.3) and the session-scoped lift into `Session.PortalID` |
+| `internal/state/schema.go` | `Session.PortalID` |
+| `internal/restore/session.go` | the `@portal-id` re-stamp; the `tmux.HookKey(sess.PortalID, …)` bake (replaced per §3.3) |
+| `internal/tmux/tmux.go` | `HookKey`; the `@portal-id` conditional inside `HookKeyFormat` (replaced per §3.3) |
+| `cmd/state_migrate_rename.go` | the whole file — see §7.3 |
+
+`Session.PortalID` leaving the schema is a field **removal** from a tolerant-decode struct: an existing `sessions.json` carrying `portal_id` decodes fine and the value is ignored. No `SchemaVersion` bump, no migration — the mirror image of the field addition in §2.3.
+
+`@portal-dir` is **untouched**. It is a separate stamp serving session grouping in the TUI, unrelated to hook identity.
+
+#### 7.3 `portal state migrate-rename` goes; one reference to it stays
+
+`cmd/state_migrate_rename.go` rewrites hook keys by `<oldName>:` prefix (`runMigrateRename`). Under a token key no key can carry a session-name prefix, so it can match nothing. It is already inert in production — registration never installs its hook, and `managedEvents` binds `session-renamed` to `notifyCommand` (`internal/tmux/hooks_register.go:22`) — but it is still registered as a hidden subcommand (`cmd/state_migrate_rename.go:71`). The command and its implementation are deleted.
+
+**`migrateRenameSubstring` is not removable** (`internal/tmux/hooks_register.go:45`, consumed by `teardownFingerprints` at `:64-67`). It exists so `portal uninstall` reaps the inert `session-renamed` hooks that *older binaries* installed on the user's tmux server. That job outlives the command itself and must stay, with its comment intact.
+
+#### 7.4 Replacement and removal ship together
+
+Both halves land in one release.
+
+**Accepted cost:** a misbehaving release cannot be bisected between "the new key works" and "the old machinery is gone". This is deliberate. Splitting them is the pattern rejected in §7.1 and §8, and this is a single-install tool that can be rolled back wholesale.
+
+
 ---
 
 ## Working Notes
