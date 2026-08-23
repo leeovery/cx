@@ -117,6 +117,7 @@ The hydrate path is the one that matters most: it is the moment the hook actuall
 The same silence covers the case where the sidecar lock file cannot be opened or created at all (§6.2 specifies `O_CREAT` and never unlinked, but not what any caller does if that open fails) — an I/O path D newly introduces on every one of these callers.
 
 **Proposed Change**:
+Split the failure policy by direction. A write that cannot take the lock does not write (sweep skips with a WARN; `hook set`/`hook rm` exit non-zero). A read that cannot take the lock reads anyway, unlocked, at DEBUG — covering `LookupOnResume`, `checkStaleHooks` and `hook list`. §6.3 gains the paragraph establishing why that is safe: `AtomicWrite`'s `os.Rename` means a reader always sees a complete snapshot, so the shared lock is an ordering courtesy, not a correctness requirement. The same split governs the sidecar lock file failing to open at all.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied to §6.3 and §6.5. The deciding argument is that failing the hydrate read would make this work unit reintroduce its own symptom — a restored pane dropping to a bare shell — for no correctness gain.

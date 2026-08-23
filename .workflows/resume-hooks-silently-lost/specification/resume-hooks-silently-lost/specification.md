@@ -296,6 +296,8 @@ The lock file is opened `O_CREAT` and **never unlinked**. `AcquireDaemonLock`'s 
 
 The exclusive hold must span the **whole** mutation, not each file operation. `Set`, `Remove` and `CleanStale` each read, mutate and write; taking a shared lock to read and an exclusive lock to write would reopen the identical window. The exported methods acquire once and hold across their internal load and save.
 
+The shared lock is an ordering courtesy rather than a correctness requirement. `AtomicWrite` replaces the file by `os.Rename` (§6.2), so a reader observes a complete snapshot whatever a concurrent writer is doing — the pre-state or the post-state, never a torn one. This is what makes the read-side degradation in §6.5 safe.
+
 #### 6.4 The locked region covers the file only
 
 **No tmux call may sit inside the lock.** A lock spanning a tmux enumeration would let one hung tmux read block every `hook set` on the machine behind it.
@@ -306,8 +308,17 @@ This falls out naturally at the sweep's call site: `runHookStaleCleanup` perform
 
 Acquisition waits, but not indefinitely. On timeout:
 
+**A write that cannot take the lock does not write** — an unlocked write is the lost update D exists to close:
+
 - the **daemon sweep** skips this cycle with a WARN and retries on the next 10s cadence — a deferred prune costs nothing, since stale entries are inert;
-- the **CLI** (`hook set`, `hook rm`, `hook list`) exits non-zero with the reason, rather than hanging a shell the user is sitting in.
+- `hook set` and `hook rm` exit non-zero with the reason, rather than hanging a shell the user is sitting in.
+
+**A read that cannot take the lock reads anyway**, unlocked, and logs at DEBUG. Correctness does not depend on the shared lock (§6.3), so failing a read would forfeit a hook for nothing:
+
+- `LookupOnResume` — the hydrate helper, one call per restored pane, under the 40-helper burst that motivated the shared lock in the first place. A pane that came back and then hydrated to a bare shell because a lock file was busy would be this work unit reintroducing its own symptom;
+- `checkStaleHooks` and `hook list` — read-only diagnosis and display; a lock problem must not make `portal doctor` report a hook problem.
+
+The same split governs the sidecar lock file failing to open or be created at all (§6.2): writes fail, reads proceed unlocked.
 
 An unbounded `LOCK_EX` is simpler, and `flock` being kernel-released on process death rules out a *leaked* lock. It does not rule out a *held* one: a holder suspended by a signal or stuck on a hung filesystem keeps the lock for as long as it lives, and an unbounded acquire would park the daemon's 10s tick loop behind it — the blocking path the investigation named as the single riskiest part of this work unit. The project has had a wedged daemon before (the midnight day-roll deadlock), which is the concrete reason simplicity does not win here.
 
