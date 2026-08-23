@@ -743,6 +743,20 @@ tool that can be rolled back.
   working set every hydrate helper calls `LookupOnResume` at once; a blanket-exclusive lock on
   `Load` would serialise them for no benefit.
 
+- **Acquisition is bounded at 2 seconds, and a timeout degrades rather than wedges.** `flock` being
+  kernel-released on process death rules out a *leaked* lock, but not a *held* one: a holder
+  suspended by a signal or stuck on a hung filesystem keeps the lock while it lives, and an
+  unbounded `LOCK_EX` would park the daemon's 10s tick loop behind it — the regression risk D
+  carries. On timeout the daemon sweep skips this cycle with a WARN and retries on the next
+  cadence (a deferred prune costs nothing; stale entries are inert), and the CLI exits non-zero
+  with the reason rather than hanging a shell the user is sitting in. The bound is 2s because the
+  critical section is one small-file read, a marshal and a rename — sub-millisecond in practice —
+  so it sits roughly three orders of magnitude above the expected hold while staying well inside
+  the sweep's own 10s cadence: reaching it means something is genuinely wrong rather than merely
+  contended, which is what makes the WARN worth emitting. The project has had a wedged daemon
+  before (the midnight day-roll deadlock), which is the concrete reason simplicity does not win
+  here.
+
 - **The mass-deletion guard keys off live *panes*, not live *tokens*.** Under lazy stamping,
   "zero stamped panes" is the ordinary steady state during the upgrade window, and
   `ListAllPaneHookKeys` returning empty would fire `runHookStaleCleanup`'s bad-read guard
