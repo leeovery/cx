@@ -309,7 +309,7 @@ Acquisition waits, but not indefinitely. On timeout:
 - the **daemon sweep** skips this cycle with a WARN and retries on the next 10s cadence — a deferred prune costs nothing, since stale entries are inert;
 - the **CLI** (`hook set`, `hook rm`, `hook list`) exits non-zero with the reason, rather than hanging a shell the user is sitting in.
 
-An unbounded `LOCK_EX` is simpler and carries no stale-lock hazard — `flock` is kernel-released on process death. It is rejected because D introduces a blocking path into a loop the daemon runs every 10 seconds, which the investigation named as the single riskiest part of this work unit; a holder wedged by a stopped process or a hung filesystem would take the daemon's tick loop with it.
+An unbounded `LOCK_EX` is simpler, and `flock` being kernel-released on process death rules out a *leaked* lock. It does not rule out a *held* one: a holder suspended by a signal or stuck on a hung filesystem keeps the lock for as long as it lives, and an unbounded acquire would park the daemon's 10s tick loop behind it — the blocking path the investigation named as the single riskiest part of this work unit. The project has had a wedged daemon before (the midnight day-roll deadlock), which is the concrete reason simplicity does not win here.
 
 The bound is **2 seconds**. The critical section is one small-file read, a marshal, and a rename — sub-millisecond in practice — so 2s sits roughly three orders of magnitude above the expected hold while staying well inside the sweep's own 10s cadence. A timeout at that bound means something is genuinely wrong, not merely contended, which is what makes the WARN worth emitting.
 

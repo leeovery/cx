@@ -96,9 +96,10 @@ The investigation's treatment of D is the opposite in emphasis: it names the abs
 This is a real design choice with consequences on both sides: a bound converts a wedged holder into a skipped sweep or a failed CLI command, and 2s sets where "contended" becomes "genuinely wrong". The spec quotes "roughly three orders of magnitude above the expected hold" as the derivation, but the expected hold, the bound and the degradation behaviour all originate in the spec rather than in the investigation.
 
 **Proposed Change**:
+(Blank — the fix belonged to the source record, not the specification.)
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Routed
+**Notes**: Raised as a documented-sides conflict; the user chose bounded. Landed in the investigation as a new Settled refinement bullet ("Acquisition is bounded at 2 seconds, and a timeout degrades rather than wedges"), reindexed and committed at `06b4bc79`. The spec's §6.5 already stated bounded/2s/degradation, so only its rejection argument was re-aligned: kernel-release-on-death rules out a leaked lock, not a held one, and the midnight day-roll deadlock is the project's own precedent for a wedged daemon.
 
 ---
 
