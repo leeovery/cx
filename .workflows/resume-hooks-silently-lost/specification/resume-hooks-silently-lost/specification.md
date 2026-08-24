@@ -50,6 +50,8 @@ A is the repair — it closes all three moments above. B, C and D close paths th
 
 Each pane that carries a resume hook is stamped with an opaque token held in the tmux **pane** user-option `@portal-pane-id`.
 
+The option name is declared **once**, as `PortalPaneIDOption` in `internal/state` — beside `RestoringMarkerName`, `SkeletonMarkerPrefix` and `BootstrappedMarkerName`, which already name Portal's other tmux options from that package. Every site that needs the literal composes it from that constant: `captureFormat` in the same package, `HookKeyFormat` in `internal/tmux` (which already imports `internal/state`), and the `hook set` stamp in `cmd` (which imports both). The literal is therefore written in exactly one place, which is what retires the binding guards rather than re-pointing them (§9.4).
+
 A tmux pane user-option was verified in an isolated `-L` socket (tmux 3.7c) to survive every mutation that moves a pane's coordinates, and to survive the one Portal itself performs:
 
 | Operation | Coordinates before → after | Stamp |
@@ -447,10 +449,14 @@ Two consequences for this work:
 
 #### 9.4 Guards
 
-Two literal-binding guards exist for `@portal-id` and must be re-pointed at `@portal-pane-id` rather than deleted — the hazard they encode is unchanged:
+Two literal-binding guards exist for `@portal-id`:
 
 - **`cmd/portal_id_binding_guard_test.go`** asserts `session.PortalIDOption == "@portal-id"` and that `tmux.HookKeyFormat` contains it. `cmd` can import both packages cycle-free, which is what lets the constant and the format string be compared at all.
-- **`internal/state/portal_id_literal_guard_test.go`** asserts `captureFormat` contains the literal, spelled out rather than imported because `internal/session` transitively depends on `internal/state` and the import would cycle. **That cycle is unchanged**, so the `@portal-pane-id` literal remains duplicated between the option constant and `captureFormat`, and the guard remains the only thing binding them.
+- **`internal/state/portal_id_literal_guard_test.go`** asserts `captureFormat` contains the literal, spelled out rather than imported because `internal/session` transitively depends on `internal/state` and the import would cycle.
+
+**Both are deleted, not re-pointed.** They exist because the `@portal-id` literal was written in two places that could not import one another. Homing the new constant in `internal/state` (§2.1) removes that condition: `captureFormat` is in the same package, `internal/tmux` already imports `internal/state`, and `cmd` imports both — so `@portal-pane-id` is written once and every site composes it. A guard binding two copies of a literal has nothing left to bind when there is one copy.
+
+The hazard the guards encode is answered by construction instead of by assertion, which is the stronger form: a drift the compiler makes impossible cannot be introduced by someone who never ran the guard.
 
 #### 9.5 The positional siblings are checked, not assumed separate
 

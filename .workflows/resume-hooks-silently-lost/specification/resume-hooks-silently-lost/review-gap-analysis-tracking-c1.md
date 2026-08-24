@@ -80,6 +80,7 @@ The column therefore needs either a second format field on that enumeration (cha
 
 **Source**: Specification analysis
 **Category**: Gap/Ambiguity
+**Move**: choice
 **Priority**: Important
 **Affects**: §2.1 (The token and its tmux option), §7.2 (What is removed), §9.4 (Guards)
 
@@ -91,9 +92,10 @@ The obvious inheritance is broken by this work unit's own changes: the old const
 The identifier is referenced by three sections and declared by none, so the first implementer to reach it makes a placement decision that §9.4's guard is written against.
 
 **Proposed Change**:
+`state.PortalPaneIDOption`, declared in `internal/state` beside the other tmux option-name constants; every site composes it; §9.4's two guards deleted rather than re-pointed.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Option 1 chosen. Measured: `internal/state` already declares `SkeletonMarkerPrefix`, `RestoringMarkerName` and `BootstrappedMarkerName` (`internal/state/markers.go`) and imports only `tmuxerr`/`tmuxout`/`log`/`fileutil`/`xdg`, so it is importable by `internal/tmux` (which already imports it, `internal/tmux/portal_saver.go:11`) and by `cmd`. That collapses the two-copies condition §9.4 assumed permanent — `captureFormat` composes the constant in-package, `HookKeyFormat` composes it across the existing import, and the guards have nothing to bind. §2.1 gains the declaration paragraph; §9.4 rewritten to delete both guards with the by-construction argument.
 
 ---
 
