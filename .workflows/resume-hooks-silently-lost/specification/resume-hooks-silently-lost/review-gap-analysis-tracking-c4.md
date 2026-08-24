@@ -24,8 +24,8 @@ Re-enumerating panes under the lock is not available: §6.4 rules it out, and fo
 - Require a token-shaped key to be absent from the live set on two consecutive sweeps before deleting it, so no single enumeration can delete on its own
 - Accept the window as a residual, state it in §6.3 beside the file-snapshot race it already closes, and drop §9.2's assertion that the entry survives
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Option 1 chosen. Verified before presenting: cycle 2's finding 8 closed the *file* snapshot race and left the *tmux* snapshot race open, so the §9.2 assertion did overstate what the design delivered. The ordering fix is free — the call-site read already happens, it only moves ahead of the enumeration — and the delete set is now stated as an explicit four-way intersection so the narrowing rule cannot be misread. The §9.2 lost-update row is re-derived to name the snapshot-before-enumeration ordering it now pins.
 
 ---
 
@@ -49,8 +49,8 @@ The sweep reads `hooks.json` twice: once at its call site (`runHookStaleCleanup`
 **Proposed Text**:
 The sweep reads `hooks.json` twice: once at its call site (`runHookStaleCleanup`, to decide whether there is anything to do) and once inside `CleanStale`. Neither read feeds the empty-live-set guard, which counts pane rows from the tmux enumeration (§5.4).
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied, merged into the finding-1 rewrite of the same sentence rather than as a separate edit. The mis-attribution was real: a read of `hooks.json` cannot answer a question about live panes, and wiring the guard from it would fire when there is nothing to delete and stay silent in the case §5.4 exists to protect.
 
 ---
 
@@ -77,8 +77,8 @@ The rule for the daemon already settles the substance — a write that cannot ta
 - `portal doctor --fix`, the sweep's other call site (§5.1), skips the same way and emits the same WARN (`op=clean-stale`, `via=internal`), and additionally prints one line naming the skipped prune alongside its `Pruned stale hook: <key>` output — a repair that silently did not run is the silence this work unit exists to remove. It does not fail the command: the exit code stays driven solely by the post-repair diagnosis, which reports whatever went un-pruned as stale;
 - `hook set` and `hook rm` exit non-zero with the reason, rather than hanging a shell the user is sitting in.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed. The second call site was uncovered by the write-side degradation rule, and a `--fix` that silently repairs nothing is the same silence the work unit is named after.
 
 ---
 
@@ -107,8 +107,8 @@ Add to the §9.2 table:
 
 | **The sweep and the check stand down during a restore** | With `@portal-restoring` set, `runHookStaleCleanup` deletes nothing and `checkStaleHooks` reports not-evaluable rather than counting every token-shaped key as stale; a failed marker read produces the same result as a set marker (§5.4). | unit |
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed, both edits. The guard against total hook loss was the only new behaviour shipping unverified; the seam sentence is what makes a unit-lane test of it possible.
 
 ---
 
@@ -136,8 +136,8 @@ Add to the §9.2 table:
 | **A lock timeout degrades by side** | With the sidecar lock held elsewhere: `hook set` and `hook rm` exit non-zero and leave `hooks.json` byte-identical, and the sweep deletes nothing and WARNs, while `LookupOnResume`, `checkStaleHooks` and `hook list` return their data anyway and log `op=load-unlocked` at DEBUG (§6.5). | unit |
 | **Removing nothing is non-zero every way** | `hook rm` on a live, stamped pane whose token has no entry exits non-zero, and `hook rm --pane-key <key naming no entry>` exits non-zero, both leaving `hooks.json` byte-identical (§4.2, §4.3). | unit |
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed, both rows. The lock-timeout split is called the riskiest part of the work unit and had nothing asserting it; the removal contract's two untested cases are the routine ones and the reason the external integration has to change.
 
 ---
 
@@ -161,8 +161,8 @@ Which packages can reach the `@portal-pane-id` constant, and why that means ever
 **Proposed Text**:
 **Both are deleted, not re-pointed.** They exist because the `@portal-id` literal was written in two places that could not import one another. The single home in `internal/state` (§2.1) removes that condition. A guard binding two copies of a literal has nothing left to bind when there is one copy.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed.
 
 ---
 
@@ -192,8 +192,8 @@ And replace the opening of the §9.3 bullet with:
 
 - **The three fakes behind the `cmd`-side enumeration seam** — the seam itself changes with the enumeration (§3.3), and three unit-lane files in `cmd` implement or drive it and do not compile until they follow:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed, both edits. The seam is production code and belongs beside the enumeration it mirrors; the testing section keeps the three fakes, which are test work.
 
 ---
 
@@ -217,5 +217,5 @@ The sweep gains a second reason to do nothing, and the specification does not sa
 **Proposed Text**:
 `portal doctor --fix` has no such gate, and it is the command a user reaches for when a reboot looks wrong. The check therefore moves **into `runHookStaleCleanup`**, so it travels with the rule the way shape-awareness does (§5.2) rather than sitting at one call site: the sweep reads `@portal-restoring` before it loads the store and skips the cycle when set. The skip emits one DEBUG line on the shape the empty-live-set guard's WARN already uses, and never a WARN — a restore window is an expected state, and warning through every one of them names a hazard that is being avoided rather than encountered.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed. A WARN through every restore window would name a hazard being avoided rather than encountered — the same false-alarm reasoning §5.4 uses one paragraph earlier to refuse counting tokens.
