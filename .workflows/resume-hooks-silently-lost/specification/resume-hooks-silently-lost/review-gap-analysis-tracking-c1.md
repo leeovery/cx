@@ -124,6 +124,7 @@ Resolve via `state.EnsureDir()`; the touch is best-effort — one WARN under the
 
 **Source**: Specification analysis
 **Category**: Gap/Ambiguity
+**Move**: settled
 **Priority**: Important
 **Affects**: §2.4 (Restore re-stamp: failures are surfaced)
 
@@ -133,9 +134,10 @@ Resolve via `state.EnsureDir()`; the touch is best-effort — one WARN under the
 §5.3 does exactly this work for the other new emission in this spec ("The existing `hooks` component attr vocabulary (`op`, `hook_key`, `via`, `entries`) is sufficient — no new component and no new attr key"), which makes the silence for the `restore` component a gap rather than a deliberate omission.
 
 **Proposed Change**:
+Message `set pane token failed` under the `restore` component, attrs `session` / `pane_key` / `error` — the existing vocabulary, no additions.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Derived from the `restore` component's measured emission style: `internal/restore/session.go:274` already emits `set skeleton marker failed` with exactly `session`, `pane_key` and `error`, from the same loop over the same panes. `pane_key` is specified as the live structural key rather than the token, since a stamp that failed has no token on the pane to name. Applied under `auto`.
 
 ---
 
