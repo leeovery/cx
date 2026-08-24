@@ -73,6 +73,8 @@ There is **no inheritance**: a pane created by `split-window` or `new-window` fr
 
 Minting is reached through an exported function in `internal/session`, beside the shape predicate (§3.2) and reading the same `suffixLen` and `NanoIDAlphabet` directly. `hook set` calls it and names no width of its own: generation and recognition derive from one pair of constants, so they move together or not at all.
 
+**tmux's own `%N` pane id is not the identity.** It is stable only within a server lifetime and tmux is free to recycle it, so it needs the identical carry-and-re-stamp machinery a minted token needs (§2.3) while being less trustworthy than one: a recycled id can name a pane that is not the one the entry was written for, which fires a hook on the wrong pane rather than losing it.
+
 #### 2.2 Stamping is lazy, at `hook set`
 
 Portal does not create panes — the user splits them — so there is no creation point to stamp at, and a pane with no hook needs no token. The stamp is therefore applied by `portal hook set`, immediately before the `hooks.json` write.
@@ -152,6 +154,8 @@ The July invariant — *every site that produces or consumes a key derives it by
 - The `cmd`-side seam that mirrors it — `AllPaneLister` (`cmd/run_hook_stale_cleanup.go`) — changes signature with it, and its doc comment, which names the `<@portal-id or session_name>:window.pane` form, describes the two-field rows instead.
 
 The name-based positional siblings are untouched (§1.3).
+
+**`CLAUDE.md`** describes the hook key as `<@portal-id or session_name>:window.pane` and documents the `@portal-id` stamp, `Session.PortalID`, the `#{@portal-id}` capture column and the `HookKey` / `HookKeyFormat` / `ResolveHookKey` / `ListAllPaneHookKeys` surface. Every passage naming those is rewritten to the pane token and the §7.2 removals, so the repository's own architecture description does not go on naming a key scheme that no longer exists.
 
 **`portal state hydrate --hook-key`** keeps its flag and its meaning; its help text, which currently reads `Saved structural identifier (<session>:<window>.<pane>)`, is corrected to describe the token.
 
@@ -242,6 +246,8 @@ Resolution is one `list-panes -a` read over the §3.3 enumeration, whose rows al
 `runHookStaleCleanup` (`cmd/run_hook_stale_cleanup.go`) enumerates live pane keys, loads `hooks.json`, and deletes every persisted key absent from the live set. It runs from two call sites over the same code path: the daemon's idle branch (§1.1, `cmd/state_daemon.go` `maybeRunHookCleanup`), and `portal doctor --fix` (`cmd/doctor.go` `pruneDoctorStaleHooks`), which supplies an `onRemoved` callback printing `Pruned stale hook: <key>`.
 
 **Whether the reaper deletes is not changed** — it is not converted to full retention. What changes is what it can identify (§5.2), what it records (§5.3), when it declines to run at all (§5.4), and how it takes the file it mutates (§6).
+
+Retention alone would not have repaired the defect in any case. Firing looks up a key baked from saved state (`collectArmInfos`), and a moved pane is captured at its new coordinates — so restore bakes the *new* key while `hooks.json` still holds the old one. Under a positional key the entry would survive the sweep and still not fire: drift breaks the lookup, not only the storage, which is why the key itself has to stop being positional rather than the reaper being made gentler.
 
 #### 5.2 Deletion becomes shape-aware
 

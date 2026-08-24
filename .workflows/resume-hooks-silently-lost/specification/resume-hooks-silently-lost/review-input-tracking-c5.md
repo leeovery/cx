@@ -23,8 +23,8 @@ Carry the source's deciding factor into §5.1, beside the sentence that already 
 
 Retention alone would not have repaired the defect in any case. Firing looks up a key baked from saved state (`collectArmInfos`), and a moved pane is captured at its new coordinates — so restore bakes the *new* key while `hooks.json` still holds the old one. Under a positional key the entry would survive the sweep and still not fire: drift breaks the lookup, not only the storage, which is why the key itself has to stop being positional rather than the reaper being made gentler.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed. This is the deciding argument for change A and the spec had no answer to "why not just stop the reaper deleting?" — a question planning would reasonably reopen.
 
 ---
 
@@ -49,8 +49,8 @@ Minting is reached through an exported function in `internal/session`, beside th
 
 **tmux's own `%N` pane id is not the identity.** It is stable only within a server lifetime and tmux is free to recycle it, so it needs the identical carry-and-re-stamp machinery a minted token needs (§2.3) while being less trustworthy than one: a recycled id can name a pane that is not the one the entry was written for, which fires a hook on the wrong pane rather than losing it.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed. The finding is right that the spec argued a reader *into* the substitution: the only stated objection to `%N` was the server-restart gap, which the carry-and-re-stamp design then closes. Recycling is the reason that survives, and its failure mode is worse than the bug being fixed — a hook firing on the wrong pane rather than not firing.
 
 ---
 
@@ -70,7 +70,7 @@ Name `CLAUDE.md` in §3.3 alongside the other text surfaces that carry the old k
 **Proposed Text**:
 **`CLAUDE.md`** describes the hook key as `<@portal-id or session_name>:window.pane` and documents the `@portal-id` stamp, `Session.PortalID`, the `#{@portal-id}` capture column and the `HookKey` / `HookKeyFormat` / `ResolveHookKey` / `ListAllPaneHookKeys` surface. Every passage naming those is rewritten to the pane token and the §7.2 removals, so the repository's own architecture description does not go on naming a key scheme that no longer exists.
 
-**Resolution**: Pending
-**Notes**: The investigation also notes in passing that `CLAUDE.md`'s tmux version (3.6b) is stale against the 3.7c the sandbox work was done on. Deliberately left out of the proposed text — some 3.6b references record measurements genuinely taken on 3.6b (the hysteresis constant, the `show-hooks -g` blind spot) and a blanket version rewrite would falsify them.
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed, placed with the other text surfaces carrying the old key form. The agent's note is right to leave `CLAUDE.md`'s tmux version alone: some 3.6b references record measurements genuinely taken on 3.6b, and a blanket rewrite would falsify them. The investigation also notes in passing that `CLAUDE.md`'s tmux version (3.6b) is stale against the 3.7c the sandbox work was done on. Deliberately left out of the proposed text — some 3.6b references record measurements genuinely taken on 3.6b (the hysteresis constant, the `show-hooks -g` blind spot) and a blanket version rewrite would falsify them.
 
 ---
