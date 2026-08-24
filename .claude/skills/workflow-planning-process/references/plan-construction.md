@@ -24,12 +24,10 @@ Navigation stays within plan construction. It cannot skip past the end of this s
 
 → Load **[define-phases.md](define-phases.md)** and follow its instructions as written.
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-I'll now work through each phase — presenting existing work for review
-and designing or authoring anything still pending. You'll approve at
-every stage.
+I'll now work through each phase — presenting existing work for review and designing or authoring anything still pending. You'll approve at every stage.
 ```
 
 → On return, proceed to **B. Process Current Phase**.
@@ -102,7 +100,7 @@ If the manifest still carries a `staging.author-p{N}` subtree for this phase (ch
 node .claude/skills/workflow-engine/scripts/engine.cjs manifest delete {work_unit}.planning.{topic} staging.author-p{N}
 ```
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
 Phase {N}: {Phase Name} — all tasks already authored.
@@ -138,7 +136,7 @@ Commit:
 node .claude/skills/workflow-engine/scripts/engine.cjs commit {work_unit} -m "planning({work_unit}): complete Phase {N} tasks"
 ```
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
 Phase {N}: {Phase Name} — complete ({M} tasks authored).

@@ -1,7 +1,7 @@
 ---
 name: workflow-investigation-process
 user-invocable: false
-allowed-tools: Bash(node .claude/skills/workflow-knowledge/scripts/knowledge.cjs), Bash(node .claude/skills/workflow-engine/scripts/engine.cjs), Bash(mkdir -p .workflows/.cache/), Bash(ls .workflows/.cache/), Bash(git log), Bash(git blame), Bash(git diff), Bash(git bisect), Bash(grep), Bash(rm .workflows/.cache/), Bash(rm -rf .workflows/.cache/)
+allowed-tools: Bash(node .claude/skills/workflow-knowledge/scripts/knowledge.cjs), Bash(node .claude/skills/workflow-engine/scripts/engine.cjs), Bash(ls .workflows/.cache/), Bash(git log), Bash(git blame), Bash(git diff), Bash(git bisect), Bash(grep), Bash(rm .workflows/.cache/), Bash(rm -rf .workflows/.cache/)
 hooks:
   SessionEnd:
     - hooks:
@@ -319,7 +319,7 @@ Load **[fix-exploration.md](references/fix-exploration.md)** and follow its inst
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Offering an independent pressure-test of the agreed fix direction before wrapping up.
+> An independent agent now pressure-tests the agreed direction — confirming it resolves the root cause and hunting for side effects before the investigation concludes.
 ```
 
 Load **[fix-validation.md](references/fix-validation.md)** and follow its instructions as written.

@@ -1,7 +1,7 @@
 {
   "leeovery/agentic-workflows": {
-    "ref": "v0.7.3",
-    "commit": "df2a7495106a27971ebef383863a69eb1dec54dd",
+    "ref": "v0.7.8",
+    "commit": "7307e9b91d135d9f5671983045127c1fef83ce05",
     "agents": [
       "claude"
     ],
@@ -181,6 +181,7 @@
       ".claude/skills/workflow-engine/scripts/kernel/manifest-io.cjs",
       ".claude/skills/workflow-engine/scripts/kernel/manifest-schema.cjs",
       ".claude/skills/workflow-engine/scripts/kernel/manifest.cjs",
+      ".claude/skills/workflow-engine/scripts/kernel/process.cjs",
       ".claude/skills/workflow-engine/scripts/kernel/render.cjs",
       ".claude/skills/workflow-engine/scripts/kernel/terminal.cjs",
       ".claude/skills/workflow-engine/scripts/lib.cjs",
@@ -593,7 +594,7 @@
     ],
     "type": "plugin",
     "cloneUrl": "https://github.com/leeovery/agentic-workflows.git",
-    "installedAt": "2026-08-22T08:36:03.709Z",
+    "installedAt": "2026-08-24T17:43:26.658Z",
     "constraint": "^0.7.0"
   },
   "samber/cc-skills-golang": {

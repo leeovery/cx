@@ -30,7 +30,7 @@ const { stampAnalysisCache } = require('./domain/cache.cjs');
 const agentState = require('./domain/agent-state.cjs');
 const { boot } = require('./domain/boot.cjs');
 const { beatPresence, clearPresence, scanPresence, cleanupPresence, deferralSection } = require('./domain/presence.cjs');
-const { applySessionLabel, restoreSessionLabel, setLabelConfig } = require('./domain/session-label.cjs');
+const { applySessionLabel, restoreSessionLabel, repairSessionLabels, setLabelConfig } = require('./domain/session-label.cjs');
 const { createWorkUnit } = require('./domain/workunit-create.cjs');
 const { completeWorkUnit, cancelWorkUnit, reactivateWorkUnit, pivotWorkUnit } = require('./domain/workunit-lifecycle.cjs');
 const { absorbWorkUnit } = require('./domain/workunit-absorb.cjs');
@@ -201,13 +201,20 @@ Commands:
   render resume-gate <wu.phase.topic> [--triage N] [--variant plan|review|scoping|session]  (session: bare <wu>)
   render task-list   <wu.planning.topic> --file <payload.json>
   render findings-summary <wu.phase.topic> --file <payload.json>
-  render finding          <wu.phase.topic> --file <payload.json>
+  render finding          <wu.phase.topic> --file <payload.json> [--view full]
+  render finding-announce <wu.phase.topic> --file <payload.json>
   render finding-batch    <wu.phase.topic> --file <payload.json>
   render review-presentation <wu.review.topic> --file <payload.json>
   render review-gate      <wu.review.topic> --verdict pass|fail [--replan N] [--out-of-scope N]
   render spec-review-gate <wu.specification.topic> --variant continue|reloop
   render spec-completion-gate <wu.specification.topic> --variant assessment|signoff
   render carry-note-gate  <wu.research.topic> --file <payload.json>
+  render hypothesis-board <wu.investigation.topic> --file <payload.json> --variant plan|resume|check-in|pivot
+  render fix-direction     <wu.investigation.topic> --file <payload.json>
+  render validation-gate   <wu.investigation.topic> --variant root-cause
+  render validation-report <wu.investigation.topic> --file <payload.json> --variant root-cause|fix
+  render project-skills   <wu.implementation.topic> --variant confirm|discovery|skipped [--file <payload.json>]
+  render linters          <wu.implementation.topic> --variant confirm|discovery|skipped [--file <payload.json>]
   render convergence-diagnostic <wu.phase.topic> --file <payload.json>
   render triage-announce  <wu.phase.topic>
   render triage-offer     <wu.phase.topic> --file <payload.json>
@@ -654,13 +661,18 @@ function runSession(argv) {
       respond(setLabelConfig(value === 'true'));
       return;
     }
+    if (command === 'repair') {
+      if (rest.length !== 0) throw new Error('Usage: engine session repair');
+      respond(repairSessionLabels(process.cwd()));
+      return;
+    }
     if (command === 'cleanup') {
       // The SessionEnd hook's target. The stash store is machine-global, so
       // no project root is needed.
       respond(restoreSessionLabel(hookSessionId(rest, 'Usage: engine session cleanup [session-id]')));
       return;
     }
-    throw new Error('Usage: engine session <label|label-config|cleanup> …');
+    throw new Error('Usage: engine session <label|label-config|repair|cleanup> …');
   } catch (err) {
     failJson(err);
   }

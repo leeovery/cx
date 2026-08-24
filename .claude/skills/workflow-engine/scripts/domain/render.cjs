@@ -377,7 +377,7 @@ function proposedTask(cwd, args) {
       menu('Approve this task?', [
         cmdOption('y', 'yes', 'Approve this task'),
         cmdOption('a', 'auto', 'Approve this and all remaining tasks automatically'),
-        cmdOption('s', 'skip', 'Skip this task'),
+        cmdOption('d', 'decline', 'Decline this task — it will not be built'),
         promptOption('Comment', hint),
       ]),
     ));
@@ -598,6 +598,579 @@ function carryNoteGate(cwd, { dotpath, file }) {
 }
 
 // ---------------------------------------------------------------------------
+// hypothesis-board — the investigation's hypothesis ledger, in the four
+// presentations the analysis needs. One renderer for one object: judgment
+// supplies the claims and the evidence beneath them, while the counts, the
+// order of the parts, and every gate belong to this surface — so the board
+// reads the same however long the analysis runs, and at any width.
+//   plan      — the proposed ledger, its trace lines and checkpoint depth
+//   resume    — the same ledger re-rendered from an earlier session
+//   check-in  — a resolution moment: what just resolved, then the whole board
+//   pivot     — a finding invalidated the plan: what changed, then the
+//               ledger proposed in its place
+// ---------------------------------------------------------------------------
+
+const HYPOTHESIS_VARIANTS = ['plan', 'resume', 'check-in', 'pivot'];
+const HYPOTHESIS_STATUSES = ['suspected', 'tracing', 'confirmed', 'ruled-out'];
+const CHECKPOINT_DEPTHS = ['straight-through', 'check-ins'];
+
+// A field that lands inside a markdown construct living on one line — a bold
+// head, a `- **Label**: value` bullet — cannot carry a newline: it would
+// break the construct around it and put a bare fragment on the page. Shared
+// by the investigation's row-shaped surfaces, which all take more rows rather
+// than longer ones; an artefact too big for a row (a trace, a diff) stays in
+// the investigation file, which the display cites rather than reproduces.
+/** @param {string} surface @param {string} v @param {string} field @returns {string} */
+function oneLine(surface, v, field) {
+  if (/[\r\n]/.test(v)) {
+    throw new Error(`render ${surface}: ${field} runs to more than one line — split it across rows, or leave the detail in the investigation file`);
+  }
+  return v;
+}
+
+/**
+ * Validate the ledger and answer its ids in payload order.
+ * @param {unknown} v @returns {string[]}
+ */
+function hypothesisLedger(v) {
+  if (!Array.isArray(v) || v.length === 0) {
+    throw new Error('render hypothesis-board: "hypotheses" must be a non-empty array of {id, claim, status, rows}');
+  }
+  /** @type {string[]} */
+  const ids = [];
+  v.forEach((h, i) => {
+    if (!h || typeof h !== 'object') throw new Error(`render hypothesis-board: hypotheses[${i}] must be an object`);
+    if (!isFilled(h.id)) throw new Error(`render hypothesis-board: hypotheses[${i}] is missing "id"`);
+    oneLine('hypothesis-board', h.id, `hypotheses[${i}] id`);
+    if (ids.includes(h.id)) throw new Error(`render hypothesis-board: duplicate hypothesis id "${h.id}" — an id is the ledger's stable reference and is never reused`);
+    if (!isFilled(h.claim)) throw new Error(`render hypothesis-board: hypotheses[${i}] is missing "claim"`);
+    oneLine('hypothesis-board', h.claim, `hypotheses[${i}] claim`);
+    if (!HYPOTHESIS_STATUSES.includes(h.status)) {
+      throw new Error(`render hypothesis-board: hypotheses[${i}] carries unknown status "${h.status}" (expected ${HYPOTHESIS_STATUSES.join('/')})`);
+    }
+    if (!Array.isArray(h.rows) || h.rows.length === 0) {
+      throw new Error(`render hypothesis-board: hypotheses[${i}] needs "rows" — a non-empty array of [label, value] pairs`);
+    }
+    h.rows.forEach((/** @type {unknown} */ r, /** @type {number} */ j) => {
+      if (!Array.isArray(r) || r.length !== 2 || !isFilled(r[0]) || !isFilled(r[1])) {
+        throw new Error(`render hypothesis-board: hypotheses[${i}] row ${j + 1} must be a [label, value] pair of non-empty strings`);
+      }
+      oneLine('hypothesis-board', r[0], `hypotheses[${i}] row ${j + 1} label`);
+      oneLine('hypothesis-board', r[1], `hypotheses[${i}] row ${j + 1} value`);
+    });
+    ids.push(h.id);
+  });
+  return ids;
+}
+
+/** One ledger entry: the claim under its id, status as the metadata tail, evidence beneath. @param {any} h @returns {string} */
+function hypothesisEntry(h) {
+  return [`**${h.id} — ${h.claim}** — *${h.status}*`, ...h.rows.map((/** @type {string[]} */ r) => `- **${r[0]}**: ${r[1]}`)].join('\n');
+}
+
+/** `(N tracked, N confirmed, N ruled out, N open)` — zero-count middles drop out, the open count never does. @param {any[]} hs @returns {string} */
+function hypothesisCounts(hs) {
+  const of = (/** @type {string} */ s) => hs.filter((h) => h.status === s).length;
+  const parts = [`${hs.length} tracked`];
+  const confirmed = of('confirmed');
+  const ruledOut = of('ruled-out');
+  if (confirmed) parts.push(`${confirmed} confirmed`);
+  if (ruledOut) parts.push(`${ruledOut} ruled out`);
+  parts.push(`${of('suspected') + of('tracing')} open`);
+  return `(${parts.join(', ')})`;
+}
+
+/** The `**Trace lines**` block. @param {unknown} v @returns {string} */
+function traceLines(v) {
+  const lines = stringLines(v, 'hypothesis-board', 'trace_lines');
+  if (lines.length === 0 || lines.some((l) => !isFilled(l))) {
+    throw new Error('render hypothesis-board: "trace_lines" must be a non-empty array of non-empty strings');
+  }
+  lines.forEach((l, i) => oneLine('hypothesis-board', l, `trace_lines[${i}]`));
+  return ['**Trace lines**', ...lines.map((l) => `- ${l}`)].join('\n');
+}
+
+/** @param {any} p @returns {string} */
+function checkpointDepth(p) {
+  if (!CHECKPOINT_DEPTHS.includes(p.depth)) {
+    throw new Error(`render hypothesis-board: "depth" must be one of ${CHECKPOINT_DEPTHS.join('/')}`);
+  }
+  return p.depth;
+}
+
+/**
+ * @param {string} cwd
+ * @param {{dotpath: string, file?: string, variant?: string}} args
+ * @returns {string}
+ */
+function hypothesisBoard(cwd, { dotpath, file, variant }) {
+  if (variant === undefined || !HYPOTHESIS_VARIANTS.includes(variant)) {
+    throw new Error(`render hypothesis-board: --variant must be one of ${HYPOTHESIS_VARIANTS.join('/')}`);
+  }
+  if (!file) throw new Error('render hypothesis-board: --file <payload.json> is required');
+  const { phase, topic } = resolveAddress(cwd, dotpath, 'hypothesis-board');
+  if (phase !== 'investigation') {
+    throw new Error(`render hypothesis-board: address must be <work_unit>.investigation.<topic>, got phase "${phase}"`);
+  }
+  const p = readJsonPayload(cwd, file, 'hypothesis-board');
+  const ids = hypothesisLedger(p.hypotheses);
+  const name = titlecase(topic);
+  const ledger = p.hypotheses.map(hypothesisEntry);
+
+  if (variant === 'plan' || variant === 'pivot') {
+    const pivot = variant === 'pivot';
+    if (pivot && !isFilled(p.changed)) {
+      throw new Error('render hypothesis-board: "changed" must be a non-empty string — a pivot names the finding that invalidated the plan');
+    }
+    const body = [pivot ? `**Plan pivot — ${name}**` : `**Investigation plan — ${name}**`, ''];
+    if (pivot) body.push(`**What changed**: ${oneLine('hypothesis-board', p.changed, '"changed"')}`, '', '**Proposed direction**', '');
+    body.push(ledger.join('\n\n'), '', traceLines(p.trace_lines));
+    if (!pivot) {
+      if (!isFilled(p.depth_reasoning)) throw new Error('render hypothesis-board: "depth_reasoning" must be a non-empty string');
+      body.push('', `**Depth**: ${checkpointDepth(p)} — ${oneLine('hypothesis-board', p.depth_reasoning, '"depth_reasoning"')}`);
+    }
+    return [
+      section(pivot ? 'DISPLAY: plan pivot' : 'DISPLAY: investigation plan', 'emit verbatim as markdown', body.join('\n')),
+      section(pivot ? 'MENU: pivot gate' : 'MENU: plan gate', STOP_FOR_RESPONSE, pivot
+        ? menu('', [
+          cmdOption('y', 'yes', 'Proceed as proposed'),
+          promptOption('Adjust', 'Tell me what to change'),
+        ], { question: 'Proceed on the new direction?' })
+        : menu('', [
+          cmdOption('y', 'yes', 'Proceed with the analysis as planned'),
+          promptOption('Adjust', 'Tell me what to change: hypotheses, trace lines, or depth'),
+        ], { question: 'Does this plan look right?' })),
+    ].join('\n');
+  }
+
+  if (variant === 'resume') {
+    if (!isFilled(p.remaining)) {
+      throw new Error('render hypothesis-board: "remaining" must be a non-empty string — name the open hypotheses and trace lines, or say all are resolved');
+    }
+    const body = [
+      `**Investigation plan — ${name} · resumed** ${hypothesisCounts(p.hypotheses)}`,
+      '',
+      ledger.join('\n\n'),
+      '',
+      `**Depth**: ${checkpointDepth(p)}`,
+      `**Remaining**: ${oneLine('hypothesis-board', p.remaining, '"remaining"')}`,
+    ];
+    return [
+      section('DISPLAY: resumed plan', 'emit verbatim as markdown', body.join('\n')),
+      section('MENU: resumed plan gate', STOP_FOR_RESPONSE, menu('', [
+        cmdOption('y', 'yes', 'Continue as agreed'),
+        promptOption('Revise', 'Tell me what to change: hypotheses, trace lines, or depth'),
+      ], { question: 'Picking up where we left off — still good?' })),
+    ].join('\n');
+  }
+
+  if (!Array.isArray(p.resolved_now) || p.resolved_now.length === 0) {
+    throw new Error('render hypothesis-board: "resolved_now" must be a non-empty array of hypothesis ids — a check-in is a resolution moment');
+  }
+  for (const id of p.resolved_now) {
+    if (!ids.includes(id)) throw new Error(`render hypothesis-board: "resolved_now" names "${id}", which is not on the board`);
+  }
+  const open = p.hypotheses.filter((/** @type {any} */ h) => p.resolved_now.includes(h.id) && (h.status === 'suspected' || h.status === 'tracing'));
+  if (open.length) {
+    throw new Error(`render hypothesis-board: "${open[0].id}" is named in "resolved_now" but its status is "${open[0].status}" — a resolved hypothesis is confirmed or ruled-out`);
+  }
+  if (!isFilled(p.next)) throw new Error('render hypothesis-board: "next" must be a non-empty string');
+  const body = [
+    `**Hypothesis board — ${name}** ${hypothesisCounts(p.hypotheses)}`,
+    '',
+    `Resolved this check-in: ${p.resolved_now.join(', ')}`,
+    '',
+    ledger.join('\n\n'),
+    '',
+    `**Next**: ${oneLine('hypothesis-board', p.next, '"next"')}`,
+  ];
+  return [
+    section('DISPLAY: hypothesis board', 'emit verbatim as markdown', body.join('\n')),
+    section('MENU: check-in gate', STOP_FOR_RESPONSE, menu('', [
+      cmdOption('y', 'yes', 'Continue with the next trace line'),
+      promptOption('Steer', 'Tell me what to look at instead, or what this changes'),
+    ], { question: 'Continue as planned?' })),
+  ].join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// fix-direction — the candidate approaches, presented for the user to steer.
+// The shape is the surface's so a reader can compare: every option carries
+// the same rows, and what varies with the material — whether options are
+// lettered at all, the count in the header — is derived, not decided. A
+// recommendation must carry its reasoning: naming a favourite without saying
+// why is the move this phase exists to prevent. Where the exploration is
+// genuinely unresolved, the open question is a field rather than a paragraph
+// someone remembers to add. Agreement carries the pressure test with it —
+// there is no direction worth agreeing to and not proving.
+// ---------------------------------------------------------------------------
+
+// One option per letter. A fix exploration that reaches the end of this has
+// stopped being a comparison and needs the discussion, not more rows.
+const OPTION_LETTERS = 'ABCDEFGH';
+
+/**
+ * @param {string} cwd
+ * @param {{dotpath: string, file?: string}} args
+ * @returns {string}
+ */
+function fixDirection(cwd, { dotpath, file }) {
+  if (!file) throw new Error('render fix-direction: --file <payload.json> is required');
+  const { phase, topic } = resolveAddress(cwd, dotpath, 'fix-direction');
+  if (phase !== 'investigation') {
+    throw new Error(`render fix-direction: address must be <work_unit>.investigation.<topic>, got phase "${phase}"`);
+  }
+  const p = readJsonPayload(cwd, file, 'fix-direction');
+  if (!Array.isArray(p.options) || p.options.length === 0) {
+    throw new Error('render fix-direction: "options" must be a non-empty array of {name, rows} — one obvious fix is a valid outcome, none is not');
+  }
+  if (p.options.length > OPTION_LETTERS.length) {
+    throw new Error(`render fix-direction: ${p.options.length} options is past comparing — this surface letters at most ${OPTION_LETTERS.length}`);
+  }
+  p.options.forEach((o, i) => {
+    if (!o || typeof o !== 'object') throw new Error(`render fix-direction: options[${i}] must be an object`);
+    if (!isFilled(o.name)) throw new Error(`render fix-direction: options[${i}] is missing "name"`);
+    oneLine('fix-direction', o.name, `options[${i}] name`);
+    if (o.recommended !== undefined && typeof o.recommended !== 'boolean') {
+      throw new Error(`render fix-direction: options[${i}] "recommended" must be true or false`);
+    }
+    if (!Array.isArray(o.rows) || o.rows.length === 0) {
+      throw new Error(`render fix-direction: options[${i}] needs "rows" — a non-empty array of [label, value] pairs`);
+    }
+    o.rows.forEach((/** @type {unknown} */ r, /** @type {number} */ j) => {
+      if (!Array.isArray(r) || r.length !== 2 || !isFilled(r[0]) || !isFilled(r[1])) {
+        throw new Error(`render fix-direction: options[${i}] row ${j + 1} must be a [label, value] pair of non-empty strings`);
+      }
+      oneLine('fix-direction', r[0], `options[${i}] row ${j + 1} label`);
+      oneLine('fix-direction', r[1], `options[${i}] row ${j + 1} value`);
+    });
+  });
+
+  const many = p.options.length > 1;
+  const picked = p.options.filter((/** @type {any} */ o) => o.recommended);
+  if (picked.length > 1) {
+    throw new Error('render fix-direction: only one option can be "recommended" — a recommendation that names two is a comparison, and belongs in the rows');
+  }
+  if (picked.length && !many) {
+    throw new Error('render fix-direction: a lone option cannot be "recommended" — there is nothing to recommend it over');
+  }
+  // The tail marks which; this line says why. One without the other is
+  // either a favourite with no reasoning or reasoning with no subject.
+  if (picked.length && !isFilled(p.recommendation)) {
+    throw new Error('render fix-direction: a recommended option needs "recommendation" — the deciding factor, not just the mark');
+  }
+  if (!picked.length && p.recommendation !== undefined) {
+    throw new Error('render fix-direction: "recommendation" was given but no option is marked "recommended"');
+  }
+  if (p.recommendation !== undefined) oneLine('fix-direction', p.recommendation, '"recommendation"');
+  if (p.open_question !== undefined) {
+    if (!isFilled(p.open_question)) throw new Error('render fix-direction: "open_question" must be a non-empty string when present');
+    oneLine('fix-direction', p.open_question, '"open_question"');
+  }
+
+  const name = titlecase(topic);
+  const body = [many ? `**Fix direction — ${name}** (${p.options.length} approaches)` : `**Fix direction — ${name}**`, ''];
+  p.options.forEach((/** @type {any} */ o, /** @type {number} */ i) => {
+    const id = many ? `${OPTION_LETTERS[i]} — ` : '';
+    body.push(`**${id}${o.name}**${o.recommended ? ' — *recommended*' : ''}`);
+    for (const [label, value] of o.rows) body.push(`- **${label}**: ${value}`);
+    body.push('');
+  });
+  if (p.recommendation !== undefined) body.push(`**Recommendation**: ${p.recommendation}`);
+  if (p.open_question !== undefined) body.push(`**Open question**: ${p.open_question}`);
+
+  return [
+    section('DISPLAY: fix direction', 'emit verbatim as markdown', body.join('\n').replace(/\n+$/, '')),
+    section('MENU: fix direction gate', STOP_FOR_RESPONSE, menu('', [
+      cmdOption('y', 'yes', 'Agree with this direction and pressure-test it'),
+      promptOption('Provide feedback', 'Tell me your thoughts: discuss, challenge, or suggest alternatives'),
+    ], { question: 'What are your thoughts?' })),
+  ].join('\n');
+}
+// ---------------------------------------------------------------------------
+// validation-report — the investigation's two independent-agent passes, which
+// differ only in what they hunt: root-cause validation looks for gaps in the
+// diagnosis, fix validation for risks in the direction. One surface, because
+// a divergence between them would be drift rather than design. The agent's
+// own STATUS travels verbatim in the payload and is checked against the
+// findings, so a verdict can never disagree with the list beneath it. Both
+// verdicts carry the same readout — what was checked, what it concluded,
+// where the full analysis sits — because a bare pass is an assertion rather
+// than a result. Only the offer differs: the root cause validation is the
+// one the user chooses, so it is the only variant `validation-gate` serves.
+// ---------------------------------------------------------------------------
+
+const VALIDATION_CONFIDENCE = ['high', 'medium', 'low'];
+const VALIDATION_VARIANTS = {
+  'root-cause': {
+    label: 'Root cause validation',
+    found: 'gaps_found',
+    noun: 'gap',
+    clean: 'validated, no gaps found',
+    question: 'How should these gaps be handled?',
+    address: 'Work through them and fold the answers into the investigation',
+    gate: {
+      offer: 'Root cause documented. Run validation?',
+      run: 'Run root cause validation',
+      decline: 'Skip straight to findings sign-off',
+    },
+  },
+  fix: {
+    label: 'Fix validation',
+    found: 'risks_found',
+    noun: 'risk',
+    clean: 'confirmed, no unaddressed risks',
+    question: 'How should these risks be handled?',
+    address: 'Work through them and fold the outcome into the fix direction',
+    // The user agreed to one option out of a lettered comparison, so the
+    // verdict names which one it confirms rather than leaving them to recall.
+    requiresDirection: true,
+  },
+};
+
+/**
+ * The offer that opens the root cause validation — payload-less: the ask is
+ * the same every time, and what it is offering comes from the variant.
+ * @param {string} cwd
+ * @param {{dotpath: string, variant?: string}} args
+ * @returns {string}
+ */
+function validationGate(cwd, { dotpath, variant }) {
+  const v = VALIDATION_VARIANTS[/** @type {keyof typeof VALIDATION_VARIANTS} */ (variant)];
+  const gate = v && /** @type {{gate?: {offer: string, run: string, decline: string}}} */ (v).gate;
+  if (!gate) {
+    throw new Error('render validation-gate: --variant must be root-cause — the fix direction is always pressure-tested, so nothing offers it');
+  }
+  const { phase } = resolveAddress(cwd, dotpath, 'validation-gate');
+  if (phase !== 'investigation') {
+    throw new Error(`render validation-gate: address must be <work_unit>.investigation.<topic>, got phase "${phase}"`);
+  }
+  return section(`MENU: ${variant} validation offer`, STOP_FOR_RESPONSE, menu('', [
+    cmdOption('y', 'yes', gate.run),
+    cmdOption('s', 'skip', gate.decline),
+  ], { question: gate.offer }));
+}
+
+/**
+ * @param {string} cwd
+ * @param {{dotpath: string, file?: string, variant?: string}} args
+ * @returns {string}
+ */
+function validationReport(cwd, { dotpath, file, variant }) {
+  const v = VALIDATION_VARIANTS[/** @type {keyof typeof VALIDATION_VARIANTS} */ (variant)];
+  if (!v) {
+    throw new Error(`render validation-report: --variant must be one of ${Object.keys(VALIDATION_VARIANTS).join('/')}`);
+  }
+  if (!file) throw new Error('render validation-report: --file <payload.json> is required');
+  const { phase } = resolveAddress(cwd, dotpath, 'validation-report');
+  if (phase !== 'investigation') {
+    throw new Error(`render validation-report: address must be <work_unit>.investigation.<topic>, got phase "${phase}"`);
+  }
+  const p = readJsonPayload(cwd, file, 'validation-report');
+  if (!VALIDATION_CONFIDENCE.includes(p.confidence)) {
+    throw new Error(`render validation-report: "confidence" must be one of ${VALIDATION_CONFIDENCE.join('/')}`);
+  }
+  if (p.status !== 'validated' && p.status !== v.found) {
+    throw new Error(`render validation-report: "status" must be "validated" or "${v.found}" for the ${variant} variant, got "${p.status}"`);
+  }
+  const named = /** @type {{requiresDirection?: boolean}} */ (v).requiresDirection === true;
+  if (named) {
+    if (!isFilled(p.direction)) {
+      throw new Error('render validation-report: "direction" must name the agreed approach — a verdict that does not say what it confirms is not one');
+    }
+    oneLine('validation-report', p.direction, '"direction"');
+  } else if (p.direction !== undefined) {
+    throw new Error(`render validation-report: "direction" belongs to the fix variant — ${variant} validation has no chosen approach to name`);
+  }
+  if (!Array.isArray(p.checks) || p.checks.length === 0) {
+    throw new Error('render validation-report: "checks" must be a non-empty array of [label, outcome] pairs — the verdict says what was examined');
+  }
+  p.checks.forEach((/** @type {unknown} */ c, /** @type {number} */ i) => {
+    if (!Array.isArray(c) || c.length !== 2 || !isFilled(c[0]) || !isFilled(c[1])) {
+      throw new Error(`render validation-report: checks[${i}] must be a [label, outcome] pair of non-empty strings`);
+    }
+    oneLine('validation-report', c[0], `checks[${i}] label`);
+    oneLine('validation-report', c[1], `checks[${i}] outcome`);
+  });
+  if (!isFilled(p.summary)) {
+    throw new Error('render validation-report: "summary" must be a non-empty string — the agent\'s own one-sentence assessment');
+  }
+  oneLine('validation-report', p.summary, '"summary"');
+  if (!isFilled(p.analysis_path)) {
+    throw new Error('render validation-report: "analysis_path" must be a non-empty string — the full analysis stays in cache and the display points at it');
+  }
+  const items = p.items === undefined ? [] : stringLines(p.items, 'validation-report', 'items');
+  items.forEach((it, i) => {
+    if (!isFilled(it)) throw new Error(`render validation-report: items[${i}] must be a non-empty string`);
+  });
+
+  const head = [v.label, ...(named ? [`"${p.direction}"`] : []), `${p.confidence} confidence`].join(' · ');
+  // The checks and the summary close every verdict, clean or not — findings
+  // first where there are any, then the scope they were found within.
+  const tail = [
+    '',
+    p.checks.map((/** @type {[string, string]} */ [label, outcome]) => `- **${label}**: ${outcome}`).join('\n'),
+    '',
+    p.summary,
+    '',
+    `*Full analysis: \`${p.analysis_path}\`*`,
+  ];
+
+  if (p.status === 'validated') {
+    if (items.length) {
+      throw new Error(`render validation-report: "status" is "validated" but ${items.length} ${v.noun}(s) are listed — the verdict and the findings must agree`);
+    }
+    return section(
+      `DISPLAY: ${variant} validation verdict`,
+      CONTINUE_MARKDOWN_INSTRUCTION,
+      [`**${head}** — ${v.clean}`, ...tail].join('\n'),
+    );
+  }
+
+  if (!items.length) {
+    throw new Error(`render validation-report: "status" is "${v.found}" but no ${v.noun}s are listed — the verdict and the findings must agree`);
+  }
+  const body = worklist({
+    heading: { label: head, noun: v.noun },
+    items: items.map((title) => ({ title })),
+  });
+  return [
+    section(`DISPLAY: ${variant} validation findings`, 'emit verbatim as markdown', [body, ...tail].join('\n')),
+    section(`MENU: ${variant} validation gate`, STOP_FOR_RESPONSE, menu('', [
+      cmdOption('a', 'address', v.address),
+      cmdOption('d', 'dismiss', 'Note them as considered-and-dismissed and proceed'),
+    ], { question: v.question })),
+  ].join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// project-skills / linters — implementation's two setup discoveries. Each is
+// asked twice: confirm a set already stored, or approve one just discovered.
+// Same list shape both times, so the difference is the menu and, for a fresh
+// linter discovery, the installed-state tag and the install recommendations.
+// ---------------------------------------------------------------------------
+
+const SETUP_VARIANTS = ['confirm', 'discovery', 'skipped'];
+
+/**
+ * Validate a `{name, detail}` list and render it as the batch worklist.
+ * `tagOf` answers a row's short state term, or null where none applies.
+ * @param {unknown} v @param {string} surface @param {string} field @param {string} label @param {string} noun
+ * @param {(row: any) => string|null} [tagOf]
+ * @returns {string}
+ */
+function setupList(v, surface, field, label, noun, tagOf) {
+  if (!Array.isArray(v) || v.length === 0) {
+    throw new Error(`render ${surface}: "${field}" must be a non-empty array of {name, detail}`);
+  }
+  const items = v.map((row, i) => {
+    if (!row || typeof row !== 'object') throw new Error(`render ${surface}: ${field}[${i}] must be an object`);
+    if (!isFilled(row.name)) throw new Error(`render ${surface}: ${field}[${i}] is missing "name"`);
+    if (!isFilled(row.detail)) throw new Error(`render ${surface}: ${field}[${i}] is missing "detail"`);
+    const tag = tagOf ? tagOf(row) : null;
+    return tag === null ? { title: `${row.name} — ${row.detail}` } : { title: `${row.name} — ${row.detail}`, tag };
+  });
+  return worklist({ heading: { label, noun }, items });
+}
+
+/**
+ * @param {string} cwd
+ * @param {{dotpath: string, file?: string, variant?: string}} args
+ * @returns {string}
+ */
+function projectSkills(cwd, { dotpath, file, variant }) {
+  if (!variant || !SETUP_VARIANTS.includes(variant)) {
+    throw new Error(`render project-skills: --variant must be one of ${SETUP_VARIANTS.join('/')}`);
+  }
+  const { phase } = resolveAddress(cwd, dotpath, 'project-skills');
+  if (phase !== 'implementation') {
+    throw new Error(`render project-skills: address must be <work_unit>.implementation.<topic>, got phase "${phase}"`);
+  }
+  if (variant === 'skipped') {
+    return [
+      section('DISPLAY: project skills skipped', 'emit verbatim as markdown', 'Previous implementations used no project skills.'),
+      section('MENU: project skills skipped gate', STOP_FOR_RESPONSE, menu('', [
+        cmdOption('y', 'yes', 'Skip and proceed'),
+        cmdOption('n', 'no', 'Analyse for project skills'),
+      ], { question: 'Skip project skills again?' })),
+    ].join('\n');
+  }
+  if (!file) throw new Error('render project-skills: --file <payload.json> is required');
+  const p = readJsonPayload(cwd, file, 'project-skills');
+  const body = setupList(p.skills, 'project-skills', 'skills', 'Project skills', 'skill');
+  const confirm = variant === 'confirm';
+  return [
+    section(`DISPLAY: project skills ${variant}`, 'emit verbatim as markdown', body),
+    section(`MENU: project skills ${variant} gate`, STOP_FOR_RESPONSE, confirm
+      ? menu('', [
+        cmdOption('y', 'yes', 'Use and proceed'),
+        cmdOption('n', 'no', 'Re-discover and choose skills'),
+      ], { question: 'Use these project skills?' })
+      : menu('', [
+        cmdOption('a', 'all', 'Use all listed skills'),
+        cmdOption('n', 'none', 'Skip project skills'),
+        promptOption('List the ones you want', 'Name them — e.g. "golang-pro, react-patterns"'),
+      ], { question: 'Which project skills should be used?' })),
+  ].join('\n');
+}
+
+/**
+ * @param {string} cwd
+ * @param {{dotpath: string, file?: string, variant?: string}} args
+ * @returns {string}
+ */
+function linters(cwd, { dotpath, file, variant }) {
+  if (!variant || !SETUP_VARIANTS.includes(variant)) {
+    throw new Error(`render linters: --variant must be one of ${SETUP_VARIANTS.join('/')}`);
+  }
+  const { phase } = resolveAddress(cwd, dotpath, 'linters');
+  if (phase !== 'implementation') {
+    throw new Error(`render linters: address must be <work_unit>.implementation.<topic>, got phase "${phase}"`);
+  }
+  if (variant === 'skipped') {
+    return [
+      section('DISPLAY: linters skipped', 'emit verbatim as markdown', 'Previous implementations skipped linters.'),
+      section('MENU: linters skipped gate', STOP_FOR_RESPONSE, menu('', [
+        cmdOption('y', 'yes', 'Skip and proceed'),
+        cmdOption('n', 'no', 'Run full linter discovery'),
+      ], { question: 'Skip linters again?' })),
+    ].join('\n');
+  }
+  if (!file) throw new Error('render linters: --file <payload.json> is required');
+  const p = readJsonPayload(cwd, file, 'linters');
+  const discovery = variant === 'discovery';
+  // A fresh discovery reports what is actually on the machine; a stored set
+  // was already approved, so its rows carry no installed state to re-assert.
+  const body = setupList(p.linters, 'linters', 'linters', discovery ? 'Linter discovery' : 'Linters', 'linter',
+    discovery
+      ? (row) => {
+        if (typeof row.installed !== 'boolean') {
+          throw new Error('render linters: every row of a discovery needs "installed" (true or false)');
+        }
+        return row.installed ? 'installed' : 'missing';
+      }
+      : undefined);
+  const parts = [body];
+  if (discovery && p.recommendations !== undefined) {
+    if (!isFilled(p.recommendations)) throw new Error('render linters: "recommendations" must be a non-empty string when present');
+    parts.push('', `**Recommended**: ${p.recommendations}`);
+  }
+  return [
+    section(`DISPLAY: linters ${variant}`, 'emit verbatim as markdown', parts.join('\n')),
+    section(`MENU: linters ${variant} gate`, STOP_FOR_RESPONSE, discovery
+      ? menu('', [
+        cmdOption('y', 'yes', 'Approve and proceed'),
+        cmdOption('c', 'change', 'Modify the linter list'),
+        cmdOption('s', 'skip', 'Skip linter setup (no linting during TDD)'),
+      ], { question: 'Approve these linters?' })
+      : menu('', [
+        cmdOption('y', 'yes', 'Use and proceed'),
+        cmdOption('n', 'no', 'Re-discover linters'),
+      ], { question: 'Use these linters?' })),
+  ].join('\n');
+}
+
+// ---------------------------------------------------------------------------
 // incoherence-gate — the Resolve Source Incoherence raises (spec construction
 // and the review findings walk). Three variants; the stops here override the
 // calling flow's auto mode by design, so no --gate flag exists.
@@ -609,10 +1182,22 @@ function carryNoteGate(cwd, { dotpath, file }) {
 //               arrives as Comment and drops into the settleable exchange)
 //   held-doc  — the fallback when a live session holds the owning document
 // The raise body takes the finding idiom: bold head, one meta bullet per
-// cited quote, a Details paragraph, stakes beneath.
+// cited quote, a labelled context paragraph, stakes beneath.
 // ---------------------------------------------------------------------------
 
 const INCOHERENCE_STOP = 'emit verbatim as markdown, then STOP for the user\'s response';
+
+// A stop that fires despite the user's auto opt-in says so, in one voice —
+// the announcement is engine-rendered so it cannot vary with the session.
+const AUTO_OVERRIDE_LINE = "**Auto is on — stopping anyway:** this is one of the calls auto never makes for you.";
+
+// The two gates are independent opt-ins: construction's chunk approvals and
+// the findings walk. A stop announces only against its own flow's mode — an
+// auto set for the other gate is not being overridden.
+const LANE_GATE_FIELDS = { construction: 'construction_gate_mode', review: 'finding_gate_mode' };
+
+/** Whether the named lane's gate mode holds auto at this item. @param {any} item @param {string} lane */
+const laneHoldsAuto = (item, lane) => item[LANE_GATE_FIELDS[lane]] === 'auto';
 
 /**
  * @param {string} cwd
@@ -625,9 +1210,13 @@ function incoherenceGate(cwd, args) {
     throw new Error('render incoherence-gate: --variant must be "conflict", "gap-route", or "held-doc"');
   }
   if (!file) throw new Error('render incoherence-gate: --file <payload.json> is required');
-  resolveAddress(cwd, dotpath, 'incoherence-gate');
+  const { phase, topic, manifest } = resolveAddress(cwd, dotpath, 'incoherence-gate');
   const p = readJsonPayload(cwd, file, 'incoherence-gate');
   if (!isFilled(p.doc)) throw new Error('render incoherence-gate: "doc" must be a non-empty string');
+  if (!Object.hasOwn(LANE_GATE_FIELDS, p.lane)) {
+    throw new Error('render incoherence-gate: "lane" must be "construction" or "review" — the announcement keys on the calling flow\'s own gate mode');
+  }
+  const overAuto = laneHoldsAuto(itemOf(manifest, phase, topic) || {}, p.lane);
 
   if (variant === 'conflict' || variant === 'gap-route') {
     if (!isFilled(p.title)) throw new Error('render incoherence-gate: "title" must be a non-empty string');
@@ -651,6 +1240,14 @@ function incoherenceGate(cwd, args) {
     if (p.stakes) body.push('', p.stakes);
 
     if (variant === 'conflict') {
+      // A conflict is documents colliding, and the sides are quoted from
+      // them — never composed here. Without a quote there is nothing to
+      // collide, and the shape would dress a point no source decides as a
+      // choice the record already framed. That belongs in the
+      // no-sides-documented branch, as a question.
+      if (!Array.isArray(p.quotes) || p.quotes.length === 0) {
+        throw new Error('render incoherence-gate: a conflict must quote the sides it collides — sides you would compose yourself are not documented, and belong in a conversation, not this gate');
+      }
       if (!Array.isArray(p.sides) || p.sides.length < 2) {
         throw new Error('render incoherence-gate: "sides" must carry at least 2 entries');
       }
@@ -668,12 +1265,12 @@ function incoherenceGate(cwd, args) {
         cmdOption(String(i + 1), null, `${s.summary}${s.recommended === true ? ' (recommended)' : ''}`));
       options.push(promptOption('Comment', 'Tell me what you\'re thinking; we\'ll work it through'));
       return [display, section('MENU: incoherence conflict', INCOHERENCE_STOP,
-        menu('', options, { question: 'Which decision stands?' }))].join('\n');
+        menu(overAuto ? AUTO_OVERRIDE_LINE : '', options, { question: 'Which decision stands?' }))].join('\n');
     }
     return [
       section('DISPLAY: incoherence gap', 'emit verbatim as markdown', body.join('\n')),
       section('MENU: incoherence gap', INCOHERENCE_STOP, menu(
-        `Routing this to "${p.doc}" — it reopens with the gap, and this specification pauses until the answer lands.`,
+        `${overAuto ? `${AUTO_OVERRIDE_LINE}\n\n` : ''}Routing this to "${p.doc}" — it reopens with the gap, and this specification pauses until the answer lands.`,
         [
           cmdOption('y', 'yes', 'Land the gap and pause here'),
           promptOption('Comment', 'Tell me what you\'re thinking before it moves'),
@@ -683,7 +1280,7 @@ function incoherenceGate(cwd, args) {
     ].join('\n');
   }
   return section('MENU: incoherence held doc', INCOHERENCE_STOP, menu(
-    `"${p.doc}" is open in another session right now, so the fix belongs there — this topic waits for it.`,
+    `${overAuto ? `${AUTO_OVERRIDE_LINE}\n\n` : ''}"${p.doc}" is open in another session right now, so the fix belongs there — this topic waits for it.`,
     [
       cmdOption('n', 'next', 'Queue the resolution and carry on here'),
       cmdOption('s', 'stop', 'Stop here; re-enter after that session lands it'),
@@ -747,11 +1344,12 @@ function resurfaceGate(cwd, args) {
   const { dotpath, file, view } = args;
   if (view !== undefined && view !== 'full') throw new Error('render resurface-gate: --view only accepts "full"');
   if (!file) throw new Error('render resurface-gate: --file <payload.json> is required');
-  resolveAddress(cwd, dotpath, 'resurface-gate');
+  const { phase: rsPhase, topic: rsTopic, manifest: rsManifest } = resolveAddress(cwd, dotpath, 'resurface-gate');
   const p = readJsonPayload(cwd, file, 'resurface-gate');
   if (!isFilled(p.section)) throw new Error('render resurface-gate: "section" must be a non-empty string');
 
   const parts = [];
+  const rsOverAuto = laneHoldsAuto(itemOf(rsManifest, rsPhase, rsTopic) || {}, 'construction');
   const menuOptions = [cmdOption('y', 'yes', 'Apply changes to specification')];
 
   if (view === 'full') {
@@ -778,7 +1376,7 @@ function resurfaceGate(cwd, args) {
   }
   menuOptions.push(promptOption('Tell me what to change', 'Revise before recording'));
   parts.push(section('MENU: resurface gate', INCOHERENCE_STOP,
-    menu('', menuOptions, { question: 'Record this to the specification verbatim?' })));
+    menu(rsOverAuto ? AUTO_OVERRIDE_LINE : '', menuOptions, { question: 'Record this to the specification verbatim?' })));
   return parts.join('\n');
 }
 
@@ -929,10 +1527,13 @@ function phaseTree(cwd, args) {
 // planning and specification review flows. Findings live in markdown tracking
 // files, which the model reads (the engine never parses markdown) and hands
 // over as a JSON payload; the gate mode is manifest state at the address.
-// Artefact content is framed by its emission fence (D8): a diff renders as
-// one ```diff-fenced section — colouring keys on the column-0 markers, and
-// space-prefixed context lines place the change — prose content as a plain
-// code block. No drawn borders anywhere.
+// A finding is report-class content: it leads with what is wrong in the
+// terms the user cares about, and the artifact text is the payload of the
+// fix rather than its explanation. A short diff renders in place as one
+// ```diff-fenced section — colouring keys on the column-0 markers, and
+// space-prefixed context lines place the change — while a whole proposed
+// section waits behind `v/view`, which renders it as markdown. Source read
+// aloud is what buries the report. No drawn borders anywhere.
 // ---------------------------------------------------------------------------
 
 /** @param {string} cwd @param {string} file @param {string} surface @returns {any} */
@@ -1242,6 +1843,33 @@ function rerouteCandidates(cwd, { dotpath, file }) {
   );
 }
 
+// finding-announce — the surfacing protocol's opt-in gate: a background
+// agent's return announced as a count and a lane shape, never a preview.
+// The chrome is fixed; the payload carries only judgment content (the
+// agent type and the lane-split clause).
+
+/**
+ * @param {string} cwd
+ * @param {{dotpath: string, file?: string}} args
+ * @returns {string}
+ */
+function findingAnnounce(cwd, { dotpath, file }) {
+  if (!file) throw new Error('render finding-announce: --file <payload.json> is required');
+  resolveAddress(cwd, dotpath, 'finding-announce');
+  const p = readJsonPayload(cwd, file, 'finding-announce');
+  if (!isFilled(p.agent_type)) throw new Error('render finding-announce: "agent_type" must be a non-empty string');
+  if (!Number.isInteger(p.count) || p.count < 1) throw new Error('render finding-announce: "count" must be a positive integer');
+  if (!isFilled(p.shape)) throw new Error('render finding-announce: "shape" must be a non-empty string — the lane split in one clause');
+  return section(
+    'MENU: finding announce',
+    'emit verbatim as markdown',
+    menu(`Background ${p.agent_type} returned — ${p.count} finding(s): ${p.shape}.`, [
+      cmdOption('y', 'yes', 'Start on them'),
+      cmdOption('l', 'later', "Keep pulling on the current thread, I'll raise them at the next pause"),
+    ], { question: 'Work through them now?' }),
+  );
+}
+
 // finding-batch — a surfacing lane whose findings need at most a scan from
 // the user: the `apply` batch (corrections determined by decisions already
 // made), the `decide` batch (calls settled by the record or first
@@ -1331,19 +1959,30 @@ function findingBatch(cwd, { dotpath, file }) {
   ].join('\n');
 }
 
-// The finding payload's category vocabulary. Only the gate-rendered four are
-// legal here — the two source-lane categories (Source defect, Unsourced
-// decision) route via resolve-source-incoherence before any render, so their
-// arrival at this surface is a caller bug and refuses by name.
-const FINDING_CATEGORIES = ['enhancement', 'new-topic', 'gap', 'duplication'];
+// The finding payload's category vocabulary — metadata carried into the
+// presentation, never the thing that picks its shape. The two source-lane
+// categories (Source defect, Unsourced decision) route via
+// resolve-source-incoherence before any render, so their arrival at this
+// surface is a caller bug and refuses by name.
+const FINDING_CATEGORIES = ['enhancement', 'new-topic', 'gap', 'duplication', 'contradiction'];
 const ROUTED_CATEGORIES = ['source-defect', 'unsourced-decision'];
+
+// The move owed — what the user has to do about the finding, which is the
+// only question that determines its shape. `settled`: the record admits one
+// defensible answer, so the finding carries the call and what determined it,
+// and `auto` applies it without a stop. `choice`: real options exist and
+// picking is the user's, so the finding proposes nothing and the stop
+// overrides `auto` — the stays-gated rule is that a choice exists, never a
+// category. `route` belongs to resolve-source-incoherence and refuses by name.
+const FINDING_MOVES = ['settled', 'choice'];
 
 /**
  * @param {string} cwd
- * @param {{dotpath: string, file?: string}} args
+ * @param {{dotpath: string, file?: string, view?: string}} args
  * @returns {string}
  */
-function finding(cwd, { dotpath, file }) {
+function finding(cwd, { dotpath, file, view }) {
+  if (view !== undefined && view !== 'full') throw new Error('render finding: --view only accepts "full"');
   if (!file) throw new Error('render finding: --file <payload.json> is required');
   const { phase, topic, manifest } = resolveAddress(cwd, dotpath, 'finding');
   const p = readJsonPayload(cwd, file, 'finding');
@@ -1354,8 +1993,15 @@ function finding(cwd, { dotpath, file }) {
   if (!Array.isArray(p.meta) || p.meta.some((m) => !Array.isArray(m) || m.length !== 2 || !isFilled(m[0]) || !(typeof m[1] === 'number' || isFilled(m[1])))) {
     throw new Error('render finding: "meta" must be an array of [label, value] pairs');
   }
-  if (!isFilled(p.details)) throw new Error('render finding: "details" must be a non-empty string');
-  if (p.diff && p.content) throw new Error('render finding: pass "diff" or "content", not both');
+  if (!isFilled(p.problem)) {
+    throw new Error('render finding: "problem" must be a non-empty string — what is wrong, in the terms the user cares about');
+  }
+  if (p.move === 'route') {
+    throw new Error('render finding: a "route" finding goes to resolve-source-incoherence and never renders at the gate');
+  }
+  if (!FINDING_MOVES.includes(p.move)) {
+    throw new Error(`render finding: "move" must be one of ${FINDING_MOVES.join('/')} — the move owed picks the shape, not the category`);
+  }
   if (p.category !== undefined && !FINDING_CATEGORIES.includes(p.category)) {
     if (ROUTED_CATEGORIES.includes(p.category)) {
       throw new Error(`render finding: "${p.category}" findings route via resolve-source-incoherence and never render at the gate`);
@@ -1363,16 +2009,106 @@ function finding(cwd, { dotpath, file }) {
     throw new Error(`render finding: unknown category "${p.category}" (expected ${FINDING_CATEGORIES.join('/')})`);
   }
 
-  const applyLabel = isFilled(p.apply_label) ? p.apply_label : 'Apply verbatim';
-  const appliedLabel = isFilled(p.applied_label) ? p.applied_label : 'approved. Applied.';
-  const feedbackHint = isFilled(p.feedback_hint) ? p.feedback_hint : 'Tell me what to change before approving';
-
-  const parts = [];
-
   const head = [`**Finding ${p.n} of ${p.total}: ${p.title}**`, ''];
   for (const [label, value] of p.meta) head.push(`- **${label}**: ${value}`);
-  head.push('', `**Details**: ${p.details}`);
-  parts.push(section('DISPLAY: finding', 'emit verbatim as markdown', head.join('\n')));
+  head.push('', p.problem);
+
+  if (p.move === 'choice') {
+    if (view) throw new Error('render finding: --view serves a settled finding\'s wording; a choice proposes none');
+    return findingChoice(p, head, itemOf(manifest, phase, topic) || {});
+  }
+  return findingSettled(p, head, itemOf(manifest, phase, topic) || {}, view === 'full');
+}
+
+/**
+ * A choice: the report leads, the options are the numbered menu rows. No
+ * proposal, nothing to apply, and no `a/auto` row at any gate mode — `auto`
+ * means "don't pause me for what you can decide", never "decide what you
+ * can't".
+ * @param {any} p @param {string[]} head @param {any} item @returns {string}
+ */
+function findingChoice(p, head, item) {
+  for (const field of ['proposal', 'diff', 'content']) {
+    if (p[field] !== undefined) {
+      throw new Error(`render finding: a "choice" finding carries no "${field}" — it presents options, never a call already made`);
+    }
+  }
+  if (!Array.isArray(p.options) || p.options.length < 2) {
+    throw new Error('render finding: a "choice" finding must carry at least 2 "options"');
+  }
+  p.options.forEach((/** @type {{summary?: string, recommended?: boolean}} */ o, /** @type {number} */ i) => {
+    if (!o || typeof o !== 'object' || !isFilled(o.summary)) {
+      throw new Error(`render finding: options[${i}].summary must be a non-empty string`);
+    }
+  });
+  if (p.options.filter((/** @type {{recommended?: boolean}} */ o) => o.recommended === true).length > 1) {
+    throw new Error('render finding: at most one option may be recommended');
+  }
+
+  const ordered = [...p.options].sort((a, b) => Number(b.recommended === true) - Number(a.recommended === true));
+  const rows = ordered.map((o, i) => cmdOption(String(i + 1), null, `${o.summary}${o.recommended === true ? ' (recommended)' : ''}`));
+  rows.push(promptOption('Comment', "Tell me what you're thinking; we'll work it through"));
+
+  return [
+    section('DISPLAY: finding', 'emit verbatim as markdown', head.join('\n')),
+    section('MENU: finding choice', STOP_FOR_RESPONSE,
+      menu(item.finding_gate_mode === 'auto' ? AUTO_OVERRIDE_LINE : '', rows, { question: 'Which way?' })),
+  ].join('\n');
+}
+
+/**
+ * A settled call: the body carries what determined it, a short diff renders
+ * in place, and whole proposed content is held behind `v/view` rather than
+ * dumped — the finding is a report, and the artifact text is the payload of
+ * the fix, not its explanation.
+ * @param {any} p @param {string[]} head @param {any} item @param {boolean} view @returns {string}
+ */
+function findingSettled(p, head, item, view) {
+  if (!isFilled(p.proposal)) {
+    throw new Error('render finding: a "settled" finding must carry a "proposal" — the call and what determined it');
+  }
+  if (p.options !== undefined) {
+    throw new Error('render finding: a "settled" finding carries no "options" — a call with options is a choice');
+  }
+  if (p.diff && p.content) throw new Error('render finding: pass "diff" or "content", not both');
+  if (p.content) {
+    if (!isFilled(p.content.label)) throw new Error('render finding: "content.label" must be a non-empty string');
+    if (stringLines(p.content.lines, 'finding', 'content.lines').length === 0) {
+      throw new Error('render finding: "content.lines" must be non-empty');
+    }
+  }
+
+  const applyLabel = isFilled(p.apply_label) ? p.apply_label : 'Apply verbatim';
+  const appliedLabel = isFilled(p.applied_label) ? p.applied_label : 'approved. Applied.';
+  const feedbackHint = isFilled(p.feedback_hint) ? p.feedback_hint : "Challenge it, adjust it, or decline it — tell me what you're thinking";
+
+  // One gate menu, minus the view row once the wording is on screen. Decline
+  // is an outcome of the Discuss exchange, never a row of its own — a
+  // one-keystroke decline records no reason, and an unreasoned decline is a
+  // skip whatever the key is named.
+  const gateMenu = (withView) => {
+    const options = [cmdOption('y', 'yes', applyLabel)];
+    if (withView) options.push(cmdOption('v', 'view', 'Show the exact wording'));
+    if (item.finding_gate_mode !== 'auto') {
+      options.push(cmdOption('a', 'auto', 'Approve this and all remaining settled findings automatically'));
+    }
+    options.push(promptOption('Discuss', feedbackHint));
+    return section('MENU: finding gate', STOP_FOR_RESPONSE, menu('', options, { question: 'Apply this?' }));
+  };
+
+  // `--view` answers the gate's own v/view row: the wording the user asked
+  // for, and the gate again minus that row. The report is not repeated —
+  // re-rendering it whole is how one finding comes to fill a screen twice.
+  if (view) {
+    if (!p.content) throw new Error('render finding: --view needs "content" — a diff finding shows its change in place');
+    return [
+      section('DISPLAY: finding wording', 'emit verbatim as markdown', [`**${p.content.label}**`, '', ...p.content.lines].join('\n')),
+      gateMenu(false),
+    ].join('\n');
+  }
+
+  head.push('', p.proposal);
+  const parts = [section('DISPLAY: finding', 'emit verbatim as markdown', head.join('\n'))];
 
   if (p.diff) {
     const body = [
@@ -1385,42 +2121,21 @@ function finding(cwd, { dotpath, file }) {
       throw new Error('render finding: "diff" must carry at least one current/proposed line');
     }
     parts.push(section('DISPLAY: diff', 'emit verbatim as a diff code block (```diff fence)', body.join('\n')));
-  } else if (p.content) {
-    if (!isFilled(p.content.label)) throw new Error('render finding: "content.label" must be a non-empty string');
-    const lines = stringLines(p.content.lines, 'finding', 'content.lines');
-    if (lines.length === 0) throw new Error('render finding: "content.lines" must be non-empty');
-    parts.push(section('DISPLAY: finding content', 'emit verbatim as a code block', [`${p.content.label}:`, '', ...lines].join('\n')));
   }
+  // Whole-section content is validated above and never rendered here — source
+  // read aloud is what buried the report; it waits for `v/view`, where it
+  // renders as markdown rather than as a wall of syntax.
 
-  const items = (((manifest.phases || {})[phase] || {}).items || {})[topic] || {};
-  // A gap finding is a question, not a correction — auto covers applying
-  // agreed corrections, never answering questions on the user's behalf.
-  const gateMode = items.finding_gate_mode === 'auto' && p.category !== 'gap' ? 'auto' : 'gated';
-
-  if (gateMode === 'auto') {
+  if (item.finding_gate_mode === 'auto') {
     parts.push(section(
       'DISPLAY: finding auto-approved',
       `after applying the fix: ${AUTO_GATE_INSTRUCTION}`,
       `Finding ${p.n} of ${p.total}: ${p.title} — ${appliedLabel}`,
     ));
-  } else {
-    const options = [cmdOption('y', 'yes', applyLabel)];
-    if (p.diff) options.push(cmdOption('v', 'view full', 'Show full Current and Proposed content'));
-    // A gate forced by category over an auto manifest offers no a/auto row —
-    // auto is already set, and this stop exists despite it.
-    if (items.finding_gate_mode !== 'auto') {
-      options.push(cmdOption('a', 'auto', 'Approve this and all remaining findings automatically'));
-    }
-    options.push(
-      cmdOption('s', 'skip', 'Leave as-is, move to next finding'),
-      promptOption('Provide feedback', feedbackHint),
-    );
-    parts.push(section(
-      'MENU: finding gate',
-      'emit verbatim as markdown, then STOP for the user\'s response',
-      menu(`**Finding ${p.n} of ${p.total}: ${p.title}**`, options),
-    ));
+    return parts.join('\n');
   }
+
+  parts.push(gateMenu(Boolean(p.content)));
   return parts.join('\n');
 }
 
@@ -2514,6 +3229,7 @@ const SURFACES = {
   'resume-gate': resumeGate,
   'task-list': taskList,
   'findings-summary': findingsSummary,
+  'finding-announce': findingAnnounce,
   'finding-batch': findingBatch,
   'finding': finding,
   'review-presentation': reviewPresentation,
@@ -2522,6 +3238,12 @@ const SURFACES = {
   'spec-completion-gate': specCompletionGate,
   'convergence-diagnostic': convergenceDiagnostic,
   'carry-note-gate': carryNoteGate,
+  'hypothesis-board': hypothesisBoard,
+  'fix-direction': fixDirection,
+  'validation-gate': validationGate,
+  'validation-report': validationReport,
+  'project-skills': projectSkills,
+  'linters': linters,
   'triage-announce': triageAnnounce,
   'triage-offer': triageOffer,
   'triage-block': triageBlock,
