@@ -59,6 +59,7 @@ Three paragraphs appended to §5.4 naming the restore-window gap, the daemon's e
 
 **Source**: Specification analysis
 **Category**: Gap/Ambiguity
+**Move**: settled
 **Priority**: Important
 **Affects**: §4.4 (`portal hook list` renders the resolved location), §3.3 (`internal/tmux` surface changes)
 
@@ -68,9 +69,10 @@ Three paragraphs appended to §5.4 naming the restore-window gap, the daemon's e
 The column therefore needs either a second format field on that enumeration (changing its stated return shape and the row-count property §5.4 depends on) or a new client method returning token → location pairs. §3.3's surface-change list is otherwise exhaustive for `internal/tmux`, so the omission reads as an oversight rather than an implementation choice, and the two options have different consequences for §5.4's guard.
 
 **Proposed Change**:
+`ListAllPaneHookKeys()` returns one row per live pane carrying both the token and its `<session>:<window>.<pane>` location, from a single two-field `list-panes -a -F` read.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: The second-format-field reading does not in fact break §5.4's row-count property — one row per live pane is preserved whatever each row carries — so the objection to it is weaker than the finding states, and the alternative costs a second all-pane tmux read on a separate path. One enumeration serving the sweep, `portal doctor` and `hook list` also keeps §3.3's "no derivation, only a read of one value" invariant intact. The location field is marked display-only so it implies no coupling with the positional siblings. §3.3's stale `(§5.3)` cross-reference corrected to `(§5.4)` in the same edit. Applied under `auto`.
 
 ---
 

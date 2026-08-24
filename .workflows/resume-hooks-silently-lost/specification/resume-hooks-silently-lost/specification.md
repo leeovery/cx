@@ -136,7 +136,7 @@ The July invariant — *every site that produces or consumes a key derives it by
 - `HookKeyFormat` becomes the pane-token format `#{@portal-pane-id}`.
 - `HookKey(portalID, name, window, pane)` is **deleted**. The saved-state bake is a struct field read, not a formatting call.
 - `ResolveHookKey(paneID)` becomes the two-call live resolution of §4.1 for one pane target — an existence probe followed by a read of the pane's token.
-- `ListAllPaneHookKeys()` becomes an all-pane token enumeration returning **one entry per live pane, empty string for an unstamped pane**. Both properties are load-bearing: the stale comparison uses the non-empty subset, while the mass-deletion guard counts rows (§5.3).
+- `ListAllPaneHookKeys()` becomes an all-pane enumeration returning **one row per live pane**, each row carrying the pane's `@portal-pane-id` (empty for an unstamped pane) and its `<session>:<window>.<pane>` location. Both properties are load-bearing: the stale comparison uses the rows with a non-empty token, while the mass-deletion guard counts rows (§5.4). A single `list-panes -a -F` read over a two-field format serves the sweep, `portal doctor` and `hook list` alike — there is no second enumeration and no second tmux read. The location field is **display only** (§4.4): it is never a key, so rendering the same shape as the positional siblings (§1.3) couples nothing to them.
 
 The name-based positional siblings — `StructuralKeyFormat`, `ResolveStructuralKey`, `ListAllPanes` — are untouched. They serve the `@portal-skeleton-*` marker and cleanup paths only (§1.3).
 
@@ -215,7 +215,7 @@ The column is **appended**, so the existing `key` / `event` / `command` field po
 
 This is what pays back the readability the token-only key costs (§3.1). Without it the file is a list of opaque six-character tokens with no way to answer "which pane is this?" short of a manual `list-panes` diff — the same hand audit this defect already forced once.
 
-Resolution is one `list-panes -a` read over the token format (§3.3), reused across all rows. A token that resolves to no live pane renders the column **empty** rather than failing the command — including the case where no tmux server is running at all, which `hook` is bootstrap-exempt from starting. An old-format key likewise renders empty, since no live pane can answer to one.
+Resolution is one `list-panes -a` read over the §3.3 enumeration, whose rows already carry the token alongside its location; the token → location mapping is built once from that read and reused across all rows. A token that resolves to no live pane renders the column **empty** rather than failing the command — including the case where no tmux server is running at all, which `hook` is bootstrap-exempt from starting. An old-format key likewise renders empty, since no live pane can answer to one.
 
 
 ### 5. Stale Cleanup
