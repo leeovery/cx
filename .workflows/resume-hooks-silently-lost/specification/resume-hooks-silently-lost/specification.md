@@ -193,6 +193,8 @@ Portal never parses tmux's message text: the exit status is the whole signal, an
 
 Steps 4 and 5 must not be reordered: a write that precedes the stamp would persist an entry keyed to a token no pane carries.
 
+The mirror state — a stamp that succeeded followed by a write that failed, leaving a pane carrying a token no entry references — is **left exactly as it is. There is no rollback.** The next registration on that pane reads the token back and reuses it (§2.2), so the orphan costs nothing and resolves itself the moment the user retries. Unstamping on write failure would be worse than the state it cleans up: it races a concurrent registration that may already have read the token, and it turns a benign no-op into a lost identity.
+
 #### 4.2 Removal verifies the same way — on the `$TMUX_PANE` path only
 
 `portal hook rm --on-resume` run from a pane resolves the key with the same two reads as §4.1 steps 2–3, and fails non-zero on the same non-zero exit. This is literally the same guard, not an analogue of it — which is what lets removal carry it without minting anything. It covers the half of the CLI surface the blast radius named and the original framing of B did not.

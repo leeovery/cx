@@ -296,6 +296,7 @@ Derive-from-constants, with the predicate homed in `internal/session` beside the
 
 **Source**: Specification analysis
 **Category**: Gap/Ambiguity
+**Move**: settled
 **Priority**: Minor
 **Affects**: §4.1 (Registration verifies the pane exists), §2.2
 
@@ -305,9 +306,10 @@ Derive-from-constants, with the predicate homed in `internal/session` beside the
 §2.2's reuse rule ("A pane already carrying a token keeps it") makes this benign in practice, but the spec never says so, and the state is otherwise novel: nothing else in the spec produces a stamped pane with no entry, and §4.2 treats "a pane with no token has no entry" as the only no-entry shape. Stating the outcome (leave it, the next registration reuses it) closes the question before an implementer adds an unstamp-on-failure rollback that would race a concurrent registration.
 
 **Proposed Change**:
+Stated after §4.1's ordering rule: the orphaned stamp is left in place, no rollback, because the reuse rule absorbs it and unstamping would race a concurrent registration.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: The finding's own reasoning is the derivation — the outcome follows from §2.2's reuse rule, and the only risk is an implementer inventing a rollback the spec never forbade. Applied under `auto`.
 
 ---
 
