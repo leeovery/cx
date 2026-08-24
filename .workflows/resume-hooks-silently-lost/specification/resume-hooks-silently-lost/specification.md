@@ -404,7 +404,7 @@ Both halves land in one release.
 
 Existing `hooks.json` entries are keyed `<@portal-id or session_name>:<window>.<pane>`; the token-only key (§3.1) changes every key on disk. **No migration code is written, and none ships.**
 
-Portal has one install and no evidence of any other. The user's call is that a second install, if one exists, is not worth carrying compatibility code for.
+Portal has one install and no evidence of any other, and every entry on that install resolves: `hooks.json` held 42 entries on 2026-08-22 and each one matched a live pane key. The conversion (§8.2) is therefore a complete transformation of the file rather than a partial one — no entry names a pane that is already gone and so could not be re-keyed. The user's call is that a second install, if one exists, is not worth carrying compatibility code for.
 
 Two alternatives were rejected:
 

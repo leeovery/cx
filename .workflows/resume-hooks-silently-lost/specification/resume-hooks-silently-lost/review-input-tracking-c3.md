@@ -27,5 +27,5 @@ Portal has one install and no evidence of any other. The user's call is that a s
 Portal has one install and no evidence of any other, and every entry on that install resolves: `hooks.json` held 42 entries on 2026-08-22 and each one matched a live pane key. The conversion (§8.2) is therefore a complete transformation of the file rather than a partial one — no entry names a pane that is already gone and so could not be re-keyed. The user's call is that a second install, if one exists, is not worth carrying compatibility code for.
 ```
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed. The premise is load-bearing in two places — the script's sufficiency, and §5.2's claim that the conversion clears the retained set — and an unconvertible entry would sit retained forever and invisible to `portal doctor`. Date-stamped so the figure reads as a measurement rather than a standing property. Applied under `auto`.
