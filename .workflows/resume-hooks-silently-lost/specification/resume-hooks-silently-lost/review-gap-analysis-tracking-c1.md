@@ -317,6 +317,7 @@ Stated after §4.1's ordering rule: the orphaned stamp is left in place, no roll
 
 **Source**: Specification analysis
 **Category**: Duplication
+**Move**: settled
 **Priority**: Minor
 **Affects**: §8.4 (The user's own integration), §1.3 (Out of scope)
 
@@ -333,8 +334,8 @@ The facts that the script re-implements `HookKeyFormat` verbatim, that it matche
 `~/.claude/hooks/portal-resume-hook.sh` (§1.3) is named here only because the conversion script and the hook script are the same person's job on the same day.
 ```
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed. The four restated facts stay in §1.3; §8.4 keeps its degradation paragraph and the same-person rationale, which are its own.
 
 ---
 
@@ -342,6 +343,7 @@ The facts that the script re-implements `HookKeyFormat` verbatim, that it matche
 
 **Source**: Specification analysis
 **Category**: Duplication
+**Move**: settled
 **Priority**: Minor
 **Affects**: §9.5 (The positional siblings are checked, not assumed separate), §1.3 (Out of scope)
 
@@ -358,8 +360,8 @@ The facts that the script re-implements `HookKeyFormat` verbatim, that it matche
 The positional siblings (§1.3) are not changed, but the addressing assumption is identical, so their existing coverage is run against the change rather than assumed unaffected — specifically that a restore whose window indices are renumbered still pairs FIFOs and markers correctly, which is the §9.2 non-contiguous-index test observing a second surface.
 ```
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed. §1.3 keeps the sibling enumeration and both facts; §9.5 keeps the renumbered-index assertion, which is the testing phase's own content.
 
 ---
 
@@ -367,6 +369,7 @@ The positional siblings (§1.3) are not changed, but the addressing assumption i
 
 **Source**: Specification analysis
 **Category**: Duplication
+**Move**: settled
 **Priority**: Minor
 **Affects**: §5.1 (What the reaper does now), §1.1 (The defect)
 
@@ -383,8 +386,8 @@ It runs from two call sites over the same code path: the daemon's idle branch ev
 It runs from two call sites over the same code path: the daemon's idle branch (§1.1, `cmd/state_daemon.go` `maybeRunHookCleanup`), and `portal doctor --fix` (`cmd/doctor.go` `pruneDoctorStaleHooks`), which supplies an `onRemoved` callback printing `Pruned stale hook: <key>`.
 ```
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed. §1.1 remains the home for `hookCleanupInterval`; §6.1 and §6.5 keep their "10s" because there it is argument in place, not a second statement of the constant.
 
 ---
 
@@ -392,6 +395,7 @@ It runs from two call sites over the same code path: the daemon's idle branch (�
 
 **Source**: Specification analysis
 **Category**: Duplication
+**Move**: settled
 **Priority**: Minor
 **Affects**: §2.2 (Stamping is lazy, at `hook set`), §4.1 (Registration verifies the pane exists)
 
@@ -406,8 +410,8 @@ The ordering rule and its justification live in §4.1, which owns the numbered s
 **Proposed Change**:
 Delete the bullet.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Bullet deleted. The ordering rule and its justification live in §4.1, which owns the numbered sequence; §2.2's lead sentence already states the placement.
 
 ---
 
@@ -415,6 +419,7 @@ Delete the bullet.
 
 **Source**: Specification analysis
 **Category**: Duplication
+**Move**: settled
 **Priority**: Minor
 **Affects**: §8.3 (What makes that safe rather than reckless), §5.2 (Deletion becomes shape-aware)
 
@@ -429,5 +434,5 @@ Delete the bullet.
 **Proposed Change**:
 Delete the bullet.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Bullet deleted. §5.2's first consequence is the home for shape-carried protection reaching `portal doctor --fix`, and §8.3 already opens by pointing at §5.2. The two migration-specific bullets stay.

@@ -76,7 +76,6 @@ There is **no inheritance**: a pane created by `split-window` or `new-window` fr
 Portal does not create panes — the user splits them — so there is no creation point to stamp at, and a pane with no hook needs no token. The stamp is therefore applied by `portal hook set`, immediately before the `hooks.json` write.
 
 - **A pane already carrying a token keeps it.** `hook set` reads `@portal-pane-id` first and mints only when it reads back empty. Re-registering on the same pane must not mint a second token, which would orphan the first entry.
-- **The stamp precedes the write.** Under B (§4) the stamp doubles as the existence check, so ordering is not optional.
 - **`hook set` touches the dirty flag.** After a successful write it resolves the state directory with `state.EnsureDir()` and calls `state.TouchSaveRequested(dir)`, so the next daemon tick captures the new token rather than waiting up to `MaxGap` (30s, `cmd/state_daemon.go:425`) for the gap branch. This narrows the window in which a crash between registration and capture loses the stamp; it does not close it, and that residual is accepted.
 
   The touch is **best-effort and never affects the exit status.** It is a latency optimisation, and by the time it runs the entry is already durably written — failing the command over it would report a lost registration that was not lost. A failure at either step, resolving/creating the directory or the touch itself, logs one WARN under the `hooks` component carrying the existing `error` attr, and `hook set` still exits 0. This is the one filesystem path outside `hooks.json` that `hook` touches, and it starts no tmux server, so bootstrap-exemption is unaffected: `portal state notify` resolves the state directory exactly this way from an equally exempt command (`cmd/state_notify.go`).
@@ -234,7 +233,7 @@ Resolution is one `list-panes -a` read over the §3.3 enumeration, whose rows al
 
 #### 5.1 What the reaper does now
 
-`runHookStaleCleanup` (`cmd/run_hook_stale_cleanup.go`) enumerates live pane keys, loads `hooks.json`, and deletes every persisted key absent from the live set. It runs from two call sites over the same code path: the daemon's idle branch every 10s (`cmd/state_daemon.go` `maybeRunHookCleanup`), and `portal doctor --fix` (`cmd/doctor.go` `pruneDoctorStaleHooks`), which supplies an `onRemoved` callback printing `Pruned stale hook: <key>`.
+`runHookStaleCleanup` (`cmd/run_hook_stale_cleanup.go`) enumerates live pane keys, loads `hooks.json`, and deletes every persisted key absent from the live set. It runs from two call sites over the same code path: the daemon's idle branch (§1.1, `cmd/state_daemon.go` `maybeRunHookCleanup`), and `portal doctor --fix` (`cmd/doctor.go` `pruneDoctorStaleHooks`), which supplies an `onRemoved` callback printing `Pruned stale hook: <key>`.
 
 Two changes, and no more. **Whether the reaper deletes is not changed** — only what it can identify, and what it records.
 
@@ -416,7 +415,6 @@ The re-key is a one-time transformation of one file on one machine: resolve each
 
 - an unconverted entry sits **inert** rather than being deleted;
 - a partial conversion costs nothing — the converted entries work, the unconverted ones wait;
-- the protection is by **key shape**, so it holds wherever the rule lives, including `portal doctor --fix`, which shares the same code path.
 
 The one thing not covered by code is ordering: an entry registered *between* the upgrade and the script's run is already token-keyed and needs no conversion, while one registered before it is old-format and does. Running the script after upgrading is the mitigation, not a code path.
 
@@ -424,7 +422,7 @@ The one thing not covered by code is ordering: an entry registered *between* the
 
 #### 8.4 The user's own integration
 
-`~/.claude/hooks/portal-resume-hook.sh` re-implements `HookKeyFormat` verbatim (`:87-95`) and matches it against `portal hook list` output. It needs updating in step with this change. It is out of scope (§1.3) and named here only because the conversion script and the hook script are the same person's job on the same day.
+`~/.claude/hooks/portal-resume-hook.sh` (§1.3) is named here only because the conversion script and the hook script are the same person's job on the same day.
 
 It fails safe in the meantime: the script documents the coupling, an unrecognised key scheme yields an empty key, and its guards then refuse to remove anything. So a key-scheme change degrades it silently rather than erroring — its SessionEnd branch stops deregistering, and those entries are absorbed by the reaper exactly as they always have been.
 
@@ -483,7 +481,7 @@ The hazard the guards encode is answered by construction instead of by assertion
 
 #### 9.5 The positional siblings are checked, not assumed separate
 
-`state.SanitizePaneKey` and `internal/tmux`'s `StructuralKeyFormat` / `ResolveStructuralKey` / `ListAllPanes` key the hydrate FIFO paths and `@portal-skeleton-*` markers off the same positional addressing (§1.3). They are not changed, but the addressing assumption is identical, so their existing coverage is run against the change rather than assumed unaffected — specifically that a restore whose window indices are renumbered still pairs FIFOs and markers correctly, which is the §9.2 non-contiguous-index test observing a second surface.
+The positional siblings (§1.3) are not changed, but the addressing assumption is identical, so their existing coverage is run against the change rather than assumed unaffected — specifically that a restore whose window indices are renumbered still pairs FIFOs and markers correctly, which is the §9.2 non-contiguous-index test observing a second surface.
 
 
 ---
