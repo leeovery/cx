@@ -27,8 +27,8 @@ Drive the real-tmux row through `tmux.ResolveHookKey` itself — the two-call re
 | **The existence probe separates the three cases** | Driven through `tmux.ResolveHookKey` against a live server, so what is measured is Portal's own argv: a pane id no pane answers to fails; a live pane carrying no pane options at all resolves with an empty token; a stamped pane resolves to its token. This is what pins §4.1's rule that the `show-options` probe names no option — naming it makes a live unstamped pane indistinguishable from a gone one, which a fake `Commander` modelling the intended semantics cannot catch. The raw tmux facts B rests on are asserted alongside: `set-option -p -t %999 @portal-pane-id X` exits non-zero, unlike `display-message -p` against the same target, which exits 0. | unit (real-tmux) |
 ```
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed. The row I wrote in cycle 1 asserted hand-written tmux commands — it measured tmux, not Portal's argv — so §4.1's own named trap (naming the option in the probe) would have passed every listed test while breaking the first `hook set` on every pane. The source specifically required this behaviour be pinned against real tmux for exactly that reason. Applied under `auto`.
 
 ---
 
@@ -61,5 +61,5 @@ The one thing not covered by code is ordering: an entry registered *between* the
 **Ordering covers the running daemon, not only the binary on disk.** The sweep runs inside `_portal-saver`'s `portal state daemon`, which keeps executing the pre-upgrade binary until a bootstrapping command replaces it (`EnsureSaver`) — and `hook` is bootstrap-exempt (§2.2), so registering a hook will never do it. A pre-upgrade sweep is not shape-aware and does not recognise a token key, so while that lag lasts every token-keyed entry — one written by a post-upgrade `hook set`, or the whole file the moment the conversion completes — is deleted within 10s, by the rule that was correct for the binary running it. Running any bootstrapping command (`portal open`) before registering or converting is what closes it. The same lag has a second edge: a pre-upgrade daemon captures the pre-upgrade `captureFormat`, so a server death before it is replaced leaves restore with no saved token for any pane.
 ```
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed, inserted after the existing ordering paragraph and before the conversion-window paragraph added in cycle 1. Mechanism verified independently: the version recycle lives only in `EnsurePortalSaverVersion` (`internal/tmux/portal_saver.go:327-340`), which runs at bootstrap step 5, and `hook` is bootstrap-exempt — so no `portal hook set` can replace the running daemon. Applied under `auto`.
