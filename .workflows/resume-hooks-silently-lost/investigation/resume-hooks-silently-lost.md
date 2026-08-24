@@ -746,8 +746,10 @@ tool that can be rolled back.
 - **Acquisition is bounded at 2 seconds, and a timeout degrades rather than wedges.** `flock` being
   kernel-released on process death rules out a *leaked* lock, but not a *held* one: a holder
   suspended by a signal or stuck on a hung filesystem keeps the lock while it lives, and an
-  unbounded `LOCK_EX` would park the daemon's 10s tick loop behind it — the regression risk D
-  carries. On timeout the daemon sweep skips this cycle with a WARN and retries on the next
+  unbounded `LOCK_EX` would park the daemon's 1s tick loop behind it (`TickerPeriod: 1 *
+  time.Second`, `cmd/state_daemon.go:424`; the 10s `hookCleanupInterval` at `:105` throttles the
+  sweep on that loop's idle branch, it is not the loop's own period) — so what stalls behind a
+  held lock is the capture cycle, not a background prune. That is the regression risk D carries. On timeout the daemon sweep skips this cycle with a WARN and retries on the next
   cadence (a deferred prune costs nothing; stale entries are inert), and the CLI exits non-zero
   with the reason rather than hanging a shell the user is sitting in. The bound is 2s because the
   critical section is one small-file read, a marshal and a rename — sub-millisecond in practice —
