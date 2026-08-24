@@ -28,8 +28,8 @@
 
 > - A **pane-option write is added** — `internal/tmux` exposes no pane-scoped option setter today. It takes the option name from its caller, so `cmd` passes `state.PortalPaneIDOption` when `hook set` stamps at §4.1 step 4, and it is reached through the `hook` command's existing `*Deps` seam like every other tmux call the CLI makes. The existence probe adds no exported surface of its own: it is internal to `ResolveHookKey`, which owns both reads of §4.1 steps 2–3.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed, both edits. The ownership split follows from §4.1's own design — the probe names no option and the read goes through `HookKeyFormat`, so only the stamp needs the literal — and the new pane-option write is added to the tmux surface list so registration's two calls have an owner and a seam.
 
 ---
 
@@ -63,8 +63,8 @@ Give the touch its own `op` value on the store's existing failure shape. The arg
 
 > That adds **two `op` values** — `load-unlocked` here and `touch-save-requested` for the dirty-flag touch (§2.2) — **two `via` values and no attr key**: the whole of this work unit's amendment to the closed logging vocabulary.
 
-**Resolution**: Pending
-**Notes**: The shape is determined; the exact string `touch-save-requested` is a naming call and can be adjusted without disturbing the finding.
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed, both edits. `touch-save-requested` accepted as the op name; the argument that it must not file under `set` is the same one that keeps it out of the exit status. The shape is determined; the exact string `touch-save-requested` is a naming call and can be adjusted without disturbing the finding.
 
 ---
 
@@ -87,8 +87,8 @@ Name the case in §8.3 beside the ordering hazard, with the rule the conversion 
 
 > **A pane can hold two entries by the time the script runs.** `hook set` fires on every Claude Code SessionStart, so during the lag above a pane that already has an old-format entry acquires a second, token-keyed one — and §5.2 retains the old one rather than reaping it. Re-keying that old entry would land it on the token the pane already carries and overwrite the newer command, or on a freshly minted token and orphan the newer entry for the reaper; either way the user gets back a resume command they had already replaced. The rule the conversion honours: **a pane that already carries a token has a current entry under it, and its old-format entry is superseded — dropped, not re-keyed.** Running the conversion promptly after the upgrading command keeps the overlap small; it does not remove it.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed, placed before the daemon-lag paragraph so the two upgrade-window hazards read in order. This is the sharpest finding of the cycle: a SessionStart during the lag leaves two entries on one pane, and re-keying the stale one hands back a superseded resume command.
 
 ---
 
@@ -112,8 +112,8 @@ The exemption argument survives untouched — none of these paths starts a tmux 
 **Proposed Text**:
 > This is the only path `hook` touches outside the config directory holding `hooks.json` and its sidecar lock (§6.2), and like them it starts no tmux server, so bootstrap-exemption is unaffected: `portal state notify` resolves the state directory exactly this way from an equally exempt command (`cmd/state_notify.go`).
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed. The bootstrap-exemption argument is unaffected — none of the paths starts a tmux server — but the inventory was wrong and read as a constraint.
 
 ---
 
@@ -137,8 +137,8 @@ Name the existing `via=internal` for it — the value the sweep's own emissions 
 **Proposed Text**:
 > The degraded read is the one genuinely new emission: DEBUG, `op=load-unlocked`, the lock error in `error`, and `via` naming the caller — `hydrate` for `LookupOnResume`, `doctor` for `checkStaleHooks`, the existing `cli` for `hook list`, and the existing `internal` for the sweep's advisory pre-read (§6.3), which degrades by the same rule and adds no value of its own.
 
-**Resolution**: Pending
-**Notes**: If finding 2 is applied, its rewrite of the following sentence composes with this one; the two edits touch adjacent sentences, not the same one.
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed. `internal` is the value the sweep's own emissions already carry, so the vocabulary tally is undisturbed. If finding 2 is applied, its rewrite of the following sentence composes with this one; the two edits touch adjacent sentences, not the same one.
 
 ---
 
@@ -162,8 +162,8 @@ Settle it at the command line, which is where "bake" means something: the flag i
 **Proposed Text**:
 > - **`collectArmInfos` must not bake an empty key.** A saved pane with an empty `PortalPaneID` is armed with no hook — the pane restores and hydrates as normal, it simply has nothing to resume. Concretely, `buildHydrateCommand` omits the `--hook-key` flag entirely for that pane rather than passing an empty value, and `portal state hydrate` treats an absent flag and an empty one alike as "no hook". Under lazy stamping this is the ordinary pane, not an anomaly, so the flag cannot be required.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed. Under lazy stamping the unstamped pane is the ordinary case, so a required flag would fail the arm phase for most panes on the machine on the first reboot.
 
 ---
 
@@ -187,8 +187,8 @@ State that removal leaves the stamp in place, on the reasoning §4.1 already giv
 **Proposed Text**:
 > Removal does **not** mint, and it does **not** unstamp. A pane with no token has no entry to remove; `hook rm` reports that — in Portal's own words, since the existence probe has already separated it from a gone pane — and exits non-zero rather than silently succeeding, which is the same silent-success shape as the `:.` bug on the write side. A pane whose entry is removed keeps its token, for the reason §4.1 gives for not rolling back a stamp: the orphan costs nothing, the next registration on that pane reads it back and reuses it, and clearing it would add a tmux write that can fail after the entry is already gone.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed. Symmetric with the no-rollback rule settled in cycle 1: an unstamp would add a tmux write that can fail after the entry is already gone, which the exit-status rule does not cover.
 
 ---
 
@@ -209,8 +209,8 @@ The rule that the mass-deletion guard counts pane rows while the stale compariso
 **Proposed Text**:
 > Both properties are load-bearing — §5.4 has the rule that consumes them.
 
-**Resolution**: Pending
-**Notes**: The surrounding sentence in §3.3 already states the return shape (one row per live pane, token possibly empty, plus location), which is what §3.3 owns; only the consuming rule moves out.
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed. The surrounding sentence in §3.3 already states the return shape (one row per live pane, token possibly empty, plus location), which is what §3.3 owns; only the consuming rule moves out.
 
 ---
 
@@ -231,7 +231,7 @@ How `checkStaleHooks` treats retained old-format entries is specified twice — 
 **Proposed Text**:
 > - **`portal doctor` stays green and keeps its "exit 0 iff all pass" contract.** A closed pane's entry is still deleted, so retained old-format entries are the only thing that persists — and §5.4 settles how the check treats them.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed.
 
 ---
