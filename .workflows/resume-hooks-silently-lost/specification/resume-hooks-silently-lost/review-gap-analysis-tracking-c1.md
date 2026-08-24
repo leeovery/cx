@@ -103,6 +103,7 @@ The identifier is referenced by three sections and declared by none, so the firs
 
 **Source**: Specification analysis
 **Category**: Gap/Ambiguity
+**Move**: settled
 **Priority**: Important
 **Affects**: §2.2 (Stamping is lazy, at `hook set`), §4.1 (step 5)
 
@@ -112,9 +113,10 @@ The identifier is referenced by three sections and declared by none, so the firs
 Nor is the failure path stated. The touch can fail for ordinary reasons — no state directory yet on a fresh install, a permissions problem — and the spec gives no rule for whether that is best-effort-and-swallowed, a WARN, or a non-zero exit. Given §4.1 makes the surrounding steps a strict ordered sequence with a non-zero exit on failure at steps 2 and 3, an implementer cannot infer which shape step 5 takes, and the two readings differ in whether a registration that has already written `hooks.json` can still report failure.
 
 **Proposed Change**:
+Resolve via `state.EnsureDir()`; the touch is best-effort — one WARN under the `hooks` component with the existing `error` attr, exit status unaffected.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Precedent measured: `cmd/state_notify.go` resolves with `state.EnsureDir()` then `state.TouchSaveRequested(dir)` from an equally bootstrap-exempt command, and `state.TouchSaveRequested` already documents its own mtime bump as best-effort (`internal/state/paths.go:64`). The exit-status question resolves on ordering — the write precedes the touch, so a failure there cannot mean a lost registration. §2.2's dirty-flag bullet rewritten with the resolution, the best-effort rule and the bootstrap-exemption note. Applied under `auto`.
 
 ---
 
