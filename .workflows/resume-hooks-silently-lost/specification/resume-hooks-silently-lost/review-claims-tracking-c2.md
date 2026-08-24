@@ -59,8 +59,8 @@ $ sed -n '80,83p' cmd/state_daemon_hook_cleanup_integration_test.go
 **Proposed Text**:
 - **The seeded keys in the destructive integration suites** — `internal/transienttest.SeedHooksJSON` (`internal/transienttest/hooks.go:38`) writes whatever `{key: command}` map its caller hands it and carries no key literal of its own, so the helper is unchanged and the shapes are re-pointed at each of the four seeding call sites: `cmd/cleanstale_transient_listpanes_shared_test.go:48-50` (`alpha:0.0` / `beta:0.0` / `gamma:0.0`), `cmd/cleanstale_transient_listpanes_doctorfix_integration_test.go:91-94` (`live:0.0` / `gone:0.0`), `cmd/bootstrap/transient_listpanes_helpers_integration_test.go:104-105` (`smoke:0.0` / `smoke:1.0`), and `cmd/state_daemon_hook_cleanup_integration_test.go:43,89-92`. The last one also reads its *live* key with `tmux.StructuralKeyFormat` (`:80-81`), which is a structural key rather than a hook key after this change: it reads the pane's token instead.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed. Measurement confirmed independently: `internal/transienttest/hooks.go` carries no hook-key literal anywhere, and `cmd/state_daemon_hook_cleanup_integration_test.go:80-81` reads its live key through `tmux.StructuralKeyFormat` — a structural key, not a hook key, after this change. Applied under `auto`.
 
 ---
 
