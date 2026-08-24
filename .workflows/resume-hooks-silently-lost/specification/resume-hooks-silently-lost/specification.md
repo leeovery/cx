@@ -119,7 +119,11 @@ A hook key is **token-shaped** iff it is exactly `suffixLen` characters drawn fr
 
 Old-format keys are `<@portal-id or session_name>:<window>.<pane>` and therefore always contain `:` and `.`, neither of which is in the alphabet. No old-format key can ever be token-shaped, which is what makes the reaper's shape test in §5 sound.
 
-The predicate has **one home** and the shape it tests must not be able to drift from the width and alphabet the generator uses. Where that home sits is an implementation call — `internal/hooks` (which owns the reaper's judgement) does not currently import `internal/session` (which owns `NanoIDAlphabet`), and no cycle would result from it doing so (`grep -rn "leeovery/portal/internal" internal/session/*.go internal/hooks/*.go | grep -v _test.go` → `session` imports `project`, `resolver`, `tmux`; `hooks` imports `fileutil`, `log`, `storelog`).
+The predicate's **home is `internal/session`, beside the generator**, exported as a function; the shape it tests is **derived from the generator's own constants, not restated**. It reads `suffixLen` and `NanoIDAlphabet` directly, so a change to either moves generation and recognition together and drift is impossible rather than merely guarded against. The alternative — a hardcoded `^[A-Za-z0-9]{6}$` in `internal/hooks` beside a `suffixLen` free to move — is the failure mode: every existing key silently stops being token-shaped and the reaper starts retaining what it should delete, with nothing failing anywhere.
+
+`internal/session` is the only home that permits the derivation, because `suffixLen` is **unexported** (`internal/session/naming.go:11`); `NanoIDAlphabet` is exported but the width is not. Placing the predicate in `internal/hooks` would require exporting the width as well, adding a second package's claim on a value that has no reader outside name generation.
+
+The import is available: `internal/hooks` does not currently import `internal/session`, and no cycle would result from it doing so (`grep -rn "leeovery/portal/internal" internal/session/*.go internal/hooks/*.go | grep -v _test.go` → `session` imports `project`, `resolver`, `tmux`; `hooks` imports `fileutil`, `log`, `storelog`). The reaper keeps its own judgement — retain or delete — and calls the predicate for the one question it cannot answer about a key's shape. Because the values are derived rather than duplicated, **no guard test is needed**, which is why §9.4 enumerates none for the predicate.
 
 #### 3.3 Key-producing and key-consuming sites
 

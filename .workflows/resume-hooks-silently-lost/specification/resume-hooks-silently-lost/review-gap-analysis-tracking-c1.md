@@ -275,6 +275,7 @@ Promoted, not duplicated — one line per removed key, at INFO. The existing DEB
 
 **Source**: Specification analysis
 **Category**: Gap/Ambiguity
+**Move**: settled
 **Priority**: Minor
 **Affects**: §3.2 (Key shape), §9.4 (Guards)
 
@@ -284,9 +285,10 @@ Promoted, not duplicated — one line per removed key, at INFO. The existing DEB
 §9.4 enumerates the guards this work unit needs and does not include one for the predicate, which points at the derive-from-constants reading — but §3.2's own evidence paragraph frames the import as merely possible rather than required, so the reading is not safe to assume.
 
 **Proposed Change**:
+Derive-from-constants, with the predicate homed in `internal/session` beside the generator and exported; `internal/hooks` calls it. No guard test.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §9.4's silence was the right signal, but the derivation is not reachable from where the finding assumed: `suffixLen` is unexported (`internal/session/naming.go:11`) while `NanoIDAlphabet` is exported, so a predicate living in `internal/hooks` could not read the width without exporting it too. Homing the predicate in `internal/session` is the only placement that derives both without widening another package's surface, and it keeps shape and generation as two views of one fact. The reaper keeps its retain/delete judgement and calls the predicate. Applied under `auto`.
 
 ---
 
