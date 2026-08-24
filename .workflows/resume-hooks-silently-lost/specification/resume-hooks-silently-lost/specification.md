@@ -32,7 +32,7 @@ Four changes, delivered together in one release:
 | **C** | The stale sweep becomes shape-aware and names what it deleted | §5 |
 | **D** | The unlocked cross-process read-modify-write on `hooks.json` is closed | §6 |
 
-A is the repair — it closes all three moments above. B, C and D close paths that made the loss silent or that can lose an entry independently of the key format. A carries the removal of the superseded `@portal-id` machinery with it (§7).
+A is the repair for the two moments a positional key creates — lifetime drift and the reboot boundary. B closes the write-time moment, which no key format can close (§4.1). C and D close the path that made the loss silent and the path that can lose an entry independently of the key format. A carries the removal of the superseded `@portal-id` machinery with it (§7).
 
 #### 1.3 Out of scope
 
@@ -50,7 +50,7 @@ A is the repair — it closes all three moments above. B, C and D close paths th
 
 Each pane that carries a resume hook is stamped with an opaque token held in the tmux **pane** user-option `@portal-pane-id`.
 
-The option name is declared **once**, as `PortalPaneIDOption` in `internal/state` — beside `RestoringMarkerName`, `SkeletonMarkerPrefix` and `BootstrappedMarkerName`, which already name Portal's other tmux options from that package. Every site that needs the literal composes it from that constant: `captureFormat` in the same package, `HookKeyFormat` in `internal/tmux` (which already imports `internal/state`), and the `hook set` stamp in `cmd` (which imports both). The literal is therefore written in exactly one place, which is what retires the binding guards rather than re-pointing them (§9.4).
+The option name is declared **once**, as `PortalPaneIDOption` in `internal/state` — beside `RestoringMarkerName`, `SkeletonMarkerPrefix` and `BootstrappedMarkerName`, which already name Portal's other tmux options from that package. Every site that needs the literal composes it from that constant: `captureFormat` in the same package, `HookKeyFormat` and the all-pane enumeration format in `internal/tmux` (which already imports `internal/state`), the re-stamp in `internal/restore`, and the probe, read and stamp in `cmd` (which imports both). The literal is therefore written in exactly one place, which is what retires the binding guards rather than re-pointing them (§9.4).
 
 A tmux pane user-option was verified in an isolated `-L` socket (tmux 3.7c) to survive every mutation that moves a pane's coordinates, and to survive the one Portal itself performs:
 
@@ -70,6 +70,8 @@ A tmux pane user-option was verified in an isolated `-L` socket (tmux 3.7c) to s
 There is **no inheritance**: a pane created by `split-window` or `new-window` from a stamped pane reads back empty (`tmux -L <sock> split-window -t t -d`, then `tmux -L <sock> list-panes -t t -F '#{pane_index}=#{@portal-pane-id}'` → `0=STAMP1 1=`). A split therefore cannot duplicate an id.
 
 **Token generation** reuses the in-house nanoid: `session.NewNanoIDGenerator()` over `session.NanoIDAlphabet` (62 alphanumerics, no `-`), width `suffixLen = 6`. There is no uniqueness check beyond the generator's width — the same call the `@portal-id` stamp makes today (`internal/session/create.go`), which that code documents as deliberate.
+
+Minting is reached through an exported function in `internal/session`, beside the shape predicate (§3.2) and reading the same `suffixLen` and `NanoIDAlphabet` directly. `hook set` calls it and names no width of its own: generation and recognition derive from one pair of constants, so they move together or not at all.
 
 #### 2.2 Stamping is lazy, at `hook set`
 
@@ -145,7 +147,7 @@ The July invariant — *every site that produces or consumes a key derives it by
 - `ResolveHookKey(paneID)` becomes the two-call live resolution of §4.1 for one pane target — an existence probe followed by a read of the pane's token.
 - `ListAllPaneHookKeys()` becomes an all-pane enumeration returning **one row per live pane**, each row carrying the pane's `@portal-pane-id` (empty for an unstamped pane) and its `<session>:<window>.<pane>` location. Both properties are load-bearing: the stale comparison uses the rows with a non-empty token, while the mass-deletion guard counts rows (§5.4). A single `list-panes -a -F` read over a two-field format serves the sweep, `portal doctor` and `hook list` alike — there is no second enumeration and no second tmux read. The location field is **display only** (§4.4): it is never a key, so rendering the same shape as the positional siblings (§1.3) couples nothing to them.
 
-The name-based positional siblings — `StructuralKeyFormat`, `ResolveStructuralKey`, `ListAllPanes` — are untouched. They serve the `@portal-skeleton-*` marker and cleanup paths only (§1.3).
+The name-based positional siblings are untouched (§1.3).
 
 **`portal state hydrate --hook-key`** keeps its flag and its meaning; its help text, which currently reads `Saved structural identifier (<session>:<window>.<pane>)`, is corrected to describe the token.
 
@@ -190,7 +192,7 @@ Portal never parses tmux's message text: the exit status is the whole signal, an
 5. Write the entry under the token key.
 6. Touch `save.requested` (§2.2).
 
-Steps 4 and 5 must not be reordered: a write that precedes the stamp would persist an entry keyed to a token no pane carries.
+Steps 4 and 5 must not be reordered, and step 4 failing ends the command: a write that precedes the stamp, or follows one that failed, persists an entry keyed to a token no pane carries. A failed stamp exits non-zero with tmux's words and writes nothing, the same shape as a failed probe at step 2.
 
 The mirror state — a stamp that succeeded followed by a write that failed, leaving a pane carrying a token no entry references — is **left exactly as it is. There is no rollback.** The next registration on that pane reads the token back and reuses it (§2.2), so the orphan costs nothing and resolves itself the moment the user retries. Unstamping on write failure would be worse than the state it cleans up: it races a concurrent registration that may already have read the token, and it turns a benign no-op into a lost identity.
 
@@ -208,7 +210,7 @@ That is the point — a caller can no longer read `rc == 0` as proof anything ha
 
 #### 4.3 `--pane-key` stays a literal pass-through
 
-`portal hook rm --on-resume --pane-key <key>` performs **no validation of any kind** and touches tmux not at all. The key is used verbatim.
+`portal hook rm --on-resume --pane-key <key>` performs **no validation of any kind** and touches tmux not at all. The key is used verbatim. The §4.2 rule still governs the exit status here: the pass-through waives validation of the key, not the guarantee that the code reports whether anything happened, so a `--pane-key` that names no entry in `hooks.json` exits non-zero like every other way of removing nothing.
 
 This is deliberate and is not weakened by B. Spec `hooks-rm-pane-key-flag` (2026-05-26) made the flag a pass-through precisely so an entry whose pane no longer exists can be pruned — validating it would defeat its only purpose. The rule that separates the two paths: **a key Portal resolves must identify a live pane; a key the caller hands over explicitly must not be second-guessed.**
 
@@ -226,7 +228,7 @@ The column is **appended**, so the existing `key` / `event` / `command` field po
 
 This is what pays back the readability the token-only key costs (§3.1). Without it the file is a list of opaque six-character tokens with no way to answer "which pane is this?" short of a manual `list-panes` diff — the same hand audit this defect already forced once.
 
-Resolution is one `list-panes -a` read over the §3.3 enumeration, whose rows already carry the token alongside its location; the token → location mapping is built once from that read and reused across all rows. A token that resolves to no live pane renders the column **empty** rather than failing the command — including the case where no tmux server is running at all, which `hook` is bootstrap-exempt from starting. An old-format key likewise renders empty, since no live pane can answer to one.
+Resolution is one `list-panes -a` read over the §3.3 enumeration, whose rows already carry the token alongside its location; the token → location mapping is built once from that read and reused across all rows. A token that resolves to no live pane renders the column **empty** rather than failing the command — including the case where no tmux server is running at all, which `hook` is bootstrap-exempt from starting. An old-format key likewise renders empty, since no live pane can answer to one. The column is always emitted: an empty value is an empty fourth field, never a dropped one, so every line carries the same three separators whatever resolution produced.
 
 
 ### 5. Stale Cleanup
@@ -235,14 +237,14 @@ Resolution is one `list-panes -a` read over the §3.3 enumeration, whose rows al
 
 `runHookStaleCleanup` (`cmd/run_hook_stale_cleanup.go`) enumerates live pane keys, loads `hooks.json`, and deletes every persisted key absent from the live set. It runs from two call sites over the same code path: the daemon's idle branch (§1.1, `cmd/state_daemon.go` `maybeRunHookCleanup`), and `portal doctor --fix` (`cmd/doctor.go` `pruneDoctorStaleHooks`), which supplies an `onRemoved` callback printing `Pruned stale hook: <key>`.
 
-Two changes, and no more. **Whether the reaper deletes is not changed** — only what it can identify, and what it records.
+**Whether the reaper deletes is not changed** — it is not converted to full retention. What changes is what it can identify (§5.2), what it records (§5.3), when it declines to run at all (§5.4), and how it takes the file it mutates (§6).
 
 #### 5.2 Deletion becomes shape-aware
 
 - A **token-shaped** key (§3.2) whose token is absent from the live set is deleted, exactly as today.
 - A key that is **not token-shaped** is **retained**, untouched, on every run.
 
-The justification is that A removes the reaper's false positives. Under a positional key a moved pane and a dead pane are indistinguishable at the point of comparison, so the reaper was acting correctly on false information. Under a token key a moved pane keeps its token, so an absent token now means a genuinely absent pane and the reaper's judgement becomes trustworthy. What remains worth protecting is the one case it still cannot judge: an unconverted old-format key, which is not evidence of a dead pane but of an unconverted entry — and is distinguishable by shape.
+The justification is that A removes the reaper's false positives: the indistinguishability §1.1 names is what had it acting correctly on false information. Under a token key a moved pane keeps its token, so an absent token now means a genuinely absent pane and the reaper's judgement becomes trustworthy. What remains worth protecting is the one case it still cannot judge: an unconverted old-format key, which is not evidence of a dead pane but of an unconverted entry — and is distinguishable by shape.
 
 Three consequences follow from putting the protection on shape rather than on a call site:
 
@@ -277,6 +279,8 @@ The guard's question is *"did the tmux read succeed?"*, which the **pane row cou
 The daemon is already immune: `tick` reads `@portal-restoring` and returns before reaching `maybeRunHookCleanup` (`cmd/state_daemon.go`), so the whole idle branch is suppressed for the marker's lifetime — set at bootstrap step 3, cleared at step 8, bracketing restore at step 6. That early return protected only the capture path before this change; it is now load-bearing for hook retention and must not be relaxed or reordered.
 
 `portal doctor --fix` has no such gate, and it is the command a user reaches for when a reboot looks wrong. The check therefore moves **into `runHookStaleCleanup`**, so it travels with the rule the way shape-awareness does (§5.2) rather than sitting at one call site: the sweep reads `@portal-restoring` before it loads the store and skips the cycle when set. A failed read is treated as set — the posture `portal state commit-now` already takes, and the conservative direction, since a deferred prune costs nothing. With no server running the read fails and the sweep skips, which is the behaviour the existing empty-live-set guard already produces. The read is a tmux call and sits outside the lock (§6.4), alongside the pane enumeration.
+
+`checkStaleHooks` takes the same reading, for the same window and a different reason. Its live set is a full pane list carrying no tokens, so the empty-set branch does not fire and every token-shaped key counts as stale — a read-only `portal doctor` run in that window would report every hook on the machine as lost and exit non-zero, on the command whose whole job is to tell the user whether that happened. It reads `@portal-restoring` by the sweep's rule, a failed read treated as set, and reports its existing not-evaluable result when the marker is set rather than counting.
 
 
 ### 6. `hooks.json` Concurrency
@@ -315,6 +319,8 @@ The lock file is opened `O_CREAT` and **never unlinked**. `AcquireDaemonLock`'s 
 
 The exclusive hold must span the **whole** mutation, not each file operation. `Set`, `Remove` and `CleanStale` each read, mutate and write; taking a shared lock to read and an exclusive lock to write would reopen the identical window. The exported methods acquire once and hold across their internal load and save.
 
+**A lock is acquired once per operation and never nested.** `flock` is held per open file description rather than per process, so a second acquisition from the same process is not re-entrant: it blocks against the caller's own hold and resolves only at the §6.5 bound. Two rules follow. The exported methods reach the file through unexported non-locking load and save helpers, never by calling `Load` back through the front door. And `runHookStaleCleanup` releases its advisory pre-read before it calls `CleanStale`, so a sweep never waits on itself — which would put a 2s stall on the daemon's 1s tick loop every ten seconds, the outcome the bound exists to prevent.
+
 **The stale decision is computed under the exclusive lock, never from the pre-read.** The sweep reads `hooks.json` twice: once at its call site (`runHookStaleCleanup`, to decide whether there is anything to do and to feed the empty-live-set guard) and once inside `CleanStale`. `CleanStale` receives the **live token set** and derives the delete set itself, under its own lock. Handing it a delete list computed from the call-site read would reopen the exact interleaving §6.1 diagrams — an entry written by `hook set` between the two reads would be deleted on the strength of a snapshot taken before it existed. The call-site read is therefore advisory only; nothing it computes may reach the mutation.
 
 The shared lock is an ordering courtesy rather than a correctness requirement. `AtomicWrite` replaces the file by `os.Rename` (§6.2), so a reader observes a complete snapshot whatever a concurrent writer is doing — the pre-state or the post-state, never a torn one. This is what makes the read-side degradation in §6.5 safe.
@@ -344,7 +350,7 @@ Acquisition waits, but not indefinitely. On timeout:
 - the sweep's skip is that WARN with `op=clean-stale`, `via=internal`, and the lock error in `error`;
 - `hook set` and `hook rm` emit the same WARN under their own `op` and `hook_key`, and the error is returned up through cobra, so the reason reaches the user on stderr by the route every other `hook` failure already takes. The log line and the stderr line are both present; neither stands in for the other.
 
-The degraded read is the one genuinely new emission: DEBUG, `op=load-unlocked`, `via` naming the caller, the lock error in `error`. That adds **one `op` value and no attr key** — the whole of this work unit's amendment to the closed logging vocabulary.
+The degraded read is the one genuinely new emission: DEBUG, `op=load-unlocked`, the lock error in `error`, and `via` naming the caller — `hydrate` for `LookupOnResume`, `doctor` for `checkStaleHooks`, and the existing `cli` for `hook list`. That adds **one `op` value, two `via` values and no attr key** — the whole of this work unit's amendment to the closed logging vocabulary.
 
 The same split governs the sidecar lock file failing to open or be created at all (§6.2): writes fail, reads proceed unlocked.
 
@@ -450,8 +456,8 @@ Two consequences for this work:
 | **Non-contiguous saved window indices** | Restore a session whose saved window indices are non-contiguous, with `renumber-windows off` (tmux's default, not the user's setting); assert the hook fires **and** survives the post-restore sweep. This is the H6 case — it fires correctly once today and then dies. | integration |
 | **The existence probe separates the three cases** | Driven through `tmux.ResolveHookKey` against a live server, so what is measured is Portal's own argv: a pane id no pane answers to fails; a live pane carrying no pane options at all resolves with an empty token; a stamped pane resolves to its token. This is what pins §4.1's rule that the `show-options` probe names no option — naming it makes a live unstamped pane indistinguishable from a gone one, which a fake `Commander` modelling the intended semantics cannot catch. The raw tmux facts B rests on are asserted alongside: `set-option -p -t %999 @portal-pane-id X` exits non-zero, unlike `display-message -p` against the same target, which exits 0. | unit (real-tmux) |
 | **`hook set` on an unresolvable `$TMUX_PANE`** | Exits non-zero and writes nothing to `hooks.json`. | unit |
-| **`hook rm` on an unresolvable `$TMUX_PANE`** | Exits non-zero and writes nothing, while `hook rm --pane-key <anything>` still succeeds unchanged (§4.3). | unit |
-| **`hook set` reuses an existing token** | A second registration on the same pane writes under the same key and mints nothing (§2.2). | unit (real-tmux) |
+| **`hook rm` on an unresolvable `$TMUX_PANE`** | Exits non-zero and writes nothing, while `hook rm --pane-key <a seeded key>` still removes it and exits 0 with no tmux read at all (§4.3). | unit |
+| **`hook set` reuses an existing token** | With the seam returning a token for the pane, a second registration writes under that same key and issues no `set-option` (§2.2). | unit |
 | **Reaper shape-awareness** | An old-format (non-token) key is retained by both the daemon sweep and `portal doctor --fix`; a token-shaped key whose token is absent is still deleted; the deletion names the key at INFO rather than only counting it (§5.2, §5.3). | unit |
 | **`portal doctor` exit code stays 0** | With retained old-format entries present (§5.4). | unit |
 | **No spurious mass-deletion WARN** | A server with hooks present and zero stamped panes does not emit the guard's WARN (§5.4). | unit |
@@ -459,7 +465,7 @@ Two consequences for this work:
 | **Lost update** | Interleaved writers across the `Load`→`AtomicWrite` window; no entry disappears. **The assertion must exercise the `AtomicWrite` rename specifically** — two writers will usually serialise by luck and pass against a broken lock, so the test must show exclusion holds across an inode swap, which is what a lock taken on `hooks.json` itself would fail (§6.2). A second case covers the sweep specifically: an entry registered between the sweep's call-site read and its locked mutation survives, which is what pins the delete set to the locked derivation (§6.3). | unit |
 | **Restore re-stamp failures are surfaced** | A failed pane re-stamp produces a WARN naming the session and pane, and does not abort the restore (§2.4). | unit |
 | **`armPanes` short-list stamps nothing** | With live and saved pane counts differing, the unpaired remainder carries no token (§2.4). | unit |
-| **`hook list` fourth column** | Renders the resolved location for a live token, and empty for a token that resolves to no live pane (§4.4). | unit (real-tmux) |
+| **`hook list` fourth column** | Over a fixed enumeration: renders the resolved location for a live token, and an empty fourth field for a token no row carries (§4.4). | unit |
 
 #### 9.3 Existing tests to re-point or retire
 
