@@ -22,8 +22,8 @@ Correct the lock-scope section to the ordering the concurrency section's argumen
 **Proposed Text**:
 This falls out naturally at the sweep's call site: `runHookStaleCleanup` takes its call-site snapshot first (§6.3) and the shared lock is released when that read returns, so the `ListAllPaneHookKeys` read and the guard on it (§5.4) both resolve with no lock held, and the only lock the sweep holds while calling tmux is none.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed. Self-inflicted: cycle 4's ordering fix rewrote §6.3 and left §6.4 asserting the opposite order, so a builder following §6.4 would have reopened the very race cycle 4 closed. The no-tmux-call-inside-the-lock rule survives the correction because the snapshot's shared lock is released when the read returns.
 
 ---
 
@@ -47,8 +47,8 @@ Name both inputs where the call is described. The distinction the surrounding te
 **Proposed Text**:
 `CleanStale` receives the **live token set** and the **call-site snapshot's key set**, and derives the delete set itself, under its own lock.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed. Also self-inflicted: the four-way delete-set rule I wrote in cycle 4 cannot be evaluated from the inputs the same section says `CleanStale` receives. Handing over the snapshot's key set (not a delete list) preserves the distinction the section draws.
 
 ---
 
@@ -71,8 +71,8 @@ Add to §4.2, after the paragraph ending "an exit code that says nothing about w
 
 Whether anything was removed is reported by the locked removal itself, not by a read taken before it: the store's removal answers from the file it mutated, under the exclusive hold of §6.3, and that answer alone drives the exit status. A check taken before the mutation would decide the exit status from a snapshot the mutation never saw — a concurrent sweep or another pane's `hook set` between the two would make the report wrong in either direction. This is what lets the `--pane-key` path (§4.3) carry the same rule while reading nothing of its own.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed. The exit-status rule was settled in cycle 1 and never said where the answer comes from; deciding it from a pre-read reinstates the uninformative exit code on the one command whose contract is that exit code.
 
 ---
 
@@ -95,8 +95,8 @@ Add to §5.4, at the end of the paragraph beginning "`portal doctor --fix` has n
 
 When the sweep skips for a set marker, `portal doctor --fix` names the skipped prune in its output the way §6.5 has it name a prune skipped for a lock timeout — the log line stays DEBUG, but a user who asked for a repair is told it did not run. The exit code is unaffected: it stays driven by the post-repair diagnosis, whose `checkStaleHooks` reports not evaluable in the same window.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed. The same silence the lock-timeout skip already rejects, on the path most likely to hit it — a user running `--fix` because a reboot looked wrong is running it exactly when the marker is set.
 
 ---
 
@@ -123,8 +123,8 @@ And add to §4.4, after "the token → location mapping is built once from that 
 
 The mapping is built from **non-empty** tokens only, so an unstamped pane's row cannot lend its location to an entry that names no pane.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed, both edits. The empty key had no exit route at all under the retention rule, and the display map would have lent it a real pane's location.
 
 ---
 
@@ -147,8 +147,8 @@ Add to §6.5, at the end of the paragraph beginning "The bound is **2 seconds**"
 
 The bound is a package-level value the unit lane can lower, so the §9.2 timeout cases assert which side of the split each surface falls on rather than waiting out the production figure.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed. The 2s figure is a production tuning choice, not a property any test asserts; without this a builder either burns ~10s in the unit lane or invents an unsanctioned seam.
 
 ---
 
@@ -175,8 +175,8 @@ And amend §6.5's accounting sentence to read:
 
 That adds **two `op` values** — `load-unlocked` here and `touch-save-requested` for the dirty-flag touch (§2.2) — **two `via` values, one component binding in `cmd` (§2.2) and no attr key**: the whole of this work unit's amendment to the closed logging vocabulary.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed, both edits. The touch happens in `cmd` and the store has no path to the state directory, so the component binding is real and belongs in the vocabulary accounting.
 
 ---
 
@@ -200,8 +200,8 @@ Keep the fact where it does work — the key-shape section, which uses it to pla
 **Proposed Text**:
 Minting is reached through an exported function in `internal/session`, beside the shape predicate (§3.2). `hook set` calls it and names no width of its own.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed. The shared-constants rule does its work in §3.2, where it places the predicate and justifies the absent guard; §2.1 keeps only what is its own.
 
 ---
 
@@ -225,8 +225,8 @@ Say the substance directly. The point worth keeping is that verification covers 
 **Proposed Text**:
 `portal hook rm --on-resume` run from a pane resolves the key with the same two reads as §4.1 steps 2–3, and fails non-zero on the same non-zero exit. This is literally the same guard, not an analogue of it — which is what lets removal carry it without minting anything, and it puts both halves of the CLI surface behind one rule rather than only the write side.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed. Both referents were unresolvable from within the document — a leftover from the investigation's vocabulary.
 
 ---
 
@@ -250,7 +250,7 @@ The lock lives and dies inside the read. The section already establishes that th
 **Proposed Text**:
 And a read's shared lock is released when the read returns, never handed back to its caller, so the sweep's advisory pre-read is no longer held by the time `CleanStale` takes the exclusive one and a sweep never waits on itself — which would put a 2s stall on the daemon's 1s tick loop every ten seconds, the outcome the bound exists to prevent.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed. 'Releases its pre-read' implied a caller-held lock, which would have changed every reader on the file; the lock lives and dies inside the read.
 
 ---
