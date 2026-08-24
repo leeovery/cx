@@ -300,6 +300,8 @@ Locking `hooks.json` itself would provide **no exclusion at all**. `fileutil.Ato
 
 The lock file is opened `O_CREAT` and **never unlinked**. `AcquireDaemonLock`'s inode cross-check and bounded retry ladder exist to absorb an unlink-and-recreate race; nothing here unlinks, so that machinery is deliberately not reproduced.
 
+**The directory is created before the lock is acquired.** On a clean install the directory holding `hooks.json` may not exist, and the sidecar cannot be created inside a directory that does not exist — so ordering acquisition first would make the very first `portal hook set` on a fresh machine fail permanently by the rule in §6.5. A writer therefore ensures the config directory exists, then acquires. This is not a hole in the exclusion: directory creation is idempotent and races benignly (`MkdirAll` on an existing directory succeeds), and it mutates nothing the lock protects — `hooks.json` is untouched until the lock is held.
+
 #### 6.3 Readers take a shared lock, writers exclusive
 
 `flock` shared (`LOCK_SH`) for reads, exclusive (`LOCK_EX`) for the whole read-modify-write.

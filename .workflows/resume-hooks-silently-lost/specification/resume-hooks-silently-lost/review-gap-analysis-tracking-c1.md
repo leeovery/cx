@@ -208,6 +208,7 @@ The section makes this exit status a contract rather than an incidental: it argu
 
 **Source**: Specification analysis
 **Category**: Gap/Ambiguity
+**Move**: settled
 **Priority**: Important
 **Affects**: §6.2 (A sidecar lock file), §6.5 (Acquisition is bounded)
 
@@ -219,9 +220,10 @@ On an install where the hooks file has never been written, the directory holding
 This is a first-run path with no other coverage in the spec (§9.2's lock test presumes an existing file), so the ordering needs to be stated rather than inferred.
 
 **Proposed Change**:
+§6.2 gains a paragraph: the config directory is created before the lock is acquired, with the reason the ordering is not a hole in the exclusion.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Only one ordering is viable — the other bricks first registration on a clean install — so this states the answer rather than choosing between live options. The justification is that directory creation is idempotent, races benignly, and touches nothing the lock protects; `hooks.json` stays untouched until the lock is held. Applied under `auto`.
 
 ---
 
