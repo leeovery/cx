@@ -135,7 +135,7 @@ The July invariant — *every site that produces or consumes a key derives it by
 
 - `HookKeyFormat` becomes the pane-token format `#{@portal-pane-id}`.
 - `HookKey(portalID, name, window, pane)` is **deleted**. The saved-state bake is a struct field read, not a formatting call.
-- `ResolveHookKey(paneID)` becomes a live read of the pane's token for one pane target.
+- `ResolveHookKey(paneID)` becomes the two-call live resolution of §4.1 for one pane target — an existence probe followed by a read of the pane's token.
 - `ListAllPaneHookKeys()` becomes an all-pane token enumeration returning **one entry per live pane, empty string for an unstamped pane**. Both properties are load-bearing: the stale comparison uses the non-empty subset, while the mass-deletion guard counts rows (§5.3).
 
 The name-based positional siblings — `StructuralKeyFormat`, `ResolveStructuralKey`, `ListAllPanes` — are untouched. They serve the `@portal-skeleton-*` marker and cleanup paths only (§1.3).
@@ -160,36 +160,36 @@ Two independent guards, both required:
 
 `portal hook set --on-resume "<cmd>"` refuses a `$TMUX_PANE` that names no live pane, exits non-zero, and writes nothing to `hooks.json`.
 
-This is the only change that closes the write-time moment, because tmux offers no error to detect on the read path: `display-message -p` against a bogus target exits 0 (§1.1). Under §2.2 the stamp precedes the write, and the stamp *is* the check — `set-option -p` against a bogus target exits **1**:
+This is the only change that closes the write-time moment, because tmux offers no error to detect on the read path: `display-message -p` against a bogus target exits 0 (§1.1). Verification is instead **tmux-native** — an exit status from a call that genuinely refuses a bogus target — rather than a shape heuristic on a returned string.
 
-```
-tmux -L <sock> set-option -p -t %999 @portal-pane-id X
-→ no such pane: %999   (exit 1; tmux 3.7c)
-```
+It takes two reads, because no single tmux call separates all three cases on exit status alone (tmux 3.7c):
 
-So verification is **tmux-native** rather than a shape heuristic on a returned string, and it is available on the read as well as the write. `show-options -p` separates all three cases in one read-only call (tmux 3.7c):
+| Call | pane gone | live, no token | live, stamped |
+|---|---|---|---|
+| `show-options -p -t <target>` (no option named) | exit 1 | exit 0 | exit 0 |
+| `display-message -p -t <target> '#{@portal-pane-id}'` | exit 0, empty | exit 0, empty | exit 0, `TOKEN1` |
+| `set-option -p -t <target> @portal-pane-id X` | exit 1 | exit 0 | exit 0 |
 
-| `tmux show-options -p -t <target> @portal-pane-id` | Result |
-|---|---|
-| pane does not exist | exit 1, `no such pane: %999` |
-| live pane, no token | exit 1, `invalid option: @portal-pane-id` |
-| live pane, stamped | exit 0, `@portal-pane-id TOKEN1` |
+(`tmux -L <sock> show-options -p -t %999` → `no such pane: %999`, exit 1; `tmux -L <sock> show-options -p -t %0` → exit 0 with empty output on a pane carrying no pane options at all; `tmux -L <sock> set-option -p -t %999 @portal-pane-id X` → `no such pane: %999`, exit 1.)
 
-Portal never parses that message text: a non-zero exit is the whole signal, and tmux's words are passed through to the user unaltered. The sequence is:
+**Naming the option in the `show-options` read is what collapses the discrimination:** `show-options -p -t <live pane> @portal-pane-id` exits 1 with `invalid option: @portal-pane-id`, indistinguishable on status from `no such pane`. The option name is therefore omitted — that call is asked only whether the pane exists — and the token's value comes from the `display-message` read, where a gone pane and an unstamped pane both read empty but the probe has already told them apart.
+
+Portal never parses tmux's message text: the exit status is the whole signal, and tmux's words are passed through to the user unaltered. The sequence is:
 
 1. `requireTmuxPane` — `$TMUX_PANE` must be non-empty (unchanged).
-2. Read the pane's token with `show-options -p`. A gone pane fails here, before anything is written. A live pane with a token reuses it (§2.2).
-3. A live pane with no token is minted one and stamped with `set-option -p`, which errors on a bogus target in its own right — a second, redundant guard that costs nothing.
-4. Write the entry under the token key.
-5. Touch `save.requested` (§2.2).
+2. Probe existence with `show-options -p`, no option named. A gone pane fails here, before anything is written.
+3. Read the pane's token with `display-message -p '#{@portal-pane-id}'`. A non-empty value is reused (§2.2); empty means a live pane that has never been stamped.
+4. An unstamped pane is minted a token and stamped with `set-option -p`, which errors on a bogus target in its own right — a second, redundant guard that costs nothing.
+5. Write the entry under the token key.
+6. Touch `save.requested` (§2.2).
 
-Steps 3 and 4 must not be reordered: a write that precedes the stamp would persist an entry keyed to a token no pane carries.
+Steps 4 and 5 must not be reordered: a write that precedes the stamp would persist an entry keyed to a token no pane carries.
 
 #### 4.2 Removal verifies the same way — on the `$TMUX_PANE` path only
 
-`portal hook rm --on-resume` run from a pane resolves the key with the same `show-options -p` read as §4.1 step 2, and fails non-zero on the same non-zero exit. This is literally the same guard, not an analogue of it — which is what lets removal carry it without minting anything. It covers the half of the CLI surface the blast radius named and the original framing of B did not.
+`portal hook rm --on-resume` run from a pane resolves the key with the same two reads as §4.1 steps 2–3, and fails non-zero on the same non-zero exit. This is literally the same guard, not an analogue of it — which is what lets removal carry it without minting anything. It covers the half of the CLI surface the blast radius named and the original framing of B did not.
 
-Removal does **not** mint. A pane with no token has no entry to remove; `hook rm` reports that and exits non-zero rather than silently succeeding, which is the same silent-success shape as the `:.` bug on the write side.
+Removal does **not** mint. A pane with no token has no entry to remove; `hook rm` reports that — in Portal's own words, since the existence probe has already separated it from a gone pane — and exits non-zero rather than silently succeeding, which is the same silent-success shape as the `:.` bug on the write side.
 
 **This failure fires routinely, and that is expected.** Deregistration against an already-closed pane is the ordinary case, not an error case: 61 of the 63 `:.` lines in a month of `portal.log` were `op=rm`, near-daily, every one a Claude Code SessionEnd — and SessionEnd commonly fires *because* the pane was closed, so tmux has reclaimed the pane id before the hook runs. Today that sequence exits 0, removes nothing that matters, and the real entry is absorbed by the sweep once the pane is genuinely gone; the end state is benign, which is why it went unnoticed. After this change the same sequence exits non-zero every time.
 
@@ -417,7 +417,7 @@ Two consequences for this work:
 |---|---|---|
 | **A pane that moves keeps its hook** | Register a hook; `break-pane` it out, close an earlier window under `renumber-windows on`, `move-pane` it back, `move-pane` it to another session; the hook still resolves after each. | unit (real-tmux) |
 | **Non-contiguous saved window indices** | Restore a session whose saved window indices are non-contiguous, with `renumber-windows off` (tmux's default, not the user's setting); assert the hook fires **and** survives the post-restore sweep. This is the H6 case — it fires correctly once today and then dies. | integration |
-| **`set-option -p` rejects a bogus pane** | `set-option -p -t %999 @portal-pane-id X` exits non-zero, unlike `display-message -p` against the same target, which exits 0. The behaviour B is built on. | unit (real-tmux) |
+| **The existence probe separates the three cases** | `show-options -p -t %999` (no option named) exits non-zero while `show-options -p -t <live pane>` exits 0 on a pane carrying no pane options; `set-option -p -t %999 @portal-pane-id X` likewise exits non-zero, unlike `display-message -p` against the same target, which exits 0. The behaviours B is built on (§4.1). | unit (real-tmux) |
 | **`hook set` on an unresolvable `$TMUX_PANE`** | Exits non-zero and writes nothing to `hooks.json`. | unit |
 | **`hook rm` on an unresolvable `$TMUX_PANE`** | Exits non-zero and writes nothing, while `hook rm --pane-key <anything>` still succeeds unchanged (§4.3). | unit |
 | **`hook set` reuses an existing token** | A second registration on the same pane writes under the same key and mints nothing (§2.2). | unit (real-tmux) |

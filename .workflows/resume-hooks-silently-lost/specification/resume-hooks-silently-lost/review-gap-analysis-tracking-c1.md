@@ -6,6 +6,7 @@
 
 **Source**: Specification analysis
 **Category**: Gap/Ambiguity
+**Move**: choice
 **Priority**: Critical
 **Affects**: §4.1 (Registration verifies the pane exists), §4.2 (Removal verifies the same way), §3.3 (`ResolveHookKey`)
 
@@ -24,9 +25,10 @@ Two of the three cases exit 1, and the sequence requires them to diverge: step 2
 An implementer has to invent the discriminator: parse tmux's stderr (which §4.1 forbids), add a separate existence probe (e.g. a `list-panes` membership test), or reorder so that `set-option -p` is the only gate. Each gives different behaviour and different user-visible messages, and §4.2 inherits the same read — `hook rm` on a live pane with no token is supposed to "report that", which the "no such pane" wording would misdescribe.
 
 **Proposed Change**:
+Split existence from value. `show-options -p -t <target>` with no option named is the existence gate; `display-message -p '#{@portal-pane-id}'` reads the token.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Option 1 chosen. Measured on tmux 3.7c in an isolated `-L` socket: `show-options -p -t %999` → exit 1 `no such pane`; `show-options -p -t %0` (no option named, pane carrying no pane options) → exit 0, empty; `show-options -p -t %0 @portal-pane-id` → exit 1 `invalid option` (the collapse); `display-message -p -t %999 '#{@portal-pane-id}'` → exit 0, empty. §4.1's three-case table replaced by the measured call/case matrix plus the note on why the option name is omitted; sequence renumbered to six steps with the ordering rule now on steps 4–5. §4.2 re-pointed at "steps 2–3" and its no-token report stated as Portal's own wording. §3.3's `ResolveHookKey` row describes the pair. §9.2's `set-option -p` test row widened to cover the probe, which is now the primary gate.
 
 ---
 
