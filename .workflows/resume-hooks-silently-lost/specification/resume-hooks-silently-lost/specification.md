@@ -306,6 +306,8 @@ The lock file is opened `O_CREAT` and **never unlinked**. `AcquireDaemonLock`'s 
 
 The exclusive hold must span the **whole** mutation, not each file operation. `Set`, `Remove` and `CleanStale` each read, mutate and write; taking a shared lock to read and an exclusive lock to write would reopen the identical window. The exported methods acquire once and hold across their internal load and save.
 
+**The stale decision is computed under the exclusive lock, never from the pre-read.** The sweep reads `hooks.json` twice: once at its call site (`runHookStaleCleanup`, to decide whether there is anything to do and to feed the empty-live-set guard) and once inside `CleanStale`. `CleanStale` receives the **live token set** and derives the delete set itself, under its own lock. Handing it a delete list computed from the call-site read would reopen the exact interleaving §6.1 diagrams — an entry written by `hook set` between the two reads would be deleted on the strength of a snapshot taken before it existed. The call-site read is therefore advisory only; nothing it computes may reach the mutation.
+
 The shared lock is an ordering courtesy rather than a correctness requirement. `AtomicWrite` replaces the file by `os.Rename` (§6.2), so a reader observes a complete snapshot whatever a concurrent writer is doing — the pre-state or the post-state, never a torn one. This is what makes the read-side degradation in §6.5 safe.
 
 #### 6.4 The locked region covers the file only
@@ -442,7 +444,7 @@ Two consequences for this work:
 | **`portal doctor` exit code stays 0** | With retained old-format entries present (§5.4). | unit |
 | **No spurious mass-deletion WARN** | A server with hooks present and zero stamped panes does not emit the guard's WARN (§5.4). | unit |
 | **An empty key fires on nothing** | A `""` entry in `hooks.json` fires on no restored pane; `collectArmInfos` bakes no empty key (§3.4). | unit |
-| **Lost update** | Interleaved writers across the `Load`→`AtomicWrite` window; no entry disappears. **The assertion must exercise the `AtomicWrite` rename specifically** — two writers will usually serialise by luck and pass against a broken lock, so the test must show exclusion holds across an inode swap, which is what a lock taken on `hooks.json` itself would fail (§6.2). | unit |
+| **Lost update** | Interleaved writers across the `Load`→`AtomicWrite` window; no entry disappears. **The assertion must exercise the `AtomicWrite` rename specifically** — two writers will usually serialise by luck and pass against a broken lock, so the test must show exclusion holds across an inode swap, which is what a lock taken on `hooks.json` itself would fail (§6.2). A second case covers the sweep specifically: an entry registered between the sweep's call-site read and its locked mutation survives, which is what pins the delete set to the locked derivation (§6.3). | unit |
 | **Restore re-stamp failures are surfaced** | A failed pane re-stamp produces a WARN naming the session and pane, and does not abort the restore (§2.4). | unit |
 | **`armPanes` short-list stamps nothing** | With live and saved pane counts differing, the unpaired remainder carries no token (§2.4). | unit |
 | **`hook list` fourth column** | Renders the resolved location for a live token, and empty for a token that resolves to no live pane (§4.4). | unit (real-tmux) |

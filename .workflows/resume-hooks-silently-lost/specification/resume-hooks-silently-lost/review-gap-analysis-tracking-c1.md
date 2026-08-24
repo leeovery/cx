@@ -166,6 +166,7 @@ Sweep skip and CLI failure reuse the component's existing failed-operation WARN 
 
 **Source**: Specification analysis
 **Category**: Gap/Ambiguity
+**Move**: settled
 **Priority**: Important
 **Affects**: §5.1 (What the reaper does now), §6.3 (Readers take a shared lock, writers exclusive)
 
@@ -175,9 +176,10 @@ Sweep skip and CLI failure reuse the component's existing failed-operation WARN 
 The spec does not say which read the deletion decision is computed from. If `runHookStaleCleanup` derives the delete set from the pre-read and hands that list to `CleanStale`, the read-modify-write window §6.1 exists to close is reopened at exactly the interleaving §6.1 diagrams — an entry written by `hook set` between the pre-read and the exclusive load is deleted on the strength of a stale snapshot. If instead `CleanStale` receives the live token set and re-derives the delete set under its own lock, the window closes. The two shapes are indistinguishable from the text, and the §9.2 lost-update test as described exercises interleaved *writers*, so it would not catch the wrong one.
 
 **Proposed Change**:
+§6.3 gains a paragraph pinning the delete set to `CleanStale`'s own locked derivation from the live token set; the call-site read is advisory only. §9.2's lost-update row gains the matching case.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Only one shape is defensible — the other reopens the window D exists to close, which is the whole justification for the lock. The current code already has the right shape (`cmd/run_hook_stale_cleanup.go` loads for the guard, then calls `store.CleanStale(livePanes)` passing the live set, not a delete list), so this pins an existing property rather than changing behaviour — which is exactly why it needed stating: nothing in the spec stopped an implementer regressing it. Test row extended because the finding correctly notes the described lost-update test exercises interleaved writers and would not catch the wrong derivation. Applied under `auto`.
 
 ---
 
