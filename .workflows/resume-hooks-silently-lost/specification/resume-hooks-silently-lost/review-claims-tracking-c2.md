@@ -139,8 +139,8 @@ func oneSession() (sessionsOut, panesOut string) {
 - **`internal/restore/rename_reboot_shared_test.go`** — the `renamePortalID` scaffolding (`:16`) shared by the two re-pointed rename-reboot tests; amended with them.
 - **`cmd/state_daemon_run_test.go`** — its `oneSession()` fixture (`:207-212`) fabricates a `captureFormat` pane row whose trailing column is the `@portal-id` field §2.3 swaps for `@portal-pane-id`; the field count is unchanged at 11, the column's meaning is not.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed. The compile break in the `restore` integration lane is the load-bearing part — nothing in the section warned of it. Applied under `auto`.
 
 ---
 
@@ -166,8 +166,8 @@ $ grep -n 'TickerPeriod:\|hookCleanupInterval =' cmd/state_daemon.go
 
 Carried from the source: `investigation/resume-hooks-silently-lost.md:749` — "unbounded `LOCK_EX` would park the daemon's 10s tick loop behind it — the regression risk D…".
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Routed
+**Notes**: Source defect, routed per resolve-source-incoherence. Re-measured: `cmd/state_daemon.go:424` `TickerPeriod: 1 * time.Second`, `:105` `hookCleanupInterval = 10 * time.Second`. The corrected value strengthens the decision it supports rather than undermining it — what stalls behind a held lock is the 1s capture cycle, not a background prune — so it landed without a gate. Correction written into `investigation/resume-hooks-silently-lost.md:749`, reindexed, committed as `6c9002ea`; the specification's §6.5 sentence re-aligned to it.
 
 ---
 
@@ -215,7 +215,7 @@ That is the shape and the exact attr set of the neighbouring `set skeleton marke
 **Proposed Text**:
 That is the shape and the exact attr set of restore's own `set skeleton marker failed` emission (`internal/restore/session.go:274`), so **no new component and no new attr key** is introduced.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed. The locator was introduced by this session's own finding-6 edit in cycle 1 and was wrong: `set skeleton marker failed` fires from `ApplySkeletonMarkers` (`internal/restore/session.go:247-254`), a later phase iterating every live pane, not from `armPanes`' `pairCount`-bounded loop. The attr-set precedent it was cited for holds; only the locator is dropped. Applied under `auto`.
 
 ---
