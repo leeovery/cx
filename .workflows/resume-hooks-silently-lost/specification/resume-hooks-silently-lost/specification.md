@@ -249,7 +249,7 @@ Three consequences follow from putting the protection on shape rather than on a 
 
 #### 5.3 The reaper names what it deleted
 
-Each removed key is logged at **INFO** under the `hooks` component, not only at DEBUG.
+Each removed key is logged at **INFO** under the `hooks` component. The existing per-key DEBUG line is **promoted, not duplicated** — one line per removed key, at INFO. Keeping both would put two lines per key in the log at exactly the level an operator raises to when investigating a loss, and the DEBUG line carries nothing the INFO line does not.
 
 Today the per-key line is `logger.Debug("clean-stale", "op", "clean-stale", "hook_key", key, "via", "internal")` (`internal/hooks/store.go:220`) and production INFO gets only the batch summary `hooks: clean-stale op=clean-stale entries=N` from `storelog.EmitCleanStaleSummary`. At the production default level the log therefore cannot answer "what did I lose?" after the fact — which is why the two named instances in the investigation had to be reconstructed by correlating a registration breadcrumb against a bare count.
 

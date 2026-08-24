@@ -254,6 +254,7 @@ The script itself is out of scope (§8.2), but the property that makes it safe i
 
 **Source**: Specification analysis
 **Category**: Gap/Ambiguity
+**Move**: settled
 **Priority**: Minor
 **Affects**: §5.3 (The reaper names what it deleted)
 
@@ -263,9 +264,10 @@ The script itself is out of scope (§8.2), but the property that makes it safe i
 The choice is visible in `portal.log` at DEBUG, which is the level an operator raises to precisely when investigating a loss, so duplicate per-key lines are worth deciding rather than discovering.
 
 **Proposed Change**:
+Promoted, not duplicated — one line per removed key, at INFO. The existing DEBUG line goes.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: The DEBUG line (`internal/hooks/store.go:220`) carries `op` / `hook_key` / `via` and nothing the INFO line would not, so retaining it buys duplicate lines at the one level where the reader is already hunting. Applied under `auto`.
 
 ---
 
