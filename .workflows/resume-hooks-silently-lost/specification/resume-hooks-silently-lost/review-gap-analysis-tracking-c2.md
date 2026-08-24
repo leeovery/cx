@@ -22,8 +22,8 @@ Correct §1.2 to the attribution §3.1 and §4.1 already agree on: A closes life
 **Proposed Text**:
 > A is the repair for the two moments a positional key creates — lifetime drift and the reboot boundary. B closes the write-time moment, which no key format can close (§4.1). C and D close the path that made the loss silent and the path that can lose an entry independently of the key format.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed. Attribution now matches what §3.1 and §4.1 already agree on.
 
 ---
 
@@ -55,8 +55,8 @@ Correct §1.2 to the attribution §3.1 and §4.1 already agree on: A closes life
 §9.2, replacing the row above:
 > | **`hook rm` on an unresolvable `$TMUX_PANE`** | Exits non-zero and writes nothing, while `hook rm --pane-key <a seeded key>` still removes it and exits 0 with no tmux read at all (§4.3). | unit |
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed, both edits. `--pane-key` waives validation of the key, not the exit-status guarantee settled in cycle 1.
 
 ---
 
@@ -82,8 +82,8 @@ Symmetry with §3.2: minting is reached through an exported function in `interna
 >
 > Minting is reached through an exported function in `internal/session`, beside the shape predicate (§3.2) and reading the same `suffixLen` and `NanoIDAlphabet` directly. `hook set` calls it and names no width of its own: generation and recognition are derived from one pair of constants, so they move together or not at all.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed. Symmetric with the §3.2 predicate rule settled in cycle 1 — the gap was leaving the generator side open while closing the recogniser side.
 
 ---
 
@@ -109,8 +109,8 @@ State the non-nesting rule where the acquisition rules are: exported methods rea
 >
 > **A lock is acquired once per operation and never nested.** `flock` is held per open file description rather than per process, so a second acquisition from the same process is not re-entrant: it blocks against the caller's own hold and resolves only at the §6.5 bound. Two rules follow. The exported methods reach the file through unexported non-locking load and save helpers, never by calling `Load` back through the front door. And `runHookStaleCleanup` releases its advisory pre-read before it calls `CleanStale`, so a sweep never waits on itself — which would put a 2s stall on the daemon's 1s tick loop every ten seconds, the outcome the bound exists to prevent.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed. `flock` per-open-file-description semantics confirmed; the failure mode is a latency regression on the capture loop rather than a test failure, which is why it needed stating.
 
 ---
 
@@ -136,8 +136,8 @@ Give `checkStaleHooks` the same `@portal-restoring` reading as the sweep, resolv
 >
 > `checkStaleHooks` takes the same reading, for the same window and a different reason. Its live set is a full pane list carrying no tokens, so the empty-set branch does not fire and every token-shaped key counts as stale — a read-only `portal doctor` run in that window would report every hook on the machine as lost and exit non-zero, on the command whose whole job is to tell the user whether that happened. It reads `@portal-restoring` by the sweep's rule, a failed read treated as set, and reports its existing not-evaluable result when the marker is set rather than counting.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed. This closes a hole opened by cycle 1's own finding 2, which suppressed the sweep for the restore window and left the read-only check in it.
 
 ---
 
@@ -161,8 +161,8 @@ The column is always emitted; an unresolved token renders as an empty fourth fie
 **Proposed Text**:
 > Resolution is one `list-panes -a` read over the §3.3 enumeration, whose rows already carry the token alongside its location; the token → location mapping is built once from that read and reused across all rows. A token that resolves to no live pane renders the column **empty** rather than failing the command — including the case where no tmux server is running at all, which `hook` is bootstrap-exempt from starting. An old-format key likewise renders empty, since no live pane can answer to one. The column is always emitted: an empty value is an empty fourth field, never a dropped one, so every line carries the same three separators whatever resolution produced.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed. The constant field count is what the appended-column guarantee actually rests on.
 
 ---
 
@@ -186,8 +186,8 @@ Drop the count and keep the claim it was protecting — that the reaper is not c
 **Proposed Text**:
 > **Whether the reaper deletes is not changed** — it is not converted to full retention. What changes is what it can identify (§5.2), what it records (§5.3), when it declines to run at all (§5.4), and how it takes the file it mutates (§6).
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed. The count was accurate when written and was overtaken by cycle 1's restore-window skip and the §6 lock.
 
 ---
 
@@ -211,8 +211,8 @@ A failed stamp ends the command before the write, on the same terms as a failed 
 **Proposed Text**:
 > Steps 4 and 5 must not be reordered, and step 4 failing ends the command: a write that precedes the stamp, or follows one that failed, persists an entry keyed to a token no pane carries. A failed stamp exits non-zero with tmux's words and writes nothing, the same shape as a failed probe at step 2.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed. Completes the pair with the mirror failure (stamp succeeds, write fails) settled in cycle 1.
 
 ---
 
@@ -236,8 +236,8 @@ Name the three values and count them into the amendment.
 **Proposed Text**:
 > The degraded read is the one genuinely new emission: DEBUG, `op=load-unlocked`, the lock error in `error`, and `via` naming the caller — `hydrate` for `LookupOnResume`, `doctor` for `checkStaleHooks`, and the existing `cli` for `hook list`. That adds **one `op` value, two `via` values and no attr key** — the whole of this work unit's amendment to the closed logging vocabulary.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed. Verified against the tree: existing `via` values are `cli`, `internal` and `migrate` (`internal/hooks/store.go`, `cmd/hooks.go:111,153`, `cmd/config.go`), so `hydrate` and `doctor` are genuinely two new values and the amendment count was understated.
 
 ---
 
@@ -265,8 +265,8 @@ Both behaviours are `cmd`-level decisions over data a seam supplies — the toke
 >
 > | **`hook list` fourth column** | Over a fixed enumeration: renders the resolved location for a live token, and an empty fourth field for a token no row carries (§4.4). | unit |
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed. Both behaviours are `cmd`-level decisions over seam-supplied data; the raw tmux facts stay pinned by the existence-probe row.
 
 ---
 
@@ -290,8 +290,8 @@ Complete the enumeration so every writing and reading site is covered by the com
 **Proposed Text**:
 > Every site that needs the literal composes it from that constant: `captureFormat` in the same package, `HookKeyFormat` and the all-pane enumeration format in `internal/tmux` (which already imports `internal/state`), the re-stamp in `internal/restore`, and the probe, read and stamp in `cmd` (which imports both).
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed. The enumeration is what carries the one-copy claim the retired guards rested on, so an incomplete list undoes the argument.
 
 ---
 
@@ -315,8 +315,8 @@ Point at §1.1 and keep only what §5.2 adds — that the token key is what make
 **Proposed Text**:
 > The justification is that A removes the reaper's false positives: the indistinguishability §1.1 names is what had it acting correctly on false information.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed.
 
 ---
 
@@ -340,5 +340,5 @@ Keep the pointer, drop the second copy of the list and its rationale.
 **Proposed Text**:
 > The name-based positional siblings are untouched (§1.3).
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed.
