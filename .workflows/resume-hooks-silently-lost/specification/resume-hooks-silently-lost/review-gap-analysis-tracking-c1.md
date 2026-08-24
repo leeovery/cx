@@ -187,6 +187,7 @@ The spec does not say which read the deletion decision is computed from. If `run
 
 **Source**: Specification analysis
 **Category**: Gap/Ambiguity
+**Move**: choice
 **Priority**: Important
 **Affects**: §4.2 (Removal verifies the same way)
 
@@ -196,9 +197,10 @@ The spec does not say which read the deletion decision is computed from. If `run
 The section makes this exit status a contract rather than an incidental: it argues that "a caller can no longer read `rc == 0` as proof anything happened" and warns the external integration (§8.4) that non-zero becomes routine. An implementer choosing exit 0 (nothing to do) versus non-zero (nothing removed) changes what that caller must tolerate, and §9.2's `hook rm` test asserts only the unresolvable-`$TMUX_PANE` case, so either choice passes.
 
 **Proposed Change**:
+`hook rm` exits 0 iff it removed an entry. The third case — live stamped pane, no matching entry — is non-zero with its own message.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Option 1 chosen. §4.2 gains the rule as a single stated invariant covering all three ways of removing nothing, with the idempotent reading named and rejected on the grounds that it reinstates the uninformative exit code this work unit exists to remove.
 
 ---
 
