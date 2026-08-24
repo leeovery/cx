@@ -145,6 +145,7 @@ Message `set pane token failed` under the `restore` component, attrs `session` /
 
 **Source**: Specification analysis
 **Category**: Gap/Ambiguity
+**Move**: settled
 **Priority**: Important
 **Affects**: §6.5 (Acquisition is bounded, and a timeout degrades rather than wedges)
 
@@ -154,9 +155,10 @@ Message `set pane token failed` under the `restore` component, attrs `session` /
 "Exit non-zero with the reason" is also unspecified as to surface: whether the reason reaches the user on stderr, and whether it also produces a log line. §4.2 makes `hook rm`'s exit status a contract an external caller reads, so the difference between a silent non-zero and a reasoned one is load-bearing for the integration described in §8.4.
 
 **Proposed Change**:
+Sweep skip and CLI failure reuse the component's existing failed-operation WARN shape; the degraded read adds one `op` value, `load-unlocked`, and no attr key. CLI reason goes to stderr via cobra *and* the log.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Measured the `hooks` component's actual vocabulary (`internal/hooks/store.go:73,93,103,144,220` plus `internal/storelog`): messages are op names, attrs are `op` / `hook_key` / `value` / `via` / `entries` / `took` / `error` / `error_class`. A lock timeout is an operation failing, which the existing `logger.Warn(<op>, "op", <op>, …, "error", err)` shape already expresses — so only the read-side degradation needs anything, and `Store.Load` currently emits nothing at all. Amendment scoped explicitly to one op value so the closed-vocabulary rule is satisfied rather than bypassed at the call site. Applied under `auto`.
 
 ---
 

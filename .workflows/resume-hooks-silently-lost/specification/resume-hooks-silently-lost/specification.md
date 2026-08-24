@@ -328,6 +328,13 @@ Acquisition waits, but not indefinitely. On timeout:
 - `LookupOnResume` — the hydrate helper, one call per restored pane, under the 40-helper burst that motivated the shared lock in the first place. A pane that came back and then hydrated to a bare shell because a lock file was busy would be this work unit reintroducing its own symptom;
 - `checkStaleHooks` and `hook list` — read-only diagnosis and display; a lock problem must not make `portal doctor` report a hook problem.
 
+**What each of those emits.** Two of the three need nothing new from the `hooks` component's vocabulary, because a lock timeout is an operation failing and the component already has a shape for that (`internal/hooks/store.go:73,103,144` — `logger.Warn(<op>, "op", <op>, …, "via", via, "error", err)`):
+
+- the sweep's skip is that WARN with `op=clean-stale`, `via=internal`, and the lock error in `error`;
+- `hook set` and `hook rm` emit the same WARN under their own `op` and `hook_key`, and the error is returned up through cobra, so the reason reaches the user on stderr by the route every other `hook` failure already takes. The log line and the stderr line are both present; neither stands in for the other.
+
+The degraded read is the one genuinely new emission: DEBUG, `op=load-unlocked`, `via` naming the caller, the lock error in `error`. That adds **one `op` value and no attr key** — the whole of this work unit's amendment to the closed logging vocabulary.
+
 The same split governs the sidecar lock file failing to open or be created at all (§6.2): writes fail, reads proceed unlocked.
 
 An unbounded `LOCK_EX` is simpler, and `flock` being kernel-released on process death rules out a *leaked* lock. It does not rule out a *held* one: a holder suspended by a signal or stuck on a hung filesystem keeps the lock for as long as it lives, and an unbounded acquire would park the daemon's 10s tick loop behind it — the blocking path the investigation named as the single riskiest part of this work unit. The project has had a wedged daemon before (the midnight day-roll deadlock), which is the concrete reason simplicity does not win here.
