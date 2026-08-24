@@ -261,6 +261,12 @@ The guard's question is *"did the tmux read succeed?"*, which the **pane row cou
 
 `checkStaleHooks` is amended in step: its stale count is taken over token-shaped keys only, so retained old-format entries never push a healthy install to a non-zero exit code.
 
+**The sweep is suppressed for the duration of a restore.** The interval between skeleton construction and the §2.3 re-stamp is one in which live panes carry no token, and the row-counting guard above is silent through it by design. A sweep landing there would see a full pane list, no tokens, and delete every token-keyed entry on the machine. This gap is created by the token key — a positional key resolved the moment a pane existed.
+
+The daemon is already immune: `tick` reads `@portal-restoring` and returns before reaching `maybeRunHookCleanup` (`cmd/state_daemon.go`), so the whole idle branch is suppressed for the marker's lifetime — set at bootstrap step 3, cleared at step 8, bracketing restore at step 6. That early return protected only the capture path before this change; it is now load-bearing for hook retention and must not be relaxed or reordered.
+
+`portal doctor --fix` has no such gate, and it is the command a user reaches for when a reboot looks wrong. The check therefore moves **into `runHookStaleCleanup`**, so it travels with the rule the way shape-awareness does (§5.2) rather than sitting at one call site: the sweep reads `@portal-restoring` before it loads the store and skips the cycle when set. A failed read is treated as set — the posture `portal state commit-now` already takes, and the conservative direction, since a deferred prune costs nothing. With no server running the read fails and the sweep skips, which is the behaviour the existing empty-live-set guard already produces. The read is a tmux call and sits outside the lock (§6.4), alongside the pane enumeration.
+
 
 ### 6. `hooks.json` Concurrency
 

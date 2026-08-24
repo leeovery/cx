@@ -36,6 +36,7 @@ Split existence from value. `show-options -p -t <target>` with no option named i
 
 **Source**: Specification analysis
 **Category**: Gap/Ambiguity
+**Move**: settled
 **Priority**: Critical
 **Affects**: §2.3 (Restore re-stamp), §5.2 (Deletion becomes shape-aware), §5.4 (The mass-deletion guard)
 
@@ -47,9 +48,10 @@ The spec does not say whether the sweep is suppressed for the duration of the re
 This is a new hazard created by the change rather than an existing one: a positional key resolved the moment a pane existed, so the old scheme had no equivalent gap between "pane exists" and "pane is identifiable". Without a stated rule an implementer will either add suppression on their own judgement or ship the race.
 
 **Proposed Change**:
+Three paragraphs appended to §5.4 naming the restore-window gap, the daemon's existing immunity as load-bearing, and the move of the `@portal-restoring` check into `runHookStaleCleanup`.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Tree measurement changed the answer: `tick` already reads `@portal-restoring` and returns before `maybeRunHookCleanup` (`cmd/state_daemon.go:174-181`), so the daemon path was never exposed — but that early return previously protected only capture, and the spec must now name it load-bearing. `portal doctor --fix` (`cmd/doctor.go` `pruneDoctorStaleHooks`) had no gate, so the check moves into `runHookStaleCleanup`, travelling with the rule the way §5.2's shape-awareness does. Failed read presumes set, matching `cmd/state_commit_now.go:111`. Applied under `auto`.
 
 ---
 
