@@ -89,7 +89,7 @@ Insert the following bullet immediately after the "seeded keys in the destructiv
 
 > - **The `cmd`-side enumeration seam and its three fakes** — `AllPaneLister` (`cmd/run_hook_stale_cleanup.go:13`) mirrors `ListAllPaneHookKeys`, so its method signature and its doc comment (which names the `<@portal-id or session_name>:window.pane` form) move to the two-field rows of §3.3 with it. Three unit-lane files in `cmd` implement or drive that seam and do not compile until they do: `cmd/bootstrap_production_test.go:91` (`stubAllPaneLister`), `cmd/doctor_test.go:802` (`fakeHookLister`), and `cmd/run_hook_stale_cleanup_test.go:19` (`recordingHookKeyLister`, whose `:261-273` subtest asserts the sweep enumerates through this method). The first two also carry old-format key literals — `a:0.0` / `b:0.0` (`cmd/run_hook_stale_cleanup_test.go:35-36,98,140,158-161`) and `sessA:0.0` / `sessB:0.0` (`cmd/doctor_test.go:854,861,903,946`) — re-pointed at tokens alongside the seam, and `cmd/run_hook_stale_cleanup_test.go` additionally covers the row-counting guard of §5.4.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed. Same class as the cycle-2 finding about the restore integration lane — a compile break on a package the enumeration's shape change reaches through a `cmd`-local seam the spec never named. The `AllPaneLister` doc comment still describes the old key form, so it moves with the signature. Applied under `auto`.
 
 ---
