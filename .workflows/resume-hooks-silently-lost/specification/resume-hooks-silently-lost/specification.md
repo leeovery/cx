@@ -380,7 +380,7 @@ The deciding argument is the supersession, not the dead weight. Retaining it wou
 
 | Site | What goes |
 |---|---|
-| `internal/session/create.go` | `PortalIDOption` const; the `SetSessionOption` stamp in `CreateSession` |
+| `internal/session/create.go` | `PortalIDOption` const; the `SetSessionOption` stamp in `(*SessionCreator).CreateFromDir` (`:92`) |
 | `internal/session/quickstart.go` | the `set-option -t <name> @portal-id <token>` link in the chained `ExecArgs` |
 | `internal/state/capture.go` | the `#{@portal-id}` `captureFormat` column (replaced per §2.3) and the session-scoped lift into `Session.PortalID` |
 | `internal/state/schema.go` | `Session.PortalID` |

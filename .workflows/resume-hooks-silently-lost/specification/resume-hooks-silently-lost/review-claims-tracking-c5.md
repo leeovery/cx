@@ -50,5 +50,5 @@ Not present in the source material — `grep -n 'CreateSession\|CreateFromDir' .
 | `internal/session/create.go` | `PortalIDOption` const; the `SetSessionOption` stamp in `CreateFromDir` |
 ```
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Confirmed independently: `grep -n 'CreateSession' ` over the tree returns nothing, and `internal/session/create.go:75` declares `(*SessionCreator).CreateFromDir`, with the stamp at `:92`. Spec-only invention, so corrected in place with the line reference added. Applied under `auto`.
