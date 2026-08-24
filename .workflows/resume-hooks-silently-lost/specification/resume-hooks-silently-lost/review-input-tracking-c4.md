@@ -32,5 +32,5 @@ Three alternatives were rejected:
 - **An adoption rule inside the sweep** — re-keying an entry whose positional key resolves to exactly one live pane onto that pane's token, riding the enumeration the sweep already performs so the conversion needs no script. Rejected: once every key is a token the branch can never fire again, so it is dead code presented as general behaviour. It also cannot make the call §8.3 requires — dropping a superseded old-format entry rather than re-keying it over the newer one — because the sweep has no way to tell the two apart.
 ```
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed. This is the most reachable alternative of the three — the sweep already enumerates every live pane with its token, so an adoption rule looks free — and it was the only one the spec left unclosed. The cycle-3 supersession rule gives it a second, sharper reason to stay rejected: the sweep cannot tell a superseded old-format entry from one that should be re-keyed. Applied under `auto`.

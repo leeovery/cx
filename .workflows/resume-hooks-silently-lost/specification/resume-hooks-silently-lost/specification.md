@@ -408,10 +408,11 @@ Existing `hooks.json` entries are keyed `<@portal-id or session_name>:<window>.<
 
 Portal has one install and no evidence of any other, and every entry on that install resolves: `hooks.json` held 42 entries on 2026-08-22 and each one matched a live pane key. The conversion (§8.2) is therefore a complete transformation of the file rather than a partial one — no entry names a pane that is already gone and so could not be re-keyed. The user's call is that a second install, if one exists, is not worth carrying compatibility code for.
 
-Two alternatives were rejected:
+Three alternatives were rejected:
 
 - **Using `CleanStale` as the migration** — the precedent from spec `resume-hooks-lost-on-server-restart` (2026-04-30), which accepted a breaking key change and let the sweep absorb the old entries. Repeating it here would silently destroy every existing hook on the first sweep after upgrade.
 - **A one-release migration, isolated and deleted in the next release** — ships code whose whole purpose is to become obsolete, and leaves a removal the user has to remember.
+- **An adoption rule inside the sweep** — re-keying an entry whose positional key resolves to exactly one live pane onto that pane's token, riding the enumeration the sweep already performs so the conversion needs no script. Rejected: once every key is a token the branch can never fire again, so it is dead code presented as general behaviour. It also cannot make the call §8.3 requires — dropping a superseded old-format entry rather than re-keying it over the newer one — because the sweep has no way to tell the two apart.
 
 #### 8.2 The conversion is a throwaway script, outside this work unit
 
