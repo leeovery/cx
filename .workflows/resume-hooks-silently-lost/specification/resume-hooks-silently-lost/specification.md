@@ -414,6 +414,8 @@ The re-key is a one-time transformation of one file on one machine: resolve each
 
 The one thing not covered by code is ordering: an entry registered *between* the upgrade and the script's run is already token-keyed and needs no conversion, while one registered before it is old-format and does. Running the script after upgrading is the mitigation, not a code path.
 
+**Conversion moves an entry out of the protected class before its token is durable.** An unconverted entry is retained forever because it is not token-shaped; the moment the script re-keys it, it becomes reapable. Between that re-key and the daemon's next capture, the token exists only as a tmux pane option — so a server death in that window leaves restore with no saved token for the pane, no live pane answering to the key, and the reaper deleting the entry under the ordinary rule. The window is the same one `hook set` narrows by touching `save.requested` (§2.2), and the same mitigation is available to the script: touch it after the last conversion, or simply run `portal state commit-now`. The residual is identical in kind to the one §2.2 accepts, and the same acceptance applies — but it belongs stated here, because §8.3's safety argument otherwise reads as covering entries it does not.
+
 #### 8.4 The user's own integration
 
 `~/.claude/hooks/portal-resume-hook.sh` re-implements `HookKeyFormat` verbatim (`:87-95`) and matches it against `portal hook list` output. It needs updating in step with this change. It is out of scope (§1.3) and named here only because the conversion script and the hook script are the same person's job on the same day.

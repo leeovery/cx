@@ -231,6 +231,7 @@ This is a first-run path with no other coverage in the spec (§9.2's lock test p
 
 **Source**: Specification analysis
 **Category**: Gap/Ambiguity
+**Move**: settled
 **Priority**: Important
 **Affects**: §8.3 (What makes that safe rather than reckless), §2.2 (the `save.requested` touch), §5.2
 
@@ -242,9 +243,10 @@ The conversion therefore moves an entry from the protected class (retained forev
 The script itself is out of scope (§8.2), but the property that makes it safe is asserted by §8.3 and the deletion rule that acts on its output is §5.2, both of which are in scope.
 
 **Proposed Change**:
+§8.3 gains a paragraph naming the converted-entry window, the mitigation available to the script (touch `save.requested`, or run `portal state commit-now`), and the residual as identical in kind to §2.2's accepted one.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: The finding is right that §8.3's argument covers only the unconverted entry. The fix stays inside scope — the script remains out of scope; what lands is the honest statement of the window plus the mitigation Portal already provides (`portal state commit-now` exists as a command, `cmd/state_commit_now.go:86`). Applied under `auto`.
 
 ---
 
