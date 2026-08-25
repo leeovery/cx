@@ -47,6 +47,25 @@
           }
         }
       }
+    },
+    "planning": {
+      "items": {
+        "resume-hooks-silently-lost": {
+          "status": "in-progress",
+          "format": "tick",
+          "spec_commit": "293dfef7e4f850d128ffbb226c77b46d9fe027e8",
+          "task_list_gate_mode": "gated",
+          "author_gate_mode": "gated",
+          "finding_gate_mode": "gated",
+          "review_cycle": 0,
+          "phase": 1,
+          "task": null,
+          "task_map": {},
+          "storage_paths": [
+            ".tick/"
+          ]
+        }
+      }
     }
   },
   "seeds": [
