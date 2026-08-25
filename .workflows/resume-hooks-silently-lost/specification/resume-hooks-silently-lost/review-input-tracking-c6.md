@@ -25,8 +25,8 @@ Insert as a new paragraph in §5.2 between the three bullets and the paragraph b
 
 > **The rule has one implementation.** `internal/hooks`'s `StaleKeys` — the read-only staleness query that sits beside `CleanStale` on the sweep's path — carries the shape test, and every reader of staleness reaches it through that one query rather than restating the rule. `CleanStale` derives its own delete set under its own lock (§6.3) by the identical test, and `checkStaleHooks`'s count (§5.4) is that test again, not a second reading of it. Three call sites applying the rule from three copies is how the retention protection comes to hold in one of them and not another — the same drift §3.2 removes from the predicate itself by deriving it from the generator's constants.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied as proposed, with the measured citations added: `StaleKeys` is a package-level function at `internal/hooks/store.go:184` and both readers already route through it (`CleanStale` at `:208`, `checkStaleHooks` at `cmd/doctor.go:299`). The single-home shape is already in the code — the spec never named it, which is what would let an implementer rebuild the test per call site.
 
 ---
 
@@ -44,8 +44,8 @@ Insert as a new paragraph in §5.2 between the three bullets and the paragraph b
 - Carry the removed entry's `on-resume` command on the INFO line alongside `hook_key`, using the `value` attr the `hooks` component already emits on `op=set` — the store holds the command at the moment it deletes it, it is the thing the user actually lost, and it costs no new attr key (recommended).
 - Leave the line naming the token alone and accept that recovering what was lost means correlating against the registration breadcrumb — cheaper and quieter in the log, at the cost of §5.3 delivering a weaker answer than it claims.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Option 1 chosen. §5.3 rewritten to carry the removed entry's command in the existing `value` attr, with the reason stated: at deletion the token resolves to nothing, and `hook list`'s location column only serves entries that still exist. `value` verified as existing vocabulary — it rides `op=set` at `internal/hooks/store.go:103,108` — so the no-new-attr-key claim in the same section still holds, and the attr list there is corrected to include it.
 
 ---
 
@@ -68,5 +68,5 @@ Fold the correction into §3.3's existing `ResolveHookKey` bullet, alongside the
 **Proposed Text**:
 > - `ResolveHookKey(paneID)` becomes the two-call live resolution of §4.1 for one pane target — an existence probe followed by a read of the pane's token. Its doc comment, which warns that a read failure must never fall back to a name-based key, is rewritten with it: §7.2 leaves no name-based key to fall back to, and the failure it guarded against is now a non-zero exit the function genuinely returns rather than one tmux declines to report.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed. The one doc surface the source singles out and the spec's otherwise complete list omitted — on the function whose documented contract should have caught this bug and could not.

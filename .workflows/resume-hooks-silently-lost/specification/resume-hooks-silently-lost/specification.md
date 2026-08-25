@@ -146,7 +146,7 @@ The July invariant — *every site that produces or consumes a key derives it by
 
 - `HookKeyFormat` becomes the pane-token format `#{@portal-pane-id}`.
 - `HookKey(portalID, name, window, pane)` is **deleted**. The saved-state bake is a struct field read, not a formatting call.
-- `ResolveHookKey(paneID)` becomes the two-call live resolution of §4.1 for one pane target — an existence probe followed by a read of the pane's token.
+- `ResolveHookKey(paneID)` becomes the two-call live resolution of §4.1 for one pane target — an existence probe followed by a read of the pane's token. Its doc comment, which warns that a read failure must never fall back to a name-based key, is rewritten with it: §7.2 leaves no name-based key to fall back to, and the failure it guarded against is now a non-zero exit the function genuinely returns rather than one tmux declines to report.
 - `ListAllPaneHookKeys()` becomes an all-pane enumeration returning **one row per live pane**, each row carrying the pane's `@portal-pane-id` (empty for an unstamped pane) and its `<session>:<window>.<pane>` location. Both properties are load-bearing — §5.4 has the rule that consumes them. A single `list-panes -a -F` read over a two-field format serves the sweep, `portal doctor` and `hook list` alike — there is no second enumeration and no second tmux read. The location field is **display only** (§4.4): it is never a key, so rendering the same shape as the positional siblings (§1.3) couples nothing to them.
 
 - A **pane-option write is added** — `internal/tmux` exposes no pane-scoped option setter today. It takes the option name from its caller, so `cmd` passes `state.PortalPaneIDOption` when `hook set` stamps at §4.1 step 4, and it is reached through the `hook` command's existing `*Deps` seam like every other tmux call the CLI makes. The existence probe adds no exported surface of its own: it is internal to `ResolveHookKey`, which owns both reads of §4.1 steps 2–3.
@@ -271,11 +271,13 @@ Three consequences follow from putting the protection on shape rather than on a 
 
 #### 5.3 The reaper names what it deleted
 
-Each removed key is logged at **INFO** under the `hooks` component. The existing per-key DEBUG line is **promoted, not duplicated** — one line per removed key, at INFO. Keeping both would put two lines per key in the log at exactly the level an operator raises to when investigating a loss, and the DEBUG line carries nothing the INFO line does not.
+Each removed key is logged at **INFO** under the `hooks` component, **carrying the removed entry's `on-resume` command in the existing `value` attr** alongside `hook_key`. The existing per-key DEBUG line is **promoted, not duplicated** — one line per removed key, at INFO. Keeping both would put two lines per key in the log at exactly the level an operator raises to when investigating a loss, and the DEBUG line carries nothing the INFO line does not.
+
+**The token alone would not answer the question this line exists to answer.** At the moment of deletion the token identifies nothing recoverable: the pane is by definition absent from the live enumeration, so there is no session, window or directory to resolve it against, and the entry holding the command is the thing being removed. `hook list`'s location column (§4.4) does not reach it either — that renders locations for entries that still exist. The command is what was actually lost, the store is holding it at the instant it deletes it, and `value` is already in the component's vocabulary (it rides `op=set` today, `internal/hooks/store.go:103,108`), so recording it adds no attr key and makes a reaped hook recoverable from one line rather than from a correlation hunt.
 
 Today the per-key line is `logger.Debug("clean-stale", "op", "clean-stale", "hook_key", key, "via", "internal")` (`internal/hooks/store.go:220`) and production INFO gets only the batch summary `hooks: clean-stale op=clean-stale entries=N` from `storelog.EmitCleanStaleSummary`. At the production default level the log therefore cannot answer "what did I lose?" after the fact — which is why the two named instances in the investigation had to be reconstructed by correlating a registration breadcrumb against a bare count.
 
-The batch summary is retained alongside. The existing `hooks` component attr vocabulary (`op`, `hook_key`, `via`, `entries`) is sufficient — no new component and no new attr key.
+The batch summary is retained alongside. The existing `hooks` component attr vocabulary (`op`, `hook_key`, `value`, `via`, `entries`) is sufficient — no new component and no new attr key.
 
 `portal doctor --fix`'s `Pruned stale hook: <key>` output is unchanged; it already named the key.
 
