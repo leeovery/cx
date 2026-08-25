@@ -19,6 +19,16 @@ status: draft
 - [ ] `portal doctor` exits 0 with retained non-token-shaped entries present
 - [ ] The shape predicate lives in `internal/session` and derives its width and alphabet from `suffixLen` / `NanoIDAlphabet` rather than restating them
 
+#### Tasks
+
+| Internal ID | Name | Edge Cases |
+|-------------|------|------------|
+| resume-hooks-silently-lost-1-1 | The stale rule retains keys it cannot judge | Empty key is deleted (neither token-shaped nor old-format); a token-shaped key absent from the live set is still deleted; a non-token-shaped key is retained on every run by both the daemon sweep and `doctor --fix`; predicate boundaries — 5 and 7 characters, a character outside `NanoIDAlphabet` (`:`, `.`, `-`), multi-byte input counted by bytes vs runes; a cycle whose every candidate is retained writes no file and emits no summary; existing fixtures seeding old-format keys that assert removal (`cmd/run_hook_stale_cleanup_test.go`, `cmd/doctor_test.go`, and the integration seeds in `cmd/cleanstale_transient_listpanes_shared_test.go`, `cmd/cleanstale_transient_listpanes_doctorfix_integration_test.go`, `cmd/bootstrap/transient_listpanes_helpers_integration_test.go`, `cmd/state_daemon_hook_cleanup_integration_test.go`) must be re-pointed at token-shaped values so both lanes stay green |
+| resume-hooks-silently-lost-1-2 | The reaper names the entry it reaped | An entry carrying no `on-resume` event (empty `value`, line still emitted); a key holding several events; a save that fails after the per-key lines were emitted; zero removals emits neither per-key lines nor batch summary; no duplicate DEBUG line survives the promotion; `doctor --fix`'s `Pruned stale hook: <key>` stdout unchanged |
+| resume-hooks-silently-lost-1-3 | The sweep stands down while a restore is in flight | A failed marker read is treated as set; no tmux server running (read fails, sweep skips); the skip precedes the store load so nothing is written; the skip logs DEBUG and never WARN; the daemon's `tick` already early-returns on the marker, so the added read must not change daemon behaviour; the three `cmd` fakes behind the enumeration seam (`recordingHookKeyLister`, `fakeHookLister`, `stubAllPaneLister`) must satisfy the widened seam |
+| resume-hooks-silently-lost-1-4 | A stood-down cycle reaches the caller | A nil `onSkipped` (the daemon supplies none) is safe; an empty live set with zero persisted entries returns silently with no line; the enumeration-error branch keeps its existing WARN-and-return and emits no skipped line; the skipped line prints alongside `Pruned stale hook: <key>` lines; the empty-live-set guard's WARN moves onto the shared `op=clean-stale-skipped` / `reason=empty-pane-read` shape without losing its WARN level; the exit code stays driven solely by the post-repair diagnosis |
+| resume-hooks-silently-lost-1-5 | The stale-hook check tells the truth | A failed marker read is treated as set; the marker read is ordered before both the empty-live-set branch and the stale count; not-evaluable never drives the exit code; retained non-token-shaped entries alongside a genuinely stale token-shaped one still fail the check; no server running |
+
 ### Phase 2: The pane token becomes the hook key
 status: draft
 
