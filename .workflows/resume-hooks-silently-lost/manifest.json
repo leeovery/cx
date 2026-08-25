@@ -63,7 +63,10 @@
           "task_map": {},
           "storage_paths": [
             ".tick/"
-          ]
+          ],
+          "approvals": {
+            "structure": "2026-08-25"
+          }
         }
       }
     }
