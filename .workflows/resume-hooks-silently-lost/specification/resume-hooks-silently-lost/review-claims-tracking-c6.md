@@ -67,5 +67,5 @@ $ grep -n 'hooksLogger\|component binding\|log.For\|binding in' .workflows/resum
 
 > That adds **two `op` values** — `load-unlocked` here and `touch-save-requested` for the dirty-flag touch (§2.2) — **two `via` values, no new component binding and no attr key**: the whole of this work unit's amendment to the closed logging vocabulary.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Confirmed independently — `cmd/state_common.go:11` declares `hooksLogger = log.For("hooks")`. Both passages corrected: §2.2 now names the existing binding, and §6.5's vocabulary tally drops the phantom addition. Introduced by cycle 5's own finding 7, which reasoned correctly that the emitter is `cmd` and then assumed the binding was new without checking. Applied under `auto`.
