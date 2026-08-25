@@ -22,8 +22,8 @@ The delete set is every key that is in the file under the lock **and** in the ca
 **Proposed Text**:
 The delete set is every key that is in the file under the lock **and** in the call-site snapshot **and** absent from the live set **and** either token-shaped or empty (§5.2). The call-site read may narrow that set; it may never widen it.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed. Self-inflicted: cycle 5's empty-key deletion rule collided with cycle 4's delete-set definition, which required token-shaped — so the malformed entry the firing path guards against twice would have parked in the file permanently.
 
 ---
 
@@ -47,8 +47,8 @@ Both stated goals — one implementation of the rule, and no nested acquisition 
 **Proposed Text**:
 **The rule has one implementation.** The staleness test lives in a single unexported function in `internal/hooks` that judges an already-loaded key set and takes no lock of its own, and every reader of staleness applies the rule through that one function rather than restating it. `StaleKeys` (`internal/hooks/store.go:184`) — the exported read-only query that sits beside `CleanStale` on the sweep's path, consumed by `checkStaleHooks` at `cmd/doctor.go:299` — is that function behind the shared lock. `CleanStale` calls the same function directly, on the key set it loaded under its own exclusive lock (§6.3), and never through `StaleKeys`: an acquisition from inside the exclusive hold is not re-entrant (§6.3), so it would block against the sweep's own lock to the §6.5 bound and stand the prune down on every cycle. Three call sites applying the rule from three copies is how the retention protection comes to hold in one of them and not another — the same drift §3.2 removes from the predicate itself by deriving it from the generator's constants.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed. Also self-inflicted, from this cycle's own input-review finding 1: as written, `CleanStale` calling the exported `StaleKeys` from inside the exclusive hold would block against its own lock to the 2s bound, and since a write that cannot take the lock does not write, the prune would stand down on every cycle for the life of the install. The lock-free rule function with two callers is the only arrangement satisfying both stated constraints.
 
 ---
 
@@ -79,8 +79,8 @@ Skipped stale hook prune: could not read live panes
 
 covering the restore marker (§5.4), the lock timeout (§6.5) and the empty-live-set guard (§5.4) respectively. None of them affects the exit code, which stays driven by the post-repair diagnosis.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed. The spec required `doctor --fix` to report a skipped prune in two places and gave the sweep no channel to say so — `onRemoved` cannot fire on a cycle that removed nothing, and a skip is indistinguishable at the call site from a clean run.
 
 ---
 
@@ -100,8 +100,8 @@ The sweep now stands down for three distinct reasons — a restore window, a loc
 - Keep `op=clean-stale` and distinguish the skip by message text alone, leaving §6.5's accounting as written
 - State outright that the skip is not separately identifiable in the log, and rely on `portal doctor --fix`'s output (finding 3) as the only signal a prune did not run
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Option 1 chosen. Verified `reason` is an existing attr key in the closed vocabulary (`internal/theme/events.go:83,102,121`, `internal/tmux/portal_saver.go:171,207`), so this adds one `op` value and reuses an existing key. All three stand-down reasons now share one line shape with `reason` naming which; the restore skip stays DEBUG and the other two keep their WARN. Accounting corrected to three `op` values, with a note that `reason` and `value` are existing keys newly carried by `hooks` rather than additions.
 
 ---
 
@@ -124,8 +124,8 @@ Append to §4.2, after the paragraph ending "…an exit code that says nothing a
 
 The words are fixed. A live pane carrying no token exits with `no resume hook registered for this pane`. A key that names no entry exits with `no resume hook registered for <key>` — the resolved token on the `$TMUX_PANE` path, the literal key on the `--pane-key` path (§4.3). A gone pane exits with tmux's own words (§4.1).
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed. The failure fires near-daily on SessionEnd, so the line the user reads is what separates a non-zero exit from the impression something broke.
 
 ---
 
@@ -150,8 +150,8 @@ Amend the reaper row to name the command, and add a row for the touch. Both are 
 | **Reaper shape-awareness** | An old-format (non-token) key is retained by both the daemon sweep and `portal doctor --fix`; a token-shaped key whose token is absent is still deleted; the deletion names the key **and the removed entry's command** at INFO rather than only counting it (§5.2, §5.3). | unit |
 | **A failed dirty-flag touch does not fail `hook set`** | With the state directory unresolvable, `hook set` still exits 0 with the entry written, and emits the WARN under `op=touch-save-requested` (§2.2). | unit |
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed, both rows. Both assert rules the spec argues at length and nothing was producing work for.
 
 ---
 
@@ -175,8 +175,8 @@ A pane whose entry is removed keeps its token, for the reason §4.1 gives for no
 **Proposed Text**:
 A pane whose entry is removed keeps its token, for the reason §4.1 gives for not rolling back a stamp, and for one more: clearing it would add a tmux write that can fail after the entry is already gone.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed.
 
 ---
 
@@ -200,7 +200,7 @@ and the automatic prune logs the removed key only at DEBUG (`internal/hooks/stor
 **Proposed Text**:
 and the automatic prune does not name the removed key at the level production runs at (§5.3).
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Applied verbatim as proposed.
 
 ---
