@@ -15,7 +15,7 @@
     "specification": {
       "items": {
         "resume-hooks-silently-lost": {
-          "status": "in-progress",
+          "status": "completed",
           "sources": {
             "resume-hooks-silently-lost": {
               "status": "incorporated"
@@ -24,7 +24,7 @@
           "review_cycle": 6,
           "finding_gate_mode": "auto",
           "construction_gate_mode": "gated",
-          "date": "2026-08-22",
+          "date": "2026-08-25",
           "review_baseline_words": 6458,
           "tracking": {
             "review-claims-tracking-c1": "complete",
