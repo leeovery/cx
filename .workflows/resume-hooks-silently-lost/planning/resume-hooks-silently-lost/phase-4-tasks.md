@@ -84,6 +84,7 @@ total: 3
 - Drive the exit status from the removal itself: `removed, err := store.Remove(hookKey, "on-resume", "cli")`; return `err` unchanged when non-nil; return `fmt.Errorf("no resume hook registered for %s", hookKey)` when `removed` is false; return nil only when it is true. Take no `store.Get` or `store.Load` before the removal, on either path.
 - Add nothing else: no retry, no soft-success arm, no dirty-flag touch, and no new exit-code plumbing — the error returns through `RunE` by the route every other `hook` failure already takes (`rootCmd` carries `SilenceUsage`/`SilenceErrors`, and `main`'s `classify` prints the message to stderr and exits 1).
 - Re-point `cmd/hooks_test.go`: the `"silent no-op when no hook exists for pane"` subtest at `:491` asserts exit 0 for exactly the case that must now fail — invert it and rename it; check the surrounding `--pane-key` subtests seed keys that the removal actually finds; then add coverage for the three routes and for both success paths. Add the exit-0-iff-removed rule to CLAUDE.md's Resume-hooks paragraph, beside the existing `--pane-key` sentence (which stays true), touching none of the key-scheme passages Phases 2 and 3 rewrote.
+- Correct the two user-facing texts that still teach the retired key form, both here because this is the last change to `hook`'s CLI contract. `hooksRmCmd`'s `--pane-key` flag help (`cmd/hooks.go`) currently reads `Structural key of the pane whose hook should be removed (defaults to the current pane)`; rewrite it to name the pane token, keeping the defaults-to-the-current-pane clause. In `README.md`'s `### xctl hook` section, the example `xctl hook rm --on-resume --pane-key 'sess:0.1'` shows a key shape nothing can write after Phase 2 and nothing can resolve after Phase 3 — re-point it at a token-shaped value, and state in the surrounding paragraph (the one that already describes `--pane-key`) that `hook rm` exits non-zero when it removes nothing, so a scripted caller is warned rather than surprised. Touch no other README passage: the rename guarantee it documents still holds and widens under a token key, and `hook list`'s appended column has no documented output format there.
 
 **Acceptance Criteria**:
 - [ ] `hook rm --on-resume` exits 0 iff `Store.Remove` reported a removal, with the answer coming from that removal and never from a read taken before it
@@ -98,6 +99,9 @@ total: 3
 - [ ] `hook rm` writes no `save.requested` on any path
 - [ ] The non-zero exit comes from `RunE` returning an error — no new exit-code plumbing and no usage dump
 - [ ] CLAUDE.md's Resume-hooks paragraph states that `hook rm` exits 0 only when an entry was removed
+- [ ] `hook rm --pane-key`'s flag help describes the pane token and no longer says `Structural key`
+- [ ] README's `xctl hook` section carries no positional `--pane-key` example, and states that `hook rm` exits non-zero when it removes nothing
+- [ ] No other README passage is edited — the rename guarantee and the hook-firing explanation are unchanged
 - [ ] `go test ./...` and `go test -tags integration -p 1 ./...` both pass
 
 **Tests**:

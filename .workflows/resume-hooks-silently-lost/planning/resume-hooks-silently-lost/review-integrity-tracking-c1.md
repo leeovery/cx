@@ -47,7 +47,7 @@ and, in the same task's Acceptance Criteria:
 - [ ] No other README passage is edited — the rename guarantee and the hook-firing explanation are unchanged
 ```
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:
 
 ---
