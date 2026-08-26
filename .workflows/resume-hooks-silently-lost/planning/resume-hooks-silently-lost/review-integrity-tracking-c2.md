@@ -54,7 +54,7 @@ and, in the same task's Tests:
 - `"it fails through the sidecar acquire when the config directory cannot be created"` — a store path under a directory whose parent denies creation; assert the returned error is the acquisition failure, that `hooks.json` is absent, and that the same call would reach the emission point task 5-3 adds
 ```
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:
 
 ---
@@ -112,7 +112,7 @@ and, in the same task's Tests:
 - `"it takes no lock when nothing is persisted"` — live rows present, no `hooks.json` and no config directory; assert the sweep returns nil and that neither the directory nor the sidecar exists afterwards
 ```
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:
 
 ---
@@ -141,7 +141,7 @@ Name the five-parameter form and what each nil stands for. 1-4's added parameter
 - Assert, in order: the restored window indices **differ** from the saved ones (fail the test outright if they match — a restore that happened not to renumber proves nothing); each stamped pane's own marker file exists with exactly its own payload and no other; the unstamped pane is live, hydrated and fired nothing; `@portal-restoring` is unset before the sweep runs; and after `runHookStaleCleanup(client, store, nil, nil, nil)` — the five-parameter form task 1-4 established, with nil for the logger, `onRemoved` and `onSkipped`, all three of which are nil-safe — both token-keyed entries survive while the seeded stale key is gone.
 ```
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:
 
 ---
