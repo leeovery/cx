@@ -54,18 +54,21 @@
           "status": "in-progress",
           "format": "tick",
           "spec_commit": "293dfef7e4f850d128ffbb226c77b46d9fe027e8",
-          "task_list_gate_mode": "gated",
+          "task_list_gate_mode": "auto",
           "author_gate_mode": "gated",
           "finding_gate_mode": "gated",
           "review_cycle": 0,
           "phase": 1,
-          "task": null,
+          "task": "resume-hooks-silently-lost-1-1",
           "task_map": {},
           "storage_paths": [
             ".tick/"
           ],
           "approvals": {
-            "structure": "2026-08-25"
+            "structure": "2026-08-25",
+            "tasks": {
+              "p1": "2026-08-26"
+            }
           }
         }
       }
