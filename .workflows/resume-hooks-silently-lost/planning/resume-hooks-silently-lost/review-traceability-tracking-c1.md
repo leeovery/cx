@@ -26,7 +26,7 @@ Name the shared builder in the same **Do** bullet that re-points its callers, an
 - Re-point the blocked tests: `cmd/hooks_test.go`'s `mockKeyResolver` keys and `hook set` assertions move to tokens (and the new stamper seam); `internal/tmux/hookkey_realtmux_shared_test.go`'s `seedThreePaneStampedSession` stops stamping the session option and stamps a pane instead — it takes a pane token rather than a `portalID` and writes it with `client.SetPaneOption(paneID, state.PortalPaneIDOption, token)` onto the pane it returns, so both callers seed a stamped pane rather than a stamped session; `internal/tmux/hookkey_format_realtmux_test.go` reads `@portal-pane-id` off panes stamped that way; `internal/tmux/hookkey_test.go`'s `TestHookKeyFormatContainsPortalIDLiteral` is deleted (the format holds no `@portal-id` literal to bind, and `TestHookKey` stays until Phase 3 deletes `tmux.HookKey`), while its `portalIDLiteral` const stays only as long as task 2-3's `resolve_hookkey_realtmux_test.go` still reads it and goes with that re-point; `cmd/portal_id_binding_guard_test.go` is deleted whole rather than re-pointed; and `internal/tmux/hookkey_cross_site_realtmux_test.go` is restored to its end-state form — `ResolveHookKey(pane)` returns exactly the `Token` the enumeration's row for that pane carries.
 ```
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:
 
 ---
