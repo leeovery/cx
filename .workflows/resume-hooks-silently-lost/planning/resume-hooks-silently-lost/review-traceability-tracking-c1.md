@@ -102,7 +102,7 @@ Give the rule a criterion and a test, on both of removal's paths. The specificat
 - `"it touches no dirty flag on either path"` — assert no `save.requested` after both a success and a failure
 ```
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:
 
 ---

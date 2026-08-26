@@ -94,6 +94,7 @@ total: 3
 - [ ] `hook rm --pane-key <seeded key>` still removes it and exits 0, with no tmux call and no validation of the key
 - [ ] Every non-zero route leaves `hooks.json` byte-identical, and an absent `hooks.json` stays absent
 - [ ] No empty key reaches `Store.Remove` from either path
+- [ ] `hook rm` mints no token and issues no pane-option write on either path — not on a successful removal, not for a live pane carrying no token, and not on `--pane-key`: removal neither mints nor unstamps, so a pane whose entry is removed keeps the identity it had
 - [ ] `hook rm` writes no `save.requested` on any path
 - [ ] The non-zero exit comes from `RunE` returning an error — no new exit-code plumbing and no usage dump
 - [ ] CLAUDE.md's Resume-hooks paragraph states that `hook rm` exits 0 only when an entry was removed
@@ -108,6 +109,7 @@ total: 3
 - `"it exits 0 and removes on the resolved-token path"` — the ordinary success
 - `"it exits 0 and removes on the --pane-key path"` — the retained pass-through success
 - `"it leaves hooks.json byte-identical on every failing route"` — table over the four failures
+- `"it mints and stamps nothing on either path"` — table over a successful resolved-token removal, a live pane carrying no token, and the `--pane-key` path; assert the stamper seam recorded zero calls in every case
 - `"it touches no dirty flag on either path"` — assert no `save.requested` after both a success and a failure
 - `"it reports removing nothing as a plain error, not a usage error"` — assert the message reaches stderr and no usage text is printed
 
