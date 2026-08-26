@@ -26,7 +26,7 @@ Carry the settled wording into the phase acceptance so the plan states the messa
 - [ ] `portal doctor --fix` prints `Skipped stale hook prune: restore may be in progress` through the new `onSkipped` callback, with the exit code still driven solely by the post-repair diagnosis
 ```
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:
 
 ---

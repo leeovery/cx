@@ -15,7 +15,7 @@ status: draft
 - [ ] The staleness rule has one implementation: `StaleKeys` and `CleanStale` both apply the same unexported function, and `CleanStale` never routes through `StaleKeys`
 - [ ] Each removed key is logged once at INFO with `hook_key` and the removed entry's command in `value`; the per-key DEBUG line is promoted rather than duplicated; the batch summary is retained
 - [ ] With `@portal-restoring` set — or its read failing — `runHookStaleCleanup` deletes nothing and logs `op=clean-stale-skipped reason=restoring` at DEBUG, and `checkStaleHooks` reports not-evaluable instead of counting
-- [ ] `portal doctor --fix` prints `Skipped stale hook prune: restore in progress` through the new `onSkipped` callback, with the exit code still driven solely by the post-repair diagnosis
+- [ ] `portal doctor --fix` prints `Skipped stale hook prune: restore may be in progress` through the new `onSkipped` callback, with the exit code still driven solely by the post-repair diagnosis
 - [ ] `portal doctor` exits 0 with retained non-token-shaped entries present
 - [ ] The shape predicate lives in `internal/session` and derives its width and alphabet from `suffixLen` / `NanoIDAlphabet` rather than restating them
 
