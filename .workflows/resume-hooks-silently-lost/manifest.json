@@ -81,7 +81,8 @@
             "resume-hooks-silently-lost-3-5": "tick-2352bb",
             "resume-hooks-silently-lost-4-1": "tick-5141bc",
             "resume-hooks-silently-lost-4": "tick-0d340c",
-            "resume-hooks-silently-lost-4-2": "tick-5588ae"
+            "resume-hooks-silently-lost-4-2": "tick-5588ae",
+            "resume-hooks-silently-lost-4-3": "tick-2d146f"
           },
           "storage_paths": [
             ".tick/"
