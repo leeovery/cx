@@ -45,7 +45,7 @@ Record it where the exposure is created — the task that first makes `hook set`
 > Phase 1's retention rule does **not** cover the upgrade lag above, and must not be read as covering it. Retention protects an old-format key on disk from the *new* binary's sweep; the lag is a *token* key judged by the *old* binary's sweep, which knows no shape rule at all. That is the "let `CleanStale` absorb the old entries" outcome the specification rejects for the migration, arriving through a different door — and the door is closed operationally, by ordering, not by anything built here. Its sibling edge, a pre-upgrade daemon capturing the pre-upgrade format, is recorded in task 3-1.
 ```
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:
 
 ---
