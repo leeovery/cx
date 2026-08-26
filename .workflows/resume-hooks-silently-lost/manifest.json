@@ -59,14 +59,16 @@
           "finding_gate_mode": "gated",
           "review_cycle": 0,
           "phase": 2,
-          "task": "resume-hooks-silently-lost-2-1",
+          "task": "resume-hooks-silently-lost-2-2",
           "task_map": {
             "resume-hooks-silently-lost-1-1": "tick-d21108",
             "resume-hooks-silently-lost-1": "tick-27b7df",
             "resume-hooks-silently-lost-1-2": "tick-585079",
             "resume-hooks-silently-lost-1-3": "tick-1c44d7",
             "resume-hooks-silently-lost-1-4": "tick-79f46a",
-            "resume-hooks-silently-lost-1-5": "tick-70862d"
+            "resume-hooks-silently-lost-1-5": "tick-70862d",
+            "resume-hooks-silently-lost-2-1": "tick-c09a82",
+            "resume-hooks-silently-lost-2": "tick-694f2e"
           },
           "storage_paths": [
             ".tick/"
@@ -78,7 +80,17 @@
               "p2": "2026-08-26"
             }
           },
-          "staging": {},
+          "staging": {
+            "author-p2": {
+              "tasks": {
+                "resume-hooks-silently-lost-2-1": "approved",
+                "resume-hooks-silently-lost-2-2": "approved",
+                "resume-hooks-silently-lost-2-3": "approved",
+                "resume-hooks-silently-lost-2-4": "approved",
+                "resume-hooks-silently-lost-2-5": "approved"
+              }
+            }
+          },
           "external_id": "tick-1f3946"
         }
       }
