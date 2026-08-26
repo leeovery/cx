@@ -140,7 +140,7 @@ The end state is indistinguishable from the drift symptom this work unit exists 
 - The read lock is shared because a restore of a 40+ pane working set has every hydrate helper calling `LookupOnResume` at once; a blanket-exclusive read lock would serialise them for no benefit
 - `via` reaches the store through the exported reads while `LookupOnResume` names `hydrate` in-package, so its signature need not change
 - `Store.Get` has no production caller but is an exported read and must not become a second unlocked path
-- `checkStaleHooks` keeps its restore-marker read and its not-evaluable branches ahead of everything, and a degraded read must not change the check's status or `portal doctor`'s exit code
+- `checkStaleHooks` keeps the order task 1-5 fixed — the `store == nil` and load guards, then the restore-marker read, then the enumeration — so a restore window reports its detail after the shared acquire has already resolved one way or the other, and a degraded read must not change the check's status, its detail or `portal doctor`'s exit code
 - Task 3-3's empty-key early return in `LookupOnResume` precedes the acquire entirely: an empty key takes no lock and logs nothing
 
 **Context**:

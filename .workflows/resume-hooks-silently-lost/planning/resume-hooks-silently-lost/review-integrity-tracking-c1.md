@@ -106,7 +106,7 @@ Correct 5-2's prose to name 1-5's order rather than restating it loosely. 1-5's 
 - `checkStaleHooks` keeps the order task 1-5 fixed — the `store == nil` and load guards, then the restore-marker read, then the enumeration — so a restore window reports its detail after the shared acquire has already resolved one way or the other, and a degraded read must not change the check's status, its detail or `portal doctor`'s exit code
 ```
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:
 
 ---
