@@ -106,7 +106,8 @@
           "staging": {},
           "external_id": "tick-1f3946",
           "tracking": {
-            "review-traceability-tracking-c1": "complete"
+            "review-traceability-tracking-c1": "complete",
+            "review-integrity-tracking-c1": "in-progress"
           }
         }
       }
