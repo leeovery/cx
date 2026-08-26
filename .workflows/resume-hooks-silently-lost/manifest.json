@@ -59,7 +59,7 @@
           "finding_gate_mode": "gated",
           "review_cycle": 0,
           "phase": 5,
-          "task": "resume-hooks-silently-lost-5-4",
+          "task": "resume-hooks-silently-lost-5-5",
           "task_map": {
             "resume-hooks-silently-lost-1-1": "tick-d21108",
             "resume-hooks-silently-lost-1": "tick-27b7df",
@@ -86,7 +86,8 @@
             "resume-hooks-silently-lost-5-1": "tick-86c921",
             "resume-hooks-silently-lost-5": "tick-35c9a7",
             "resume-hooks-silently-lost-5-2": "tick-cc4c2b",
-            "resume-hooks-silently-lost-5-3": "tick-a017d3"
+            "resume-hooks-silently-lost-5-3": "tick-a017d3",
+            "resume-hooks-silently-lost-5-4": "tick-0a6b35"
           },
           "storage_paths": [
             ".tick/"
