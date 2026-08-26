@@ -178,21 +178,21 @@ total: 5
 
 **Solution**: Add an `onSkipped` callback beside `onRemoved`, move the empty-live-set guard's WARN onto the shared `op=clean-stale-skipped` / `via=internal` / `reason=…` line shape under the `hooks` component (keeping its WARN level), and have `pruneDoctorStaleHooks` render the reason as one fixed line in the `--fix` output.
 
-**Outcome**: Both stand-down reasons emit the same machine-greppable line shape at their own levels — `reason=restoring` at DEBUG, `reason=empty-pane-read` at WARN — and `portal doctor --fix` prints `Skipped stale hook prune: restore in progress` or `Skipped stale hook prune: could not read live panes` in its repair output, with the exit code still driven solely by the post-repair diagnosis.
+**Outcome**: Both stand-down reasons emit the same machine-greppable line shape at their own levels — `reason=restoring` at DEBUG, `reason=empty-pane-read` at WARN — and `portal doctor --fix` prints `Skipped stale hook prune: restore may be in progress` or `Skipped stale hook prune: could not read live panes` in its repair output, with the exit code still driven solely by the post-repair diagnosis.
 
 **Do**:
 - Declare the reason values as constants in `cmd/run_hook_stale_cleanup.go` — `skipReasonRestoring = "restoring"` and `skipReasonEmptyPaneRead = "empty-pane-read"` — and use them for both the `reason` attr and the doctor-side rendering, so the logged value and the printed line cannot drift.
 - Add `onSkipped func(reason string)` as a further parameter of `runHookStaleCleanup`, nil-safe at every call site (the daemon at `cmd/state_daemon.go:212` passes nil; its skip is already in the log).
 - Replace the empty-live-set guard's `logger.Warn("stale-hook cleanup: zero live panes parsed …")` with a `hooksLogger.Warn` carrying message and `op` `clean-stale-skipped`, `via=internal`, `reason=skipReasonEmptyPaneRead` and the existing `entries` count, then invoke `onSkipped(skipReasonEmptyPaneRead)` and return nil. Keep the WARN level and keep the zero-persisted-entries early return above it silent — no line, no callback.
 - Invoke `onSkipped(skipReasonRestoring)` on the restore stand-down branch, beside its DEBUG record.
-- In `pruneDoctorStaleHooks` (`cmd/doctor.go:196`) pass an `onSkipped` that prints `Skipped stale hook prune: <phrase>` to the same writer as the `Pruned stale hook:` lines, resolving the phrase from a reason→phrase table (`restoring` → `restore in progress`, `empty-pane-read` → `could not read live panes`), falling back to the raw reason value for an unmapped reason so no stand-down can print nothing. Structure it as a table rather than an if/else — a later phase adds `hooks.json is locked` as a third entry.
+- In `pruneDoctorStaleHooks` (`cmd/doctor.go:196`) pass an `onSkipped` that prints `Skipped stale hook prune: <phrase>` to the same writer as the `Pruned stale hook:` lines, resolving the phrase from a reason→phrase table (`restoring` → `restore may be in progress`, `empty-pane-read` → `could not read live panes`), falling back to the raw reason value for an unmapped reason so no stand-down can print nothing. Structure it as a table rather than an if/else — a later phase adds `hooks.json is locked` as a third entry.
 
 **Acceptance Criteria**:
 - [ ] Both stand-down branches invoke `onSkipped` exactly once with their reason, and a nil `onSkipped` is safe on both
 - [ ] The empty-live-set stand-down logs at WARN under the `hooks` component with `op=clean-stale-skipped`, `via=internal`, `reason=empty-pane-read` and the persisted `entries` count; the restore stand-down keeps its DEBUG level
 - [ ] An empty live set with zero persisted entries returns silently: no log record, no `onSkipped` call, no output
 - [ ] The enumeration-error branch is unchanged — its existing WARN on the injected logger, `return nil`, and no skipped line
-- [ ] `portal doctor --fix` prints `Skipped stale hook prune: restore in progress` when the marker is set and `Skipped stale hook prune: could not read live panes` when the live set is empty with entries present, on the same writer and in the same repair block as `Pruned stale hook:` lines
+- [ ] `portal doctor --fix` prints `Skipped stale hook prune: restore may be in progress` when the marker is set and `Skipped stale hook prune: could not read live panes` when the live set is empty with entries present, on the same writer and in the same repair block as `Pruned stale hook:` lines
 - [ ] `portal doctor --fix`'s exit code is unchanged by a stand-down — it stays driven solely by the post-repair diagnosis
 - [ ] `hooks.json` is byte-identical across every stand-down path
 
@@ -219,6 +219,8 @@ total: 5
 >
 > Distinguishing the reasons is the point: an operator raising the level because a hook vanished needs one grep to answer whether the prune stood down and why, rather than reading three indistinguishable lines by eye. A lock that will not yield and a tmux read that came back empty are both anomalies and keep their WARN; a restore window is an expected state and stays DEBUG.
 >
+> **The `restoring` phrase is deliberately weaker than the specification's `restore in progress`.** A failed marker read counts as set (task 1-3), and on a machine with no tmux server running the read fails — so the fixed phrase would tell a user a restore is under way when nothing is running at all, on the one command that is bootstrap-exempt precisely so it works on a down runtime. `restore may be in progress` is true of both readings. This widens only the printed prose: the logged `reason=restoring` value and the closed three-reason vocabulary are untouched.
+>
 > `op=clean-stale-skipped` is a new `op` value in the closed `hooks` vocabulary and is spec-governed; `reason` is an existing attr key newly carried by this component, not an addition to it. No new component binding is introduced — `cmd` already holds `hooksLogger`.
 >
 > A user who asked for a repair is told it did not run, but the exit code is unaffected: it stays driven by the post-repair diagnosis, whose stale-hooks check reports not-evaluable in the same window.
@@ -235,17 +237,17 @@ total: 5
 
 **Solution**: Read `@portal-restoring` through the same widened seam the sweep uses, by the sweep's rule (a failed read treated as set), ordered before the live enumeration, the empty-live-set branch and the stale count, and report the check's existing not-evaluable result rather than counting.
 
-**Outcome**: With the marker set — or its read failing — `portal doctor` reports the stale-hooks check as not evaluable with the detail `restore in progress (not evaluable)`, never contributing to the exit code; outside that window the check behaves as it does today, counting only the keys the reaper is willing to judge.
+**Outcome**: With the marker set — or its read failing — `portal doctor` reports the stale-hooks check as not evaluable with the detail `restore may be in progress (not evaluable)`, never contributing to the exit code; outside that window the check behaves as it does today, counting only the keys the reaper is willing to judge.
 
 **Do**:
-- In `checkStaleHooks`, after the `store == nil` and `store.Load` guards and before `lister.ListAllPaneHookKeys()`, call `state.IsRestoringSet(lister)`. On `true` or on a non-nil error, return `checkResult{name: name, status: checkNotEvaluable, detail: "restore in progress (not evaluable)"}`.
-- Use that detail string verbatim: the specification fixes the `doctor --fix` output line but leaves this detail unset, and this task fixes it to match the existing `zero live panes with hooks present (not evaluable)` phrasing convention on the same check.
+- In `checkStaleHooks`, after the `store == nil` and `store.Load` guards and before `lister.ListAllPaneHookKeys()`, call `state.IsRestoringSet(lister)`. On `true` or on a non-nil error, return `checkResult{name: name, status: checkNotEvaluable, detail: "restore may be in progress (not evaluable)"}`.
+- Use that detail string verbatim: the specification leaves this detail unset, and this task fixes it to match the `--fix` phrase task 1-4 renders and the existing `zero live panes with hooks present (not evaluable)` phrasing convention on the same check. It says *may be* rather than *is* because a failed marker read counts as set, so a down server takes this branch — see Context.
 - Leave every other branch untouched — the hooks.json guards, the empty-live-set not-evaluable branch, the pass/fail arms and the `pluralCount` detail. The count already narrows to keys the reaper will judge, because it routes through `hooks.StaleKeys`; add no second shape filter at this call site.
 - Add no nil guard for `lister`: a nil seam panics at the marker read exactly as it panics at the enumeration today, and no behaviour change is intended here.
 - Extend `cmd/doctor_test.go`'s `TestDoctorStaleHooksCheck` and the `--fix` fixtures with the restore-window cases, driving the marker through the `fakeHookLister` fields added with the widened seam.
 
 **Acceptance Criteria**:
-- [ ] With the marker set, the stale-hooks check reports `checkNotEvaluable` with detail `restore in progress (not evaluable)` and no count is computed
+- [ ] With the marker set, the stale-hooks check reports `checkNotEvaluable` with detail `restore may be in progress (not evaluable)` and no count is computed
 - [ ] A failed marker read produces the identical result
 - [ ] The marker read is ordered before the live enumeration, before the empty-live-set branch and before the stale count: with the marker set **and** an empty live set with entries present, the restore detail is what is reported
 - [ ] Not-evaluable never drives the exit code — an otherwise-healthy install in a restore window still exits 0
@@ -273,7 +275,9 @@ total: 5
 **Context**:
 > The check takes the same reading as the sweep, for the same window and a different reason: the sweep must not delete what it cannot judge, and the check must not report what it cannot see. Without this, the one command whose job is to tell the user whether their hooks were lost would report exactly the loss it exists to detect, at the exact moment it is most likely to be run.
 >
-> The detail wording is a decision made in this task, not in the specification: `restore in progress (not evaluable)`, chosen to match both the fixed `--fix` output phrase (`restore in progress`) and this check's existing not-evaluable phrasing.
+> The detail wording is a decision made in this task, not in the specification: `restore may be in progress (not evaluable)`, chosen to match the `--fix` output phrase task 1-4 renders (`restore may be in progress`) and this check's existing not-evaluable phrasing.
+>
+> **The phrase is deliberately weaker than the specification's `restore in progress`.** A failed marker read counts as set, and on a machine with no tmux server running the read fails — so the fixed phrase would tell a user a restore is under way when nothing is running at all, on `portal doctor`, the one command that is bootstrap-exempt precisely so it works on a down runtime. `restore may be in progress` is true of both readings. This widens only the printed prose: the logged `reason=restoring` value and the closed three-reason vocabulary are untouched.
 >
 > The count narrowing to token-shaped and empty keys is inherited, not implemented here — both readers of staleness apply the one shared rule, which is what keeps retained old-format entries from pushing a healthy install to a non-zero exit code.
 

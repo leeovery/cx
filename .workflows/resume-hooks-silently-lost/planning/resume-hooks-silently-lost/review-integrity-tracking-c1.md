@@ -75,8 +75,8 @@ Task 1-3's Context anticipates the consequence for the *log* value (`reason=rest
 - Accept the specification's fixed phrase as-is and record the down-server case explicitly in 1-4's and 1-5's Edge Cases, so it lands as a known accepted outcome rather than as a later bug report
 - Keep the check's existing `could not enumerate live panes` branch ahead of the marker read in 1-5, so a down server keeps today's honest detail, accepting that a genuine restore window with an unreadable server is reported as an enumeration failure and that 1-5's ordering acceptance criterion changes
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Fixed
+**Notes**: Option 1 chosen — widen only the plan-owned wording. The printed phrase is `restore may be in progress` (and the check detail `restore may be in progress (not evaluable)`), applied to tasks 1-4 and 1-5 with the rationale recorded in both Contexts. The logged `reason=restoring` value and the closed three-reason vocabulary are untouched. Deviation from the spec's verbatim `Skipped stale hook prune: restore in progress` is deliberate and named in-plan.
 
 ---
 
