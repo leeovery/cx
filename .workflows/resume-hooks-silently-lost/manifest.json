@@ -55,12 +55,15 @@
           "format": "tick",
           "spec_commit": "293dfef7e4f850d128ffbb226c77b46d9fe027e8",
           "task_list_gate_mode": "auto",
-          "author_gate_mode": "gated",
+          "author_gate_mode": "auto",
           "finding_gate_mode": "gated",
           "review_cycle": 0,
           "phase": 1,
-          "task": "resume-hooks-silently-lost-1-1",
-          "task_map": {},
+          "task": "resume-hooks-silently-lost-1-2",
+          "task_map": {
+            "resume-hooks-silently-lost-1-1": "tick-d21108",
+            "resume-hooks-silently-lost-1": "tick-27b7df"
+          },
           "storage_paths": [
             ".tick/"
           ],
@@ -69,7 +72,19 @@
             "tasks": {
               "p1": "2026-08-26"
             }
-          }
+          },
+          "staging": {
+            "author-p1": {
+              "tasks": {
+                "resume-hooks-silently-lost-1-1": "approved",
+                "resume-hooks-silently-lost-1-2": "approved",
+                "resume-hooks-silently-lost-1-3": "approved",
+                "resume-hooks-silently-lost-1-4": "approved",
+                "resume-hooks-silently-lost-1-5": "approved"
+              }
+            }
+          },
+          "external_id": "tick-1f3946"
         }
       }
     }
