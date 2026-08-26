@@ -81,7 +81,7 @@ Name the sentence in the same pass that rewrites the rest of that section, and a
 - The zero-occurrences grep is not a completeness check on the rewrite: the "Resume hooks" section's saved-window/pane-indices sentence names none of the three strings, so a document that passes the grep can still describe the hook key as a coordinate
 ```
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:
 
 ---
