@@ -58,8 +58,8 @@
           "author_gate_mode": "auto",
           "finding_gate_mode": "gated",
           "review_cycle": 0,
-          "phase": 4,
-          "task": "resume-hooks-silently-lost-4-3",
+          "phase": 5,
+          "task": null,
           "task_map": {
             "resume-hooks-silently-lost-1-1": "tick-d21108",
             "resume-hooks-silently-lost-1": "tick-27b7df",
@@ -96,15 +96,7 @@
               "p4": "2026-08-26"
             }
           },
-          "staging": {
-            "author-p4": {
-              "tasks": {
-                "resume-hooks-silently-lost-4-1": "approved",
-                "resume-hooks-silently-lost-4-2": "approved",
-                "resume-hooks-silently-lost-4-3": "approved"
-              }
-            }
-          },
+          "staging": {},
           "external_id": "tick-1f3946"
         }
       }
