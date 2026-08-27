@@ -232,7 +232,8 @@ func (s *Store) CleanStale(liveKeys []string) ([]string, error) {
 	}
 
 	for _, key := range removed {
-		logger.Debug("clean-stale", "op", "clean-stale", "hook_key", key, "via", "internal")
+		logger.Info("clean-stale", "op", "clean-stale", "hook_key", key,
+			"value", h[key]["on-resume"], "via", "internal")
 	}
 
 	if err := s.Save(kept); err != nil {

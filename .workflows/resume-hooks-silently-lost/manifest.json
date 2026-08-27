@@ -161,7 +161,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 1,
-          "current_task": "resume-hooks-silently-lost-1-2",
+          "current_task": "resume-hooks-silently-lost-1-3",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-1",
@@ -192,10 +192,39 @@
                 "cmd/run_hook_stale_cleanup.go",
                 "cmd/doctor.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-1-2",
+              "source": "reviewer",
+              "summary": "CLAUDE.md logging bullet now misdescribes the hooks clean-stale sweep.",
+              "detail": "CLAUDE.md:100 states cycle summaries emit one INFO per cycle with per-item detail at DEBUG. After this change the hooks clean-stale per-item detail is INFO. No task in the plan owns this passage — phases 2/3/4/5 each assign specific CLAUDE.md rewrites (hook-key scheme, @portal-id removal, hook rm exit code, lock sidecar) and none touches the logging section. It will otherwise ship false.",
+              "files": [
+                "CLAUDE.md"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-1-2",
+              "source": "reviewer",
+              "summary": "The doctor --fix prune-stdout assertion now exists twice, at two strengths.",
+              "detail": "cmd/doctor_test.go:888 (inside the shared assertStalePrunesApplied, used by three call sites) asserts strings.Contains(out, \"Pruned stale hook: sessA1\"); the new cmd/hook_prune_output_test.go:29 asserts exactly-one-line equality over the same fixture shape that seedStalePruneFixture (doctor_test.go:850) already builds. Folding the exact assertion into the shared helper would single-source it and let the standalone file go, but it reaches a helper three other tests depend on.",
+              "files": [
+                "cmd/hook_prune_output_test.go",
+                "cmd/doctor_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-1-2",
+              "source": "reviewer",
+              "summary": "Third instance of the deny-the-write fixture in internal/hooks/store_test.go.",
+              "detail": "readOnlyDirPath (:27-37) plus two hand-rolled seed-then-chmod-0500 blocks — the pre-existing one at :1024-1035 and the new one at :936-947, which even carries the same two-line comment. Rule of Three now applies: a seedThenDenyWrites(t, body) helper would single-source it, but the fix touches a pre-existing subtest outside this task's diff.",
+              "files": [
+                "internal/hooks/store_test.go"
+              ]
             }
           ],
           "completed_tasks": [
-            "resume-hooks-silently-lost-1-1"
+            "resume-hooks-silently-lost-1-1",
+            "resume-hooks-silently-lost-1-2"
           ]
         }
       }

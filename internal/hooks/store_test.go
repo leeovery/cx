@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
 	"sort"
@@ -794,8 +795,36 @@ func TestCleanStaleRemovesExactlyStaleKeys(t *testing.T) {
 	}
 }
 
+// partitionCleanStaleRecords splits the captured clean-stale records into the
+// per-key lines and the batch summaries, so an assertion compares sets rather
+// than the map-iteration order the per-key lines are emitted in.
+func partitionCleanStaleRecords(t *testing.T, recs []logtest.Record) (perKey, summaries []logtest.Record) {
+	t.Helper()
+	for _, r := range recs {
+		if r.Msg != "clean-stale" {
+			t.Errorf("unexpected msg %q in %+v", r.Msg, r)
+			continue
+		}
+		if got := r.AttrString(t, "op"); got != "clean-stale" {
+			t.Errorf("op = %q, want %q", got, "clean-stale")
+		}
+		if got := r.AttrString(t, "component"); got != "hooks" {
+			t.Errorf("component = %q, want %q", got, "hooks")
+		}
+		switch {
+		case r.HasAttr("hook_key"):
+			perKey = append(perKey, r)
+		case r.HasAttr("entries"):
+			summaries = append(summaries, r)
+		default:
+			t.Errorf("clean-stale record is neither per-key nor summary: %+v", r)
+		}
+	}
+	return perKey, summaries
+}
+
 func TestCleanStaleLogging(t *testing.T) {
-	t.Run("emits per-entry DEBUG and one INFO summary with entries=N when removing N hooks", func(t *testing.T) {
+	t.Run("it logs one INFO per removed key carrying the key and the removed command", func(t *testing.T) {
 		dir := t.TempDir()
 		store := hooks.NewStore(filepath.Join(dir, "hooks.json"))
 
@@ -818,53 +847,32 @@ func TestCleanStaleLogging(t *testing.T) {
 			t.Fatalf("got %d removed, want 2", len(removed))
 		}
 
-		recs := sink.Records()
+		perKey, summaries := partitionCleanStaleRecords(t, sink.Records())
 
-		var debugs []logtest.Record
-		var infos []logtest.Record
-		for _, r := range recs {
-			if r.Msg != "clean-stale" {
-				t.Errorf("unexpected msg %q in %+v", r.Msg, r)
-				continue
+		if len(perKey) != 2 {
+			t.Fatalf("got %d per-key records, want 2: %+v", len(perKey), perKey)
+		}
+		want := map[string]string{"stale1": "cmd1", "stale2": "cmd2"}
+		got := map[string]string{}
+		for _, r := range perKey {
+			if r.Level != slog.LevelInfo {
+				t.Errorf("per-key level = %v, want INFO: %+v", r.Level, r)
 			}
-			if got := r.AttrString(t, "op"); got != "clean-stale" {
-				t.Errorf("op = %q, want %q", got, "clean-stale")
+			if via := r.AttrString(t, "via"); via != "internal" {
+				t.Errorf("per-key via = %q, want %q", via, "internal")
 			}
-			if got := r.AttrString(t, "component"); got != "hooks" {
-				t.Errorf("component = %q, want %q", got, "hooks")
-			}
-			switch r.Level {
-			case slog.LevelDebug:
-				debugs = append(debugs, r)
-			case slog.LevelInfo:
-				infos = append(infos, r)
-			default:
-				t.Errorf("unexpected level %v in %+v", r.Level, r)
-			}
+			got[r.AttrString(t, "hook_key")] = r.AttrString(t, "value")
+		}
+		if !maps.Equal(got, want) {
+			t.Errorf("per-key records = %v, want %v", got, want)
 		}
 
-		if len(debugs) != 2 {
-			t.Fatalf("got %d DEBUG clean-stale records, want 2: %+v", len(debugs), debugs)
+		if len(summaries) != 1 {
+			t.Fatalf("got %d INFO summary records, want 1: %+v", len(summaries), summaries)
 		}
-		debugKeys := make(map[string]bool, len(debugs))
-		for _, r := range debugs {
-			if got := r.AttrString(t, "via"); got != "internal" {
-				t.Errorf("DEBUG via = %q, want %q", got, "internal")
-			}
-			debugKeys[r.AttrString(t, "hook_key")] = true
-		}
-		for _, want := range []string{"stale1", "stale2"} {
-			if !debugKeys[want] {
-				t.Errorf("missing DEBUG clean-stale for hook_key %q: %+v", want, debugs)
-			}
-		}
-
-		if len(infos) != 1 {
-			t.Fatalf("got %d INFO summary records, want 1: %+v", len(infos), infos)
-		}
-		summary := infos[0]
-		if got := summary.AttrString(t, "op"); got != "clean-stale" {
-			t.Errorf("summary op = %q, want %q", got, "clean-stale")
+		summary := summaries[0]
+		if summary.Level != slog.LevelInfo {
+			t.Errorf("summary level = %v, want INFO", summary.Level)
 		}
 		if got := summary.AttrString(t, "entries"); got != "2" {
 			t.Errorf("summary entries = %q, want %q", got, "2")
@@ -874,6 +882,110 @@ func TestCleanStaleLogging(t *testing.T) {
 		}
 		if _, ok := summary.Attrs["took"]; !ok {
 			t.Errorf("summary missing took attr: %+v", summary.Attrs)
+		}
+	})
+
+	t.Run("it emits an empty value for a removed entry with no on-resume event", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "hooks.json")
+		if err := os.WriteFile(path, []byte(`{"stale1":{"on-exit":"x"}}`), 0o600); err != nil {
+			t.Fatalf("seed: %v", err)
+		}
+		store := hooks.NewStore(path)
+
+		sink := installCapture(t)
+		if _, err := store.CleanStale([]string{"my-session:0.0"}); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		perKey, _ := partitionCleanStaleRecords(t, sink.Records())
+		if len(perKey) != 1 {
+			t.Fatalf("got %d per-key records, want 1: %+v", len(perKey), perKey)
+		}
+		if got := perKey[0].AttrString(t, "hook_key"); got != "stale1" {
+			t.Errorf("hook_key = %q, want %q", got, "stale1")
+		}
+		if got := perKey[0].AttrString(t, "value"); got != "" {
+			t.Errorf("value = %q, want empty", got)
+		}
+	})
+
+	t.Run("it emits one line for a key holding several events", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "hooks.json")
+		if err := os.WriteFile(path, []byte(`{"stale1":{"on-resume":"cmd1","on-exit":"x"}}`), 0o600); err != nil {
+			t.Fatalf("seed: %v", err)
+		}
+		store := hooks.NewStore(path)
+
+		sink := installCapture(t)
+		if _, err := store.CleanStale([]string{"my-session:0.0"}); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		perKey, _ := partitionCleanStaleRecords(t, sink.Records())
+		if len(perKey) != 1 {
+			t.Fatalf("got %d per-key records, want 1: %+v", len(perKey), perKey)
+		}
+		if got := perKey[0].AttrString(t, "value"); got != "cmd1" {
+			t.Errorf("value = %q, want %q", got, "cmd1")
+		}
+	})
+
+	t.Run("it keeps the per-key lines and warns in the summary when the save fails", func(t *testing.T) {
+		// The seed write must succeed before the directory is locked, so this
+		// cannot use readOnlyDirPath.
+		dir := t.TempDir()
+		seeded := filepath.Join(dir, "hooks.json")
+		body := []byte(`{"stalA0":{"on-resume":"cmdA"}}`)
+		if err := os.WriteFile(seeded, body, 0o600); err != nil {
+			t.Fatalf("seed: %v", err)
+		}
+		if err := os.Chmod(dir, 0o500); err != nil {
+			t.Fatalf("chmod parent dir: %v", err)
+		}
+		t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+
+		store := hooks.NewStore(seeded)
+		sink := installCapture(t)
+
+		if _, err := store.CleanStale([]string{"my-session:0.0"}); err == nil {
+			t.Fatal("expected error from CleanStale on read-only dir, got nil")
+		}
+
+		perKey, summaries := partitionCleanStaleRecords(t, sink.Records())
+		if len(perKey) != 1 {
+			t.Fatalf("got %d per-key records, want 1: %+v", len(perKey), perKey)
+		}
+		if perKey[0].Level != slog.LevelInfo {
+			t.Errorf("per-key level = %v, want INFO", perKey[0].Level)
+		}
+		if got := perKey[0].AttrString(t, "hook_key"); got != "stalA0" {
+			t.Errorf("hook_key = %q, want %q", got, "stalA0")
+		}
+		if got := perKey[0].AttrString(t, "value"); got != "cmdA" {
+			t.Errorf("value = %q, want %q", got, "cmdA")
+		}
+
+		if len(summaries) != 1 {
+			t.Fatalf("got %d summary records, want 1: %+v", len(summaries), summaries)
+		}
+		if summaries[0].Level != slog.LevelWarn {
+			t.Errorf("summary level = %v, want WARN", summaries[0].Level)
+		}
+		if _, ok := summaries[0].Attrs["error"]; !ok {
+			t.Errorf("summary missing error attr: %+v", summaries[0].Attrs)
+		}
+		if got := summaries[0].AttrString(t, "error_class"); got != "write-failed-temp-create" {
+			t.Errorf("error_class = %q, want %q", got, "write-failed-temp-create")
+		}
+
+		after, err := os.ReadFile(seeded)
+		if err != nil {
+			t.Fatalf("re-read hooks.json: %v", err)
+		}
+		if !bytes.Equal(after, body) {
+			t.Errorf("hooks.json changed on a failed save\nbefore: %s\nafter:  %s", body, after)
 		}
 	})
 
