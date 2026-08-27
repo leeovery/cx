@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -20,10 +21,11 @@ import (
 // no token between skeleton construction and the re-stamp, so a sweep landing
 // there would reap every token-keyed entry on the machine.
 func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
-	const staleSeed = `{
-  "gone01": {"on-resume": "cmd-gone"},
+	staleKey := reapableSeedA
+	staleSeed := fmt.Sprintf(`{
+  %q: {"on-resume": "cmd-gone"},
   "live:0.0": {"on-resume": "cmd-live"}
-}`
+}`, staleKey)
 
 	t.Run("it deletes nothing while the restore marker is set", func(t *testing.T) {
 		store, path := newTempHooksStore(t, staleSeed)
@@ -127,8 +129,8 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 		if err != nil {
 			t.Fatalf("store.Load post-run: %v", err)
 		}
-		if _, ok := postRun["gone01"]; ok {
-			t.Errorf("stale key gone01 survived a marker-absent sweep; got %v", keysOf(postRun))
+		if _, ok := postRun[staleKey]; ok {
+			t.Errorf("stale key %s survived a marker-absent sweep; got %v", staleKey, keysOf(postRun))
 		}
 		if _, ok := postRun["live:0.0"]; !ok {
 			t.Errorf("live key was reaped; got %v", keysOf(postRun))
@@ -138,7 +140,7 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 	t.Run("it stands the doctor --fix prune down while restoring", func(t *testing.T) {
 		dir := t.TempDir()
 		seedHealthyStateDir(t, dir)
-		hookStore, hooksPath := seedHooksJSON(t, "sessA1")
+		hookStore, hooksPath := seedHooksJSON(t, reapableSeedA)
 		projectStore, _ := seedProjectsJSON(t, t.TempDir())
 		lister := fakeHookLister{keys: []string{"sessB:0.0"}, restoring: true}
 		deps := staleDeps(dir, lister, hookStore, projectStore)
@@ -150,7 +152,7 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 		if err != nil {
 			t.Fatalf("read hooks.json: %v", err)
 		}
-		if !strings.Contains(string(after), "sessA1") {
+		if !strings.Contains(string(after), reapableSeedA) {
 			t.Errorf("doctor --fix pruned a hook during a restore:\n%s", after)
 		}
 		if strings.Contains(outBuf.String(), "Pruned stale hook:") {
@@ -179,7 +181,7 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 		if err != nil {
 			t.Fatalf("store.Load post-run: %v", err)
 		}
-		if _, ok := postRun["gone01"]; !ok {
+		if _, ok := postRun[staleKey]; !ok {
 			t.Errorf("tick reaped a hook despite the restoring marker; got %v", keysOf(postRun))
 		}
 	})

@@ -96,9 +96,10 @@ func TestDoctorFix_TmuxTransient_DoesNotWipeHooks(t *testing.T) {
 			t.Fatalf("seed live session: %v", err)
 		}
 
+		staleKey := transienttest.ReapableHookKey(0)
 		seedEntries := map[string]string{
 			"live:0.0": "echo live",
-			"gone01":   "echo gone",
+			staleKey:   "echo gone",
 		}
 		transienttest.SeedHooksJSON(t, env, seedEntries)
 
@@ -117,12 +118,12 @@ func TestDoctorFix_TmuxTransient_DoesNotWipeHooks(t *testing.T) {
 			t.Fatalf("normal path destroyed the live entry `live:0.0`; want it preserved\n"+
 				"  hooks.json after: %s", afterStr)
 		}
-		if strings.Contains(afterStr, `"gone01"`) {
-			t.Fatalf("normal path failed to remove the stale entry `gone01`; want it removed\n"+
-				"  hooks.json after: %s", afterStr)
+		if strings.Contains(afterStr, `"`+staleKey+`"`) {
+			t.Fatalf("normal path failed to remove the stale entry %q; want it removed\n"+
+				"  hooks.json after: %s", staleKey, afterStr)
 		}
 
-		wantLine := "Pruned stale hook: gone01"
+		wantLine := "Pruned stale hook: " + staleKey
 		if !strings.Contains(output, wantLine) {
 			t.Fatalf("normal-path stdout missing %q\n  full output:\n%s", wantLine, output)
 		}

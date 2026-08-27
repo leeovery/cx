@@ -167,7 +167,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 1,
-          "current_task": "resume-hooks-silently-lost-1-8",
+          "current_task": "resume-hooks-silently-lost-1-9",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -240,6 +240,22 @@
                 "cmd/run_hook_stale_cleanup.go",
                 "internal/state/markers.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-1-8",
+              "source": "reviewer",
+              "summary": "The shared cmd hook-key vocabulary landed in the file F4 already flags as the fixture-scatter site.",
+              "detail": "The reapableSeedA..D / unjudgeableSeedA..B block sits at cmd/doctor_test.go:812-823 but is consumed from ten cmd test files, most of which exercise cmd/run_hook_stale_cleanup.go and cmd/state_daemon.go rather than cmd/doctor.go — e.g. cmd/run_hook_stale_cleanup_test.go:43, cmd/state_daemon_run_test.go:531, cmd/hook_retention_shape_test.go:15, cmd/hook_sweep_restore_standdown_test.go:24. It joins staleDeps / seedHooksJSON / fakeHookLister / runDoctorFixCmd, which finding F4 already banks for a file-merge pass. The vocabulary block should travel with that merge (to cmd/run_hook_stale_cleanup_test.go or a source-derived doctor_stale_hooks_test.go) rather than be moved on its own.",
+              "files": [
+                "cmd/doctor_test.go",
+                "cmd/run_hook_stale_cleanup_test.go",
+                "cmd/hook_prune_output_test.go",
+                "cmd/hook_retention_shape_test.go",
+                "cmd/hook_sweep_restore_standdown_test.go",
+                "cmd/hook_sweep_standdown_report_test.go",
+                "cmd/state_daemon_run_test.go",
+                "cmd/state_daemon_hook_cleanup_test.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -249,7 +265,8 @@
             "resume-hooks-silently-lost-1-4",
             "resume-hooks-silently-lost-1-5",
             "resume-hooks-silently-lost-1-6",
-            "resume-hooks-silently-lost-1-7"
+            "resume-hooks-silently-lost-1-7",
+            "resume-hooks-silently-lost-1-8"
           ],
           "staging": {
             "p1": {

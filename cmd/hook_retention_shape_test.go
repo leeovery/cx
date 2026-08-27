@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -11,10 +12,11 @@ import (
 // neither entry point may take it — however the sweep is reached.
 func TestUnjudgeableHookKeyRetention(t *testing.T) {
 	t.Run("it retains a non-token-shaped key across the daemon sweep", func(t *testing.T) {
-		seed := `{
+		retained := unjudgeableSeedA
+		seed := fmt.Sprintf(`{
   "live:0.0": {"on-resume": "cmd-live"},
-  "old-session:3.1": {"on-resume": "cmd-old"}
-}`
+  %q: {"on-resume": "cmd-old"}
+}`, retained)
 		store, path := newTempHooksStore(t, seed)
 		before, err := os.ReadFile(path)
 		if err != nil {
@@ -30,7 +32,7 @@ func TestUnjudgeableHookKeyRetention(t *testing.T) {
 		if err != nil {
 			t.Fatalf("store.Load post-run: %v", err)
 		}
-		if _, ok := postRun["old-session:3.1"]; !ok {
+		if _, ok := postRun[retained]; !ok {
 			t.Errorf("non-token-shaped key was swept; got %v", keysOf(postRun))
 		}
 
@@ -46,7 +48,7 @@ func TestUnjudgeableHookKeyRetention(t *testing.T) {
 	t.Run("it retains a non-token-shaped key across doctor --fix", func(t *testing.T) {
 		dir := t.TempDir()
 		seedHealthyStateDir(t, dir)
-		hookStore, hooksPath := seedHooksJSON(t, "old-session:3.1")
+		hookStore, hooksPath := seedHooksJSON(t, unjudgeableSeedA)
 		projectStore, _ := seedProjectsJSON(t, t.TempDir())
 		deps := staleDeps(dir, fakeHookLister{keys: []string{"live:0.0"}}, hookStore, projectStore)
 
@@ -59,10 +61,10 @@ func TestUnjudgeableHookKeyRetention(t *testing.T) {
 		if err != nil {
 			t.Fatalf("read hooks.json: %v", err)
 		}
-		if !strings.Contains(string(after), "old-session:3.1") {
+		if !strings.Contains(string(after), unjudgeableSeedA) {
 			t.Errorf("doctor --fix pruned the non-token-shaped entry:\n%s", after)
 		}
-		if strings.Contains(outBuf.String(), "Pruned stale hook: old-session:3.1") {
+		if strings.Contains(outBuf.String(), "Pruned stale hook: "+unjudgeableSeedA) {
 			t.Errorf("doctor --fix reported pruning a retained entry:\n%s", outBuf.String())
 		}
 	})
@@ -70,7 +72,7 @@ func TestUnjudgeableHookKeyRetention(t *testing.T) {
 	t.Run("it exits 0 from portal doctor with only retained non-token-shaped entries present", func(t *testing.T) {
 		dir := t.TempDir()
 		seedHealthyStateDir(t, dir)
-		hookStore, _ := seedHooksJSON(t, "old-session:3.1", "another-session:0.0")
+		hookStore, _ := seedHooksJSON(t, unjudgeableSeedA, unjudgeableSeedB)
 		projectStore, _ := seedProjectsJSON(t, t.TempDir())
 		deps := staleDeps(dir, fakeHookLister{keys: []string{"live:0.0"}}, hookStore, projectStore)
 

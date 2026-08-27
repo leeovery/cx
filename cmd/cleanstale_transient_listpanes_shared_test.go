@@ -46,9 +46,9 @@ type transientModeSpec struct {
 // entries=3. The keys are token-shaped so it is the transient-failure handling,
 // not the reaper's retention of an unjudgeable shape, that spares them.
 var transientModeSeedEntries = map[string]string{
-	"alpha1": "echo a",
-	"beta02": "echo b",
-	"gamma1": "echo c",
+	transienttest.ReapableHookKey(0): "echo a",
+	transienttest.ReapableHookKey(1): "echo b",
+	transienttest.ReapableHookKey(2): "echo c",
 }
 
 func runTransientCleanStaleModeSubtest(t *testing.T, spec transientModeSpec) {

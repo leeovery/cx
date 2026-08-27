@@ -11,7 +11,7 @@ func TestDoctorFixPrunedHookOutput(t *testing.T) {
 	t.Run("it leaves doctor --fix stdout unchanged", func(t *testing.T) {
 		dir := t.TempDir()
 		seedHealthyStateDir(t, dir)
-		hookStore, _ := seedHooksJSON(t, "sessA1")
+		hookStore, _ := seedHooksJSON(t, reapableSeedA)
 		projectStore, _ := seedProjectsJSON(t, t.TempDir())
 		deps := staleDeps(dir, fakeHookLister{keys: []string{"sessB:0.0"}}, hookStore, projectStore)
 
@@ -26,9 +26,10 @@ func TestDoctorFixPrunedHookOutput(t *testing.T) {
 				pruned = append(pruned, line)
 			}
 		}
-		if len(pruned) != 1 || pruned[0] != "Pruned stale hook: sessA1" {
-			t.Errorf("pruned-hook stdout lines = %q, want exactly [\"Pruned stale hook: sessA1\"]\n%s",
-				pruned, outBuf.String())
+		want := "Pruned stale hook: " + reapableSeedA
+		if len(pruned) != 1 || pruned[0] != want {
+			t.Errorf("pruned-hook stdout lines = %q, want exactly [%q]\n%s",
+				pruned, want, outBuf.String())
 		}
 	})
 }

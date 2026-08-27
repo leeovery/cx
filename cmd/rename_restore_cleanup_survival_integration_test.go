@@ -10,6 +10,7 @@ import (
 	"github.com/leeovery/portal/internal/session"
 	"github.com/leeovery/portal/internal/tmux"
 	"github.com/leeovery/portal/internal/tmuxtest"
+	"github.com/leeovery/portal/internal/transienttest"
 )
 
 // The recreated session's name is the post-rename one; restore re-stamps
@@ -51,7 +52,7 @@ func TestRenameRestoreCleanupSurvival_KeepsRestoredIdKeyedHook(t *testing.T) {
 
 	// Truly-stale entry with no matching live pane, token-shaped so the reaper
 	// can judge it: must still be swept.
-	const staleKey = "gone01"
+	staleKey := transienttest.ReapableHookKey(0)
 
 	seed := `{
   "` + liveKey + `": {"on-resume": "echo restored"},

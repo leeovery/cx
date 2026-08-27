@@ -168,7 +168,7 @@ func TestDoctorSummary_IsTheLastLine(t *testing.T) {
 func TestDoctorSummary_FixPathRendersTwo(t *testing.T) {
 	dir := t.TempDir()
 	seedHealthyStateDir(t, dir)
-	hookStore, _ := seedHooksJSON(t, "sessA1")
+	hookStore, _ := seedHooksJSON(t, reapableSeedA)
 	projectStore, _ := seedProjectsJSON(t, t.TempDir())
 	deps := staleDeps(dir, fakeHookLister{keys: []string{"sessB:0.0"}}, hookStore, projectStore)
 

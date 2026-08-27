@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"maps"
 	"os"
@@ -15,6 +16,7 @@ import (
 	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
+	"github.com/leeovery/portal/internal/transienttest"
 )
 
 func installCapture(t *testing.T) *logtest.Sink {
@@ -470,6 +472,15 @@ func TestGet(t *testing.T) {
 	})
 }
 
+// The hook-key seed vocabulary: a reapable key is one the staleness rule can
+// judge, so it is swept once absent from the live set.
+var (
+	reapableSeedA = transienttest.ReapableHookKey(0)
+	reapableSeedB = transienttest.ReapableHookKey(1)
+	reapableSeedC = transienttest.ReapableHookKey(2)
+	reapableSeedD = transienttest.ReapableHookKey(3)
+)
+
 func TestCleanStale(t *testing.T) {
 	t.Run("removes entries for keys not in live set", func(t *testing.T) {
 		dir := t.TempDir()
@@ -479,7 +490,7 @@ func TestCleanStale(t *testing.T) {
 		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", "cli"); err != nil {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
-		if err := store.Set("stale1", "on-resume", "claude --resume def456", "cli"); err != nil {
+		if err := store.Set(reapableSeedA, "on-resume", "claude --resume def456", "cli"); err != nil {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
 
@@ -491,8 +502,8 @@ func TestCleanStale(t *testing.T) {
 		if len(removed) != 1 {
 			t.Fatalf("got %d removed, want 1", len(removed))
 		}
-		if removed[0] != "stale1" {
-			t.Errorf("removed[0] = %q, want %q", removed[0], "stale1")
+		if removed[0] != reapableSeedA {
+			t.Errorf("removed[0] = %q, want %q", removed[0], reapableSeedA)
 		}
 
 		h, err := store.Load()
@@ -505,8 +516,8 @@ func TestCleanStale(t *testing.T) {
 		if _, ok := h["my-session:0.0"]; !ok {
 			t.Error("key my-session:0.0 should have been kept")
 		}
-		if _, ok := h["stale1"]; ok {
-			t.Error("key stale1 should have been removed")
+		if _, ok := h[reapableSeedA]; ok {
+			t.Errorf("key %s should have been removed", reapableSeedA)
 		}
 	})
 
@@ -551,10 +562,10 @@ func TestCleanStale(t *testing.T) {
 		filePath := filepath.Join(dir, "hooks.json")
 		store := hooks.NewStore(filePath)
 
-		if err := store.Set("stale1", "on-resume", "claude --resume abc123", "cli"); err != nil {
+		if err := store.Set(reapableSeedA, "on-resume", "claude --resume abc123", "cli"); err != nil {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
-		if err := store.Set("stale2", "on-resume", "claude --resume def456", "cli"); err != nil {
+		if err := store.Set(reapableSeedB, "on-resume", "claude --resume def456", "cli"); err != nil {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
 
@@ -612,7 +623,7 @@ func TestCleanStale(t *testing.T) {
 		dir := t.TempDir()
 		filePath := filepath.Join(dir, "hooks.json")
 
-		content := `{"stale1":{"on-resume":"claude --resume old1"},"stale2":{"on-resume":"claude --resume old2"},"my-session:0.0":{"on-resume":"claude --resume new1"}}`
+		content := fmt.Sprintf(`{%q:{"on-resume":"claude --resume old1"},%q:{"on-resume":"claude --resume old2"},"my-session:0.0":{"on-resume":"claude --resume new1"}}`, reapableSeedA, reapableSeedB)
 		if err := os.WriteFile(filePath, []byte(content), 0o644); err != nil {
 			t.Fatalf("failed to write test file: %v", err)
 		}
@@ -629,11 +640,11 @@ func TestCleanStale(t *testing.T) {
 		}
 
 		sort.Strings(removed)
-		if removed[0] != "stale1" {
-			t.Errorf("removed[0] = %q, want %q", removed[0], "stale1")
+		if removed[0] != reapableSeedA {
+			t.Errorf("removed[0] = %q, want %q", removed[0], reapableSeedA)
 		}
-		if removed[1] != "stale2" {
-			t.Errorf("removed[1] = %q, want %q", removed[1], "stale2")
+		if removed[1] != reapableSeedB {
+			t.Errorf("removed[1] = %q, want %q", removed[1], reapableSeedB)
 		}
 
 		h, err := store.Load()
@@ -646,11 +657,11 @@ func TestCleanStale(t *testing.T) {
 		if _, ok := h["my-session:0.0"]; !ok {
 			t.Error("key my-session:0.0 should have been kept")
 		}
-		if _, ok := h["stale1"]; ok {
-			t.Error("key stale1 should have been removed")
+		if _, ok := h[reapableSeedA]; ok {
+			t.Errorf("key %s should have been removed", reapableSeedA)
 		}
-		if _, ok := h["stale2"]; ok {
-			t.Error("key stale2 should have been removed")
+		if _, ok := h[reapableSeedB]; ok {
+			t.Errorf("key %s should have been removed", reapableSeedB)
 		}
 	})
 
@@ -662,10 +673,10 @@ func TestCleanStale(t *testing.T) {
 		if err := store.Set("my-session:0.0", "on-resume", "cmd0", "cli"); err != nil {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
-		if err := store.Set("stale2", "on-resume", "cmd-other0", "cli"); err != nil {
+		if err := store.Set(reapableSeedB, "on-resume", "cmd-other0", "cli"); err != nil {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
-		if err := store.Set("stale1", "on-resume", "cmd1", "cli"); err != nil {
+		if err := store.Set(reapableSeedA, "on-resume", "cmd1", "cli"); err != nil {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
 		if err := store.Set("other-session:0.1", "on-resume", "cmd-other1", "cli"); err != nil {
@@ -682,11 +693,11 @@ func TestCleanStale(t *testing.T) {
 		}
 
 		sort.Strings(removed)
-		if removed[0] != "stale1" {
-			t.Errorf("removed[0] = %q, want %q", removed[0], "stale1")
+		if removed[0] != reapableSeedA {
+			t.Errorf("removed[0] = %q, want %q", removed[0], reapableSeedA)
 		}
-		if removed[1] != "stale2" {
-			t.Errorf("removed[1] = %q, want %q", removed[1], "stale2")
+		if removed[1] != reapableSeedB {
+			t.Errorf("removed[1] = %q, want %q", removed[1], reapableSeedB)
 		}
 
 		h, err := store.Load()
@@ -708,16 +719,17 @@ func TestCleanStale(t *testing.T) {
 func TestStaleKeys(t *testing.T) {
 	t.Run("returns persisted keys absent from the live set", func(t *testing.T) {
 		persisted := map[string]map[string]string{
-			"live-a:0.0": {"on-resume": "x"},
-			"stalB0":     {"on-resume": "y"},
-			"live-c:0.0": {"on-resume": "z"},
-			"stalD0":     {"on-resume": "w"},
+			"live-a:0.0":  {"on-resume": "x"},
+			reapableSeedB: {"on-resume": "y"},
+			"live-c:0.0":  {"on-resume": "z"},
+			reapableSeedD: {"on-resume": "w"},
 		}
 		live := []string{"live-a:0.0", "live-c:0.0", "extra-e:0.0"}
 
 		got := hooks.StaleKeys(persisted, live)
 		sort.Strings(got)
-		want := []string{"stalB0", "stalD0"}
+		want := []string{reapableSeedB, reapableSeedD}
+		sort.Strings(want)
 		if len(got) != len(want) {
 			t.Fatalf("StaleKeys = %v, want %v", got, want)
 		}
@@ -741,8 +753,8 @@ func TestStaleKeys(t *testing.T) {
 
 	t.Run("returns every judgeable persisted key when the live set is empty", func(t *testing.T) {
 		persisted := map[string]map[string]string{
-			"stalA0": {"on-resume": "x"},
-			"stalB0": {"on-resume": "y"},
+			reapableSeedA: {"on-resume": "x"},
+			reapableSeedB: {"on-resume": "y"},
 		}
 		got := hooks.StaleKeys(persisted, []string{})
 		if len(got) != 2 {
@@ -761,13 +773,13 @@ func TestStaleKeys(t *testing.T) {
 func TestCleanStaleRemovesExactlyStaleKeys(t *testing.T) {
 	dir := t.TempDir()
 	store := hooks.NewStore(filepath.Join(dir, "hooks.json"))
-	for _, k := range []string{"keyA00", "keyB00", "keyC00", "keyD00"} {
+	for _, k := range []string{reapableSeedA, reapableSeedB, reapableSeedC, reapableSeedD} {
 		if err := store.Set(k, "on-resume", "cmd", "cli"); err != nil {
 			t.Fatalf("seed set %q: %v", k, err)
 		}
 	}
 
-	live := []string{"keyA00", "keyC00"}
+	live := []string{reapableSeedA, reapableSeedC}
 
 	persisted, err := store.Load()
 	if err != nil {
@@ -831,10 +843,10 @@ func TestCleanStaleLogging(t *testing.T) {
 		if err := store.Set("my-session:0.0", "on-resume", "cmd0", "cli"); err != nil {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
-		if err := store.Set("stale1", "on-resume", "cmd1", "cli"); err != nil {
+		if err := store.Set(reapableSeedA, "on-resume", "cmd1", "cli"); err != nil {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
-		if err := store.Set("stale2", "on-resume", "cmd2", "cli"); err != nil {
+		if err := store.Set(reapableSeedB, "on-resume", "cmd2", "cli"); err != nil {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
 
@@ -852,7 +864,7 @@ func TestCleanStaleLogging(t *testing.T) {
 		if len(perKey) != 2 {
 			t.Fatalf("got %d per-key records, want 2: %+v", len(perKey), perKey)
 		}
-		want := map[string]string{"stale1": "cmd1", "stale2": "cmd2"}
+		want := map[string]string{reapableSeedA: "cmd1", reapableSeedB: "cmd2"}
 		got := map[string]string{}
 		for _, r := range perKey {
 			if r.Level != slog.LevelInfo {
@@ -888,7 +900,7 @@ func TestCleanStaleLogging(t *testing.T) {
 	t.Run("it emits an empty value for a removed entry with no on-resume event", func(t *testing.T) {
 		dir := t.TempDir()
 		path := filepath.Join(dir, "hooks.json")
-		if err := os.WriteFile(path, []byte(`{"stale1":{"on-exit":"x"}}`), 0o600); err != nil {
+		if err := os.WriteFile(path, fmt.Appendf(nil, `{%q:{"on-exit":"x"}}`, reapableSeedA), 0o600); err != nil {
 			t.Fatalf("seed: %v", err)
 		}
 		store := hooks.NewStore(path)
@@ -902,8 +914,8 @@ func TestCleanStaleLogging(t *testing.T) {
 		if len(perKey) != 1 {
 			t.Fatalf("got %d per-key records, want 1: %+v", len(perKey), perKey)
 		}
-		if got := perKey[0].AttrString(t, "hook_key"); got != "stale1" {
-			t.Errorf("hook_key = %q, want %q", got, "stale1")
+		if got := perKey[0].AttrString(t, "hook_key"); got != reapableSeedA {
+			t.Errorf("hook_key = %q, want %q", got, reapableSeedA)
 		}
 		if got := perKey[0].AttrString(t, "value"); got != "" {
 			t.Errorf("value = %q, want empty", got)
@@ -913,7 +925,7 @@ func TestCleanStaleLogging(t *testing.T) {
 	t.Run("it emits one line for a key holding several events", func(t *testing.T) {
 		dir := t.TempDir()
 		path := filepath.Join(dir, "hooks.json")
-		if err := os.WriteFile(path, []byte(`{"stale1":{"on-resume":"cmd1","on-exit":"x"}}`), 0o600); err != nil {
+		if err := os.WriteFile(path, fmt.Appendf(nil, `{%q:{"on-resume":"cmd1","on-exit":"x"}}`, reapableSeedA), 0o600); err != nil {
 			t.Fatalf("seed: %v", err)
 		}
 		store := hooks.NewStore(path)
@@ -937,7 +949,7 @@ func TestCleanStaleLogging(t *testing.T) {
 		// cannot use readOnlyDirPath.
 		dir := t.TempDir()
 		seeded := filepath.Join(dir, "hooks.json")
-		body := []byte(`{"stalA0":{"on-resume":"cmdA"}}`)
+		body := fmt.Appendf(nil, `{%q:{"on-resume":"cmdA"}}`, reapableSeedA)
 		if err := os.WriteFile(seeded, body, 0o600); err != nil {
 			t.Fatalf("seed: %v", err)
 		}
@@ -960,8 +972,8 @@ func TestCleanStaleLogging(t *testing.T) {
 		if perKey[0].Level != slog.LevelInfo {
 			t.Errorf("per-key level = %v, want INFO", perKey[0].Level)
 		}
-		if got := perKey[0].AttrString(t, "hook_key"); got != "stalA0" {
-			t.Errorf("hook_key = %q, want %q", got, "stalA0")
+		if got := perKey[0].AttrString(t, "hook_key"); got != reapableSeedA {
+			t.Errorf("hook_key = %q, want %q", got, reapableSeedA)
 		}
 		if got := perKey[0].AttrString(t, "value"); got != "cmdA" {
 			t.Errorf("value = %q, want %q", got, "cmdA")
@@ -996,7 +1008,7 @@ func TestCleanStaleLogging(t *testing.T) {
 		if err := store.Set("my-session:0.0", "on-resume", "cmd0", "cli"); err != nil {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
-		if err := store.Set("stale1", "on-resume", "cmd1", "cli"); err != nil {
+		if err := store.Set(reapableSeedA, "on-resume", "cmd1", "cli"); err != nil {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
 
@@ -1026,7 +1038,7 @@ func TestCleanStaleLogging(t *testing.T) {
 		// cannot use readOnlyDirPath.
 		dir := t.TempDir()
 		seeded := filepath.Join(dir, "hooks.json")
-		if err := os.WriteFile(seeded, []byte(`{"stalA0":{"on-resume":"x"},"stalB0":{"on-resume":"y"}}`), 0o644); err != nil {
+		if err := os.WriteFile(seeded, fmt.Appendf(nil, `{%q:{"on-resume":"x"},%q:{"on-resume":"y"}}`, reapableSeedA, reapableSeedB), 0o644); err != nil {
 			t.Fatalf("seed: %v", err)
 		}
 		if err := os.Chmod(dir, 0o500); err != nil {

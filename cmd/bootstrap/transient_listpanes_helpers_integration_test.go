@@ -101,8 +101,8 @@ func TestTransientListPanesHelpers_Smoke(t *testing.T) {
 		env, _ := portaltest.IsolateStateForTest(t)
 
 		entries := map[string]string{
-			"smoke1": "echo hello",
-			"smoke2": "claude --resume",
+			transienttest.ReapableHookKey(0): "echo hello",
+			transienttest.ReapableHookKey(1): "claude --resume",
 		}
 		transienttest.SeedHooksJSON(t, env, entries)
 

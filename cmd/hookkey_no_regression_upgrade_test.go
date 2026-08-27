@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/leeovery/portal/internal/tmuxtest"
+	"github.com/leeovery/portal/internal/transienttest"
 )
 
 func TestHookKeyNoRegressionUpgrade_UnstampedNameKeyedHookSurvives(t *testing.T) {
@@ -34,7 +35,7 @@ func TestHookKeyNoRegressionUpgrade_UnstampedNameKeyedHookSurvives(t *testing.T)
 	assertLiveHookKeyPresent(t, client, liveKey)
 
 	// Token-shaped: a key the reaper can judge, and so one it still sweeps.
-	const staleKey = "gone01"
+	staleKey := transienttest.ReapableHookKey(0)
 
 	seed := `{
   "` + liveKey + `": {"on-resume": "echo legacy"},

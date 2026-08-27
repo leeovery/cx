@@ -1,13 +1,19 @@
 package transienttest
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/leeovery/portal/internal/hooks"
+	"github.com/leeovery/portal/internal/session"
 )
+
+// reapableSeedPrefix keeps a reapable seed key legible in test output while
+// leaving room for the n disambiguator inside the token width.
+const reapableSeedPrefix = "reap"
 
 // ResolveHooksFilePathFromEnv resolves hooks.json the way production does, but
 // against a supplied env slice rather than os.Getenv: PORTAL_HOOKS_FILE wins,
@@ -65,4 +71,31 @@ func HooksJSONBytes(t *testing.T, env []string) []byte {
 		t.Fatalf("transienttest.HooksJSONBytes: read %s: %v", path, err)
 	}
 	return data
+}
+
+// ReapableHookKey returns a seed hook key the staleness rule can judge, so an
+// entry under it is reaped once it is absent from the live pane set. The
+// returned value is asserted token-shaped: a change to the token width or
+// charset panics here rather than silently turning a reap fixture into a
+// retention one. n only disambiguates — distinct n give distinct keys.
+func ReapableHookKey(n int) string {
+	radix := len(session.NanoIDAlphabet)
+	if n < 0 || n >= radix*radix {
+		panic(fmt.Sprintf("transienttest.ReapableHookKey: n = %d out of range [0,%d)", n, radix*radix))
+	}
+	key := reapableSeedPrefix + string([]byte{
+		session.NanoIDAlphabet[n/radix],
+		session.NanoIDAlphabet[n%radix],
+	})
+	if !session.IsTokenShaped(key) {
+		panic(fmt.Sprintf("transienttest.ReapableHookKey: %q is not token-shaped — the seed vocabulary has drifted from session.IsTokenShaped", key))
+	}
+	return key
+}
+
+// UnjudgeableHookKey returns a seed hook key of the legacy `<name>:window.pane`
+// shape, which the staleness rule cannot judge and therefore retains even when
+// absent from the live pane set. n only disambiguates.
+func UnjudgeableHookKey(n int) string {
+	return fmt.Sprintf("unjudgeable-session-%d:0.0", n)
 }

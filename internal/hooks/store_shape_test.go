@@ -1,12 +1,14 @@
 package hooks_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
 	"testing"
 
 	"github.com/leeovery/portal/internal/hooks"
+	"github.com/leeovery/portal/internal/transienttest"
 )
 
 // seedHooksFile writes the raw on-disk map so a fixture can hold an arbitrary
@@ -21,15 +23,19 @@ func seedHooksFile(t *testing.T, contents string) (*hooks.Store, string) {
 }
 
 func TestCleanStaleShapeAwareness(t *testing.T) {
+	liveKey := transienttest.ReapableHookKey(0)
+	staleKey := transienttest.ReapableHookKey(1)
+	retainedKey := transienttest.UnjudgeableHookKey(0)
+
 	t.Run("it retains a non-token-shaped key absent from the live set", func(t *testing.T) {
-		store, path := seedHooksFile(t, `{"my-session:0.1":{"on-resume":"old"},"aBc123":{"on-resume":"live"}}`)
+		store, path := seedHooksFile(t, fmt.Sprintf(`{%q:{"on-resume":"old"},%q:{"on-resume":"live"}}`, retainedKey, liveKey))
 
 		before, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatalf("read seeded file: %v", err)
 		}
 
-		removed, err := store.CleanStale([]string{"aBc123"})
+		removed, err := store.CleanStale([]string{liveKey})
 		if err != nil {
 			t.Fatalf("CleanStale: %v", err)
 		}
@@ -41,7 +47,7 @@ func TestCleanStaleShapeAwareness(t *testing.T) {
 		if err != nil {
 			t.Fatalf("load: %v", err)
 		}
-		predicted := hooks.StaleKeys(persisted, []string{"aBc123"})
+		predicted := hooks.StaleKeys(persisted, []string{liveKey})
 		if len(predicted) != 0 {
 			t.Errorf("StaleKeys reported %v, want nothing", predicted)
 		}
@@ -56,32 +62,32 @@ func TestCleanStaleShapeAwareness(t *testing.T) {
 	})
 
 	t.Run("it deletes a token-shaped key absent from the live set", func(t *testing.T) {
-		store, _ := seedHooksFile(t, `{"aBc123":{"on-resume":"live"},"Zx9Q0p":{"on-resume":"gone"}}`)
+		store, _ := seedHooksFile(t, fmt.Sprintf(`{%q:{"on-resume":"live"},%q:{"on-resume":"gone"}}`, liveKey, staleKey))
 
-		removed, err := store.CleanStale([]string{"aBc123"})
+		removed, err := store.CleanStale([]string{liveKey})
 		if err != nil {
 			t.Fatalf("CleanStale: %v", err)
 		}
-		if !slices.Equal(removed, []string{"Zx9Q0p"}) {
-			t.Fatalf("CleanStale removed %v, want [Zx9Q0p]", removed)
+		if !slices.Equal(removed, []string{staleKey}) {
+			t.Fatalf("CleanStale removed %v, want [%s]", removed, staleKey)
 		}
 
 		h, err := store.Load()
 		if err != nil {
 			t.Fatalf("load: %v", err)
 		}
-		if _, ok := h["Zx9Q0p"]; ok {
+		if _, ok := h[staleKey]; ok {
 			t.Error("token-shaped absent key should have been removed")
 		}
-		if _, ok := h["aBc123"]; !ok {
+		if _, ok := h[liveKey]; !ok {
 			t.Error("token-shaped live key should have been kept")
 		}
 	})
 
 	t.Run("it deletes an empty key", func(t *testing.T) {
-		store, _ := seedHooksFile(t, `{"":{"on-resume":"malformed"},"aBc123":{"on-resume":"live"}}`)
+		store, _ := seedHooksFile(t, fmt.Sprintf(`{"":{"on-resume":"malformed"},%q:{"on-resume":"live"}}`, liveKey))
 
-		removed, err := store.CleanStale([]string{"aBc123"})
+		removed, err := store.CleanStale([]string{liveKey})
 		if err != nil {
 			t.Fatalf("CleanStale: %v", err)
 		}
@@ -99,7 +105,7 @@ func TestCleanStaleShapeAwareness(t *testing.T) {
 	})
 
 	t.Run("it writes no file and emits no summary when every candidate is retained", func(t *testing.T) {
-		store, path := seedHooksFile(t, `{"my-session:0.1":{"on-resume":"a"},"other:1.2":{"on-resume":"b"}}`)
+		store, path := seedHooksFile(t, fmt.Sprintf(`{%q:{"on-resume":"a"},%q:{"on-resume":"b"}}`, transienttest.UnjudgeableHookKey(1), transienttest.UnjudgeableHookKey(2)))
 
 		before, err := os.ReadFile(path)
 		if err != nil {

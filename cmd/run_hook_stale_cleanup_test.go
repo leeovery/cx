@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -36,10 +37,10 @@ func TestRunHookStaleCleanup(t *testing.T) {
 	const loadWarnFmt = "stale-hook cleanup: hookStore.Load failed"
 
 	t.Run("hazard guard fires on empty live + non-empty persisted", func(t *testing.T) {
-		seed := `{
-  "keyA00": {"on-resume": "cmd-a"},
-  "keyB00": {"on-resume": "cmd-b"}
-}`
+		seed := fmt.Sprintf(`{
+  %q: {"on-resume": "cmd-a"},
+  %q: {"on-resume": "cmd-b"}
+}`, reapableSeedA, reapableSeedB)
 		store, path := newTempHooksStore(t, seed)
 		before := readFileBytes(t, path)
 
@@ -104,7 +105,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 	})
 
 	t.Run("ListAllPanes error logs Warn and returns nil", func(t *testing.T) {
-		seed := `{"keyA00": {"on-resume": "cmd-a"}}`
+		seed := fmt.Sprintf(`{%q: {"on-resume": "cmd-a"}}`, reapableSeedA)
 		store, path := newTempHooksStore(t, seed)
 		before := readFileBytes(t, path)
 
@@ -160,12 +161,12 @@ func TestRunHookStaleCleanup(t *testing.T) {
 	})
 
 	t.Run("onRemoved invoked once per removed entry", func(t *testing.T) {
-		seed := `{
+		seed := fmt.Sprintf(`{
   "a:0.0": {"on-resume": "cmd-a"},
-  "keyB00": {"on-resume": "cmd-b"},
-  "keyC00": {"on-resume": "cmd-c"},
-  "keyD00": {"on-resume": "cmd-d"}
-}`
+  %q: {"on-resume": "cmd-b"},
+  %q: {"on-resume": "cmd-c"},
+  %q: {"on-resume": "cmd-d"}
+}`, reapableSeedB, reapableSeedC, reapableSeedD)
 		store, _ := newTempHooksStore(t, seed)
 
 		logger := &recordingLogger{}
@@ -181,7 +182,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		}
 
 		// CleanStale iterates a map, so removal order varies — assert set equality.
-		want := map[string]struct{}{"keyB00": {}, "keyC00": {}, "keyD00": {}}
+		want := map[string]struct{}{reapableSeedB: {}, reapableSeedC: {}, reapableSeedD: {}}
 		if len(removedSeen) != len(want) {
 			t.Errorf("onRemoved invocations = %d (%v), want %d (%v)", len(removedSeen), removedSeen, len(want), want)
 		}
@@ -193,10 +194,10 @@ func TestRunHookStaleCleanup(t *testing.T) {
 	})
 
 	t.Run("nil onRemoved is safe under normal removal", func(t *testing.T) {
-		seed := `{
+		seed := fmt.Sprintf(`{
   "a:0.0": {"on-resume": "cmd-a"},
-  "keyB00": {"on-resume": "cmd-b"}
-}`
+  %q: {"on-resume": "cmd-b"}
+}`, reapableSeedB)
 		store, _ := newTempHooksStore(t, seed)
 
 		logger := &recordingLogger{}
@@ -212,12 +213,12 @@ func TestRunHookStaleCleanup(t *testing.T) {
 	})
 
 	t.Run("happy-path normal removal emits entry + completion Debug", func(t *testing.T) {
-		seed := `{
+		seed := fmt.Sprintf(`{
   "a:0.0": {"on-resume": "cmd-a"},
   "b:0.0": {"on-resume": "cmd-b"},
   "c:0.0": {"on-resume": "cmd-c"},
-  "keyD00": {"on-resume": "cmd-d"}
-}`
+  %q: {"on-resume": "cmd-d"}
+}`, reapableSeedD)
 		store, _ := newTempHooksStore(t, seed)
 
 		logger := &recordingLogger{}
@@ -235,8 +236,8 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		if len(postRun) != len(wantKeys) {
 			t.Errorf("post-run hook count = %d (keys=%v), want %d", len(postRun), keysOf(postRun), len(wantKeys))
 		}
-		if _, ok := postRun["keyD00"]; ok {
-			t.Errorf("post-run hooks still contains stale key keyD00; got %v", keysOf(postRun))
+		if _, ok := postRun[reapableSeedD]; ok {
+			t.Errorf("post-run hooks still contains stale key %s; got %v", reapableSeedD, keysOf(postRun))
 		}
 
 		if got := countMatching(logger.entries, "debug", "bootstrap", entryDebugFmt); got != 1 {
@@ -281,10 +282,10 @@ func TestRunHookStaleCleanup(t *testing.T) {
 	})
 
 	t.Run("it preserves a stamped-session hook whose id-key matches the live set", func(t *testing.T) {
-		seed := `{
+		seed := fmt.Sprintf(`{
   "tok123:0.0": {"on-resume": "cmd-live"},
-  "orpha1": {"on-resume": "cmd-stale"}
-}`
+  %q: {"on-resume": "cmd-stale"}
+}`, reapableSeedA)
 		store, _ := newTempHooksStore(t, seed)
 
 		logger := &recordingLogger{}
@@ -301,8 +302,8 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		if _, ok := postRun["tok123:0.0"]; !ok {
 			t.Errorf("stamped-session hook tok123:0.0 was removed; want preserved (present in live set); got %v", keysOf(postRun))
 		}
-		if _, ok := postRun["orpha1"]; ok {
-			t.Errorf("truly-stale hook orpha1 survived; want removed; got %v", keysOf(postRun))
+		if _, ok := postRun[reapableSeedA]; ok {
+			t.Errorf("truly-stale hook %s survived; want removed; got %v", reapableSeedA, keysOf(postRun))
 		}
 	})
 }

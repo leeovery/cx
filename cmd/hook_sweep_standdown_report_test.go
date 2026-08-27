@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"strings"
@@ -15,10 +16,11 @@ import (
 // A repair that silently did not run is indistinguishable from a repair that
 // found nothing to do, so every stand-down reports itself to its caller.
 func TestHookSweepReportsStandDown(t *testing.T) {
-	const staleSeed = `{
-  "gone01": {"on-resume": "cmd-gone"},
+	staleKey := reapableSeedA
+	staleSeed := fmt.Sprintf(`{
+  %q: {"on-resume": "cmd-gone"},
   "live:0.0": {"on-resume": "cmd-live"}
-}`
+}`, staleKey)
 
 	t.Run("it reports the restore stand-down to the caller", func(t *testing.T) {
 		store, path := newTempHooksStore(t, staleSeed)
@@ -224,7 +226,7 @@ func runDoctorFixWithLister(t *testing.T, lister fakeHookLister) string {
 
 	dir := t.TempDir()
 	seedHealthyStateDir(t, dir)
-	hookStore, hooksPath := seedHooksJSON(t, "sessA1")
+	hookStore, hooksPath := seedHooksJSON(t, reapableSeedA)
 	before, err := os.ReadFile(hooksPath)
 	if err != nil {
 		t.Fatalf("read hooks.json: %v", err)
