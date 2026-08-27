@@ -41,14 +41,22 @@ func assertNoStaleHookPrunesOnStdout(t *testing.T, output string, seededKeys ...
 }
 
 func TestDoctorFix_TmuxTransient_DoesNotWipeHooks(t *testing.T) {
-	// runHookStaleCleanup intercepts list-panes -a before any real tmux
-	// delegation under both failure modes, so the placeholder Inner commander is
-	// never reached.
+	// A live server behind the stub is load-bearing: runHookStaleCleanup reads
+	// @portal-restoring before it enumerates, and that read is not intercepted —
+	// against a dead socket it fails, and a failed read stands the whole cycle
+	// down before either list-panes failure mode is reached.
 	doctorInvoker := func(mode transienttest.FailureMode) func(t *testing.T, env []string, stateDir string) (string, error) {
 		return func(t *testing.T, env []string, stateDir string) (string, error) {
 			t.Helper()
+			tmuxtest.SkipIfNoTmux(t)
+
+			sock := tmuxtest.New(t, "ptl-doctorfix-transient-")
+			if _, err := sock.TryRun("new-session", "-d", "-s", "live"); err != nil {
+				t.Fatalf("seed live session: %v", err)
+			}
+
 			stub := &transienttest.Commander{
-				Inner: &tmux.RealCommander{},
+				Inner: &transienttest.SocketCommander{SocketPath: sock.SocketPath()},
 				Mode:  mode,
 			}
 			return runDoctorFixHookPrune(t, tmux.NewClient(stub))

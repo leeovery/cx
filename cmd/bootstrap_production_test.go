@@ -84,12 +84,18 @@ func (r *recordingLogger) Handle(_ context.Context, rec slog.Record) error {
 var _ slog.Handler = (*recordingLogger)(nil)
 
 type stubAllPaneLister struct {
-	panes []string
-	err   error
+	panes        []string
+	err          error
+	restoring    bool
+	restoringErr error
 }
 
 func (s *stubAllPaneLister) ListAllPaneHookKeys() ([]string, error) {
 	return s.panes, s.err
+}
+
+func (s *stubAllPaneLister) TryGetServerOption(string) (string, bool, error) {
+	return restoringOption(s.restoring, s.restoringErr)
 }
 
 var _ AllPaneLister = (*tmux.Client)(nil)

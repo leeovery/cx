@@ -14,11 +14,17 @@ type recordingHookKeyLister struct {
 	panes        []string
 	err          error
 	hookKeyCalls int
+	restoring    bool
+	restoringErr error
 }
 
 func (r *recordingHookKeyLister) ListAllPaneHookKeys() ([]string, error) {
 	r.hookKeyCalls++
 	return r.panes, r.err
+}
+
+func (r *recordingHookKeyLister) TryGetServerOption(string) (string, bool, error) {
+	return restoringOption(r.restoring, r.restoringErr)
 }
 
 var _ AllPaneLister = (*recordingHookKeyLister)(nil)

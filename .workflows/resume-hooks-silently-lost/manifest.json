@@ -161,7 +161,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 1,
-          "current_task": "resume-hooks-silently-lost-1-3",
+          "current_task": "resume-hooks-silently-lost-1-4",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-1",
@@ -220,11 +220,22 @@
               "files": [
                 "internal/hooks/store_test.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-1-3",
+              "source": "reviewer",
+              "summary": "The doctor --fix fixture is being re-implemented per stand-down reason instead of parameterised — 1-4 and 1-5 will each want another variant.",
+              "detail": "cmd/hook_sweep_restore_standdown_test.go:138-144 inlines a copy of seedStalePruneFixture (cmd/doctor_test.go:856-869) solely to swap in fakeHookLister{restoring: true}. Tasks 1-4 (onSkipped phrase lines) and 1-5 (checkStaleHooks not-evaluable) will each need the same fixture with a different lister, so the natural consolidation is one fixture taking the lister as a parameter, once all three exist.",
+              "files": [
+                "cmd/hook_sweep_restore_standdown_test.go",
+                "cmd/doctor_test.go"
+              ]
             }
           ],
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
-            "resume-hooks-silently-lost-1-2"
+            "resume-hooks-silently-lost-1-2",
+            "resume-hooks-silently-lost-1-3"
           ]
         }
       }

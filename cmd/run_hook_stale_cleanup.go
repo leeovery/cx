@@ -4,13 +4,26 @@ import (
 	"log/slog"
 
 	"github.com/leeovery/portal/internal/hooks"
+	"github.com/leeovery/portal/internal/state"
 )
+
+// A restore window is an expected state, so the stand-down is DEBUG: warning
+// through every one of them would name a hazard being avoided, not encountered.
+func logRestoreStandDown(readErr error) {
+	attrs := []any{"op", "clean-stale-skipped", "via", "internal", "reason", "restoring"}
+	if readErr != nil {
+		attrs = append(attrs, "error", readErr)
+	}
+	hooksLogger.Debug("clean-stale-skipped", attrs...)
+}
 
 // AllPaneLister returns every live pane's hook key, in the same
 // <@portal-id or session_name>:window.pane form registration writes — a divergent
-// form reaps freshly-registered entries as stale.
+// form reaps freshly-registered entries as stale. It also carries the
+// @portal-restoring read that stands the sweep down for a restore's duration.
 type AllPaneLister interface {
 	ListAllPaneHookKeys() ([]string, error)
+	state.RestoringChecker
 }
 
 func runHookStaleCleanup(
@@ -21,6 +34,14 @@ func runHookStaleCleanup(
 ) error {
 	if logger == nil {
 		logger = bootstrapLogger
+	}
+
+	// A restore's panes carry no token until the re-stamp, so a sweep landing in
+	// that window would reap every token-keyed entry on the machine. A failed
+	// read counts as set: a deferred prune costs nothing.
+	if restoring, err := state.IsRestoringSet(lister); restoring || err != nil {
+		logRestoreStandDown(err)
+		return nil
 	}
 
 	livePanes, err := lister.ListAllPaneHookKeys()

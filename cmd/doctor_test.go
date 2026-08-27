@@ -795,11 +795,17 @@ func TestDoctorCheckOrder(t *testing.T) {
 }
 
 type fakeHookLister struct {
-	keys []string
-	err  error
+	keys         []string
+	err          error
+	restoring    bool
+	restoringErr error
 }
 
 func (f fakeHookLister) ListAllPaneHookKeys() ([]string, error) { return f.keys, f.err }
+
+func (f fakeHookLister) TryGetServerOption(string) (string, bool, error) {
+	return restoringOption(f.restoring, f.restoringErr)
+}
 
 func seedHooksJSON(t *testing.T, keys ...string) (*hooks.Store, string) {
 	t.Helper()
