@@ -161,7 +161,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 1,
-          "current_task": "resume-hooks-silently-lost-1-5",
+          "current_task": null,
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-1",
@@ -259,13 +259,57 @@
                 "cmd/rename_restore_cleanup_survival_integration_test.go",
                 "cmd/hook_sweep_standdown_report_test.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-1-5",
+              "source": "reviewer",
+              "summary": "The \"restore window is active\" rule is now written twice, once per reader.",
+              "detail": "cmd/run_hook_stale_cleanup.go:56 and cmd/doctor.go:311 both spell `if restoring, err := state.IsRestoringSet(lister); restoring || err != nil`, each under a near-identical rationale comment. The failed-read-counts-as-set rule is the load-bearing half and it exists as two copies; a change to one is silent in the other. A single unexported predicate in cmd (e.g. restoreWindowActive(lister AllPaneLister) bool) would single-source it the way the phase single-sourced the staleness rule in internal/hooks. Cross-scope: the sweep copy is task 1-3 output.",
+              "files": [
+                "cmd/run_hook_stale_cleanup.go",
+                "cmd/doctor.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-1-5",
+              "source": "reviewer",
+              "summary": "The restore stand-down phrase exists as two literals in one file.",
+              "detail": "skippedPrunePhrases[skipReasonRestoring] = \"restore may be in progress\" (cmd/doctor.go:208, task 1-4) and the check's \"restore may be in progress (not evaluable)\" (cmd/doctor.go:312). Both are exactly test-pinned so a rewording cannot pass silently, but a shared base constant would make the coupling explicit rather than by copy. Deliberate for this task — the instruction was to use the literal verbatim.",
+              "files": [
+                "cmd/doctor.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-1-5",
+              "source": "reviewer",
+              "summary": "Phase-1 test files accreted against the file-per-source convention.",
+              "detail": "cmd/hook_prune_output_test.go, cmd/hook_retention_shape_test.go, cmd/hook_sweep_restore_standdown_test.go and cmd/hook_sweep_standdown_report_test.go are four new files, each holding one or two test functions, all exercising cmd/run_hook_stale_cleanup.go and cmd/doctor.go. The project testing skill states tests are named after the source file, not the symbol; the shared fixtures (staleDeps, seedHooksJSON, restoringOption, runDoctorFixCmd) are now spread across five files. Consolidating into cmd/run_hook_stale_cleanup_test.go and cmd/doctor_test.go is a phase-boundary cleanup.",
+              "files": [
+                "cmd/hook_prune_output_test.go",
+                "cmd/hook_retention_shape_test.go",
+                "cmd/hook_sweep_restore_standdown_test.go",
+                "cmd/hook_sweep_standdown_report_test.go",
+                "cmd/run_hook_stale_cleanup_test.go",
+                "cmd/doctor_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-1-5",
+              "source": "reviewer",
+              "summary": "Two post-repair test assertions are weaker than their names promise.",
+              "detail": "cmd/hook_sweep_standdown_report_test.go:179 (\"it reports not evaluable in the post-repair diagnosis after a stand-down\") asserts strings.Contains over the whole doctor --fix output, which carries two rendered reports; the pre-repair report alone already satisfies the positive assertion, so the subtest does not isolate the post-repair pass its name promises. Splitting the output on the second `Portal doctor:` would make the assertion match the name. Separately, cmd/doctor_test.go:1080 adds a strings.Contains check after assertRestoreWindowResult has already asserted the detail by exact equality; the second check cannot fire independently.",
+              "files": [
+                "cmd/hook_sweep_standdown_report_test.go",
+                "cmd/doctor_test.go"
+              ]
             }
           ],
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
             "resume-hooks-silently-lost-1-3",
-            "resume-hooks-silently-lost-1-4"
+            "resume-hooks-silently-lost-1-4",
+            "resume-hooks-silently-lost-1-5"
           ]
         }
       }

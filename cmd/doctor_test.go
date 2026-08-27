@@ -1050,6 +1050,107 @@ func TestDoctorStaleHooksCheck(t *testing.T) {
 			t.Errorf("detail = %q; want %q", got.detail, "no stale hooks")
 		}
 	})
+
+	// The restore window: a skeleton's panes carry no token yet, so a count taken
+	// here would report every token-shaped key on the machine as lost.
+	t.Run("it reports not evaluable while the restore marker is set", func(t *testing.T) {
+		dir := t.TempDir()
+		hookStore, _ := seedHooksJSON(t, "sessA1")
+		lister := fakeHookLister{keys: []string{"sessB:0.0"}, restoring: true}
+		got := staleHooksCheckResult(t, dir, lister, hookStore)
+		assertRestoreWindowResult(t, got)
+	})
+
+	t.Run("it treats a failed marker read as a set marker", func(t *testing.T) {
+		dir := t.TempDir()
+		hookStore, _ := seedHooksJSON(t, "sessA1")
+		lister := fakeHookLister{keys: []string{"sessB:0.0"}, restoringErr: errors.New("tmux transient")}
+		got := staleHooksCheckResult(t, dir, lister, hookStore)
+		assertRestoreWindowResult(t, got)
+	})
+
+	t.Run("it reads the marker before the empty-live-set branch", func(t *testing.T) {
+		dir := t.TempDir()
+		hookStore, _ := seedHooksJSON(t, "sessA1", "sessB1")
+		lister := fakeHookLister{keys: []string{}, restoring: true}
+		got := staleHooksCheckResult(t, dir, lister, hookStore)
+		assertRestoreWindowResult(t, got)
+	})
+
+	t.Run("it reads the marker before counting", func(t *testing.T) {
+		dir := t.TempDir()
+		hookStore, _ := seedHooksJSON(t, "sessA1")
+		lister := fakeHookLister{keys: []string{"sessB:0.0"}, restoring: true}
+		got := staleHooksCheckResult(t, dir, lister, hookStore)
+		assertRestoreWindowResult(t, got)
+		if strings.Contains(got.detail, "stale hook entr") {
+			t.Errorf("detail = %q; want no count computed in a restore window", got.detail)
+		}
+	})
+
+	t.Run("it reports not evaluable with no server running", func(t *testing.T) {
+		dir := t.TempDir()
+		hookStore, _ := seedHooksJSON(t, "sessA1")
+		down := errors.New("no server running on /tmp/tmux-501/default")
+		deps := staleDeps(dir, fakeHookLister{err: down, restoringErr: down}, hookStore, nil)
+		deps.ServerRunning = func() bool { return false }
+
+		results, err := runDoctorDiagnosis(deps)
+		if err != nil {
+			t.Fatalf("runDoctorDiagnosis: %v", err)
+		}
+		assertRestoreWindowResult(t, findCheck(t, results, "stale hooks"))
+	})
+
+	t.Run("it still fails on a genuinely stale token-shaped key alongside retained non-token-shaped entries", func(t *testing.T) {
+		dir := t.TempDir()
+		hookStore, _ := seedHooksJSON(t, "sessA1", "old-one:0.0", "old-two:1.2")
+		lister := fakeHookLister{keys: []string{"sessB:0.0"}}
+		got := staleHooksCheckResult(t, dir, lister, hookStore)
+		if got.status != checkFail {
+			t.Errorf("status = %v; want checkFail for the one stale token-shaped key", got.status)
+		}
+		if got.detail != "1 stale hook entry" {
+			t.Errorf("detail = %q; want %q (retained old-format keys are not counted)", got.detail, "1 stale hook entry")
+		}
+	})
+
+	t.Run("it keeps portal doctor at exit 0 in a restore window", func(t *testing.T) {
+		dir := t.TempDir()
+		seedHealthyStateDir(t, dir)
+		hookStore, _ := seedHooksJSON(t, "sessA1")
+		projectStore, _ := seedProjectsJSON(t, t.TempDir())
+		lister := fakeHookLister{keys: []string{"sessB:0.0"}, restoring: true}
+
+		outBuf, _, err := runDoctorCmd(t, staleDeps(dir, lister, hookStore, projectStore))
+		if err != nil {
+			t.Fatalf("Execute err = %v; want nil (not-evaluable never drives the exit code)\n%s", err, outBuf.String())
+		}
+		if want := "· stale hooks: restore may be in progress (not evaluable)"; !strings.Contains(outBuf.String(), want) {
+			t.Errorf("report missing %q:\n%s", want, outBuf.String())
+		}
+	})
+}
+
+// staleHooksCheckResult runs the read-only diagnosis and returns its stale-hooks
+// line.
+func staleHooksCheckResult(t *testing.T, dir string, lister AllPaneLister, hookStore *hooks.Store) checkResult {
+	t.Helper()
+	results, err := runDoctorDiagnosis(staleDeps(dir, lister, hookStore, nil))
+	if err != nil {
+		t.Fatalf("runDoctorDiagnosis: %v", err)
+	}
+	return findCheck(t, results, "stale hooks")
+}
+
+func assertRestoreWindowResult(t *testing.T, got checkResult) {
+	t.Helper()
+	if got.status != checkNotEvaluable {
+		t.Errorf("status = %v; want checkNotEvaluable in a restore window", got.status)
+	}
+	if got.detail != "restore may be in progress (not evaluable)" {
+		t.Errorf("detail = %q; want %q", got.detail, "restore may be in progress (not evaluable)")
+	}
 }
 
 func TestDoctorStaleHooksParityWithPredicate(t *testing.T) {

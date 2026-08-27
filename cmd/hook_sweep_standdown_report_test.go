@@ -174,6 +174,19 @@ func TestDoctorFixReportsSkippedHookPrune(t *testing.T) {
 		assertSkippedPruneLine(t, out, "Skipped stale hook prune: could not read live panes")
 	})
 
+	// The repair and the diagnosis must tell one story: a prune that stood down
+	// cannot be followed by a count of what it deliberately did not judge.
+	t.Run("it reports not evaluable in the post-repair diagnosis after a stand-down", func(t *testing.T) {
+		out := runDoctorFixWithLister(t, fakeHookLister{keys: []string{"sessB:0.0"}, restoring: true})
+		assertSkippedPruneLine(t, out, "Skipped stale hook prune: restore may be in progress")
+		if want := "· stale hooks: restore may be in progress (not evaluable)"; !strings.Contains(out, want) {
+			t.Errorf("post-repair report missing %q:\n%s", want, out)
+		}
+		if strings.Contains(out, "stale hook entr") {
+			t.Errorf("post-repair diagnosis counted what the prune stood down on:\n%s", out)
+		}
+	})
+
 	t.Run("it leaves the doctor --fix exit code to the post-repair diagnosis", func(t *testing.T) {
 		dir := t.TempDir()
 		seedHealthyStateDir(t, dir)

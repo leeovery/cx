@@ -304,6 +304,13 @@ func checkStaleHooks(lister AllPaneLister, store *hooks.Store) checkResult {
 	if err != nil {
 		return checkResult{name: name, status: checkNotEvaluable, detail: "could not read hooks.json"}
 	}
+	// A restore's panes carry no token until the re-stamp, so a count taken here
+	// would report every token-keyed entry on the machine as lost. The reading is
+	// the sweep's: a failed read counts as set, which also covers a down server —
+	// hence "may be", the phrase both readings support.
+	if restoring, err := state.IsRestoringSet(lister); restoring || err != nil {
+		return checkResult{name: name, status: checkNotEvaluable, detail: "restore may be in progress (not evaluable)"}
+	}
 	live, err := lister.ListAllPaneHookKeys()
 	if err != nil {
 		return checkResult{name: name, status: checkNotEvaluable, detail: "could not enumerate live panes"}
