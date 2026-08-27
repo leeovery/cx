@@ -204,8 +204,10 @@ func pruneDoctorStaleHooks(w io.Writer, deps *DoctorDeps) {
 	})
 }
 
+const restoreStandDownPhrase = "restore may be in progress"
+
 var skippedPrunePhrases = map[string]string{
-	skipReasonRestoring:     "restore may be in progress",
+	skipReasonRestoring:     restoreStandDownPhrase,
 	skipReasonEmptyPaneRead: "could not read live panes",
 }
 
@@ -304,12 +306,8 @@ func checkStaleHooks(lister AllPaneLister, store *hooks.Store) checkResult {
 	if err != nil {
 		return checkResult{name: name, status: checkNotEvaluable, detail: "could not read hooks.json"}
 	}
-	// A restore's panes carry no token until the re-stamp, so a count taken here
-	// would report every token-keyed entry on the machine as lost. The reading is
-	// the sweep's: a failed read counts as set, which also covers a down server —
-	// hence "may be", the phrase both readings support.
-	if restoring, err := state.IsRestoringSet(lister); restoring || err != nil {
-		return checkResult{name: name, status: checkNotEvaluable, detail: "restore may be in progress (not evaluable)"}
+	if active, _ := restoreWindowActive(lister); active {
+		return checkResult{name: name, status: checkNotEvaluable, detail: restoreStandDownPhrase + " (not evaluable)"}
 	}
 	live, err := lister.ListAllPaneHookKeys()
 	if err != nil {

@@ -34,6 +34,18 @@ type AllPaneLister interface {
 	state.RestoringChecker
 }
 
+// restoreWindowActive reports whether hook-staleness work must stand down. A
+// restore's panes carry no token until the re-stamp, so work landing in that
+// window would treat every token-keyed entry on the machine as lost. A failed
+// read counts as set: a deferred prune costs nothing, and on a machine with no
+// tmux server the read fails — hence "may be" in what a caller renders. The
+// read error is returned alongside for a caller that reports why, and is
+// already folded into the bool.
+func restoreWindowActive(checker state.RestoringChecker) (bool, error) {
+	restoring, err := state.IsRestoringSet(checker)
+	return restoring || err != nil, err
+}
+
 func runHookStaleCleanup(
 	lister AllPaneLister,
 	store *hooks.Store,
@@ -50,10 +62,7 @@ func runHookStaleCleanup(
 		}
 	}
 
-	// A restore's panes carry no token until the re-stamp, so a sweep landing in
-	// that window would reap every token-keyed entry on the machine. A failed
-	// read counts as set: a deferred prune costs nothing.
-	if restoring, err := state.IsRestoringSet(lister); restoring || err != nil {
+	if active, err := restoreWindowActive(lister); active {
 		var extra []any
 		if err != nil {
 			extra = append(extra, "error", err)

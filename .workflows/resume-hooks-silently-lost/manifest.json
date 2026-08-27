@@ -167,7 +167,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 1,
-          "current_task": null,
+          "current_task": "resume-hooks-silently-lost-1-7",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -218,6 +218,28 @@
                 "cmd/bootstrap_production_test.go",
                 "cmd/doctor_test.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-1-6",
+              "source": "executor",
+              "summary": "The restore-window rule is now single-sourced in cmd, but the daemon states the inverse error policy twice with no shared name.",
+              "detail": "cmd/state_daemon.go:172-180 (tick) and :337-348 (defaultShutdownFlush) both read state.IsRestoringSet(deps.Client) and, on error, log a WARN and return without work — the same read-failed-stand-down-loudly shape, spelled twice, each under its own rationale comment. It is a genuine policy sibling of restoreWindowActive (which stands down silently and folds the error in), so the two now sit in one package as unnamed opposites: a reader cannot tell from the call sites that the divergence is deliberate. Consolidating would touch daemon lifecycle code owned by other phases.",
+              "files": [
+                "cmd/state_daemon.go",
+                "cmd/run_hook_stale_cleanup.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-1-6",
+              "source": "reviewer",
+              "summary": "A third reader of the same failed-read-counts-as-set posture sits in cmd, in a file the daemon entry does not name.",
+              "detail": "cmd/state_commit_now.go:108-118 takes the identical posture (presuming @portal-restoring set to protect in-flight restore) behind the IsRestoring func() (bool, error) seam, with a third reporting policy. With restoreWindowActive (cmd/run_hook_stale_cleanup.go:44) now naming the rule for one of four readers, the natural end-state is one named home for the posture — plausibly internal/state beside IsRestoringSet, taking the report/quiet policy from the caller — rather than one named predicate and three anonymous restatements. Extends, does not duplicate, the executor entry, which lists only cmd/state_daemon.go.",
+              "files": [
+                "cmd/state_commit_now.go",
+                "cmd/state_daemon.go",
+                "cmd/run_hook_stale_cleanup.go",
+                "internal/state/markers.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -225,7 +247,8 @@
             "resume-hooks-silently-lost-1-2",
             "resume-hooks-silently-lost-1-3",
             "resume-hooks-silently-lost-1-4",
-            "resume-hooks-silently-lost-1-5"
+            "resume-hooks-silently-lost-1-5",
+            "resume-hooks-silently-lost-1-6"
           ],
           "staging": {
             "p1": {
