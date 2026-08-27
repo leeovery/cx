@@ -88,7 +88,13 @@
             "resume-hooks-silently-lost-5-2": "tick-cc4c2b",
             "resume-hooks-silently-lost-5-3": "tick-a017d3",
             "resume-hooks-silently-lost-5-4": "tick-0a6b35",
-            "resume-hooks-silently-lost-5-5": "tick-00087c"
+            "resume-hooks-silently-lost-5-5": "tick-00087c",
+            "resume-hooks-silently-lost-1-6": "tick-4daecb",
+            "resume-hooks-silently-lost-1-7": "tick-70e3c7",
+            "resume-hooks-silently-lost-1-8": "tick-3d9408",
+            "resume-hooks-silently-lost-1-9": "tick-716ce1",
+            "resume-hooks-silently-lost-1-10": "tick-0ba9fe",
+            "resume-hooks-silently-lost-1-11": "tick-755c47"
           },
           "storage_paths": [
             ".tick/"
@@ -126,7 +132,7 @@
           "task_gate_mode": "auto",
           "fix_gate_mode": "auto",
           "analysis_gate_mode": "gated",
-          "consolidation_gate_mode": "gated",
+          "consolidation_gate_mode": "auto",
           "fix_attempts": 0,
           "analysis_cycle_total": 0,
           "analysis_cycle_session": 0,
@@ -164,74 +170,6 @@
           "current_task": null,
           "bank": [
             {
-              "task": "resume-hooks-silently-lost-1-1",
-              "source": "executor",
-              "summary": "Hook-key test seeds are hand-rolled literals across a dozen files, and every later phase re-points all of them again.",
-              "detail": "Key shape is now semantically load-bearing in tests (token-shaped = reapable, anything else = retained), but each site spells its own literal: internal/hooks/store_test.go, cmd/run_hook_stale_cleanup_test.go:157-161,209-213, cmd/doctor_test.go:854,903,946,963,980,997,1054-1057,1100-1101,1231,1302,1455, cmd/state_daemon_hook_cleanup_test.go, cmd/state_daemon_run_test.go:529,566, plus five integration seeds. A shared test-side vocabulary (reapable key / unjudgeable old-format key helper next to internal/transienttest.SeedHooksJSON) would make the next re-point one edit and make a mis-shaped seed impossible.",
-              "files": [
-                "internal/hooks/store_test.go",
-                "cmd/run_hook_stale_cleanup_test.go",
-                "cmd/doctor_test.go",
-                "cmd/doctor_summary_test.go",
-                "cmd/doctor_fix_theme_test.go",
-                "cmd/state_daemon_hook_cleanup_test.go",
-                "cmd/state_daemon_run_test.go",
-                "cmd/cleanstale_transient_listpanes_shared_test.go",
-                "cmd/cleanstale_transient_listpanes_doctorfix_integration_test.go",
-                "cmd/state_daemon_hook_cleanup_integration_test.go",
-                "cmd/bootstrap/transient_listpanes_helpers_integration_test.go",
-                "internal/transienttest/hooks.go"
-              ]
-            },
-            {
-              "task": "resume-hooks-silently-lost-1-1",
-              "source": "reviewer",
-              "summary": "Two mass-deletion-guard rationale comments now overstate their hazard, in files this task deliberately did not touch.",
-              "detail": "cmd/run_hook_stale_cleanup.go:41 says an empty live set reaching CleanStale would delete every entry, and cmd/doctor.go:278 says it would otherwise report every entry stale. Post-change both are true only of judgeable entries — on today's install, where every key is old-format, an empty live set would now delete nothing. The claims are narrowed rather than flatly false, and both regions are rewritten by the later work (the restoring check moves into runHookStaleCleanup, the onSkipped callback and the lock-timeout branch land alongside), so the correction belongs with that task rather than as a drive-by edit here.",
-              "files": [
-                "cmd/run_hook_stale_cleanup.go",
-                "cmd/doctor.go"
-              ]
-            },
-            {
-              "task": "resume-hooks-silently-lost-1-2",
-              "source": "reviewer",
-              "summary": "CLAUDE.md logging bullet now misdescribes the hooks clean-stale sweep.",
-              "detail": "CLAUDE.md:100 states cycle summaries emit one INFO per cycle with per-item detail at DEBUG. After this change the hooks clean-stale per-item detail is INFO. No task in the plan owns this passage — phases 2/3/4/5 each assign specific CLAUDE.md rewrites (hook-key scheme, @portal-id removal, hook rm exit code, lock sidecar) and none touches the logging section. It will otherwise ship false.",
-              "files": [
-                "CLAUDE.md"
-              ]
-            },
-            {
-              "task": "resume-hooks-silently-lost-1-2",
-              "source": "reviewer",
-              "summary": "The doctor --fix prune-stdout assertion now exists twice, at two strengths.",
-              "detail": "cmd/doctor_test.go:888 (inside the shared assertStalePrunesApplied, used by three call sites) asserts strings.Contains(out, \"Pruned stale hook: sessA1\"); the new cmd/hook_prune_output_test.go:29 asserts exactly-one-line equality over the same fixture shape that seedStalePruneFixture (doctor_test.go:850) already builds. Folding the exact assertion into the shared helper would single-source it and let the standalone file go, but it reaches a helper three other tests depend on.",
-              "files": [
-                "cmd/hook_prune_output_test.go",
-                "cmd/doctor_test.go"
-              ]
-            },
-            {
-              "task": "resume-hooks-silently-lost-1-2",
-              "source": "reviewer",
-              "summary": "Third instance of the deny-the-write fixture in internal/hooks/store_test.go.",
-              "detail": "readOnlyDirPath (:27-37) plus two hand-rolled seed-then-chmod-0500 blocks — the pre-existing one at :1024-1035 and the new one at :936-947, which even carries the same two-line comment. Rule of Three now applies: a seedThenDenyWrites(t, body) helper would single-source it, but the fix touches a pre-existing subtest outside this task's diff.",
-              "files": [
-                "internal/hooks/store_test.go"
-              ]
-            },
-            {
-              "task": "resume-hooks-silently-lost-1-3",
-              "source": "reviewer",
-              "summary": "The doctor --fix fixture is being re-implemented per stand-down reason instead of parameterised — 1-4 and 1-5 will each want another variant.",
-              "detail": "cmd/hook_sweep_restore_standdown_test.go:138-144 inlines a copy of seedStalePruneFixture (cmd/doctor_test.go:856-869) solely to swap in fakeHookLister{restoring: true}. Tasks 1-4 (onSkipped phrase lines) and 1-5 (checkStaleHooks not-evaluable) will each need the same fixture with a different lister, so the natural consolidation is one fixture taking the lister as a parameter, once all three exist.",
-              "files": [
-                "cmd/hook_sweep_restore_standdown_test.go",
-                "cmd/doctor_test.go"
-              ]
-            },
-            {
               "task": "resume-hooks-silently-lost-1-4",
               "source": "executor",
               "summary": "Pre-existing repo-wide lint/format debt outside this task's surface.",
@@ -261,45 +199,23 @@
               ]
             },
             {
-              "task": "resume-hooks-silently-lost-1-5",
-              "source": "reviewer",
-              "summary": "The \"restore window is active\" rule is now written twice, once per reader.",
-              "detail": "cmd/run_hook_stale_cleanup.go:56 and cmd/doctor.go:311 both spell `if restoring, err := state.IsRestoringSet(lister); restoring || err != nil`, each under a near-identical rationale comment. The failed-read-counts-as-set rule is the load-bearing half and it exists as two copies; a change to one is silent in the other. A single unexported predicate in cmd (e.g. restoreWindowActive(lister AllPaneLister) bool) would single-source it the way the phase single-sourced the staleness rule in internal/hooks. Cross-scope: the sweep copy is task 1-3 output.",
+              "source": "finder",
+              "pre_existing": true,
+              "summary": "Three parallel fakes for the one AllPaneLister seam in package cmd.",
+              "detail": "stubAllPaneLister (cmd/bootstrap_production_test.go:86-100), recordingHookKeyLister (cmd/run_hook_stale_cleanup_test.go:13-30, a strict superset adding hookKeyCalls) and fakeHookLister (cmd/doctor_test.go:797-808, value receiver) all predate this phase; phase 1 added the same restoring/restoringErr pair and the same TryGetServerOption delegation to each, and two of them are now used interchangeably inside one test function (cmd/hook_sweep_standdown_report_test.go:26 vs :51). The shared restoringOption helper single-sources the semantics, so the fresh duplication is 4 lines x 3; the three-fakes situation itself is pre-existing. Phase 2 task text re-points all three by name, so a merge is cheapest there or at the end-of-implementation pass.",
               "files": [
-                "cmd/run_hook_stale_cleanup.go",
-                "cmd/doctor.go"
-              ]
-            },
-            {
-              "task": "resume-hooks-silently-lost-1-5",
-              "source": "reviewer",
-              "summary": "The restore stand-down phrase exists as two literals in one file.",
-              "detail": "skippedPrunePhrases[skipReasonRestoring] = \"restore may be in progress\" (cmd/doctor.go:208, task 1-4) and the check's \"restore may be in progress (not evaluable)\" (cmd/doctor.go:312). Both are exactly test-pinned so a rewording cannot pass silently, but a shared base constant would make the coupling explicit rather than by copy. Deliberate for this task — the instruction was to use the literal verbatim.",
-              "files": [
-                "cmd/doctor.go"
-              ]
-            },
-            {
-              "task": "resume-hooks-silently-lost-1-5",
-              "source": "reviewer",
-              "summary": "Phase-1 test files accreted against the file-per-source convention.",
-              "detail": "cmd/hook_prune_output_test.go, cmd/hook_retention_shape_test.go, cmd/hook_sweep_restore_standdown_test.go and cmd/hook_sweep_standdown_report_test.go are four new files, each holding one or two test functions, all exercising cmd/run_hook_stale_cleanup.go and cmd/doctor.go. The project testing skill states tests are named after the source file, not the symbol; the shared fixtures (staleDeps, seedHooksJSON, restoringOption, runDoctorFixCmd) are now spread across five files. Consolidating into cmd/run_hook_stale_cleanup_test.go and cmd/doctor_test.go is a phase-boundary cleanup.",
-              "files": [
-                "cmd/hook_prune_output_test.go",
-                "cmd/hook_retention_shape_test.go",
-                "cmd/hook_sweep_restore_standdown_test.go",
-                "cmd/hook_sweep_standdown_report_test.go",
+                "cmd/bootstrap_production_test.go",
                 "cmd/run_hook_stale_cleanup_test.go",
                 "cmd/doctor_test.go"
               ]
             },
             {
-              "task": "resume-hooks-silently-lost-1-5",
-              "source": "reviewer",
-              "summary": "Two post-repair test assertions are weaker than their names promise.",
-              "detail": "cmd/hook_sweep_standdown_report_test.go:179 (\"it reports not evaluable in the post-repair diagnosis after a stand-down\") asserts strings.Contains over the whole doctor --fix output, which carries two rendered reports; the pre-repair report alone already satisfies the positive assertion, so the subtest does not isolate the post-repair pass its name promises. Splitting the output on the second `Portal doctor:` would make the assertion match the name. Separately, cmd/doctor_test.go:1080 adds a strings.Contains check after assertRestoreWindowResult has already asserted the detail by exact equality; the second check cannot fire independently.",
+              "source": "finder",
+              "pre_existing": true,
+              "summary": "Two temp hooks-store seeders in package cmd, neither derived from the other.",
+              "detail": "newTempHooksStore(t, rawJSON) (cmd/bootstrap_production_test.go:102) and seedHooksJSON(t, keys...) (cmd/doctor_test.go:810) both write a hooks.json into a t.TempDir() and return (*hooks.Store, path); both predate this phase and this phase consumed both heavily. A future key-shape change re-points each independently.",
               "files": [
-                "cmd/hook_sweep_standdown_report_test.go",
+                "cmd/bootstrap_production_test.go",
                 "cmd/doctor_test.go"
               ]
             }
@@ -310,6 +226,21 @@
             "resume-hooks-silently-lost-1-3",
             "resume-hooks-silently-lost-1-4",
             "resume-hooks-silently-lost-1-5"
+          ],
+          "staging": {
+            "p1": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved",
+                "3": "approved",
+                "4": "approved",
+                "5": "approved",
+                "6": "approved"
+              }
+            }
+          },
+          "consolidated_phases": [
+            1
           ]
         }
       }
