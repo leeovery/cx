@@ -58,7 +58,7 @@ Tests — anchor entry, with the new entry appended after it:
 - `"it keeps a live pane's token-keyed hook across the daemon sweep"` — the re-pointed `TestMaybeRunHookCleanup_RunsAndResetsOnceIntervalElapsed`: a stamped row plus an entry keyed by that token survives, while a token-shaped key naming no row is reaped in the same cycle
 ```
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:
 
 ---
@@ -106,5 +106,5 @@ Acceptance Criteria — anchor criterion, with the new criterion appended after 
 - [ ] CLAUDE.md's `hooks` row and README's Configuration table both name the `hooks.json.lock` sidecar, so neither the architecture description nor the user-facing config inventory leaves a file Portal creates undocumented
 ```
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:
