@@ -32,7 +32,6 @@ var _ AllPaneLister = (*recordingHookKeyLister)(nil)
 func TestRunHookStaleCleanup(t *testing.T) {
 	const entryDebugFmt = "stale-hook cleanup counts"
 	const completionDebugFmt = "stale-hook cleanup removed"
-	const hazardWarnFmt = "stale-hook cleanup: zero live panes parsed with hooks present; skipping to avoid mass-deletion hazard (next bootstrap retries)"
 	const listPanesWarnFmt = "stale-hook cleanup: list-panes failed"
 	const loadWarnFmt = "stale-hook cleanup: hookStore.Load failed"
 
@@ -47,7 +46,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		logger := &recordingLogger{}
 		lister := &stubAllPaneLister{panes: []string{}, err: nil}
 
-		if err := runHookStaleCleanup(lister, store, logger.Logger().With("component", "bootstrap"), nil); err != nil {
+		if err := runHookStaleCleanup(lister, store, logger.Logger().With("component", "bootstrap"), nil, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
@@ -60,8 +59,12 @@ func TestRunHookStaleCleanup(t *testing.T) {
 			t.Errorf("entry-point Debug count = %d, want 1; entries=%+v", got, logger.entries)
 		}
 
-		if got := countMatching(logger.entries, "warn", "bootstrap", hazardWarnFmt); got != 1 {
-			t.Errorf("hazard Warn count = %d, want 1; entries=%+v", got, logger.entries)
+		// The guard's own WARN rides the hooks component, not the injected
+		// bootstrap/daemon logger.
+		for _, e := range logger.entries {
+			if e.level == "warn" {
+				t.Errorf("unexpected Warn on the injected logger under the hazard guard: %+v", e)
+			}
 		}
 
 		if got := countMatching(logger.entries, "debug", "bootstrap", completionDebugFmt); got != 0 {
@@ -76,7 +79,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		logger := &recordingLogger{}
 		lister := &stubAllPaneLister{panes: []string{}, err: nil}
 
-		if err := runHookStaleCleanup(lister, store, logger.Logger().With("component", "bootstrap"), nil); err != nil {
+		if err := runHookStaleCleanup(lister, store, logger.Logger().With("component", "bootstrap"), nil, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
@@ -109,7 +112,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		logger := &recordingLogger{}
 		lister := &stubAllPaneLister{panes: nil, err: sentinel}
 
-		err := runHookStaleCleanup(lister, store, logger.Logger().With("component", "bootstrap"), nil)
+		err := runHookStaleCleanup(lister, store, logger.Logger().With("component", "bootstrap"), nil, nil)
 		if err != nil {
 			t.Fatalf("runHookStaleCleanup on ListAllPanes error: want nil, got %v", err)
 		}
@@ -127,9 +130,6 @@ func TestRunHookStaleCleanup(t *testing.T) {
 			t.Errorf("entry-point Debug count = %d, want 0 (must NOT fire on ListAllPanes-error branch); entries=%+v", got, logger.entries)
 		}
 
-		if got := countMatching(logger.entries, "warn", "bootstrap", hazardWarnFmt); got != 0 {
-			t.Errorf("hazard Warn count = %d, want 0 on ListAllPanes-error branch; entries=%+v", got, logger.entries)
-		}
 	})
 
 	t.Run("hookStore.Load error returns err with Warn", func(t *testing.T) {
@@ -145,7 +145,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		logger := &recordingLogger{}
 		lister := &stubAllPaneLister{panes: []string{"a:0.0"}, err: nil}
 
-		err := runHookStaleCleanup(lister, store, logger.Logger().With("component", "bootstrap"), nil)
+		err := runHookStaleCleanup(lister, store, logger.Logger().With("component", "bootstrap"), nil, nil)
 		if err == nil {
 			t.Fatalf("runHookStaleCleanup: want Load error, got nil")
 		}
@@ -176,7 +176,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 			removedSeen = append(removedSeen, name)
 		}
 
-		if err := runHookStaleCleanup(lister, store, logger.Logger().With("component", "bootstrap"), onRemoved); err != nil {
+		if err := runHookStaleCleanup(lister, store, logger.Logger().With("component", "bootstrap"), onRemoved, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
@@ -202,7 +202,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		logger := &recordingLogger{}
 		lister := &stubAllPaneLister{panes: []string{"a:0.0"}, err: nil}
 
-		if err := runHookStaleCleanup(lister, store, logger.Logger().With("component", "bootstrap"), nil); err != nil {
+		if err := runHookStaleCleanup(lister, store, logger.Logger().With("component", "bootstrap"), nil, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
@@ -223,7 +223,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		logger := &recordingLogger{}
 		lister := &stubAllPaneLister{panes: []string{"a:0.0", "b:0.0", "c:0.0"}, err: nil}
 
-		if err := runHookStaleCleanup(lister, store, logger.Logger().With("component", "bootstrap"), nil); err != nil {
+		if err := runHookStaleCleanup(lister, store, logger.Logger().With("component", "bootstrap"), nil, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
@@ -259,7 +259,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		store, _ := newTempHooksStore(t, seed)
 		lister := &stubAllPaneLister{panes: []string{"a:0.0"}, err: nil}
 
-		if err := runHookStaleCleanup(lister, store, nil, nil); err != nil {
+		if err := runHookStaleCleanup(lister, store, nil, nil, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup with nil logger: %v", err)
 		}
 	})
@@ -271,7 +271,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		logger := &recordingLogger{}
 		rec := &recordingHookKeyLister{panes: []string{"a:0.0"}}
 
-		if err := runHookStaleCleanup(rec, store, logger.Logger().With("component", "bootstrap"), nil); err != nil {
+		if err := runHookStaleCleanup(rec, store, logger.Logger().With("component", "bootstrap"), nil, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
@@ -290,7 +290,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		logger := &recordingLogger{}
 		lister := &stubAllPaneLister{panes: []string{"tok123:0.0"}, err: nil}
 
-		if err := runHookStaleCleanup(lister, store, logger.Logger().With("component", "bootstrap"), nil); err != nil {
+		if err := runHookStaleCleanup(lister, store, logger.Logger().With("component", "bootstrap"), nil, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 

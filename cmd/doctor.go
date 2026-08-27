@@ -199,7 +199,25 @@ func pruneDoctorStaleHooks(w io.Writer, deps *DoctorDeps) {
 	}
 	_ = runHookStaleCleanup(deps.HookLister, deps.HookStore, bootstrapLogger, func(key string) {
 		_, _ = fmt.Fprintf(w, "Pruned stale hook: %s\n", key)
+	}, func(reason string) {
+		_, _ = fmt.Fprintf(w, "Skipped stale hook prune: %s\n", skippedPrunePhrase(reason))
 	})
+}
+
+var skippedPrunePhrases = map[string]string{
+	skipReasonRestoring:     "restore may be in progress",
+	skipReasonEmptyPaneRead: "could not read live panes",
+}
+
+// skippedPrunePhrase renders a stand-down reason for a user who asked for a
+// repair. An unmapped reason falls through to its raw value, so no stand-down
+// can print nothing. "may be" is deliberate: a failed marker read counts as a
+// set marker, and on a machine with no tmux server the read fails.
+func skippedPrunePhrase(reason string) string {
+	if phrase, ok := skippedPrunePhrases[reason]; ok {
+		return phrase
+	}
+	return reason
 }
 
 func pruneDoctorStaleProjects(w io.Writer, deps *DoctorDeps) {

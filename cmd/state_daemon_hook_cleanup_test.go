@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/leeovery/portal/internal/hooks"
+	"github.com/leeovery/portal/internal/log"
+	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/tmux"
 )
 
@@ -123,6 +125,9 @@ func TestMaybeRunHookCleanup_LogsWarnAndSwallowsCleanupError(t *testing.T) {
 	logger, sink := newCaptureLoggerForComponent(t, "daemon")
 	deps := hookCleanupDeps(fc, store, logger)
 
+	hooksSink := &logtest.Sink{}
+	log.SetTestHandler(t, hooksSink)
+
 	deps.lastCleanup = time.Now().Add(-hookCleanupInterval - time.Second)
 	beforeCall := time.Now()
 
@@ -145,6 +150,9 @@ func TestMaybeRunHookCleanup_ListPanesErrorSwallowedNoReap(t *testing.T) {
 	fc := &daemonFakeCommander{panesErr: errors.New("tmux dead")}
 	logger, sink := newCaptureLoggerForComponent(t, "daemon")
 	deps := hookCleanupDeps(fc, store, logger)
+
+	hooksSink := &logtest.Sink{}
+	log.SetTestHandler(t, hooksSink)
 
 	deps.lastCleanup = time.Now().Add(-hookCleanupInterval - time.Second)
 	beforeCall := time.Now()
@@ -202,6 +210,9 @@ func TestMaybeRunHookCleanup_ReusesMassDeletionGuard(t *testing.T) {
 	logger, sink := newCaptureLoggerForComponent(t, "daemon")
 	deps := hookCleanupDeps(fc, store, logger)
 
+	hooksSink := &logtest.Sink{}
+	log.SetTestHandler(t, hooksSink)
+
 	deps.lastCleanup = time.Now().Add(-hookCleanupInterval - time.Second)
 
 	maybeRunHookCleanup(deps)
@@ -214,7 +225,16 @@ func TestMaybeRunHookCleanup_ReusesMassDeletionGuard(t *testing.T) {
 		t.Errorf("mass-deletion guard did not defer; post-run hooks=%v", keysOf(postRun))
 	}
 
-	if got := sink.Body(); !strings.Contains(got, "mass-deletion hazard") {
-		t.Errorf("expected mass-deletion hazard WARN; got:\n%s", got)
+	// The guard's WARN rides the hooks component under the shared stand-down
+	// shape, not the daemon logger the cleanup is handed.
+	if got := sink.Body(); strings.Contains(got, "clean-stale-skipped") {
+		t.Errorf("stand-down WARN landed on the daemon logger; got:\n%s", got)
+	}
+	rec := hooksSink.OnlyRecord(t)
+	if rec.Level != slog.LevelWarn {
+		t.Errorf("stand-down level = %v, want WARN", rec.Level)
+	}
+	if got := rec.AttrString(t, "reason"); got != skipReasonEmptyPaneRead {
+		t.Errorf("reason = %q, want %q", got, skipReasonEmptyPaneRead)
 	}
 }

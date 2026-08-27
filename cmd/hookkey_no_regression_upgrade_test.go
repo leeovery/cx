@@ -53,7 +53,7 @@ func TestHookKeyNoRegressionUpgrade_UnstampedNameKeyedHookSurvives(t *testing.T)
 		t.Fatalf("pre-cleanup seed missing %q; keys=%v", staleKey, keysOf(preRun))
 	}
 
-	if err := runHookStaleCleanup(client, store, nil, nil); err != nil {
+	if err := runHookStaleCleanup(client, store, nil, nil, nil); err != nil {
 		t.Fatalf("runHookStaleCleanup: %v", err)
 	}
 

@@ -161,7 +161,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 1,
-          "current_task": "resume-hooks-silently-lost-1-4",
+          "current_task": "resume-hooks-silently-lost-1-5",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-1",
@@ -230,12 +230,42 @@
                 "cmd/hook_sweep_restore_standdown_test.go",
                 "cmd/doctor_test.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-1-4",
+              "source": "executor",
+              "summary": "Pre-existing repo-wide lint/format debt outside this task's surface.",
+              "detail": "gofmt -l . reports internal/tui/help_modal_test.go as unformatted on a clean tree (not touched by this work), and golangci-lint run ./... reports 31 modernize findings across the repo (errorsastype, stringscut, stringsseq), 9 of them in cmd — e.g. cmd/root.go:199, cmd/bootstrap_progress.go:133, main.go:64, main.go:75. All predate this work unit; a single sweep would clear them.",
+              "files": [
+                "internal/tui/help_modal_test.go",
+                "cmd/root.go",
+                "cmd/bootstrap_progress.go",
+                "main.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-1-4",
+              "source": "reviewer",
+              "summary": "runHookStaleCleanup now takes 5 parameters, one over the project convention.",
+              "detail": ".claude/skills/golang-code-style/SKILL.md:174 sets <=4 parameters, options-struct beyond. The task mandated onSkipped as a positional parameter, so it is correct as delivered; folding onRemoved/onSkipped (and whatever the lock phase needs) into a small callbacks struct would touch cmd/run_hook_stale_cleanup.go:37-43 plus ~14 call sites across files owned by sibling tasks 1-1 through 1-3.",
+              "files": [
+                "cmd/run_hook_stale_cleanup.go",
+                "cmd/doctor.go",
+                "cmd/state_daemon.go",
+                "cmd/run_hook_stale_cleanup_test.go",
+                "cmd/hook_sweep_restore_standdown_test.go",
+                "cmd/hook_retention_shape_test.go",
+                "cmd/hookkey_no_regression_upgrade_test.go",
+                "cmd/rename_restore_cleanup_survival_integration_test.go",
+                "cmd/hook_sweep_standdown_report_test.go"
+              ]
             }
           ],
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
-            "resume-hooks-silently-lost-1-3"
+            "resume-hooks-silently-lost-1-3",
+            "resume-hooks-silently-lost-1-4"
           ]
         }
       }

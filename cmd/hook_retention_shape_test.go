@@ -22,7 +22,7 @@ func TestUnjudgeableHookKeyRetention(t *testing.T) {
 		}
 
 		lister := &stubAllPaneLister{panes: []string{"live:0.0"}}
-		if err := runHookStaleCleanup(lister, store, nil, nil); err != nil {
+		if err := runHookStaleCleanup(lister, store, nil, nil, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 

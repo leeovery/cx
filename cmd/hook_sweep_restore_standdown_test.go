@@ -31,7 +31,7 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 
 		lister := &recordingHookKeyLister{panes: []string{"live:0.0"}, restoring: true}
 
-		if err := runHookStaleCleanup(lister, store, nil, nil); err != nil {
+		if err := runHookStaleCleanup(lister, store, nil, nil, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
@@ -53,7 +53,7 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 		sink := &logtest.Sink{}
 		log.SetTestHandler(t, sink)
 
-		if err := runHookStaleCleanup(lister, store, nil, nil); err != nil {
+		if err := runHookStaleCleanup(lister, store, nil, nil, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
@@ -84,7 +84,7 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 		var removed []string
 		onRemoved := func(key string) { removed = append(removed, key) }
 
-		if err := runHookStaleCleanup(lister, store, nil, onRemoved); err != nil {
+		if err := runHookStaleCleanup(lister, store, nil, onRemoved, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: want nil (store untouched), got %v", err)
 		}
 		if lister.hookKeyCalls != 0 {
@@ -102,7 +102,7 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 		sink := &logtest.Sink{}
 		log.SetTestHandler(t, sink)
 
-		if err := runHookStaleCleanup(lister, store, nil, nil); err != nil {
+		if err := runHookStaleCleanup(lister, store, nil, nil, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
@@ -116,7 +116,7 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 		store, _ := newTempHooksStore(t, staleSeed)
 		lister := &recordingHookKeyLister{panes: []string{"live:0.0"}}
 
-		if err := runHookStaleCleanup(lister, store, nil, nil); err != nil {
+		if err := runHookStaleCleanup(lister, store, nil, nil, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 

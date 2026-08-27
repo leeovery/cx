@@ -209,7 +209,7 @@ func maybeRunHookCleanup(deps *daemonDeps) {
 	if time.Since(deps.lastCleanup) < hookCleanupInterval {
 		return
 	}
-	if err := runHookStaleCleanup(deps.Client, deps.HookStore, deps.Logger, nil); err != nil {
+	if err := runHookStaleCleanup(deps.Client, deps.HookStore, deps.Logger, nil, nil); err != nil {
 		deps.Logger.Warn("hooks stale-cleanup failed", "error", err)
 	}
 	deps.lastCleanup = time.Now()

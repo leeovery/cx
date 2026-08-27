@@ -7,14 +7,22 @@ import (
 	"github.com/leeovery/portal/internal/state"
 )
 
-// A restore window is an expected state, so the stand-down is DEBUG: warning
-// through every one of them would name a hazard being avoided, not encountered.
-func logRestoreStandDown(readErr error) {
-	attrs := []any{"op", "clean-stale-skipped", "via", "internal", "reason", "restoring"}
-	if readErr != nil {
-		attrs = append(attrs, "error", readErr)
-	}
-	hooksLogger.Debug("clean-stale-skipped", attrs...)
+// The reasons a cycle declines to run. Both the logged reason attr and the
+// caller-facing rendering read them, so the two cannot drift.
+const (
+	skipReasonRestoring     = "restoring"
+	skipReasonEmptyPaneRead = "empty-pane-read"
+)
+
+// standDownMsg and standDownAttrs give every stand-down one line shape, so a
+// single grep answers whether the prune declined and why. The level is the call
+// site's: a restore window is an expected state and warning through every one
+// of them would name a hazard being avoided rather than encountered, while an
+// empty pane read is an anomaly.
+const standDownMsg = "clean-stale-skipped"
+
+func standDownAttrs(reason string, extra ...any) []any {
+	return append([]any{"op", standDownMsg, "via", "internal", "reason", reason}, extra...)
 }
 
 // AllPaneLister returns every live pane's hook key, in the same
@@ -31,16 +39,27 @@ func runHookStaleCleanup(
 	store *hooks.Store,
 	logger *slog.Logger,
 	onRemoved func(string),
+	onSkipped func(reason string),
 ) error {
 	if logger == nil {
 		logger = bootstrapLogger
+	}
+	reportSkip := func(reason string) {
+		if onSkipped != nil {
+			onSkipped(reason)
+		}
 	}
 
 	// A restore's panes carry no token until the re-stamp, so a sweep landing in
 	// that window would reap every token-keyed entry on the machine. A failed
 	// read counts as set: a deferred prune costs nothing.
 	if restoring, err := state.IsRestoringSet(lister); restoring || err != nil {
-		logRestoreStandDown(err)
+		var extra []any
+		if err != nil {
+			extra = append(extra, "error", err)
+		}
+		hooksLogger.Debug(standDownMsg, standDownAttrs(skipReasonRestoring, extra...)...)
+		reportSkip(skipReasonRestoring)
 		return nil
 	}
 
@@ -64,7 +83,8 @@ func runHookStaleCleanup(
 		if len(persisted) == 0 {
 			return nil
 		}
-		logger.Warn("stale-hook cleanup: zero live panes parsed with hooks present; skipping to avoid mass-deletion hazard (next bootstrap retries)", "entries", len(persisted))
+		hooksLogger.Warn(standDownMsg, standDownAttrs(skipReasonEmptyPaneRead, "entries", len(persisted))...)
+		reportSkip(skipReasonEmptyPaneRead)
 		return nil
 	}
 

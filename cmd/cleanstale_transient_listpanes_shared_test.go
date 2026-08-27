@@ -113,10 +113,14 @@ func runTransientCleanStaleModeSubtest(t *testing.T, spec transientModeSpec) {
 				"  matched stale-hook lines:\n%s",
 				spec.name, strings.Join(lines, "\n"))
 		}
-		if !containsLineMatching(lines, "stale-hook cleanup:", "zero live panes", "entries=3", "mass-deletion hazard") {
-			t.Fatalf("missing mode (b) hazard-guard Warn under %s; want a `stale-hook cleanup:` line containing `zero live panes`, `entries=3`, and `mass-deletion hazard`\n"+
-				"  matched stale-hook lines:\n%s",
-				spec.name, strings.Join(lines, "\n"))
+		// The guard's own WARN rides the shared stand-down shape, so it is
+		// keyed off `clean-stale-skipped` rather than the sweep's prose lines.
+		fullLog := portaltest.ReadPortalLogSafe(stateDir)
+		standDown := logLinesContaining(fullLog, "clean-stale-skipped")
+		if !containsLineMatching(standDown, "WARN hooks:", "reason=empty-pane-read", "entries=3") {
+			t.Fatalf("missing mode (b) hazard-guard Warn under %s; want a `WARN hooks:` stand-down line containing `reason=empty-pane-read` and `entries=3`\n"+
+				"  matched stand-down lines:\n%s",
+				spec.name, strings.Join(standDown, "\n"))
 		}
 	default:
 		t.Fatalf("runTransientCleanStaleModeSubtest: unsupported FailureMode %v for subtest %s — driver supports only FailExitNonZero / FailEmptyStdout",
@@ -139,10 +143,13 @@ func configDirFromEnvSlice(t *testing.T, env []string) string {
 // The prefix deliberately omits the trailing colon so it captures both the
 // colon-suffixed Warn lines and the no-colon Debug ones.
 func staleHookCleanupLogLines(portalLog string) []string {
-	const prefix = "stale-hook cleanup"
+	return logLinesContaining(portalLog, "stale-hook cleanup")
+}
+
+func logLinesContaining(portalLog, needle string) []string {
 	var matches []string
 	for _, line := range strings.Split(portalLog, "\n") {
-		if strings.Contains(line, prefix) {
+		if strings.Contains(line, needle) {
 			matches = append(matches, line)
 		}
 	}
