@@ -39,6 +39,24 @@ func readOnlyDirPath(t *testing.T) string {
 	return filepath.Join(roDir, "hooks.json")
 }
 
+// seedThenDenyWrites writes body to a hooks.json and only then locks its parent
+// directory to 0500, so a save fails at the temp-create phase over a file that
+// already holds content. The seed write must succeed before the directory is
+// locked, so this cannot use readOnlyDirPath.
+func seedThenDenyWrites(t *testing.T, body []byte) (*hooks.Store, string) {
+	t.Helper()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "hooks.json")
+	if err := os.WriteFile(path, body, 0o600); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	if err := os.Chmod(dir, 0o500); err != nil {
+		t.Fatalf("chmod parent dir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+	return hooks.NewStore(path), path
+}
+
 func TestLoad(t *testing.T) {
 	t.Run("returns empty map when file does not exist", func(t *testing.T) {
 		dir := t.TempDir()
@@ -945,20 +963,8 @@ func TestCleanStaleLogging(t *testing.T) {
 	})
 
 	t.Run("it keeps the per-key lines and warns in the summary when the save fails", func(t *testing.T) {
-		// The seed write must succeed before the directory is locked, so this
-		// cannot use readOnlyDirPath.
-		dir := t.TempDir()
-		seeded := filepath.Join(dir, "hooks.json")
 		body := fmt.Appendf(nil, `{%q:{"on-resume":"cmdA"}}`, reapableSeedA)
-		if err := os.WriteFile(seeded, body, 0o600); err != nil {
-			t.Fatalf("seed: %v", err)
-		}
-		if err := os.Chmod(dir, 0o500); err != nil {
-			t.Fatalf("chmod parent dir: %v", err)
-		}
-		t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
-
-		store := hooks.NewStore(seeded)
+		store, seeded := seedThenDenyWrites(t, body)
 		sink := installCapture(t)
 
 		if _, err := store.CleanStale([]string{"my-session:0.0"}); err == nil {
@@ -1034,19 +1040,7 @@ func TestCleanStaleLogging(t *testing.T) {
 	})
 
 	t.Run("emits WARN with write-failed-* error_class (not unexpected) when the batched Save fails", func(t *testing.T) {
-		// The seed write must succeed before the directory is locked, so this
-		// cannot use readOnlyDirPath.
-		dir := t.TempDir()
-		seeded := filepath.Join(dir, "hooks.json")
-		if err := os.WriteFile(seeded, fmt.Appendf(nil, `{%q:{"on-resume":"x"},%q:{"on-resume":"y"}}`, reapableSeedA, reapableSeedB), 0o644); err != nil {
-			t.Fatalf("seed: %v", err)
-		}
-		if err := os.Chmod(dir, 0o500); err != nil {
-			t.Fatalf("chmod parent dir: %v", err)
-		}
-		t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
-
-		store := hooks.NewStore(seeded)
+		store, _ := seedThenDenyWrites(t, fmt.Appendf(nil, `{%q:{"on-resume":"x"},%q:{"on-resume":"y"}}`, reapableSeedA, reapableSeedB))
 		sink := installCapture(t)
 
 		_, err := store.CleanStale([]string{})
