@@ -53,7 +53,7 @@ Add to task 3-1's **Edge Cases**:
 - The three reboot firing fixtures break at *this* task and not at 3-3: the bake changing to `p.PortalPaneID` is what makes a positionally-seeded entry fire nothing, and 3-3 only changes an empty key from `--hook-key ''` to an absent flag
 ```
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:
 
 ---
@@ -102,7 +102,7 @@ Add to task 5-2's **Edge Cases**:
 - The bound is a parameter, not a function of `via`. `via=internal` identifies the pre-read uniquely today, so a `via`-driven branch would pass every test in this task and silently restore the two-bound stall the moment a breadcrumb was renamed
 ```
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**: With `LoadSnapshot` named, task 5-4's existing Do wording ("the call-site snapshot taken through task 5-2's short-bound read at `via="internal"`") resolves to a real method and needs no edit.
 
 ---
@@ -146,5 +146,5 @@ Add to task 1-1's **Edge Cases**:
 - A fixture whose assertion is an equality between `CleanStale`'s result and a `StaleKeys` prediction passes vacuously once the shape rule empties both sides; seeding token-shaped keys is what keeps it measuring the agreement it exists to pin
 ```
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:
