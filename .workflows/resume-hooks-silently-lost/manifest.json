@@ -51,9 +51,9 @@
     "planning": {
       "items": {
         "resume-hooks-silently-lost": {
-          "status": "in-progress",
+          "status": "completed",
           "format": "tick",
-          "spec_commit": "293dfef7e4f850d128ffbb226c77b46d9fe027e8",
+          "spec_commit": "8afbf8342327807c8ae3f6e548559865fc5abc75",
           "task_list_gate_mode": "auto",
           "author_gate_mode": "auto",
           "finding_gate_mode": "auto",
