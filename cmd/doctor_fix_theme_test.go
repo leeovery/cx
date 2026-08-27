@@ -101,7 +101,7 @@ func TestDoctorFix_SuffixInBothSummaries(t *testing.T) {
 		seedHealthyStateDir(t, dir)
 		// A stale hook entry makes the two summaries carry different checks
 		// halves and the same suffix.
-		hookStore, _ := seedHooksJSON(t, "sessA:0.0")
+		hookStore, _ := seedHooksJSON(t, "sessA1")
 		projectStore, _ := seedProjectsJSON(t, t.TempDir())
 		deps := staleDeps(dir, fakeHookLister{keys: []string{"sessB:0.0"}}, hookStore, projectStore)
 		deps.ThemesDir = themesDirWith(t, map[string][]byte{

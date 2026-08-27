@@ -851,13 +851,13 @@ func seedStalePruneFixture(t *testing.T, stateDir string) (deps *DoctorDeps, hoo
 	t.Helper()
 
 	seedHealthyStateDir(t, stateDir)
-	hookStore, hooksPath := seedHooksJSON(t, "sessA:0.0")
+	hookStore, hooksPath := seedHooksJSON(t, "sessA1")
 	liveDir = t.TempDir()
 	goneDir = filepath.Join(t.TempDir(), "gone")
 	projectStore, projectsPath := seedProjectsJSON(t, liveDir, goneDir)
 
-	// A live-pane set excluding sessA:0.0 makes it stale, and its non-emptiness
-	// keeps the hazard guard from deferring.
+	// A live-pane set excluding sessA1 makes it stale, and its token shape makes
+	// it judgeable; the set's non-emptiness keeps the hazard guard from deferring.
 	lister := fakeHookLister{keys: []string{"sessB:0.0"}}
 
 	return staleDeps(stateDir, lister, hookStore, projectStore), hooksPath, projectsPath, liveDir, goneDir
@@ -870,8 +870,8 @@ func assertStalePrunesApplied(t *testing.T, hooksPath, projectsPath, liveDir, go
 	if err != nil {
 		t.Fatalf("read hooks.json: %v", err)
 	}
-	if strings.Contains(string(hooksAfter), "sessA:0.0") {
-		t.Errorf("stale hook sessA:0.0 not pruned from hooks.json:\n%s", hooksAfter)
+	if strings.Contains(string(hooksAfter), "sessA1") {
+		t.Errorf("stale hook sessA1 not pruned from hooks.json:\n%s", hooksAfter)
 	}
 
 	projectsAfter, err := os.ReadFile(projectsPath)
@@ -885,7 +885,7 @@ func assertStalePrunesApplied(t *testing.T, hooksPath, projectsPath, liveDir, go
 		t.Errorf("live project %q wrongly pruned:\n%s", liveDir, projectsAfter)
 	}
 
-	if !strings.Contains(out, "Pruned stale hook: sessA:0.0") {
+	if !strings.Contains(out, "Pruned stale hook: sessA1") {
 		t.Errorf("missing pruned-hook breadcrumb:\n%s", out)
 	}
 	if !strings.Contains(out, "Pruned stale project: proj1 ("+goneDir+")") {
@@ -900,7 +900,9 @@ func assertStalePrunesApplied(t *testing.T, hooksPath, projectsPath, liveDir, go
 func downServerDeferFixture(t *testing.T, stateDir string) (deps *DoctorDeps, hooksPath, projectsPath, goneDir string) {
 	t.Helper()
 
-	hookStore, hooksPath := seedHooksJSON(t, "sessA:0.0")
+	// Token-shaped, so it is the hazard guard rather than the shape rule that
+	// spares the entry.
+	hookStore, hooksPath := seedHooksJSON(t, "sessA1")
 	goneDir = filepath.Join(t.TempDir(), "gone")
 	projectStore, projectsPath := seedProjectsJSON(t, goneDir)
 
@@ -943,7 +945,7 @@ func assertDownServerDeferral(t *testing.T, hooksBefore []byte, hooksPath, proje
 func TestDoctorStaleHooksCheck(t *testing.T) {
 	t.Run("persisted key with no live pane fails", func(t *testing.T) {
 		dir := t.TempDir()
-		hookStore, _ := seedHooksJSON(t, "sessA:0.0")
+		hookStore, _ := seedHooksJSON(t, "sessA1")
 		lister := fakeHookLister{keys: []string{"sessB:0.0"}}
 		results, err := runDoctorDiagnosis(staleDeps(dir, lister, hookStore, nil))
 		if err != nil {
@@ -960,7 +962,7 @@ func TestDoctorStaleHooksCheck(t *testing.T) {
 
 	t.Run("multiple stale entries use the plural count copy", func(t *testing.T) {
 		dir := t.TempDir()
-		hookStore, _ := seedHooksJSON(t, "sessA:0.0", "sessB:0.0")
+		hookStore, _ := seedHooksJSON(t, "sessA1", "sessB1")
 		lister := fakeHookLister{keys: []string{"sessC:0.0"}}
 		results, err := runDoctorDiagnosis(staleDeps(dir, lister, hookStore, nil))
 		if err != nil {
@@ -977,7 +979,7 @@ func TestDoctorStaleHooksCheck(t *testing.T) {
 
 	t.Run("zero live panes with hooks present is not-evaluable, never all-stale", func(t *testing.T) {
 		dir := t.TempDir()
-		hookStore, _ := seedHooksJSON(t, "sessA:0.0", "sessB:0.0")
+		hookStore, _ := seedHooksJSON(t, "sessA1", "sessB1")
 		lister := fakeHookLister{keys: []string{}}
 		results, err := runDoctorDiagnosis(staleDeps(dir, lister, hookStore, nil))
 		if err != nil {
@@ -994,7 +996,7 @@ func TestDoctorStaleHooksCheck(t *testing.T) {
 
 	t.Run("live-pane enumeration error is not-evaluable", func(t *testing.T) {
 		dir := t.TempDir()
-		hookStore, _ := seedHooksJSON(t, "sessA:0.0")
+		hookStore, _ := seedHooksJSON(t, "sessA1")
 		lister := fakeHookLister{err: errors.New("tmux transient")}
 		results, err := runDoctorDiagnosis(staleDeps(dir, lister, hookStore, nil))
 		if err != nil {
@@ -1051,9 +1053,9 @@ func TestDoctorStaleHooksParityWithPredicate(t *testing.T) {
 			persisted []string
 			live      []string
 		}{
-			{"one stale", []string{"sessA:0.0"}, []string{"sessB:0.0"}},
-			{"two stale", []string{"sessA:0.0", "sessB:0.0"}, []string{"sessC:0.0"}},
-			{"one of three stale", []string{"sessA:0.0", "sessB:0.0", "sessC:0.0"}, []string{"sessA:0.0", "sessB:0.0"}},
+			{"one stale", []string{"sessA1"}, []string{"sessB:0.0"}},
+			{"two stale", []string{"sessA1", "sessB1"}, []string{"sessC:0.0"}},
+			{"one of three stale", []string{"sessA:0.0", "sessB:0.0", "sessC1"}, []string{"sessA:0.0", "sessB:0.0"}},
 			{"none stale", []string{"sessA:0.0"}, []string{"sessA:0.0", "sessB:0.0"}},
 		}
 		for _, tc := range cases {
@@ -1097,8 +1099,8 @@ func TestDoctorStaleHooksParityWithPredicate(t *testing.T) {
 			wantStatus checkStatus
 			wantDetail string
 		}{
-			{"enumeration error", []string{"sessA:0.0"}, fakeHookLister{err: errors.New("tmux transient")}, checkNotEvaluable, "could not enumerate live panes"},
-			{"empty live with hooks present", []string{"sessA:0.0"}, fakeHookLister{keys: []string{}}, checkNotEvaluable, "zero live panes with hooks present (not evaluable)"},
+			{"enumeration error", []string{"sessA1"}, fakeHookLister{err: errors.New("tmux transient")}, checkNotEvaluable, "could not enumerate live panes"},
+			{"empty live with hooks present", []string{"sessA1"}, fakeHookLister{keys: []string{}}, checkNotEvaluable, "zero live panes with hooks present (not evaluable)"},
 			{"empty live with no hooks", nil, fakeHookLister{keys: []string{}}, checkPass, "no hooks"},
 		}
 		for _, tc := range cases {
@@ -1228,7 +1230,7 @@ func TestDoctorExecuteStaleEntryReturnsUnhealthy(t *testing.T) {
 
 	// A persisted hook key with no matching live pane, against a non-empty live
 	// set, is genuinely stale.
-	hookStore, _ := seedHooksJSON(t, "sessA:0.0")
+	hookStore, _ := seedHooksJSON(t, "sessA1")
 	lister := fakeHookLister{keys: []string{"sessB:0.0"}}
 	goneDir := filepath.Join(t.TempDir(), "gone")
 	projectStore, _ := seedProjectsJSON(t, goneDir)
@@ -1299,7 +1301,7 @@ func TestDoctorFixProtectsUserHooksWhenLiveSetEmptyOrErrored(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
 			seedHealthyStateDir(t, dir)
-			hookStore, hooksPath := seedHooksJSON(t, "sessA:0.0", "sessB:0.0")
+			hookStore, hooksPath := seedHooksJSON(t, "sessA1", "sessB1")
 			before, err := os.ReadFile(hooksPath)
 			if err != nil {
 				t.Fatalf("read hooks.json: %v", err)
@@ -1452,7 +1454,7 @@ func TestDoctorStaleProjectsCheck(t *testing.T) {
 
 func TestDoctorStaleChecksAreReadOnly(t *testing.T) {
 	dir := t.TempDir()
-	hookStore, hooksPath := seedHooksJSON(t, "sessA:0.0")
+	hookStore, hooksPath := seedHooksJSON(t, "sessA1")
 	liveDir := t.TempDir()
 	goneDir := filepath.Join(t.TempDir(), "gone")
 	projectStore, projectsPath := seedProjectsJSON(t, liveDir, goneDir)
@@ -1466,7 +1468,7 @@ func TestDoctorStaleChecksAreReadOnly(t *testing.T) {
 		t.Fatalf("read projects.json: %v", err)
 	}
 
-	lister := fakeHookLister{keys: []string{"sessB:0.0"}} // sessA:0.0 is stale
+	lister := fakeHookLister{keys: []string{"sessB:0.0"}} // sessA1 is stale
 	results, err := runDoctorDiagnosis(staleDeps(dir, lister, hookStore, projectStore))
 	if err != nil {
 		t.Fatalf("runDoctorDiagnosis: %v", err)

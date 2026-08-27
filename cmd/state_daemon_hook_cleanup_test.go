@@ -28,7 +28,7 @@ func discardDaemonLogger() *slog.Logger {
 
 func TestMaybeRunHookCleanup_DoesNotRunBeforeInterval(t *testing.T) {
 	seed := `{
-  "stale:0.0": {"on-resume": "cmd-stale"}
+  "stale1": {"on-resume": "cmd-stale"}
 }`
 	store, _ := newTempHooksStore(t, seed)
 	fc := &daemonFakeCommander{panesOut: "live:0.0"}
@@ -43,7 +43,7 @@ func TestMaybeRunHookCleanup_DoesNotRunBeforeInterval(t *testing.T) {
 	if err != nil {
 		t.Fatalf("store.Load: %v", err)
 	}
-	if _, ok := postRun["stale:0.0"]; !ok {
+	if _, ok := postRun["stale1"]; !ok {
 		t.Errorf("stale entry reaped before interval elapsed; hooks=%v", keysOf(postRun))
 	}
 
@@ -58,7 +58,7 @@ func TestMaybeRunHookCleanup_DoesNotRunBeforeInterval(t *testing.T) {
 
 func TestMaybeRunHookCleanup_RunsAndResetsOnceIntervalElapsed(t *testing.T) {
 	seed := `{
-  "stale:0.0": {"on-resume": "cmd-stale"},
+  "stale1": {"on-resume": "cmd-stale"},
   "live:0.0": {"on-resume": "cmd-live"}
 }`
 	store, _ := newTempHooksStore(t, seed)
@@ -74,7 +74,7 @@ func TestMaybeRunHookCleanup_RunsAndResetsOnceIntervalElapsed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("store.Load: %v", err)
 	}
-	if _, ok := postRun["stale:0.0"]; ok {
+	if _, ok := postRun["stale1"]; ok {
 		t.Errorf("stale entry not reaped once interval elapsed; hooks=%v", keysOf(postRun))
 	}
 	if _, ok := postRun["live:0.0"]; !ok {
@@ -88,7 +88,7 @@ func TestMaybeRunHookCleanup_RunsAndResetsOnceIntervalElapsed(t *testing.T) {
 
 func TestMaybeRunHookCleanup_FiresAtIntervalBoundary(t *testing.T) {
 	seed := `{
-  "stale:0.0": {"on-resume": "cmd-stale"}
+  "stale1": {"on-resume": "cmd-stale"}
 }`
 	store, _ := newTempHooksStore(t, seed)
 	fc := &daemonFakeCommander{panesOut: "live:0.0"}
@@ -102,7 +102,7 @@ func TestMaybeRunHookCleanup_FiresAtIntervalBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatalf("store.Load: %v", err)
 	}
-	if _, ok := postRun["stale:0.0"]; ok {
+	if _, ok := postRun["stale1"]; ok {
 		t.Errorf("cleanup did not fire at the interval boundary; hooks=%v", keysOf(postRun))
 	}
 }
@@ -139,7 +139,7 @@ func TestMaybeRunHookCleanup_LogsWarnAndSwallowsCleanupError(t *testing.T) {
 
 func TestMaybeRunHookCleanup_ListPanesErrorSwallowedNoReap(t *testing.T) {
 	seed := `{
-  "stale:0.0": {"on-resume": "cmd-stale"}
+  "stale1": {"on-resume": "cmd-stale"}
 }`
 	store, _ := newTempHooksStore(t, seed)
 	fc := &daemonFakeCommander{panesErr: errors.New("tmux dead")}
@@ -155,7 +155,7 @@ func TestMaybeRunHookCleanup_ListPanesErrorSwallowedNoReap(t *testing.T) {
 	if err != nil {
 		t.Fatalf("store.Load: %v", err)
 	}
-	if _, ok := postRun["stale:0.0"]; !ok {
+	if _, ok := postRun["stale1"]; !ok {
 		t.Errorf("entry reaped despite ListAllPanes error; hooks=%v", keysOf(postRun))
 	}
 
@@ -194,8 +194,8 @@ func TestMaybeRunHookCleanup_NilStoreNoOps(t *testing.T) {
 
 func TestMaybeRunHookCleanup_ReusesMassDeletionGuard(t *testing.T) {
 	seed := `{
-  "a:0.0": {"on-resume": "cmd-a"},
-  "b:0.0": {"on-resume": "cmd-b"}
+  "keyA00": {"on-resume": "cmd-a"},
+  "keyB00": {"on-resume": "cmd-b"}
 }`
 	store, _ := newTempHooksStore(t, seed)
 	fc := &daemonFakeCommander{panesOut: ""}

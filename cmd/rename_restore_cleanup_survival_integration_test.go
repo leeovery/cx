@@ -49,8 +49,9 @@ func TestRenameRestoreCleanupSurvival_KeepsRestoredIdKeyedHook(t *testing.T) {
 	assertLiveHookKeyPresent(t, client, liveKey)
 	assertLiveHookKeyAbsent(t, client, renameRestoreName+":0.0")
 
-	// Truly-stale entry with no matching live pane: must still be swept.
-	const staleKey = "gone-session:0.0"
+	// Truly-stale entry with no matching live pane, token-shaped so the reaper
+	// can judge it: must still be swept.
+	const staleKey = "gone01"
 
 	seed := `{
   "` + liveKey + `": {"on-resume": "echo restored"},

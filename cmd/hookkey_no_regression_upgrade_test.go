@@ -33,7 +33,8 @@ func TestHookKeyNoRegressionUpgrade_UnstampedNameKeyedHookSurvives(t *testing.T)
 	const liveKey = liveName + ":0.0"
 	assertLiveHookKeyPresent(t, client, liveKey)
 
-	const staleKey = "gone-session:0.0"
+	// Token-shaped: a key the reaper can judge, and so one it still sweeps.
+	const staleKey = "gone01"
 
 	seed := `{
   "` + liveKey + `": {"on-resume": "echo legacy"},
@@ -66,7 +67,7 @@ func TestHookKeyNoRegressionUpgrade_UnstampedNameKeyedHookSurvives(t *testing.T)
 			"post-cleanup keys=%v (path=%s)", liveKey, keysOf(postRun), path)
 	}
 	if _, ok := postRun[staleKey]; ok {
-		t.Errorf("truly-stale name-keyed hook %q survived; want swept "+
+		t.Errorf("truly-stale token-keyed hook %q survived; want swept "+
 			"(no matching live pane — cleanup correctness must not be weakened). "+
 			"post-cleanup keys=%v (path=%s)", staleKey, keysOf(postRun), path)
 	}

@@ -43,11 +43,12 @@ type transientModeSpec struct {
 }
 
 // The count is load-bearing: the log-fingerprint needles below match on
-// entries=3.
+// entries=3. The keys are token-shaped so it is the transient-failure handling,
+// not the reaper's retention of an unjudgeable shape, that spares them.
 var transientModeSeedEntries = map[string]string{
-	"alpha:0.0": "echo a",
-	"beta:0.0":  "echo b",
-	"gamma:0.0": "echo c",
+	"alpha1": "echo a",
+	"beta02": "echo b",
+	"gamma1": "echo c",
 }
 
 func runTransientCleanStaleModeSubtest(t *testing.T, spec transientModeSpec) {

@@ -123,17 +123,80 @@
       "items": {
         "resume-hooks-silently-lost": {
           "status": "in-progress",
-          "task_gate_mode": "gated",
-          "fix_gate_mode": "gated",
+          "task_gate_mode": "auto",
+          "fix_gate_mode": "auto",
           "analysis_gate_mode": "gated",
           "consolidation_gate_mode": "gated",
           "fix_attempts": 0,
           "analysis_cycle_total": 0,
           "analysis_cycle_session": 0,
-          "linters": [],
-          "project_skills": [],
+          "linters": [
+            {
+              "name": "go vet",
+              "command": "go vet ./..."
+            },
+            {
+              "name": "gofmt",
+              "command": "gofmt -l ."
+            },
+            {
+              "name": "golangci-lint",
+              "command": "golangci-lint run ./..."
+            }
+          ],
+          "project_skills": [
+            ".claude/skills/golang-how-to",
+            ".claude/skills/golang-testing",
+            ".claude/skills/golang-code-style",
+            ".claude/skills/golang-naming",
+            ".claude/skills/golang-error-handling",
+            ".claude/skills/golang-design-patterns",
+            ".claude/skills/golang-structs-interfaces",
+            ".claude/skills/golang-dependency-injection",
+            ".claude/skills/golang-safety",
+            ".claude/skills/golang-concurrency",
+            ".claude/skills/golang-context",
+            ".claude/skills/golang-cli",
+            ".claude/skills/golang-spf13-cobra",
+            ".claude/skills/golang-dependency-management"
+          ],
           "current_phase": 1,
-          "current_task": null
+          "current_task": "resume-hooks-silently-lost-1-2",
+          "bank": [
+            {
+              "task": "resume-hooks-silently-lost-1-1",
+              "source": "executor",
+              "summary": "Hook-key test seeds are hand-rolled literals across a dozen files, and every later phase re-points all of them again.",
+              "detail": "Key shape is now semantically load-bearing in tests (token-shaped = reapable, anything else = retained), but each site spells its own literal: internal/hooks/store_test.go, cmd/run_hook_stale_cleanup_test.go:157-161,209-213, cmd/doctor_test.go:854,903,946,963,980,997,1054-1057,1100-1101,1231,1302,1455, cmd/state_daemon_hook_cleanup_test.go, cmd/state_daemon_run_test.go:529,566, plus five integration seeds. A shared test-side vocabulary (reapable key / unjudgeable old-format key helper next to internal/transienttest.SeedHooksJSON) would make the next re-point one edit and make a mis-shaped seed impossible.",
+              "files": [
+                "internal/hooks/store_test.go",
+                "cmd/run_hook_stale_cleanup_test.go",
+                "cmd/doctor_test.go",
+                "cmd/doctor_summary_test.go",
+                "cmd/doctor_fix_theme_test.go",
+                "cmd/state_daemon_hook_cleanup_test.go",
+                "cmd/state_daemon_run_test.go",
+                "cmd/cleanstale_transient_listpanes_shared_test.go",
+                "cmd/cleanstale_transient_listpanes_doctorfix_integration_test.go",
+                "cmd/state_daemon_hook_cleanup_integration_test.go",
+                "cmd/bootstrap/transient_listpanes_helpers_integration_test.go",
+                "internal/transienttest/hooks.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-1-1",
+              "source": "reviewer",
+              "summary": "Two mass-deletion-guard rationale comments now overstate their hazard, in files this task deliberately did not touch.",
+              "detail": "cmd/run_hook_stale_cleanup.go:41 says an empty live set reaching CleanStale would delete every entry, and cmd/doctor.go:278 says it would otherwise report every entry stale. Post-change both are true only of judgeable entries — on today's install, where every key is old-format, an empty live set would now delete nothing. The claims are narrowed rather than flatly false, and both regions are rewritten by the later work (the restoring check moves into runHookStaleCleanup, the onSkipped callback and the lock-timeout branch land alongside), so the correction belongs with that task rather than as a drive-by edit here.",
+              "files": [
+                "cmd/run_hook_stale_cleanup.go",
+                "cmd/doctor.go"
+              ]
+            }
+          ],
+          "completed_tasks": [
+            "resume-hooks-silently-lost-1-1"
+          ]
         }
       }
     }

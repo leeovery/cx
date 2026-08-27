@@ -11,6 +11,7 @@ import (
 
 	"github.com/leeovery/portal/internal/fileutil"
 	"github.com/leeovery/portal/internal/log"
+	"github.com/leeovery/portal/internal/session"
 	"github.com/leeovery/portal/internal/storelog"
 )
 
@@ -178,25 +179,39 @@ func (s *Store) List() ([]Hook, error) {
 	return list, nil
 }
 
-// StaleKeys returns the persisted hook keys absent from live. It carries no
-// mass-deletion guard: an empty live set makes every persisted key stale, and
-// deferring on that is the caller's repair-safety policy.
-func StaleKeys(persisted map[string]map[string]string, live []string) []string {
+// staleKeys is the single implementation of the staleness rule: a persisted key
+// is stale iff it is absent from live and its shape is one the rule can judge —
+// token-shaped, or empty. A key of any other shape cannot be told apart from an
+// entry that has not been converted to a pane token yet, so it is retained.
+func staleKeys(persisted hooksFile, live []string) []string {
 	liveSet := make(map[string]struct{}, len(live))
 	for _, k := range live {
 		liveSet[k] = struct{}{}
 	}
 	var stale []string
 	for key := range persisted {
-		if _, ok := liveSet[key]; !ok {
+		if _, ok := liveSet[key]; ok {
+			continue
+		}
+		if key == "" || session.IsTokenShaped(key) {
 			stale = append(stale, key)
 		}
 	}
 	return stale
 }
 
+// StaleKeys returns the persisted hook keys absent from live whose shape the
+// staleness rule can judge; a key it cannot judge is retained. It carries no
+// mass-deletion guard: an empty live set makes every judgeable persisted key
+// stale, and deferring on that is the caller's repair-safety policy.
+func StaleKeys(persisted map[string]map[string]string, live []string) []string {
+	return staleKeys(persisted, live)
+}
+
 // CleanStale removes and returns the hook entries whose key is absent from
-// liveKeys. A clean that removes nothing writes no file and emits no summary.
+// liveKeys and whose shape the staleness rule can judge; a key it cannot judge
+// is retained untouched. A clean that removes nothing writes no file and emits
+// no summary.
 func (s *Store) CleanStale(liveKeys []string) ([]string, error) {
 	start := time.Now()
 
@@ -205,7 +220,7 @@ func (s *Store) CleanStale(liveKeys []string) ([]string, error) {
 		return nil, fmt.Errorf("failed to load hooks: %w", err)
 	}
 
-	removed := StaleKeys(h, liveKeys)
+	removed := staleKeys(h, liveKeys)
 
 	if len(removed) == 0 {
 		return removed, nil

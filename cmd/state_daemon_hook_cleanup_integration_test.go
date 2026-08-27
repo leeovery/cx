@@ -38,9 +38,9 @@ const (
 	// sub-assertion is skipped rather than false-failed.
 	preIntervalSafetyCeiling = hookCleanupIntervalMirror - 2*time.Second
 
-	// staleHookKey has no matching live pane on the test server, and
-	// GenerateSessionName guarantees the name cannot re-appear.
-	staleHookKey = "gone-XxXxXx:0.0"
+	// staleHookKey has no matching live pane on the test server, and its token
+	// shape is one the reaper can judge, so it is genuinely reapable.
+	staleHookKey = "gonXxX"
 
 	liveWorkSession = "work"
 )
