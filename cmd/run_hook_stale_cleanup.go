@@ -87,7 +87,8 @@ func runHookStaleCleanup(
 	logger.Debug("stale-hook cleanup counts", "panes", len(livePanes), "entries", len(persisted))
 
 	// An empty live set is a bad read, not authority: it must never reach
-	// CleanStale, which would delete every entry. Defer to the next run.
+	// CleanStale, which would delete every key the staleness rule can judge.
+	// Defer to the next run.
 	if len(livePanes) == 0 {
 		if len(persisted) == 0 {
 			return nil

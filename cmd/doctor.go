@@ -295,8 +295,8 @@ func checkHostTerminal(detector TerminalDetector, resolve spawn.AdapterResolver)
 }
 
 // The guards below must precede the stale count: an unreadable or empty live
-// set would otherwise report every entry stale and mislead a --fix into
-// mass-deleting user-authored on-resume commands.
+// set would otherwise report every judgeable entry stale and mislead a --fix
+// into mass-deleting user-authored on-resume commands.
 func checkStaleHooks(lister AllPaneLister, store *hooks.Store) checkResult {
 	const name = "stale hooks"
 	if store == nil {
