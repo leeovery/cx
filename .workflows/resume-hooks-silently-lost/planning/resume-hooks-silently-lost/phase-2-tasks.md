@@ -211,6 +211,7 @@ total: 5
 - Emit exactly one WARN on failure at either step, through the `hooksLogger` binding `cmd` already holds (`cmd/state_common.go:11`): message and `op` both `touch-save-requested`, plus `hook_key` (the token just written), `via` `cli`, and the existing `error` attr carrying the failure. Add no new component and no new attr key, and never file this under `op=set`.
 - Factor the two steps into one small unexported helper so there is exactly one emission site and both failure modes cannot each emit.
 - Do not touch `hooksRmCmd` — removal does not touch the dirty flag.
+- Correct CLAUDE.md's **Resume-hook command** bullet (the `cmd/hooks.go` entry), whose `Bootstrap-exempt (config-file only)` parenthetical stops being true here: rewrite it to say the exemption holds because `hook` starts no tmux server, and to name the `save.requested` touch in the state directory as its one write outside the config directory. Leave the rest of the bullet — the verb, the permanent `hooks` alias, the pointer to "Resume hooks" — exactly as it is, and touch no other CLAUDE.md passage: the key-scheme passages belong to task 2-2 and the `hooks` row's lock sidecar to Phase 5.
 - Cover the happy path and both failure modes in `cmd/hooks_test.go`.
 
 **Acceptance Criteria**:
@@ -222,6 +223,7 @@ total: 5
 - [ ] The touch runs only after the write returns without error: a failed `hook set` touches nothing
 - [ ] `hook rm` touches nothing on either of its paths
 - [ ] `hook` starts no tmux server on this path — bootstrap-exemption is unchanged
+- [ ] CLAUDE.md's Resume-hook-command bullet no longer claims `hook` is config-file only: it rests the exemption on starting no tmux server and names the `save.requested` touch as the one write outside the config directory
 
 **Tests**:
 - `"it touches save.requested after a successful registration"` — `PORTAL_STATE_DIR` at a temp dir; assert the file exists after the command

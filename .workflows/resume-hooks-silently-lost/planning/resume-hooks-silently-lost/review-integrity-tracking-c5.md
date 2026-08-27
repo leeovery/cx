@@ -45,7 +45,7 @@ Acceptance Criteria — anchor criterion, with the new criterion appended after 
 - [ ] `TestDoctorSummary_FixPathRendersTwo` still asserts `6 of 7 checks passed` before the repair and `7 checks passed` after it — its seeded key is re-pointed at a token-shaped value, never its expected counts relaxed, or the one test proving `doctor --fix` repairs anything stops proving it
 ```
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:
 
 ---
@@ -93,7 +93,7 @@ Edge Cases — anchor bullet, with the new bullet appended after it:
 - `internal/tmux/hookkey_test.go` holds two `HookKey` tests, not one, plus the `portalIDLiteral` const. Deleting only `TestHookKey` leaves a file that does not compile and a `@portal-id` literal the zero-occurrences grep rejects
 ```
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:
 
 ---
@@ -146,5 +146,5 @@ Acceptance Criteria — final two criteria, with the new criterion appended afte
 - [ ] CLAUDE.md's Resume-hook-command bullet no longer claims `hook` is config-file only: it rests the exemption on starting no tmux server and names the `save.requested` touch as the one write outside the config directory
 ```
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:
