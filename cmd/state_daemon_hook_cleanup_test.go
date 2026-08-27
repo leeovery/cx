@@ -126,9 +126,6 @@ func TestMaybeRunHookCleanup_LogsWarnAndSwallowsCleanupError(t *testing.T) {
 	logger, sink := newCaptureLoggerForComponent(t, "daemon")
 	deps := hookCleanupDeps(fc, store, logger)
 
-	hooksSink := &logtest.Sink{}
-	log.SetTestHandler(t, hooksSink)
-
 	deps.lastCleanup = time.Now().Add(-hookCleanupInterval - time.Second)
 	beforeCall := time.Now()
 
@@ -151,9 +148,6 @@ func TestMaybeRunHookCleanup_ListPanesErrorSwallowedNoReap(t *testing.T) {
 	fc := &daemonFakeCommander{panesErr: errors.New("tmux dead")}
 	logger, sink := newCaptureLoggerForComponent(t, "daemon")
 	deps := hookCleanupDeps(fc, store, logger)
-
-	hooksSink := &logtest.Sink{}
-	log.SetTestHandler(t, hooksSink)
 
 	deps.lastCleanup = time.Now().Add(-hookCleanupInterval - time.Second)
 	beforeCall := time.Now()

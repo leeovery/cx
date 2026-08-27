@@ -167,7 +167,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 1,
-          "current_task": "resume-hooks-silently-lost-1-11",
+          "current_task": "resume-hooks-silently-lost-2-1",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -287,6 +287,15 @@
                 "cmd/run_hook_stale_cleanup_test.go",
                 "cmd/doctor_test.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-1-11",
+              "source": "reviewer",
+              "summary": "The removal leaves two byte-identical subtests in TestDoctorStaleHooksCheck.",
+              "detail": "cmd/doctor_test.go:1102-1108 (\"it reads the marker before counting\") is now character-for-character identical to cmd/doctor_test.go:1078-1084 (\"it reports not evaluable while the restore marker is set\") — same seedHooksJSON(t, reapableSeedA), same fakeHookLister{keys: []string{\"sessB:0.0\"}, restoring: true}, same assertRestoreWindowResult. The strings.Contains check was the only thing distinguishing them, and it was inert, so no coverage is lost — but the intent the name carries (the marker is read BEFORE the count is computed) is now indistinguishable from its neighbour. Task 1-11 could not resolve it: its instruction is Remove nothing else and its criteria mandate every affected test keeps its cases. Two remedies: delete the duplicate (coverage unchanged), or differentiate it by seeding a fixture where a count would otherwise be produced and asserting its absence by a route the equality check does not already cover. The sibling \"it reads the marker before the empty-live-set branch\" (:1094-1100) is genuinely distinct and should stay.",
+              "files": [
+                "cmd/doctor_test.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -299,7 +308,8 @@
             "resume-hooks-silently-lost-1-7",
             "resume-hooks-silently-lost-1-8",
             "resume-hooks-silently-lost-1-9",
-            "resume-hooks-silently-lost-1-10"
+            "resume-hooks-silently-lost-1-10",
+            "resume-hooks-silently-lost-1-11"
           ],
           "staging": {
             "p1": {
@@ -314,6 +324,9 @@
             }
           },
           "consolidated_phases": [
+            1
+          ],
+          "completed_phases": [
             1
           ]
         }

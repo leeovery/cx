@@ -1105,9 +1105,6 @@ func TestDoctorStaleHooksCheck(t *testing.T) {
 		lister := fakeHookLister{keys: []string{"sessB:0.0"}, restoring: true}
 		got := staleHooksCheckResult(t, dir, lister, hookStore)
 		assertRestoreWindowResult(t, got)
-		if strings.Contains(got.detail, "stale hook entr") {
-			t.Errorf("detail = %q; want no count computed in a restore window", got.detail)
-		}
 	})
 
 	t.Run("it reports not evaluable with no server running", func(t *testing.T) {
