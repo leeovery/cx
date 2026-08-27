@@ -96,6 +96,8 @@ status: draft
 - [ ] `hook rm --pane-key <key>` validates nothing and issues no tmux call: it removes a seeded key and exits 0, and exits non-zero when the key names no entry
 - [ ] `hook list` appends a fourth tab-separated `<session>:<window>.<pane>` column resolved from one enumeration read, mapped from non-empty tokens only, leaving the existing three field positions undisturbed
 - [ ] A token no live pane carries — including with no server running, and any old-format key — renders an empty fourth field, never a dropped one
+- [ ] `hook rm --pane-key`'s flag help describes the pane token and no longer says `Structural key`, and README's `xctl hook` section carries no positional `--pane-key` example and states that `hook rm` exits non-zero when it removes nothing
+- [ ] `hook rm` mints no token and issues no pane-option write on either path — removal neither mints nor unstamps
 
 #### Tasks
 
@@ -119,6 +121,9 @@ status: draft
 - [ ] `CleanStale` derives the delete set under its own exclusive lock from the live token set and the call-site snapshot, and the snapshot is taken before the pane enumeration, so an entry registered after it survives the sweep
 - [ ] No tmux call is made while any lock is held
 - [ ] Acquisition is bounded at 2s through a package-level value the unit lane can lower; on timeout `hook set` and `hook rm` exit non-zero and write nothing, the sweep skips with `op=clean-stale-skipped reason=lock-timeout` and `doctor --fix` names the skipped prune without affecting its exit code, while `LookupOnResume`, `checkStaleHooks` and `hook list` return their data and log `op=load-unlocked` at DEBUG with the correct `via`
+- [ ] A sweep whose snapshot holds no keys returns before `CleanStale`: no lock is taken, no config directory is created, and no `.lock` sidecar appears on an install that has never registered a hook
+- [ ] A config directory that cannot be created fails through `acquireLock` rather than a bare `MkdirAll` return, so directory failure and sidecar failure are one branch with one emission point
+- [ ] A fully contended sweep cycle costs one `lockTimeout` in total, not two — the advisory pre-read waits at the near-zero `snapshotLockTimeout`
 - [ ] The degraded read adds the only new `op` value this phase introduces, with no new attr key and no new log component
 
 #### Tasks

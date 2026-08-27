@@ -30,7 +30,8 @@ The three ways out differ in what they cost — one adds surface to `acquireLock
 - Accept two bounds per sweep cycle and say so in the plan: correct 5-5's acceptance criterion and its `"it returns at the bound"` test to name twice the bound, and correct 5-2's "the outcome the bound exists to prevent" reasoning so the stated ceiling matches what is built
 - Drop the shared lock from the sweep's pre-read altogether on the grounds the plan already gives — correctness never depends on it and it is "an ordering courtesy" — accepting that this reintroduces an unlocked exported read path, which 5-2 forbids for `Store.Get` in the same breath
 
-**Resolution**: Pending
+**Resolution**: Fixed
+**Notes**: Option 1 chosen — `acquireLock` takes its bound as a parameter; a near-zero `snapshotLockTimeout` serves the sweep's advisory pre-read alone, so a fully contended cycle costs one `lockTimeout` in total. Applied across tasks 5-1, 5-2, 5-4 and 5-5, with 5-5's ceiling and its test tightened back to one bound.
 **Notes**:
 
 ---
@@ -109,7 +110,7 @@ Phase 5's acceptance block:
 - [ ] The degraded read adds the only new `op` value this phase introduces, with no new attr key and no new log component
 ```
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:
 
 ---
