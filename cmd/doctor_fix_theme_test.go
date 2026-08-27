@@ -383,7 +383,7 @@ func TestDoctorFix_RemainsBootstrapExempt(t *testing.T) {
 func TestDoctorFix_ExistingRepairsUnchanged(t *testing.T) {
 	t.Run("the two prunes and the log sweep still run", func(t *testing.T) {
 		dir := t.TempDir()
-		deps, hooksPath, projectsPath, liveDir, goneDir := seedStalePruneFixture(t, dir)
+		deps, hooksPath, projectsPath, liveDir, goneDir := seedStalePruneFixture(t, dir, staleHookLister())
 		deps.ThemesDir = themesDirWith(t, map[string][]byte{
 			"a-missing.theme": sourceMissingTokens(t, "text.primary"),
 		})

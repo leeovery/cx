@@ -167,7 +167,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 1,
-          "current_task": "resume-hooks-silently-lost-1-9",
+          "current_task": "resume-hooks-silently-lost-1-10",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -256,6 +256,37 @@
                 "cmd/state_daemon_run_test.go",
                 "cmd/state_daemon_hook_cleanup_test.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-1-9",
+              "source": "executor",
+              "summary": "TestDoctorFixPrunedHookOutput is now fully subsumed by a sibling test.",
+              "detail": "With the exact-equality pruned-line assertion single-sourced into assertStalePrunesApplied (cmd/doctor_test.go:909), TestDoctorFixPrunedHookOutput (\"it leaves doctor --fix stdout unchanged\") asserts a strict subset of TestDoctorFixPrunesStaleEntriesThenRediagnosesClean (cmd/doctor_test.go:1385) — same fixture, same helper, no additional assertion. Deleting it is the honest consolidation but costs a case, which task 1-9 acceptance bar forbids; it needs an owner who can approve the count change.",
+              "files": [
+                "cmd/doctor_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-1-9",
+              "source": "executor",
+              "summary": "Four further cmd test files touching doctor.go / run_hook_stale_cleanup.go still carry concern-derived names.",
+              "detail": "Task 1-9 named four files; the convention breach is wider. cmd/hooks_cleanstale_single_caller_guard_test.go and cmd/hookkey_no_regression_upgrade_test.go (unit lane) plus cmd/cleanstale_transient_listpanes_doctorfix_integration_test.go and cmd/rename_restore_cleanup_survival_integration_test.go (integration lane) all exercise these two sources under names derived from the concern. All four predate this phase, so they are outside the four the task was scoped to, but the acceptance criterion every remaining test file in cmd touching these two sources is named after a source file is only satisfied for the phase own output.",
+              "files": [
+                "cmd/hooks_cleanstale_single_caller_guard_test.go",
+                "cmd/hookkey_no_regression_upgrade_test.go",
+                "cmd/cleanstale_transient_listpanes_doctorfix_integration_test.go",
+                "cmd/rename_restore_cleanup_survival_integration_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-1-9",
+              "source": "reviewer",
+              "summary": "staleSeed is now declared twice, byte-identical, in one file.",
+              "detail": "cmd/run_hook_stale_cleanup_test.go:428 and :625, ~200 lines apart. The merge is what turned two cross-file copies into a same-file duplicate. Task 1-9 Do list scoped fixture parameterisation to seedStalePruneFixture only, so this is not a criterion miss, but it is the same class of thing the task exists to remove and the fix is entirely local — a package-level staleHookSeed beside the seed vocabulary at :25-33 would close it in one edit. Also: doctor_test.go now carries two helper regions (:856-922 and :1697-1750) with the latter calling the former across ~800 lines, so a reader tracing the fixture crosses the file twice.",
+              "files": [
+                "cmd/run_hook_stale_cleanup_test.go",
+                "cmd/doctor_test.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -266,7 +297,8 @@
             "resume-hooks-silently-lost-1-5",
             "resume-hooks-silently-lost-1-6",
             "resume-hooks-silently-lost-1-7",
-            "resume-hooks-silently-lost-1-8"
+            "resume-hooks-silently-lost-1-8",
+            "resume-hooks-silently-lost-1-9"
           ],
           "staging": {
             "p1": {

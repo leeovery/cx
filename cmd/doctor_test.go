@@ -15,7 +15,6 @@ import (
 	"github.com/leeovery/portal/internal/project"
 	"github.com/leeovery/portal/internal/spawn"
 	"github.com/leeovery/portal/internal/state"
-	"github.com/leeovery/portal/internal/transienttest"
 )
 
 func doctorUnsupportedResolve(spawn.Identity) (spawn.Adapter, spawn.Resolution) {
@@ -808,19 +807,6 @@ func (f fakeHookLister) TryGetServerOption(string) (string, bool, error) {
 	return restoringOption(f.restoring, f.restoringErr)
 }
 
-// The hook-key seed vocabulary the cmd suites share: a reapable key is one the
-// staleness rule can judge, so it is swept once absent from the live set; an
-// unjudgeable key is retained whatever the live set says.
-var (
-	reapableSeedA = transienttest.ReapableHookKey(0)
-	reapableSeedB = transienttest.ReapableHookKey(1)
-	reapableSeedC = transienttest.ReapableHookKey(2)
-	reapableSeedD = transienttest.ReapableHookKey(3)
-
-	unjudgeableSeedA = transienttest.UnjudgeableHookKey(0)
-	unjudgeableSeedB = transienttest.UnjudgeableHookKey(1)
-)
-
 func seedHooksJSON(t *testing.T, keys ...string) (*hooks.Store, string) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "hooks.json")
@@ -867,7 +853,11 @@ func staleDeps(dir string, lister AllPaneLister, hookStore *hooks.Store, project
 	})
 }
 
-func seedStalePruneFixture(t *testing.T, stateDir string) (deps *DoctorDeps, hooksPath, projectsPath, liveDir, goneDir string) {
+// seedStalePruneFixture stages a healthy install whose only anomalies are one
+// token-shaped hook entry and one stale project record, read through the given
+// live-pane enumeration. staleHookLister makes the entry genuinely stale; the
+// stand-down listers make the same fixture describe a prune that must not run.
+func seedStalePruneFixture(t *testing.T, stateDir string, lister fakeHookLister) (deps *DoctorDeps, hooksPath, projectsPath, liveDir, goneDir string) {
 	t.Helper()
 
 	seedHealthyStateDir(t, stateDir)
@@ -876,12 +866,22 @@ func seedStalePruneFixture(t *testing.T, stateDir string) (deps *DoctorDeps, hoo
 	goneDir = filepath.Join(t.TempDir(), "gone")
 	projectStore, projectsPath := seedProjectsJSON(t, liveDir, goneDir)
 
-	// A live-pane set excluding the seeded key makes it stale, and its token
-	// shape makes it judgeable; the set's non-emptiness keeps the hazard guard
-	// from deferring.
-	lister := fakeHookLister{keys: []string{"sessB:0.0"}}
-
 	return staleDeps(stateDir, lister, hookStore, projectStore), hooksPath, projectsPath, liveDir, goneDir
+}
+
+// staleHookLister excludes the seeded key from the live set, which makes it
+// stale, and its token shape makes it judgeable; the set's non-emptiness keeps
+// the hazard guard from deferring.
+func staleHookLister() fakeHookLister {
+	return fakeHookLister{keys: []string{"sessB:0.0"}}
+}
+
+// restoringHookLister reads the same live set through a set @portal-restoring
+// marker, so the sweep stands down before it can judge anything.
+func restoringHookLister() fakeHookLister {
+	lister := staleHookLister()
+	lister.restoring = true
+	return lister
 }
 
 func assertStalePrunesApplied(t *testing.T, hooksPath, projectsPath, liveDir, goneDir, out string) {
@@ -906,8 +906,15 @@ func assertStalePrunesApplied(t *testing.T, hooksPath, projectsPath, liveDir, go
 		t.Errorf("live project %q wrongly pruned:\n%s", liveDir, projectsAfter)
 	}
 
-	if !strings.Contains(out, "Pruned stale hook: "+reapableSeedA) {
-		t.Errorf("missing pruned-hook breadcrumb:\n%s", out)
+	var prunedHookLines []string
+	for line := range strings.SplitSeq(out, "\n") {
+		if strings.HasPrefix(line, "Pruned stale hook:") {
+			prunedHookLines = append(prunedHookLines, line)
+		}
+	}
+	wantHookLine := "Pruned stale hook: " + reapableSeedA
+	if len(prunedHookLines) != 1 || prunedHookLines[0] != wantHookLine {
+		t.Errorf("pruned-hook stdout lines = %q, want exactly [%q]\n%s", prunedHookLines, wantHookLine, out)
 	}
 	if !strings.Contains(out, "Pruned stale project: proj1 ("+goneDir+")") {
 		t.Errorf("missing pruned-project breadcrumb:\n%s", out)
@@ -1384,7 +1391,7 @@ func TestDoctorExecuteStaleEntryReturnsUnhealthy(t *testing.T) {
 }
 
 func TestDoctorFixPrunesStaleEntriesThenRediagnosesClean(t *testing.T) {
-	deps, hooksPath, projectsPath, liveDir, goneDir := seedStalePruneFixture(t, t.TempDir())
+	deps, hooksPath, projectsPath, liveDir, goneDir := seedStalePruneFixture(t, t.TempDir(), staleHookLister())
 
 	outBuf, _, err := runDoctorFixCmd(t, deps)
 	if err != nil {
@@ -1615,5 +1622,144 @@ func TestDoctorStaleChecksAreReadOnly(t *testing.T) {
 	}
 	if !bytes.Equal(projectsBefore, projectsAfter) {
 		t.Errorf("projects.json mutated by diagnosis (read-only violated)\nbefore: %s\nafter:  %s", projectsBefore, projectsAfter)
+	}
+}
+
+// The reaper's log line names the removed command; its stdout does not, and a
+// user reading a repair still sees exactly the key.
+func TestDoctorFixPrunedHookOutput(t *testing.T) {
+	t.Run("it leaves doctor --fix stdout unchanged", func(t *testing.T) {
+		deps, hooksPath, projectsPath, liveDir, goneDir := seedStalePruneFixture(t, t.TempDir(), staleHookLister())
+
+		outBuf, _, err := runDoctorFixCmd(t, deps)
+		if err != nil {
+			t.Fatalf("Execute err = %v; want nil", err)
+		}
+
+		assertStalePrunesApplied(t, hooksPath, projectsPath, liveDir, goneDir, outBuf.String())
+	})
+}
+
+func TestDoctorFixReportsSkippedHookPrune(t *testing.T) {
+	t.Run("it prints the skipped-prune line for a restore window in doctor --fix", func(t *testing.T) {
+		out := runDoctorFixWithLister(t, restoringHookLister())
+		assertSkippedPruneLine(t, out, "Skipped stale hook prune: restore may be in progress")
+	})
+
+	t.Run("it prints the skipped-prune line for an empty live read in doctor --fix", func(t *testing.T) {
+		out := runDoctorFixWithLister(t, fakeHookLister{keys: []string{}})
+		assertSkippedPruneLine(t, out, "Skipped stale hook prune: could not read live panes")
+	})
+
+	// The repair and the diagnosis must tell one story: a prune that stood down
+	// cannot be followed by a count of what it deliberately did not judge.
+	t.Run("it reports not evaluable in the post-repair diagnosis after a stand-down", func(t *testing.T) {
+		out := runDoctorFixWithLister(t, restoringHookLister())
+		assertSkippedPruneLine(t, out, "Skipped stale hook prune: restore may be in progress")
+		if want := "· stale hooks: restore may be in progress (not evaluable)"; !strings.Contains(out, want) {
+			t.Errorf("post-repair report missing %q:\n%s", want, out)
+		}
+		if strings.Contains(out, "stale hook entr") {
+			t.Errorf("post-repair diagnosis counted what the prune stood down on:\n%s", out)
+		}
+	})
+
+	t.Run("it leaves the doctor --fix exit code to the post-repair diagnosis", func(t *testing.T) {
+		dir := t.TempDir()
+		seedHealthyStateDir(t, dir)
+		hookStore, _ := seedHooksJSON(t)
+		projectStore, _ := seedProjectsJSON(t, t.TempDir())
+		deps := staleDeps(dir, restoringHookLister(), hookStore, projectStore)
+
+		outBuf, _, err := runDoctorFixCmd(t, deps)
+		if err != nil {
+			t.Fatalf("Execute err = %v; want nil over a healthy post-repair diagnosis\n%s", err, outBuf.String())
+		}
+		if !strings.Contains(outBuf.String(), "Skipped stale hook prune:") {
+			t.Fatalf("fixture did not stand the prune down:\n%s", outBuf.String())
+		}
+
+		// The same stand-down with a genuinely failing check still exits non-zero.
+		failingDir := t.TempDir()
+		seedHealthyStateDir(t, failingDir)
+		failingHooks, _ := seedHooksJSON(t)
+		failingProjects, _ := seedProjectsJSON(t, t.TempDir())
+		failingDeps := staleDeps(failingDir, restoringHookLister(), failingHooks, failingProjects)
+		failingDeps.SaverPresent = func() (bool, error) { return false, nil }
+
+		failBuf, _, failErr := runDoctorFixCmd(t, failingDeps)
+		if !errors.Is(failErr, ErrDoctorUnhealthy) {
+			t.Fatalf("Execute err = %v; want ErrDoctorUnhealthy with a failing check\n%s", failErr, failBuf.String())
+		}
+	})
+}
+
+// runDoctorFixWithLister drives `doctor --fix` over an install whose hook prune
+// stands down for whatever reason the lister provokes, and pins that the
+// stand-down left hooks.json untouched.
+func runDoctorFixWithLister(t *testing.T, lister fakeHookLister) string {
+	t.Helper()
+
+	deps, hooksPath, _, _, _ := seedStalePruneFixture(t, t.TempDir(), lister)
+	before, err := os.ReadFile(hooksPath)
+	if err != nil {
+		t.Fatalf("read hooks.json: %v", err)
+	}
+
+	outBuf, _, _ := runDoctorFixCmd(t, deps)
+
+	after, err := os.ReadFile(hooksPath)
+	if err != nil {
+		t.Fatalf("re-read hooks.json: %v", err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Errorf("hooks.json rewritten on a stand-down\nbefore: %s\nafter:  %s", before, after)
+	}
+	return outBuf.String()
+}
+
+// assertSkippedPruneLine pins the exact line and its placement in the repair
+// block: a stand-down and a removal cannot co-occur, so the line stands where
+// the `Pruned stale hook:` lines would have.
+func assertSkippedPruneLine(t *testing.T, out, want string) {
+	t.Helper()
+
+	if strings.Contains(out, "Pruned stale hook:") {
+		t.Errorf("doctor --fix reported a prune on a stand-down:\n%s", out)
+	}
+
+	lines := strings.Split(out, "\n")
+	skippedAt, projectAt := -1, -1
+	for i, line := range lines {
+		switch {
+		case line == want:
+			if skippedAt != -1 {
+				t.Errorf("skipped-prune line printed twice:\n%s", out)
+			}
+			skippedAt = i
+		case strings.HasPrefix(line, "Pruned stale project:"):
+			projectAt = i
+		}
+	}
+	if skippedAt == -1 {
+		t.Fatalf("missing skipped-prune line %q:\n%s", want, out)
+	}
+	if projectAt != -1 && skippedAt > projectAt {
+		t.Errorf("skipped-prune line follows the project prune; want it in the hook-prune block:\n%s", out)
+	}
+}
+
+func TestSkippedPrunePhrase(t *testing.T) {
+	cases := map[string]string{
+		skipReasonRestoring:     "restore may be in progress",
+		skipReasonEmptyPaneRead: "could not read live panes",
+		// An unmapped reason must still print something: a stand-down that
+		// renders as an empty line is the silence this reporting removes.
+		"lock-timeout": "lock-timeout",
+	}
+	for reason, want := range cases {
+		if got := skippedPrunePhrase(reason); got != want {
+			t.Errorf("skippedPrunePhrase(%q) = %q, want %q", reason, got, want)
+		}
 	}
 }
