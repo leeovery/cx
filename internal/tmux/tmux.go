@@ -609,7 +609,10 @@ type PaneHookRow struct {
 // its separator on the first row.
 const paneHookRowSeparator = "|"
 
-const paneHookRowFormat = "#{" + state.PortalPaneIDOption + "}" + paneHookRowSeparator +
+// The location half deliberately does not reuse StructuralKeyFormat despite
+// rendering the same shape: the location is display-only and never a key, so
+// coupling the two would tie a display column to a key contract.
+const paneHookRowFormat = HookKeyFormat + paneHookRowSeparator +
 	"#{session_name}:#{window_index}.#{pane_index}"
 
 // ListAllPaneHookKeys returns one row per live pane on the server, including

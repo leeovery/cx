@@ -174,7 +174,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 2,
-          "current_task": null,
+          "current_task": "resume-hooks-silently-lost-2-7",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -326,7 +326,8 @@
             "resume-hooks-silently-lost-2-2",
             "resume-hooks-silently-lost-2-3",
             "resume-hooks-silently-lost-2-4",
-            "resume-hooks-silently-lost-2-5"
+            "resume-hooks-silently-lost-2-5",
+            "resume-hooks-silently-lost-2-6"
           ],
           "staging": {
             "p1": {
