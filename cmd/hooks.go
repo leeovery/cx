@@ -55,14 +55,7 @@ func resolveCurrentPaneKey() (hookKey, paneID string, err error) {
 		return "", "", err
 	}
 
-	var keyResolver HookKeyResolver
-	if hooksDeps != nil && hooksDeps.KeyResolver != nil {
-		keyResolver = hooksDeps.KeyResolver
-	} else {
-		keyResolver = buildHooksTmuxClient()
-	}
-
-	hookKey, err = keyResolver.ResolveHookKey(paneID)
+	hookKey, err = buildHookKeyResolver().ResolveHookKey(paneID)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to resolve hook key for current pane: %w", err)
 	}
@@ -70,14 +63,21 @@ func resolveCurrentPaneKey() (hookKey, paneID string, err error) {
 	return hookKey, paneID, nil
 }
 
-func hooksPaneStamper() PaneOptionSetter {
+func buildHookKeyResolver() HookKeyResolver {
+	if hooksDeps != nil && hooksDeps.KeyResolver != nil {
+		return hooksDeps.KeyResolver
+	}
+	return buildHooksTmuxClient()
+}
+
+func buildPaneStamper() PaneOptionSetter {
 	if hooksDeps != nil && hooksDeps.PaneStamper != nil {
 		return hooksDeps.PaneStamper
 	}
 	return buildHooksTmuxClient()
 }
 
-func hooksTokenMinter() session.IDGenerator {
+func buildTokenMinter() session.IDGenerator {
 	if hooksDeps != nil && hooksDeps.TokenMinter != nil {
 		return hooksDeps.TokenMinter
 	}
@@ -87,12 +87,12 @@ func hooksTokenMinter() session.IDGenerator {
 // stampPaneToken mints a token for an un-stamped pane and writes it, returning
 // tmux's own error unaltered so a target naming no pane reads as tmux said it.
 func stampPaneToken(paneID string) (string, error) {
-	token, err := hooksTokenMinter()()
+	token, err := buildTokenMinter()()
 	if err != nil {
 		return "", fmt.Errorf("failed to mint a pane token: %w", err)
 	}
 
-	if err := hooksPaneStamper().SetPaneOption(paneID, state.PortalPaneIDOption, token); err != nil {
+	if err := buildPaneStamper().SetPaneOption(paneID, state.PortalPaneIDOption, token); err != nil {
 		return "", err
 	}
 
