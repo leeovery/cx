@@ -94,7 +94,14 @@
             "resume-hooks-silently-lost-1-8": "tick-3d9408",
             "resume-hooks-silently-lost-1-9": "tick-716ce1",
             "resume-hooks-silently-lost-1-10": "tick-0ba9fe",
-            "resume-hooks-silently-lost-1-11": "tick-755c47"
+            "resume-hooks-silently-lost-1-11": "tick-755c47",
+            "resume-hooks-silently-lost-2-6": "tick-fdbb70",
+            "resume-hooks-silently-lost-2-7": "tick-37fe62",
+            "resume-hooks-silently-lost-2-8": "tick-2ceb8e",
+            "resume-hooks-silently-lost-2-9": "tick-30285b",
+            "resume-hooks-silently-lost-2-10": "tick-c4a7e8",
+            "resume-hooks-silently-lost-2-11": "tick-404bd6",
+            "resume-hooks-silently-lost-2-12": "tick-1d8500"
           },
           "storage_paths": [
             ".tick/"
@@ -242,22 +249,6 @@
               ]
             },
             {
-              "task": "resume-hooks-silently-lost-1-8",
-              "source": "reviewer",
-              "summary": "The shared cmd hook-key vocabulary landed in the file F4 already flags as the fixture-scatter site.",
-              "detail": "The reapableSeedA..D / unjudgeableSeedA..B block sits at cmd/doctor_test.go:812-823 but is consumed from ten cmd test files, most of which exercise cmd/run_hook_stale_cleanup.go and cmd/state_daemon.go rather than cmd/doctor.go — e.g. cmd/run_hook_stale_cleanup_test.go:43, cmd/state_daemon_run_test.go:531, cmd/hook_retention_shape_test.go:15, cmd/hook_sweep_restore_standdown_test.go:24. It joins staleDeps / seedHooksJSON / fakeHookLister / runDoctorFixCmd, which finding F4 already banks for a file-merge pass. The vocabulary block should travel with that merge (to cmd/run_hook_stale_cleanup_test.go or a source-derived doctor_stale_hooks_test.go) rather than be moved on its own.",
-              "files": [
-                "cmd/doctor_test.go",
-                "cmd/run_hook_stale_cleanup_test.go",
-                "cmd/hook_prune_output_test.go",
-                "cmd/hook_retention_shape_test.go",
-                "cmd/hook_sweep_restore_standdown_test.go",
-                "cmd/hook_sweep_standdown_report_test.go",
-                "cmd/state_daemon_run_test.go",
-                "cmd/state_daemon_hook_cleanup_test.go"
-              ]
-            },
-            {
               "task": "resume-hooks-silently-lost-1-9",
               "source": "executor",
               "summary": "TestDoctorFixPrunedHookOutput is now fully subsumed by a sibling test.",
@@ -298,40 +289,6 @@
               ]
             },
             {
-              "task": "resume-hooks-silently-lost-2-1",
-              "source": "reviewer",
-              "summary": "The two real-tmux enumeration tests now overlap and want merging once 2-2 restores the cross-site comparison.",
-              "detail": "internal/tmux/hookkey_cross_site_realtmux_test.go:13 (TestPaneTokenEnumeration_PerPaneTokensAreDistinct) and internal/tmux/list_all_pane_hookkeys_realtmux_test.go:13 (TestListAllPaneHookKeys_StampedAndUnstampedInOneRead) each spin a real server, stamp panes and assert the stamped/unstamped token split; the former is the narrowed remnant of a cross-site test that 2-2 re-points at ResolveHookKey versus the enumeration. Consolidating now would collide with that task; consolidating after it would leave one focused enumeration test plus one genuine cross-site test. The file name also no longer matches its single test subject.",
-              "files": [
-                "internal/tmux/hookkey_cross_site_realtmux_test.go",
-                "internal/tmux/list_all_pane_hookkeys_realtmux_test.go"
-              ]
-            },
-            {
-              "task": "resume-hooks-silently-lost-2-1",
-              "source": "reviewer",
-              "summary": "Three hand-written token literals bypass the ReapableHookKey drift guard in files that already import it.",
-              "detail": "liveHookToken = \"livetk\" (cmd/state_daemon_hook_cleanup_integration_test.go:45, one line above staleHookKey = transienttest.ReapableHookKey(0)), liveKey = \"livetk\" (cmd/cleanstale_transient_listpanes_doctorfix_integration_test.go:101) and renameRestoreToken = \"tokrst\" (cmd/rename_restore_cleanup_survival_integration_test.go:42). All three are token-shaped today and all three genuinely measure liveness, but they bypass the panic-on-drift the helper exists for; a suffixLen/alphabet change would turn each into a vacuous pass. Also: \"live:0.0\" at cmd/run_hook_stale_cleanup_test.go:788 and :865 is named live while surviving purely on unjudgeability — unjudgeableSeedB would read straight. And paneHookRowFormat intentionally restates the location shape rather than reusing StructuralKeyFormat (spec 3.3), but nothing at internal/tmux/tmux.go:594 says so and the two constants sit ~40 lines apart — a plausible future simplification target.",
-              "files": [
-                "cmd/state_daemon_hook_cleanup_integration_test.go",
-                "cmd/cleanstale_transient_listpanes_doctorfix_integration_test.go",
-                "cmd/rename_restore_cleanup_survival_integration_test.go",
-                "cmd/run_hook_stale_cleanup_test.go",
-                "internal/tmux/tmux.go"
-              ]
-            },
-            {
-              "task": "resume-hooks-silently-lost-2-2",
-              "source": "reviewer",
-              "summary": "The hooks CLI test setup is now duplicated 28 ways beside two helpers that encapsulate it.",
-              "detail": "cmd/hooks_pane_token_test.go:34-48 adds hooksFileInTempDir and runHookSet, which capture exactly the shape cmd/hooks_test.go open-codes 28 times (filepath.Join(t.TempDir(), \"hooks.json\") + t.Setenv(\"PORTAL_HOOKS_FILE\", ...)) and 29 times (resetRootCmd() + SetOut/SetErr/SetArgs). The consolidation reaches into subtests this task had no reason to touch, so it belongs at the phase boundary — and the helpers likely belong beside writeHooksJSON/readHooksJSON in cmd/testhelpers_test.go rather than in a feature-specific file. Phase 2 adds more hook set / hook rm cases in 2-3 and 4-2, so the count grows before it shrinks.",
-              "files": [
-                "cmd/hooks_pane_token_test.go",
-                "cmd/hooks_test.go",
-                "cmd/testhelpers_test.go"
-              ]
-            },
-            {
               "task": "resume-hooks-silently-lost-2-3",
               "source": "reviewer",
               "summary": "The gone-pane message reaching the user is three wraps deep, and Phase 4 reworks the same call site for hook rm wording.",
@@ -342,46 +299,14 @@
               ]
             },
             {
-              "task": "resume-hooks-silently-lost-2-3",
-              "source": "reviewer",
-              "summary": "The new cmd propagation subtest substantially re-covers a pre-existing one; consolidation reaches a file this task did not touch.",
-              "detail": "cmd/hooks_pane_token_test.go:238-262 (it exits non-zero from hook set on an unresolvable pane) and cmd/hooks_test.go:310-334 (it aborts hooks set when the hook-key read fails) share their whole setup and their error-plus-no-file assertions; the new one adds only the errors.As and tmux-words checks. Phase 4 is already reworking hook rm messaging in cmd/hooks_test.go, so folding the two is cheapest there.",
+              "source": "finder",
+              "pre_existing": true,
+              "summary": "ResolveStructuralKey and ListAllPanes have no production callers.",
+              "detail": "internal/tmux/tmux.go:226 and :590 are reached only from internal/tmux/tmux_test.go:1569-1611 and :1423-1556. Production reaches the structural shape through StructuralKeyFormat + ListAllPanesWithFormat (cmd/bootstrap/stale_marker_cleanup.go:57) instead. Both were already test-only before phase 2 — it did not orphan them — but CLAUDE.md:60 describes all three as serving non-hook structural use, which holds only for the constant. Verify before deleting: phase 3 retires the positional hook machinery and may reach these.",
               "files": [
-                "cmd/hooks_pane_token_test.go",
-                "cmd/hooks_test.go"
-              ]
-            },
-            {
-              "task": "resume-hooks-silently-lost-2-4",
-              "source": "reviewer",
-              "summary": "A level-filtering accessor belongs in logtest beside OnlyRecord.",
-              "detail": "warnRecords (cmd/hooks_test.go:839) and the inline `if r.Level >= slog.LevelWarn` scan in standDownRecord (cmd/run_hook_stale_cleanup_test.go:598-605) are the same filter written twice, in two files owned by different tasks of this phase. internal/logtest/capture.go already owns the typed accessors (OnlyRecord, AttrString, HasAttr) and has no level filter; a Sink.RecordsAtLevel(min slog.Level) []Record would serve both and any third consumer.",
-              "files": [
-                "internal/logtest/capture.go",
-                "cmd/hooks_test.go",
-                "cmd/run_hook_stale_cleanup_test.go"
-              ]
-            },
-            {
-              "task": "resume-hooks-silently-lost-2-4",
-              "source": "reviewer",
-              "summary": "Two near-parallel hooks-component log-record assertion helpers in cmd tests.",
-              "detail": "assertTouchWarn (cmd/hooks_test.go:857) and standDownRecord (cmd/run_hook_stale_cleanup_test.go:598, landed by task 2-1) both assert the same record shape — level, message, component=hooks, op, via — differing only in expected level and op. Spec 6.5 adds a third op (load-unlocked) still to come, which will want the same assertions again. One assertHooksRecord(t, rec, wantLevel, wantOp, wantVia) would carry all three. Consolidation edits another task output, so it was not an issue at review time.",
-              "files": [
-                "cmd/hooks_test.go",
-                "cmd/run_hook_stale_cleanup_test.go"
-              ]
-            },
-            {
-              "task": "resume-hooks-silently-lost-2-5",
-              "source": "reviewer",
-              "summary": "Three near-miss real-tmux fixture builders across the hook-key suites share an identical server-bootstrap preamble.",
-              "detail": "newStampedPaneFixture (internal/tmux/hookkey_moved_pane_realtmux_test.go:139), liveHookKeyPane (internal/tmux/resolve_hookkey_realtmux_test.go:16) and seedThreePaneStampedSession (internal/tmux/hookkey_realtmux_shared_test.go:16) each open with the same tmuxtest.New -> Client() -> EnsureServer -> NewSession -> WaitForSession block and diverge only in the seeded topology. stampPaneToken (internal/tmux/list_all_pane_hookkeys_realtmux_test.go:73) is a raw-tmux twin of client.SetPaneOption used elsewhere in the same suites. A single parameterised seeder in the shared file would collapse all four; the fix reaches into sibling tasks files. Also minor: token literals in the moved-pane suite are tokMove/tokRespawn/tokSplit (7-10 chars), not token-shaped under the 6-char rule the sibling suite uses (tokMix) — irrelevant at the tmux layer but non-uniform.",
-              "files": [
-                "internal/tmux/hookkey_moved_pane_realtmux_test.go",
-                "internal/tmux/resolve_hookkey_realtmux_test.go",
-                "internal/tmux/hookkey_realtmux_shared_test.go",
-                "internal/tmux/list_all_pane_hookkeys_realtmux_test.go"
+                "internal/tmux/tmux.go",
+                "cmd/bootstrap/stale_marker_cleanup.go",
+                "CLAUDE.md"
               ]
             }
           ],
@@ -413,10 +338,22 @@
                 "5": "approved",
                 "6": "approved"
               }
+            },
+            "p2": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved",
+                "3": "approved",
+                "4": "approved",
+                "5": "approved",
+                "6": "approved",
+                "7": "approved"
+              }
             }
           },
           "consolidated_phases": [
-            1
+            1,
+            2
           ],
           "completed_phases": [
             1
