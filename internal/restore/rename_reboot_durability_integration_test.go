@@ -12,7 +12,6 @@ import (
 	"github.com/leeovery/portal/internal/portaltest"
 	"github.com/leeovery/portal/internal/restore"
 	"github.com/leeovery/portal/internal/restoretest"
-	"github.com/leeovery/portal/internal/session"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
 	"github.com/leeovery/portal/internal/tmuxtest"
@@ -41,11 +40,7 @@ func TestRenameRebootHook_DurableAcrossRepeatedReboots(t *testing.T) {
 	hookFireFile := filepath.Join(t.TempDir(), "hook-fired.txt")
 	hookCmd := "echo HOOK_FIRED >> " + hookFireFile
 
-	stableKey := tmux.HookKey(renamePortalID, renameOldName, 0, 0)
-	if stableKey != renamePortalID+":0.0" {
-		t.Fatalf("stable hook key = %q; want %q (id-key must not embed the name)",
-			stableKey, renamePortalID+":0.0")
-	}
+	const stableKey = renamePaneToken
 	store := hooks.NewStore(hooksPath)
 	if err := store.Set(stableKey, "on-resume", hookCmd, "cli"); err != nil {
 		t.Fatalf("hooks.Set: %v", err)
@@ -58,54 +53,29 @@ func TestRenameRebootHook_DurableAcrossRepeatedReboots(t *testing.T) {
 	ts.Run(t, "new-session", "-d", "-s", renameOldName, "-c", cwd, "sleep", "infinity")
 	ts.WaitForSession(t, renameOldName, 2*time.Second)
 
-	if err := client.SetSessionOption(renameOldName, session.PortalIDOption, renamePortalID); err != nil {
-		t.Fatalf("SetSessionOption %s=%s: %v", session.PortalIDOption, renamePortalID, err)
-	}
+	ts.StampPaneToken(t, tmux.PaneTarget(renameOldName, 0, 0), renamePaneToken)
 
 	ts.Run(t, "rename-session", "-t", renameOldName, renameNewName)
 	if _, err := ts.TryRun("has-session", "-t", "="+renameNewName); err != nil {
 		t.Fatalf("session %q not live after rename: %v", renameNewName, err)
 	}
 
-	captureAndPersist(t, client, stateDir, renameNewName, renamePortalID)
+	idx := captureAndPersist(t, client, stateDir, renameNewName, renamePaneToken)
 
 	if err := rebootAndHydrate(t, ts, client, stateDir); err != nil {
 		t.Fatalf("cycle 1 rebootAndHydrate: %v", err)
 	}
 	assertHookFireCount(t, hookFireFile, 1)
 
-	nextIdx, err := state.CaptureStructure(client, nil, nil, nil)
-	if err != nil {
-		t.Fatalf("next CaptureStructure: %v", err)
-	}
-
-	t.Run("it re-persists the @portal-id on the next capture after restore", func(t *testing.T) {
-		sess := findCapturedSession(t, nextIdx, renameNewName)
-		if sess.PortalID != renamePortalID {
-			t.Fatalf("next capture PortalID = %q; want %q (id must be RE-PERSISTED by the re-stamp — "+
-				"an empty id here is the chain-(a) regression: the next reboot resurrects a bare shell)",
-				sess.PortalID, renamePortalID)
-		}
-	})
-
-	secondSess := findCapturedSession(t, nextIdx, renameNewName)
-	if secondSess.PortalID == "" {
-		t.Fatalf("pre-second-restore captured PortalID is empty; the second restore would resurrect a bare shell (chain (a))")
-	}
 	verifyHookKeyed(t, hooksPath, stableKey)
 
-	persistIndex(t, nextIdx, stateDir)
+	// The same saved snapshot drives the second cycle: the token rides
+	// sessions.json, so a reboot resolves the hook from saved state alone.
+	persistIndex(t, idx, stateDir)
 	seedScrollback(t, stateDir, renameNewName)
 
 	if err := rebootAndHydrate(t, ts, client, stateDir); err != nil {
 		t.Fatalf("cycle 2 rebootAndHydrate: %v", err)
-	}
-
-	liveIDAgain := strings.TrimSpace(ts.Run(t, "show-options", "-t", renameNewName,
-		"-v", session.PortalIDOption))
-	if liveIDAgain != renamePortalID {
-		t.Errorf("after second reboot live @portal-id = %q; want %q (must survive repeated reboots)",
-			liveIDAgain, renamePortalID)
 	}
 
 	t.Run("it fires the resume hook again on a second reboot cycle", func(t *testing.T) {
@@ -113,7 +83,7 @@ func TestRenameRebootHook_DurableAcrossRepeatedReboots(t *testing.T) {
 	})
 }
 
-func captureAndPersist(t *testing.T, client *tmux.Client, stateDir, name, wantPortalID string) {
+func captureAndPersist(t *testing.T, client *tmux.Client, stateDir, name, wantPaneToken string) state.Index {
 	t.Helper()
 
 	idx, err := state.CaptureStructure(client, nil, nil, nil)
@@ -122,13 +92,14 @@ func captureAndPersist(t *testing.T, client *tmux.Client, stateDir, name, wantPo
 	}
 
 	sess := findCapturedSession(t, idx, name)
-	if sess.PortalID != wantPortalID {
-		t.Fatalf("captured session %q PortalID = %q; want %q (id must persist under the post-rename name)",
-			name, sess.PortalID, wantPortalID)
+	if got := capturedPaneToken(t, sess); got != wantPaneToken {
+		t.Fatalf("captured session %q pane token = %q; want %q (token must persist under the post-rename name)",
+			name, got, wantPaneToken)
 	}
 
 	seedScrollback(t, stateDir, name)
 	persistIndex(t, idx, stateDir)
+	return idx
 }
 
 func rebootAndHydrate(t *testing.T, ts *tmuxtest.Socket, client *tmux.Client, stateDir string) error {

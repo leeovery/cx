@@ -23,7 +23,7 @@ type CaptureClient interface {
 
 // Fields are separated by "|||", which cannot occur in any captured tmux
 // value. Columns are consumed by position, so new fields append at the end.
-const captureFormat = "#{session_name}|||#{window_index}|||#{window_name}|||#{window_layout}|||#{window_zoomed_flag}|||#{window_active}|||#{pane_index}|||#{pane_current_path}|||#{pane_active}|||#{pane_current_command}|||#{@portal-id}"
+const captureFormat = "#{session_name}|||#{window_index}|||#{window_name}|||#{window_layout}|||#{window_zoomed_flag}|||#{window_active}|||#{pane_index}|||#{pane_current_path}|||#{pane_active}|||#{pane_current_command}|||#{" + PortalPaneIDOption + "}"
 
 const captureFieldCount = 11
 
@@ -77,14 +77,8 @@ func CaptureStructure(c CaptureClient, skipSet map[string]struct{}, prev *Index,
 			logger.Warn("capture anomalous session error", "session", name, "error", err)
 			continue
 		}
-		// @portal-id is session-scoped: every pane row of the session repeats it.
-		portalID := ""
-		if rows := grouped[name]; len(rows) > 0 {
-			portalID = rows[0].portalID
-		}
 		sessions = append(sessions, Session{
 			Name:        name,
-			PortalID:    portalID,
 			Environment: parseShowEnvironment(envRaw),
 			Windows:     buildWindows(name, grouped[name]),
 		})
@@ -171,7 +165,6 @@ func findOrAppendSession(fresh *Index, ps Session) int {
 	}
 	fresh.Sessions = append(fresh.Sessions, Session{
 		Name:        ps.Name,
-		PortalID:    ps.PortalID,
 		Environment: ps.Environment,
 		Windows:     []Window{},
 	})
@@ -240,7 +233,7 @@ type paneRow struct {
 	cwd            string
 	paneActive     bool
 	currentCommand string
-	portalID       string
+	portalPaneID   string
 }
 
 func parsePaneRows(raw string, keep map[string]struct{}) (map[string][]paneRow, error) {
@@ -289,7 +282,7 @@ func parsePaneRow(line string) (paneRow, error) {
 		cwd:            parts[7],
 		paneActive:     parseTmuxBool(parts[8]),
 		currentCommand: parts[9],
-		portalID:       parts[10],
+		portalPaneID:   parts[10],
 	}, nil
 }
 
@@ -341,6 +334,7 @@ func buildPanes(session string, windowIdx int, rows []paneRow) []Pane {
 			Active:         r.paneActive,
 			CurrentCommand: r.currentCommand,
 			ScrollbackFile: path,
+			PortalPaneID:   r.portalPaneID,
 		})
 	}
 	return panes

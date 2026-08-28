@@ -123,6 +123,10 @@ func setupExitClosesPane(t *testing.T, hookCmd string) (string, *tmuxtest.Socket
 	ts.Run(t, "new-session", "-d", "-s", sessionName, "sleep", "infinity")
 	ts.WaitForSession(t, sessionName, 2*time.Second)
 
+	const paneToken = "exitClosesPaneToken"
+	paneTarget := tmux.PaneTarget(sessionName, 0, 0)
+	ts.StampPaneToken(t, paneTarget, paneToken)
+
 	idx, err := state.CaptureStructure(client, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("CaptureStructure: %v", err)
@@ -134,8 +138,7 @@ func setupExitClosesPane(t *testing.T, hookCmd string) (string, *tmuxtest.Socket
 
 	if hookCmd != "" {
 		store := hooks.NewStore(hooksPath)
-		hookKey := tmux.PaneTarget(sessionName, 0, 0)
-		if err := store.Set(hookKey, "on-resume", hookCmd, "cli"); err != nil {
+		if err := store.Set(paneToken, "on-resume", hookCmd, "cli"); err != nil {
 			t.Fatalf("hooks.Set: %v", err)
 		}
 	}

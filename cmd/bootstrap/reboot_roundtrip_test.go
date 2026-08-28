@@ -77,8 +77,7 @@ func runRebootRoundTrip(t *testing.T, cfg roundTripCfg) {
 
 	envValue := "round-trip-test-value"
 
-	savedHookKey := tmux.PaneTarget("alpha",
-		cfg.saveBase+0, cfg.savePaneBase+0)
+	const savedHookKey = "alphaPaneToken"
 
 	hookCmd := fmt.Sprintf("echo HOOK_FIRED >> %s", hookFireFile)
 	store := hooks.NewStore(hooksPath)
@@ -102,6 +101,9 @@ func runRebootRoundTrip(t *testing.T, cfg roundTripCfg) {
 		base:       cfg.saveBase,
 		paneBase:   cfg.savePaneBase,
 	})
+
+	hookPaneTarget := tmux.PaneTarget("alpha", cfg.saveBase+0, cfg.savePaneBase+0)
+	ts.StampPaneToken(t, hookPaneTarget, savedHookKey)
 
 	idx := runDaemonTick(t, client, stateDir, withoutSkipGuard(), withEmptyScrollback())
 

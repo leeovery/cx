@@ -173,8 +173,8 @@
             ".claude/skills/golang-spf13-cobra",
             ".claude/skills/golang-dependency-management"
           ],
-          "current_phase": 2,
-          "current_task": "resume-hooks-silently-lost-3-1",
+          "current_phase": 3,
+          "current_task": "resume-hooks-silently-lost-3-2",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -410,6 +410,27 @@
               "files": [
                 "cmd/hooks_test.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-3-1",
+              "source": "reviewer",
+              "summary": "Restore the capture-driven second reboot cycle once the production pane re-stamp exists.",
+              "detail": "internal/restore/rename_reboot_durability_integration_test.go:63-83 previously ran cycle 2 from a fresh CaptureStructure taken after cycle 1 restore, asserting the identity was re-persisted — the end-to-end proof that a hook survives two reboots in a row via live capture, which is this work unit headline guarantee. It now replays the same snapshot (persistIndex at :74, re-writing bytes already on disk), so cycle 2 no longer exercises capture-after-restore. Not repairable at 3-1: production has no pane re-stamp until 3-2. Task 3-2 tests are all unit-level against the mock Commander and 3-5 covers the post-restore sweep, so neither restores the composite. After 3-2 lands, revert cycle 2 to state.CaptureStructure -> assert capturedPaneToken == renamePaneToken -> persistIndex -> reboot, keeping assertHookFireCount(t, hookFireFile, 2).",
+              "files": [
+                "internal/restore/rename_reboot_durability_integration_test.go",
+                "internal/restore/session.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-3-1",
+              "source": "reviewer",
+              "summary": "One name for reading a pane token in fixtures, as StampPaneToken is for writing one.",
+              "detail": "StampPaneToken gave the write one home, but the read has two ad-hoc shapes: show-options -p -t <target> -v <opt> at internal/restore/rename_reboot_shared_test.go:22-30, and an inline display-message -p -t <target> #{...} at cmd/state_daemon_hook_cleanup_integration_test.go:89-90. Both want the pane token, or empty if unstamped, which one tmuxtest.Socket.ReadPaneToken sibling would serve. The fix crosses task 3-1 boundary — the cmd site is a phase-2 task output. Also noted: four new fixture tokens (alphaPaneToken, betaPaneToken, mpPaneToken0/1, exitClosesPaneToken) are not token-shaped under session.IsTokenShaped, inert today because none of those fixtures runs a stale sweep, but worth watching if a later phase adds one to those paths.",
+              "files": [
+                "internal/tmuxtest/stamp.go",
+                "internal/restore/rename_reboot_shared_test.go",
+                "cmd/state_daemon_hook_cleanup_integration_test.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -435,7 +456,8 @@
             "resume-hooks-silently-lost-2-9",
             "resume-hooks-silently-lost-2-10",
             "resume-hooks-silently-lost-2-11",
-            "resume-hooks-silently-lost-2-12"
+            "resume-hooks-silently-lost-2-12",
+            "resume-hooks-silently-lost-3-1"
           ],
           "staging": {
             "p1": {

@@ -17,12 +17,8 @@ type Index struct {
 	Sessions []Session `json:"sessions"`
 }
 
-// Session's PortalID persists the immutable @portal-id so a renamed session's
-// hook key survives a reboot — tmux user-options do not outlive the server. It
-// decodes to "" for a legacy un-stamped session, which restore keys by name.
 type Session struct {
 	Name        string            `json:"name"`
-	PortalID    string            `json:"portal_id"`
 	Environment map[string]string `json:"environment"`
 	Windows     []Window          `json:"windows"`
 }
@@ -36,13 +32,17 @@ type Window struct {
 	Panes  []Pane `json:"panes"`
 }
 
-// Pane's ScrollbackFile is relative to the state directory.
+// Pane's ScrollbackFile is relative to the state directory. PortalPaneID
+// persists the pane's durable identity token across a reboot — the tmux pane
+// user-option holding it does not outlive the server. It decodes to "" for a
+// pane that has never been stamped, which is the ordinary case.
 type Pane struct {
 	Index          int    `json:"index"`
 	CWD            string `json:"cwd"`
 	Active         bool   `json:"active"`
 	CurrentCommand string `json:"current_command"`
 	ScrollbackFile string `json:"scrollback_file"`
+	PortalPaneID   string `json:"portal_pane_id"`
 }
 
 // Canonicalize replaces nil slices and maps so they encode as [] and {} rather

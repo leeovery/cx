@@ -13,7 +13,6 @@ import (
 	"github.com/leeovery/portal/internal/bootstrapadapter"
 	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/restoretest"
-	"github.com/leeovery/portal/internal/tmux"
 	"github.com/leeovery/portal/internal/tmuxtest"
 )
 
@@ -37,9 +36,12 @@ func TestPhase2_HookFiresOnNonAttachedSession_AC2(t *testing.T) {
 	sentinelFile := filepath.Join(sentinelDir, "hook-fired")
 
 	sessions := []string{"alpha", "beta"}
-	restoretest.SeedSessionsJSON(t, stateDir, sessions...)
+	const betaHookKey = "betaPaneToken"
+	restoretest.SeedSessionsJSONWithPaneTokens(t, stateDir, map[string]string{
+		"alpha": "alphaPaneToken",
+		"beta":  betaHookKey,
+	})
 
-	betaHookKey := tmux.PaneTarget("beta", 0, 0)
 	hookCmd := fmt.Sprintf("touch %s", sentinelFile)
 	store := hooks.NewStore(hooksPath)
 	if err := store.Set(betaHookKey, "on-resume", hookCmd, "cli"); err != nil {

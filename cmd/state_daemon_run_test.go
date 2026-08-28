@@ -206,8 +206,8 @@ func touchSaveRequested(t *testing.T, dir string) {
 
 func oneSession() (sessionsOut, panesOut string) {
 	sessionsOut = "work|1|0|"
-	// Fields match captureFormat; the trailing empty one is the un-stamped
-	// @portal-id column a legacy session resolves to "".
+	// Fields match captureFormat; the trailing empty one is the pane-token
+	// column, which an un-stamped pane resolves to "".
 	panesOut = "work|||0|||main|||layout|||0|||1|||0|||/tmp|||1|||zsh|||"
 	return
 }

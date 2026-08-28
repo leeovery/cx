@@ -13,7 +13,6 @@ import (
 	"github.com/leeovery/portal/internal/portaltest"
 	"github.com/leeovery/portal/internal/restore"
 	"github.com/leeovery/portal/internal/restoretest"
-	"github.com/leeovery/portal/internal/session"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
 	"github.com/leeovery/portal/internal/tmuxtest"
@@ -92,11 +91,7 @@ func runRenameRebootFire(t *testing.T, rename func(t *testing.T, ts *tmuxtest.So
 	hookFireFile := filepath.Join(t.TempDir(), "hook-fired.txt")
 	hookCmd := "echo HOOK_FIRED >> " + hookFireFile
 
-	stableKey := tmux.HookKey(renamePortalID, renameOldName, 0, 0)
-	if stableKey != renamePortalID+":0.0" {
-		t.Fatalf("stable hook key = %q; want %q (id-key must not embed the name)",
-			stableKey, renamePortalID+":0.0")
-	}
+	const stableKey = renamePaneToken
 	store := hooks.NewStore(hooksPath)
 	if err := store.Set(stableKey, "on-resume", hookCmd, "cli"); err != nil {
 		t.Fatalf("hooks.Set: %v", err)
@@ -109,19 +104,15 @@ func runRenameRebootFire(t *testing.T, rename func(t *testing.T, ts *tmuxtest.So
 	ts.Run(t, "new-session", "-d", "-s", renameOldName, "-c", cwd, "sleep", "infinity")
 	ts.WaitForSession(t, renameOldName, 2*time.Second)
 
-	if err := client.SetSessionOption(renameOldName, session.PortalIDOption, renamePortalID); err != nil {
-		t.Fatalf("SetSessionOption %s=%s: %v", session.PortalIDOption, renamePortalID, err)
-	}
+	ts.StampPaneToken(t, tmux.PaneTarget(renameOldName, 0, 0), renamePaneToken)
 
 	rename(t, ts, client)
 
 	if _, err := ts.TryRun("has-session", "-t", "="+renameNewName); err != nil {
 		t.Fatalf("session %q not live after rename: %v", renameNewName, err)
 	}
-	liveID := strings.TrimSpace(ts.Run(t, "show-options", "-t", renameNewName,
-		"-v", session.PortalIDOption))
-	if liveID != renamePortalID {
-		t.Fatalf("@portal-id after rename = %q; want %q (must be rename-immune)", liveID, renamePortalID)
+	if liveToken := readPaneToken(t, ts, renameNewName); liveToken != renamePaneToken {
+		t.Fatalf("pane token after rename = %q; want %q (must be rename-immune)", liveToken, renamePaneToken)
 	}
 
 	idx, err := state.CaptureStructure(client, nil, nil, nil)
@@ -130,9 +121,9 @@ func runRenameRebootFire(t *testing.T, rename func(t *testing.T, ts *tmuxtest.So
 	}
 
 	sess := findCapturedSession(t, idx, renameNewName)
-	if sess.PortalID != renamePortalID {
-		t.Fatalf("captured session %q PortalID = %q; want %q (id must persist under the post-rename name)",
-			renameNewName, sess.PortalID, renamePortalID)
+	if got := capturedPaneToken(t, sess); got != renamePaneToken {
+		t.Fatalf("captured session %q pane token = %q; want %q (token must persist under the post-rename name)",
+			renameNewName, got, renamePaneToken)
 	}
 	verifyHookKeyed(t, hooksPath, stableKey)
 

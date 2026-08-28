@@ -3,10 +3,12 @@ package state_test
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
 )
@@ -69,10 +71,10 @@ func listSessionsFor(names ...string) string {
 }
 
 func paneLine(session string, windowIdx int, windowName, layout string, zoomed, windowActive bool, paneIdx int, cwd string, paneActive bool, currentCommand string) string {
-	return paneLineWithID(session, windowIdx, windowName, layout, zoomed, windowActive, paneIdx, cwd, paneActive, currentCommand, "")
+	return paneLineWithPaneToken(session, windowIdx, windowName, layout, zoomed, windowActive, paneIdx, cwd, paneActive, currentCommand, "")
 }
 
-func paneLineWithID(session string, windowIdx int, windowName, layout string, zoomed, windowActive bool, paneIdx int, cwd string, paneActive bool, currentCommand, portalID string) string {
+func paneLineWithPaneToken(session string, windowIdx int, windowName, layout string, zoomed, windowActive bool, paneIdx int, cwd string, paneActive bool, currentCommand, paneToken string) string {
 	bool01 := func(b bool) string {
 		if b {
 			return "1"
@@ -81,7 +83,7 @@ func paneLineWithID(session string, windowIdx int, windowName, layout string, zo
 	}
 	return fmt.Sprintf(
 		"%s|||%d|||%s|||%s|||%s|||%s|||%d|||%s|||%s|||%s|||%s",
-		session, windowIdx, windowName, layout, bool01(zoomed), bool01(windowActive), paneIdx, cwd, bool01(paneActive), currentCommand, portalID,
+		session, windowIdx, windowName, layout, bool01(zoomed), bool01(windowActive), paneIdx, cwd, bool01(paneActive), currentCommand, paneToken,
 	)
 }
 
@@ -497,11 +499,11 @@ func TestCaptureStructure(t *testing.T) {
 	})
 }
 
-func TestCaptureStructurePortalID(t *testing.T) {
-	t.Run("it captures a stamped session's @portal-id into Session.PortalID", func(t *testing.T) {
+func TestCaptureStructurePortalPaneID(t *testing.T) {
+	t.Run("it captures a stamped pane's token into that pane's record", func(t *testing.T) {
 		mock := &captureMock{
 			listSessions: listSessionsFor("work"),
-			listPanes: paneLineWithID(
+			listPanes: paneLineWithPaneToken(
 				"work", 0, "main", "L", false, true, 0, "/tmp", true, "zsh", "aB3xY9kZ",
 			),
 			t: t,
@@ -515,39 +517,17 @@ func TestCaptureStructurePortalID(t *testing.T) {
 		if len(idx.Sessions) != 1 {
 			t.Fatalf("got %d sessions, want 1", len(idx.Sessions))
 		}
-		if idx.Sessions[0].PortalID != "aB3xY9kZ" {
-			t.Errorf("PortalID = %q, want %q", idx.Sessions[0].PortalID, "aB3xY9kZ")
+		if got := idx.Sessions[0].Windows[0].Panes[0].PortalPaneID; got != "aB3xY9kZ" {
+			t.Errorf("PortalPaneID = %q, want %q", got, "aB3xY9kZ")
 		}
 	})
 
-	t.Run("it captures an un-stamped session as an empty PortalID", func(t *testing.T) {
-		mock := &captureMock{
-			listSessions: listSessionsFor("work"),
-			listPanes:    paneLine("work", 0, "main", "L", false, true, 0, "/tmp", true, "zsh"),
-			t:            t,
-		}
-		client := tmux.NewClient(mock)
-
-		idx, err := state.CaptureStructure(client, nil, nil, nil)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if len(idx.Sessions) != 1 {
-			t.Fatalf("got %d sessions, want 1", len(idx.Sessions))
-		}
-		if idx.Sessions[0].PortalID != "" {
-			t.Errorf("PortalID = %q, want empty for un-stamped session", idx.Sessions[0].PortalID)
-		}
-	})
-
-	t.Run("it lifts PortalID from the first pane row for a multi-pane session", func(t *testing.T) {
-		const id = "sessionScoped1"
+	t.Run("it captures different tokens for two panes of one session", func(t *testing.T) {
 		mock := &captureMock{
 			listSessions: listSessionsFor("work"),
 			listPanes: strings.Join([]string{
-				paneLineWithID("work", 0, "main", "L", false, true, 0, "/a", true, "zsh", id),
-				paneLineWithID("work", 0, "main", "L", false, true, 1, "/b", false, "vim", id),
-				paneLineWithID("work", 1, "side", "L2", false, false, 0, "/c", true, "bash", id),
+				paneLineWithPaneToken("work", 0, "main", "L", false, true, 0, "/a", true, "zsh", "tokenPane0"),
+				paneLineWithPaneToken("work", 0, "main", "L", false, true, 1, "/b", false, "vim", "tokenPane1"),
 			}, "\n"),
 			t: t,
 		}
@@ -560,36 +540,109 @@ func TestCaptureStructurePortalID(t *testing.T) {
 		if len(idx.Sessions) != 1 {
 			t.Fatalf("got %d sessions, want 1", len(idx.Sessions))
 		}
-		if idx.Sessions[0].PortalID != id {
-			t.Errorf("PortalID = %q, want %q (lifted once from the first row)", idx.Sessions[0].PortalID, id)
+		panes := idx.Sessions[0].Windows[0].Panes
+		if len(panes) != 2 {
+			t.Fatalf("got %d panes, want 2", len(panes))
+		}
+		if panes[0].PortalPaneID != "tokenPane0" {
+			t.Errorf("pane 0 PortalPaneID = %q, want %q", panes[0].PortalPaneID, "tokenPane0")
+		}
+		if panes[1].PortalPaneID != "tokenPane1" {
+			t.Errorf("pane 1 PortalPaneID = %q, want %q", panes[1].PortalPaneID, "tokenPane1")
 		}
 	})
 
-	t.Run("it rejects a wrong-arity pane row after the field-count bump", func(t *testing.T) {
-		tenFieldRow := "work|||0|||main|||L|||0|||1|||0|||/tmp|||1|||zsh"
+	t.Run("it captures an empty token for an unstamped pane", func(t *testing.T) {
 		mock := &captureMock{
 			listSessions: listSessionsFor("work"),
-			listPanes:    tenFieldRow,
+			listPanes:    paneLine("work", 0, "main", "L", false, true, 0, "/tmp", true, "zsh"),
 			t:            t,
 		}
 		client := tmux.NewClient(mock)
+		sink := &logtest.Sink{}
 
-		idx, err := state.CaptureStructure(client, nil, nil, nil)
-		if err == nil {
-			t.Fatal("expected error for a 10-field row under 11-arity, got nil")
+		idx, err := state.CaptureStructure(client, nil, nil, slog.New(sink))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
 		}
-		if !strings.Contains(err.Error(), "unexpected pane row field count") {
-			t.Errorf("error = %q, want it to contain %q", err.Error(), "unexpected pane row field count")
+		if len(idx.Sessions) != 1 {
+			t.Fatalf("got %d sessions, want 1", len(idx.Sessions))
 		}
-		if len(idx.Sessions) != 0 {
-			t.Errorf("expected empty Sessions on wrong-arity fail-fatal, got %d", len(idx.Sessions))
+		if got := idx.Sessions[0].Windows[0].Panes[0].PortalPaneID; got != "" {
+			t.Errorf("PortalPaneID = %q, want empty for an unstamped pane", got)
+		}
+		if lines := sink.Lines(); len(lines) != 0 {
+			t.Errorf("expected no log lines for an unstamped pane; got %v", lines)
 		}
 	})
 
-	t.Run("it leaves every existing field index unchanged after the append", func(t *testing.T) {
+	t.Run("it rejects a pane row with the wrong field count", func(t *testing.T) {
+		rows := map[string]string{
+			"ten":    "work|||0|||main|||L|||0|||1|||0|||/tmp|||1|||zsh",
+			"twelve": "work|||0|||main|||L|||0|||1|||0|||/tmp|||1|||zsh|||tok|||extra",
+		}
+		for name, row := range rows {
+			t.Run(name, func(t *testing.T) {
+				mock := &captureMock{
+					listSessions: listSessionsFor("work"),
+					listPanes:    row,
+					t:            t,
+				}
+				client := tmux.NewClient(mock)
+
+				idx, err := state.CaptureStructure(client, nil, nil, nil)
+				if err == nil {
+					t.Fatal("expected error for a wrong-arity row under 11-arity, got nil")
+				}
+				if !strings.Contains(err.Error(), "unexpected pane row field count") {
+					t.Errorf("error = %q, want it to contain %q", err.Error(), "unexpected pane row field count")
+				}
+				if len(idx.Sessions) != 0 {
+					t.Errorf("expected empty Sessions on wrong-arity fail-fatal, got %d", len(idx.Sessions))
+				}
+			})
+		}
+	})
+
+	t.Run("it keeps a skipped pane's previously captured token", func(t *testing.T) {
+		prev := state.Index{
+			Version: state.SchemaVersion,
+			Sessions: []state.Session{
+				{
+					Name: "work",
+					Windows: []state.Window{
+						{
+							Index: 0,
+							Panes: []state.Pane{
+								{Index: 0, CWD: "/old", Active: true, CurrentCommand: "vim", PortalPaneID: "savedToken"},
+							},
+						},
+					},
+				},
+			},
+		}
 		mock := &captureMock{
 			listSessions: listSessionsFor("work"),
-			listPanes: paneLineWithID(
+			listPanes:    paneLine("work", 0, "main", "L", false, true, 0, "/tmp", true, "zsh"),
+			t:            t,
+		}
+		client := tmux.NewClient(mock)
+		skip := map[string]struct{}{state.SanitizePaneKey("work", 0, 0): {}}
+
+		idx, err := state.CaptureStructure(client, skip, &prev, nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		p := idx.Sessions[0].Windows[0].Panes[0]
+		if p.PortalPaneID != "savedToken" {
+			t.Errorf("PortalPaneID = %q, want %q (skipped pane keeps prev's token)", p.PortalPaneID, "savedToken")
+		}
+	})
+
+	t.Run("it leaves every existing field index unchanged after the column swap", func(t *testing.T) {
+		mock := &captureMock{
+			listSessions: listSessionsFor("work"),
+			listPanes: paneLineWithPaneToken(
 				"work", 3, "editor", "b25f,200x50,0,0", true, false, 5, "/Users/leeovery/Code/portal", true, "nvim", "keepIndex",
 			),
 			t: t,
@@ -624,12 +677,12 @@ func TestCaptureStructurePortalID(t *testing.T) {
 		if p.Index != 5 || p.CWD != "/Users/leeovery/Code/portal" || !p.Active || p.CurrentCommand != "nvim" {
 			t.Errorf("pane = %+v, want index 5 / portal cwd / active / nvim", p)
 		}
-		if s.PortalID != "keepIndex" {
-			t.Errorf("PortalID = %q, want %q", s.PortalID, "keepIndex")
+		if p.PortalPaneID != "keepIndex" {
+			t.Errorf("PortalPaneID = %q, want %q", p.PortalPaneID, "keepIndex")
 		}
 	})
 
-	t.Run("it yields an empty PortalID and no windows for a zero-row session without panicking", func(t *testing.T) {
+	t.Run("it yields no windows for a zero-row session without panicking", func(t *testing.T) {
 		mock := &captureMock{
 			listSessions: listSessionsFor("work"),
 			listPanes:    "",
@@ -644,12 +697,8 @@ func TestCaptureStructurePortalID(t *testing.T) {
 		if len(idx.Sessions) != 1 {
 			t.Fatalf("got %d sessions, want 1", len(idx.Sessions))
 		}
-		s := idx.Sessions[0]
-		if s.PortalID != "" {
-			t.Errorf("PortalID = %q, want empty for zero-row session", s.PortalID)
-		}
-		if len(s.Windows) != 0 {
-			t.Errorf("got %d windows, want 0 for zero-row session", len(s.Windows))
+		if got := len(idx.Sessions[0].Windows); got != 0 {
+			t.Errorf("got %d windows, want 0 for zero-row session", got)
 		}
 	})
 }

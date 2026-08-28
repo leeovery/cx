@@ -10,13 +10,35 @@ import (
 
 	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/state"
+	"github.com/leeovery/portal/internal/tmux"
+	"github.com/leeovery/portal/internal/tmuxtest"
 )
 
 const (
-	renamePortalID = "tok123"
-	renameOldName  = "renamesrc"
-	renameNewName  = "renamedst"
+	renamePaneToken = "tok123"
+	renameOldName   = "renamesrc"
+	renameNewName   = "renamedst"
 )
+
+// readPaneToken reports "" when the option is unset: an unset pane user-option
+// makes `show-options -p -v` exit non-zero.
+func readPaneToken(t *testing.T, ts *tmuxtest.Socket, sessionName string) string {
+	t.Helper()
+	out, err := ts.TryRun("show-options", "-p", "-t", tmux.PaneTarget(sessionName, 0, 0),
+		"-v", state.PortalPaneIDOption)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(out)
+}
+
+func capturedPaneToken(t *testing.T, sess state.Session) string {
+	t.Helper()
+	if len(sess.Windows) == 0 || len(sess.Windows[0].Panes) == 0 {
+		t.Fatalf("captured session %q has no pane 0.0: %+v", sess.Name, sess.Windows)
+	}
+	return sess.Windows[0].Panes[0].PortalPaneID
+}
 
 func findCapturedSession(t *testing.T, idx state.Index, name string) state.Session {
 	t.Helper()

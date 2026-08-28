@@ -10,7 +10,6 @@ import (
 
 	"github.com/leeovery/portal/internal/restore"
 	"github.com/leeovery/portal/internal/restoretest"
-	"github.com/leeovery/portal/internal/session"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
 )
@@ -78,6 +77,10 @@ func newWindow(idx int, name string, panes ...state.Pane) state.Window {
 
 func newPane(idx int, cwd, scrollback string) state.Pane {
 	return state.Pane{Index: idx, CWD: cwd, ScrollbackFile: scrollback}
+}
+
+func newPaneWithToken(idx int, cwd, scrollback, token string) state.Pane {
+	return state.Pane{Index: idx, CWD: cwd, ScrollbackFile: scrollback, PortalPaneID: token}
 }
 
 func TestSessionRestorer_SinglePaneNoEnvironment(t *testing.T) {
@@ -279,8 +282,8 @@ func TestSessionRestorer_HydrateCommandContainsAbsoluteScrollbackPath(t *testing
 	}
 }
 
-func TestSessionRestorer_HydrateCommandBakesStableHookKey(t *testing.T) {
-	t.Run("it bakes the id-based hook key when the saved PortalID is set", func(t *testing.T) {
+func TestSessionRestorer_HydrateCommandBakesSavedPaneToken(t *testing.T) {
+	t.Run("it bakes the saved pane token as the hydrate hook key", func(t *testing.T) {
 		mock := &mockCommander{RunFunc: restoreRunFunc("0:0")}
 		client := tmux.NewClient(mock)
 		dir := t.TempDir()
@@ -288,23 +291,21 @@ func TestSessionRestorer_HydrateCommandBakesStableHookKey(t *testing.T) {
 
 		sess := newSession("work", nil,
 			newWindow(3, "main",
-				newPane(7, "/work", "scrollback/work__3.7.bin"),
+				newPaneWithToken(7, "/work", "scrollback/work__3.7.bin", "tok123"),
 			),
 		)
-		sess.PortalID = "tok123"
 
 		if _, err := r.Restore(sess); err != nil {
 			t.Fatalf("Restore: %v", err)
 		}
 
 		hydrate := respawnPaneHydrateCommand(t, mock.Calls)
-		wantHookKey := "tok123:3.7"
-		if !strings.Contains(hydrate, "--hook-key '"+wantHookKey+"'") {
-			t.Errorf("hydrate cmd %q does not contain --hook-key '%s'", hydrate, wantHookKey)
+		if !strings.Contains(hydrate, "--hook-key 'tok123'") {
+			t.Errorf("hydrate cmd %q does not contain --hook-key 'tok123'", hydrate)
 		}
 	})
 
-	t.Run("it bakes the name-based hook key when the saved PortalID is empty", func(t *testing.T) {
+	t.Run("it bakes an empty hook key for a saved pane with no token", func(t *testing.T) {
 		mock := &mockCommander{RunFunc: restoreRunFunc("0:0")}
 		client := tmux.NewClient(mock)
 		dir := t.TempDir()
@@ -321,15 +322,14 @@ func TestSessionRestorer_HydrateCommandBakesStableHookKey(t *testing.T) {
 		}
 
 		hydrate := respawnPaneHydrateCommand(t, mock.Calls)
-		wantHookKey := "work:3.7"
-		if !strings.Contains(hydrate, "--hook-key '"+wantHookKey+"'") {
-			t.Errorf("hydrate cmd %q does not contain --hook-key '%s'", hydrate, wantHookKey)
+		if !strings.Contains(hydrate, "--hook-key ''") {
+			t.Errorf("hydrate cmd %q does not contain --hook-key '' for an untokened pane", hydrate)
 		}
 	})
 }
 
-func TestSessionRestorer_HydrateBakesDistinctPerPaneSuffixesUnderOneID(t *testing.T) {
-	t.Run("it bakes distinct per-pane suffixes under one id for a multi-pane session", func(t *testing.T) {
+func TestSessionRestorer_HydrateBakesOneTokenPerPane(t *testing.T) {
+	t.Run("it bakes each pane's own token for a multi-pane session", func(t *testing.T) {
 		mock := &mockCommander{RunFunc: restoreRunFunc("0:0\n0:1\n1:0")}
 		client := tmux.NewClient(mock)
 		dir := t.TempDir()
@@ -337,54 +337,60 @@ func TestSessionRestorer_HydrateBakesDistinctPerPaneSuffixesUnderOneID(t *testin
 
 		sess := newSession("work", nil,
 			newWindow(0, "main",
-				newPane(0, "/work", "scrollback/work__0.0.bin"),
-				newPane(1, "/work", "scrollback/work__0.1.bin"),
+				newPaneWithToken(0, "/work", "scrollback/work__0.0.bin", "tokA"),
+				newPaneWithToken(1, "/work", "scrollback/work__0.1.bin", "tokB"),
 			),
 			newWindow(1, "logs",
-				newPane(0, "/work", "scrollback/work__1.0.bin"),
+				newPaneWithToken(0, "/work", "scrollback/work__1.0.bin", "tokC"),
 			),
 		)
-		sess.PortalID = "tok123"
 
 		if _, err := r.Restore(sess); err != nil {
 			t.Fatalf("Restore: %v", err)
 		}
 
 		bakedKeys := respawnPaneHookKeys(t, mock.Calls)
-		wantKeys := []string{"tok123:0.0", "tok123:0.1", "tok123:1.0"}
+		wantKeys := []string{"tokA", "tokB", "tokC"}
 		if len(bakedKeys) != len(wantKeys) {
 			t.Fatalf("baked hook keys = %v, want %v", bakedKeys, wantKeys)
 		}
 		for i, want := range wantKeys {
 			if bakedKeys[i] != want {
-				t.Errorf("baked hook key[%d] = %q, want %q (shared id prefix, distinct :w.p suffix)", i, bakedKeys[i], want)
+				t.Errorf("baked hook key[%d] = %q, want %q", i, bakedKeys[i], want)
 			}
 		}
 	})
 }
 
-func TestSessionRestorer_HydrateBakesKeyFromSavedStateIndependentOfLiveReStamp(t *testing.T) {
-	t.Run("it derives the baked key from saved state independent of any live re-stamp", func(t *testing.T) {
-		mock := &mockCommander{RunFunc: restoreRunFunc("0:0")}
+func TestSessionRestorer_HydrateBakesKeyFromSavedStateOnly(t *testing.T) {
+	t.Run("it derives the baked key from saved state, never from the live server", func(t *testing.T) {
+		mock := &mockCommander{
+			RunFunc: func(args ...string) (string, error) {
+				if len(args) > 0 && args[0] == "display-message" {
+					t.Errorf("unexpected live read while baking the hook key: %v", args)
+				}
+				if len(args) > 0 && args[0] == "list-panes" {
+					return "0:0", nil
+				}
+				return "", nil
+			},
+		}
 		client := tmux.NewClient(mock)
 		dir := t.TempDir()
 		r := &restore.SessionRestorer{Client: client, StateDir: dir}
 
 		sess := newSession("work", nil,
 			newWindow(3, "main",
-				newPane(7, "/work", "scrollback/work__3.7.bin"),
+				newPaneWithToken(7, "/work", "scrollback/work__3.7.bin", "tok123"),
 			),
 		)
-		sess.PortalID = "tok123"
 
 		if _, err := r.Restore(sess); err != nil {
 			t.Fatalf("Restore: %v", err)
 		}
 
-		hydrate := respawnPaneHydrateCommand(t, mock.Calls)
-		wantHookKey := tmux.HookKey(sess.PortalID, sess.Name, 3, 7)
-		if !strings.Contains(hydrate, "--hook-key '"+wantHookKey+"'") {
-			t.Errorf("hydrate cmd %q does not contain saved-state-derived --hook-key '%s'", hydrate, wantHookKey)
+		if got := respawnPaneHookKeys(t, mock.Calls); len(got) != 1 || got[0] != sess.Windows[0].Panes[0].PortalPaneID {
+			t.Errorf("baked hook keys = %v, want the saved pane token %q", got, sess.Windows[0].Panes[0].PortalPaneID)
 		}
 	})
 }
@@ -444,7 +450,7 @@ func TestSessionRestorer_FIFOUsesLivePaneKeyFromListPanesReQuery(t *testing.T) {
 
 	sess := newSession("work", nil,
 		newWindow(0, "main",
-			newPane(0, "/work", "scrollback/work__0.0.bin"),
+			newPaneWithToken(0, "/work", "scrollback/work__0.0.bin", "tok123"),
 		),
 	)
 
@@ -479,8 +485,8 @@ func TestSessionRestorer_FIFOUsesLivePaneKeyFromListPanesReQuery(t *testing.T) {
 	if !strings.Contains(hydrate, "--fifo '"+liveFIFO+"'") {
 		t.Errorf("hydrate cmd %q does not reference live FIFO %s", hydrate, liveFIFO)
 	}
-	if !strings.Contains(hydrate, "--hook-key 'work:0.0'") {
-		t.Errorf("hydrate cmd %q does not contain raw saved hook-key 'work:0.0'", hydrate)
+	if !strings.Contains(hydrate, "--hook-key 'tok123'") {
+		t.Errorf("hydrate cmd %q does not contain the saved pane token 'tok123'", hydrate)
 	}
 	wantFile := filepath.Join(dir, "scrollback/work__0.0.bin")
 	if !strings.Contains(hydrate, "--file '"+wantFile+"'") {
@@ -639,7 +645,7 @@ func TestSessionRestorer_HydrateCommandFormat(t *testing.T) {
 	r := &restore.SessionRestorer{Client: client, StateDir: dir}
 
 	sess := newSession("work", nil,
-		newWindow(0, "main", newPane(0, "/work", "scrollback/work__0.0.bin")),
+		newWindow(0, "main", newPaneWithToken(0, "/work", "scrollback/work__0.0.bin", "tok123")),
 	)
 
 	if _, err := r.Restore(sess); err != nil {
@@ -653,7 +659,7 @@ func TestSessionRestorer_HydrateCommandFormat(t *testing.T) {
 	wantFile := filepath.Join(dir, "scrollback/work__0.0.bin")
 	wantCmd := fmt.Sprintf(
 		"portal state hydrate --fifo '%s' --file '%s' --hook-key '%s'",
-		wantFIFO, wantFile, "work:0.0",
+		wantFIFO, wantFile, "tok123",
 	)
 	if hydrate != wantCmd {
 		t.Errorf("hydrate cmd:\n got %q\nwant %q", hydrate, wantCmd)
@@ -786,131 +792,24 @@ func TestSessionRestorer_ArmPanesReturnsWrappedErrorOnRespawnPaneFailure(t *test
 	}
 }
 
-func portalIDSetOptionCall(calls [][]string, name string) ([]string, bool) {
-	for _, c := range calls {
-		if len(c) == 5 && c[0] == "set-option" && c[1] == "-t" && c[2] == name && c[3] == session.PortalIDOption {
-			return c, true
+func TestSessionRestorer_IssuesNoSessionOptionStampDuringSkeletonCreation(t *testing.T) {
+	mock := &mockCommander{RunFunc: restoreRunFunc("0:0")}
+	client := tmux.NewClient(mock)
+	dir := t.TempDir()
+	r := &restore.SessionRestorer{Client: client, StateDir: dir}
+
+	sess := newSession("work", nil,
+		newWindow(0, "main", newPaneWithToken(0, "/work", "scrollback/work__0.0.bin", "tok123")),
+	)
+
+	if _, err := r.Restore(sess); err != nil {
+		t.Fatalf("Restore: %v", err)
+	}
+
+	for _, c := range mock.Calls {
+		if len(c) >= 4 && c[0] == "set-option" && c[1] == "-t" && c[2] == "work" {
+			t.Errorf("unexpected session-scoped set-option during skeleton creation: %v", c)
 		}
-	}
-	return nil, false
-}
-
-func setOptionCallIndex(calls [][]string, name string) int {
-	for i, c := range calls {
-		if len(c) == 5 && c[0] == "set-option" && c[1] == "-t" && c[2] == name && c[3] == session.PortalIDOption {
-			return i
-		}
-	}
-	return -1
-}
-
-func TestSessionRestorer_ReStampsPortalIDFromSavedValue(t *testing.T) {
-	mock := &mockCommander{RunFunc: restoreRunFunc("0:0")}
-	client := tmux.NewClient(mock)
-	dir := t.TempDir()
-	r := &restore.SessionRestorer{Client: client, StateDir: dir}
-
-	sess := newSession("work", nil,
-		newWindow(0, "main", newPane(0, "/work", "scrollback/work__0.0.bin")),
-	)
-	sess.PortalID = "aB3xY9kZ"
-
-	if _, err := r.Restore(sess); err != nil {
-		t.Fatalf("Restore: %v", err)
-	}
-
-	call, ok := portalIDSetOptionCall(mock.Calls, "work")
-	if !ok {
-		t.Fatalf("expected a set-option @portal-id call on session %q; calls: %v", "work", mock.Calls)
-	}
-	if call[4] != "aB3xY9kZ" {
-		t.Errorf("re-stamped @portal-id value = %q, want %q", call[4], "aB3xY9kZ")
-	}
-
-	newSessionAt := callsAt(mock.Calls, "new-session")
-	stampAt := setOptionCallIndex(mock.Calls, "work")
-	if newSessionAt < 0 || stampAt < 0 {
-		t.Fatalf("expected new-session and @portal-id set-option both present; new-session=%d stamp=%d", newSessionAt, stampAt)
-	}
-	if stampAt <= newSessionAt {
-		t.Errorf("ordering violated: new-session(%d) must precede @portal-id set-option(%d)", newSessionAt, stampAt)
-	}
-}
-
-func TestSessionRestorer_SkipsReStampWhenSavedPortalIDEmpty(t *testing.T) {
-	mock := &mockCommander{RunFunc: restoreRunFunc("0:0")}
-	client := tmux.NewClient(mock)
-	dir := t.TempDir()
-	r := &restore.SessionRestorer{Client: client, StateDir: dir}
-
-	sess := newSession("work", nil,
-		newWindow(0, "main", newPane(0, "/work", "scrollback/work__0.0.bin")),
-	)
-
-	if _, err := r.Restore(sess); err != nil {
-		t.Fatalf("Restore: %v", err)
-	}
-
-	if _, ok := portalIDSetOptionCall(mock.Calls, "work"); ok {
-		t.Errorf("expected NO @portal-id set-option call for empty saved PortalID; calls: %v", mock.Calls)
-	}
-}
-
-func TestSessionRestorer_SucceedsWhenPortalIDReStampFails(t *testing.T) {
-	mock := &mockCommander{
-		RunFunc: func(args ...string) (string, error) {
-			if len(args) == 5 && args[0] == "set-option" && args[3] == session.PortalIDOption {
-				return "", errors.New("set-option boom")
-			}
-			if len(args) > 0 && args[0] == "list-panes" {
-				return "0:0", nil
-			}
-			return "", nil
-		},
-	}
-	client := tmux.NewClient(mock)
-	dir := t.TempDir()
-	r := &restore.SessionRestorer{Client: client, StateDir: dir}
-
-	sess := newSession("work", nil,
-		newWindow(0, "main", newPane(0, "/work", "scrollback/work__0.0.bin")),
-	)
-	sess.PortalID = "aB3xY9kZ"
-
-	if _, err := r.Restore(sess); err != nil {
-		t.Fatalf("Restore returned error %v, expected nil (@portal-id re-stamp failure must be swallowed)", err)
-	}
-
-	if _, ok := portalIDSetOptionCall(mock.Calls, "work"); !ok {
-		t.Errorf("expected the @portal-id set-option to be attempted; calls: %v", mock.Calls)
-	}
-	if got := len(findAllCalls(mock.Calls, "respawn-pane")); got != 1 {
-		t.Errorf("respawn-pane calls = %d, want 1 (arm phase must still run); calls: %v", got, mock.Calls)
-	}
-}
-
-func TestSessionRestorer_ReStampsPortalIDBeforeArmingPanes(t *testing.T) {
-	mock := &mockCommander{RunFunc: restoreRunFunc("0:0")}
-	client := tmux.NewClient(mock)
-	dir := t.TempDir()
-	r := &restore.SessionRestorer{Client: client, StateDir: dir}
-
-	sess := newSession("work", nil,
-		newWindow(0, "main", newPane(0, "/work", "scrollback/work__0.0.bin")),
-	)
-	sess.PortalID = "aB3xY9kZ"
-
-	if _, err := r.Restore(sess); err != nil {
-		t.Fatalf("Restore: %v", err)
-	}
-
-	stampAt := setOptionCallIndex(mock.Calls, "work")
-	respawnAt := callsAt(mock.Calls, "respawn-pane")
-	if stampAt < 0 || respawnAt < 0 {
-		t.Fatalf("expected @portal-id set-option and respawn-pane both present; stamp=%d respawn=%d", stampAt, respawnAt)
-	}
-	if stampAt >= respawnAt {
-		t.Errorf("ordering violated: @portal-id set-option(%d) must precede respawn-pane(%d) (re-stamp before arm)", stampAt, respawnAt)
 	}
 }
 

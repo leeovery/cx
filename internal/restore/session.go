@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/leeovery/portal/internal/log"
-	"github.com/leeovery/portal/internal/session"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
 )
@@ -28,10 +27,9 @@ type SessionRestorer struct {
 	Logger   *slog.Logger
 }
 
-// savedPaneArmInfo's hookKey is derived purely from saved state, riding the
-// saved (window, pane) indices so it matches what hook registration stored
-// across base-index drift and renames. The firing path must never read the live
-// @portal-id.
+// savedPaneArmInfo's hookKey is the pane's durable identity token as read from
+// saved state. The firing path must never read it from the live server: baking
+// from the snapshot keeps firing correct whatever the restore re-stamp does.
 type savedPaneArmInfo struct {
 	scrollAbs string
 	hookKey   string
@@ -59,7 +57,7 @@ func (r *SessionRestorer) collectArmInfos(sess state.Session) []savedPaneArmInfo
 		for _, p := range w.Panes {
 			infos = append(infos, savedPaneArmInfo{
 				scrollAbs: filepath.Join(r.StateDir, p.ScrollbackFile),
-				hookKey:   tmux.HookKey(sess.PortalID, sess.Name, w.Index, p.Index),
+				hookKey:   p.PortalPaneID,
 			})
 		}
 	}
@@ -70,13 +68,6 @@ func (r *SessionRestorer) createSkeleton(sess state.Session) error {
 	rootCWD := sess.Windows[0].Panes[0].CWD
 	if err := r.Client.NewSessionWithCommand(sess.Name, rootCWD, ""); err != nil {
 		return err
-	}
-
-	// sessions.json is a snapshot the daemon regenerates from live tmux, so the
-	// saved id must be re-seeded or the next capture writes "" and stale-cleanup
-	// re-keys the session by name, deleting the just-fired hook.
-	if sess.PortalID != "" {
-		_ = r.Client.SetSessionOption(sess.Name, session.PortalIDOption, sess.PortalID)
 	}
 
 	r.applyEnvironment(sess)
