@@ -231,10 +231,20 @@ func (c *Client) ResolveStructuralKey(paneID string) (string, error) {
 	return output, nil
 }
 
-// ResolveHookKey reads the pane's hook key — its durable pane token — live from
-// tmux. A live pane that has never been stamped resolves to an empty key, which
-// is not an error: it is a pane with no hook identity yet.
+// ResolveHookKey resolves a pane target to its hook key — its durable pane
+// token — in two live reads. The first asks only whether any pane answers to
+// the target, and a target none answers to fails here with tmux's own words;
+// the second reads the token, which is empty for a live pane that has never
+// been stamped. An empty key is therefore a resolved pane with no hook identity
+// yet, never a pane that is gone.
 func (c *Client) ResolveHookKey(paneID string) (string, error) {
+	// The probe must name no option: show-options rejects an option the pane
+	// does not carry with the same exit status it rejects a missing pane, so
+	// naming one makes an un-stamped pane indistinguishable from a gone one.
+	if _, err := c.cmd.Run("show-options", "-p", "-t", paneID); err != nil {
+		return "", fmt.Errorf("no pane answers to %q: %w", paneID, err)
+	}
+
 	output, err := c.cmd.Run("display-message", "-p", "-t", paneID, HookKeyFormat)
 	if err != nil {
 		return "", fmt.Errorf("failed to resolve hook key for pane %q: %w", paneID, err)

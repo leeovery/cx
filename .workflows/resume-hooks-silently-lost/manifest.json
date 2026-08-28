@@ -167,7 +167,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 2,
-          "current_task": "resume-hooks-silently-lost-2-3",
+          "current_task": "resume-hooks-silently-lost-2-4",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -330,6 +330,26 @@
                 "cmd/hooks_test.go",
                 "cmd/testhelpers_test.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-2-3",
+              "source": "reviewer",
+              "summary": "The gone-pane message reaching the user is three wraps deep, and Phase 4 reworks the same call site for hook rm wording.",
+              "detail": "portal hook set on a dead pane renders: failed to resolve hook key for current pane: no pane answers to \"%999\": tmux show-options -p -t %999: exit 1: no such pane: %999 — cmd/hooks.go:66 prefixes internal/tmux/tmux.go:245, which prefixes CommandError.Error(). Spec 4.1 is satisfied (tmux words survive unaltered at the tail), but 4.2 fixes exact removal wording at the same resolveCurrentPaneKey call site, so trimming the redundant layer belongs in one pass across both verbs rather than half-done here.",
+              "files": [
+                "cmd/hooks.go",
+                "internal/tmux/tmux.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-2-3",
+              "source": "reviewer",
+              "summary": "The new cmd propagation subtest substantially re-covers a pre-existing one; consolidation reaches a file this task did not touch.",
+              "detail": "cmd/hooks_pane_token_test.go:238-262 (it exits non-zero from hook set on an unresolvable pane) and cmd/hooks_test.go:310-334 (it aborts hooks set when the hook-key read fails) share their whole setup and their error-plus-no-file assertions; the new one adds only the errors.As and tmux-words checks. Phase 4 is already reworking hook rm messaging in cmd/hooks_test.go, so folding the two is cheapest there.",
+              "files": [
+                "cmd/hooks_pane_token_test.go",
+                "cmd/hooks_test.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -345,7 +365,8 @@
             "resume-hooks-silently-lost-1-10",
             "resume-hooks-silently-lost-1-11",
             "resume-hooks-silently-lost-2-1",
-            "resume-hooks-silently-lost-2-2"
+            "resume-hooks-silently-lost-2-2",
+            "resume-hooks-silently-lost-2-3"
           ],
           "staging": {
             "p1": {
