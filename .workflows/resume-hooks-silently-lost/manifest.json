@@ -174,7 +174,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 2,
-          "current_task": "resume-hooks-silently-lost-2-12",
+          "current_task": "resume-hooks-silently-lost-3-1",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -401,6 +401,15 @@
                 "internal/storelog/clean_stale_test.go",
                 "internal/logtest/capture.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-2-12",
+              "source": "reviewer",
+              "summary": "Two near-duplicate TMUX_PANE-unset subtests in TestHooksSetCommand, one a strict subset of the other.",
+              "detail": "cmd/hooks_test.go:188-211 (returns error when TMUX_PANE is not set) and cmd/hooks_test.go:346-365 (it errors when TMUX_PANE is unset for set) share their entire fixture (hooksFileInTempDir, TMUX_PANE=\"\", mockKeyResolver{key: \"unus00\"}, hooks set --on-resume some-cmd) and their whole assertion set; the second asserts a strict subset — it omits the os.Stat(hooksFile) not-created check the first makes. Identical shape to F7, one function over. Both predate this work unit (git log -S dates them to resume-sessions-after-reboot-1-4 and session-rename-orphans-resume-hook T2-2), so pre-existing debt rather than phase-2 residue, and folding them reaches subtests task 2-12 does not own. Cheapest at the end-of-implementation pass; phase 4 already reworks this file.",
+              "files": [
+                "cmd/hooks_test.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -425,7 +434,8 @@
             "resume-hooks-silently-lost-2-8",
             "resume-hooks-silently-lost-2-9",
             "resume-hooks-silently-lost-2-10",
-            "resume-hooks-silently-lost-2-11"
+            "resume-hooks-silently-lost-2-11",
+            "resume-hooks-silently-lost-2-12"
           ],
           "staging": {
             "p1": {
@@ -455,7 +465,8 @@
             2
           ],
           "completed_phases": [
-            1
+            1,
+            2
           ]
         }
       }

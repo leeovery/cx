@@ -2,10 +2,8 @@ package cmd
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/leeovery/portal/internal/session"
@@ -215,32 +213,6 @@ func TestHooksSetStampsPaneToken(t *testing.T) {
 
 func TestHooksSetRefusesAnUnresolvablePane(t *testing.T) {
 	const stderr = "no such pane: %999"
-
-	t.Run("it exits non-zero from hook set on an unresolvable pane", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
-		t.Setenv("TMUX_PANE", "%999")
-
-		hooksDeps = &HooksDeps{
-			KeyResolver: &mockKeyResolver{err: &tmux.CommandError{Stderr: stderr}},
-			PaneStamper: &recordingPaneStamper{},
-		}
-		t.Cleanup(func() { hooksDeps = nil })
-
-		err := runHookSet(t, "some-cmd")
-		if err == nil {
-			t.Fatal("expected an error from an unresolvable pane, got nil")
-		}
-		if !strings.Contains(err.Error(), stderr) {
-			t.Errorf("error = %q, want it to carry tmux's own words %q", err.Error(), stderr)
-		}
-		var cmdErr *tmux.CommandError
-		if !errors.As(err, &cmdErr) {
-			t.Errorf("error %v is not a recoverable *tmux.CommandError (errors.As failed)", err)
-		}
-		if _, statErr := os.Stat(hooksFile); statErr == nil {
-			t.Error("hooks.json was created despite the pane being unresolvable")
-		}
-	})
 
 	t.Run("it mints and stamps nothing when the probe fails", func(t *testing.T) {
 		hooksFileInTempDir(t)

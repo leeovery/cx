@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/state"
+	"github.com/leeovery/portal/internal/tmux"
 )
 
 func TestHooksListCommand(t *testing.T) {
@@ -290,24 +292,29 @@ func TestHooksSetCommand(t *testing.T) {
 		}
 	})
 
-	t.Run("it aborts hooks set when the hook-key read fails", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
-		t.Setenv("TMUX_PANE", "%3")
+	t.Run("it aborts hook set when the hook-key read fails", func(t *testing.T) {
+		const stderr = "no such pane: %999"
 
-		resolver := &mockKeyResolver{err: fmt.Errorf("tmux not responding")}
-		hooksDeps = &HooksDeps{KeyResolver: resolver}
+		_, hooksFile := hooksFileInTempDir(t)
+		t.Setenv("TMUX_PANE", "%999")
+
+		resolver := &mockKeyResolver{err: &tmux.CommandError{Stderr: stderr}}
+		hooksDeps = &HooksDeps{KeyResolver: resolver, PaneStamper: &recordingPaneStamper{}}
 		t.Cleanup(func() { hooksDeps = nil })
 
-		resetRootCmd()
-		rootCmd.SetOut(new(bytes.Buffer))
-		rootCmd.SetErr(new(bytes.Buffer))
-		rootCmd.SetArgs([]string{"hooks", "set", "--on-resume", "some-cmd"})
-		err := rootCmd.Execute()
+		err := runHookSet(t, "some-cmd")
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
 		if !strings.Contains(err.Error(), "resolve") {
 			t.Errorf("error = %q, want it to contain %q", err.Error(), "resolve")
+		}
+		if !strings.Contains(err.Error(), stderr) {
+			t.Errorf("error = %q, want it to carry tmux's own words %q", err.Error(), stderr)
+		}
+		var cmdErr *tmux.CommandError
+		if !errors.As(err, &cmdErr) {
+			t.Errorf("error %v is not a recoverable *tmux.CommandError (errors.As failed)", err)
 		}
 
 		if _, statErr := os.Stat(hooksFile); statErr == nil {
