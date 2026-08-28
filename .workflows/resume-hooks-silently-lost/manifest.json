@@ -174,7 +174,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 2,
-          "current_task": "resume-hooks-silently-lost-2-9",
+          "current_task": "resume-hooks-silently-lost-2-10",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -351,6 +351,27 @@
                 "cmd/cleanstale_transient_listpanes_doctorfix_integration_test.go",
                 "cmd/hookkey_vocabulary_test.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-2-9",
+              "source": "reviewer",
+              "summary": "A few hook-file preamble sites outside the three hooks test files could take the bare helper now that it exists in the shared file.",
+              "detail": "cmd/state_daemon_test.go:792 and :813 are t.Setenv(\"PORTAL_HOOKS_FILE\", filepath.Join(t.TempDir(), \"hooks.json\")) — byte-equivalent to a bare hooksFileInTempDir(t); cmd/version_guard_test.go:146 is the same modulo separator. Deliberately outside task 2-9 scope (F4 enumerated only cmd/hooks_test.go), and the fix reaches suites it did not touch. cmd/cleanstale_transient_listpanes_shared_test.go:26 is NOT a candidate — it nests under a portal/ subdir.",
+              "files": [
+                "cmd/state_daemon_test.go",
+                "cmd/version_guard_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-2-9",
+              "source": "reviewer",
+              "summary": "The two-helper-file rule is stated in only one of the two files, and phase 4 could silently collapse alias coverage.",
+              "detail": "cmd/testhelpers_test.go:1-3 states the staging/vocabulary split and points at the other file; cmd/hookkey_vocabulary_test.go:1-3 describes only its own contents and does not point back, so a reader landing there learns nothing about where staging goes. Separately: with runHookSet now in the shared file, a phase-4 contributor reworking cmd/hooks_test.go may re-point the ten `hooks set` alias blocks at it and silently collapse them onto the canonical `hook` verb, leaving alias coverage resting solely on TestHookCommandRename. The helper doc comment names the verb it drives, which is the available mitigation.",
+              "files": [
+                "cmd/hookkey_vocabulary_test.go",
+                "cmd/testhelpers_test.go",
+                "cmd/hooks_test.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -372,7 +393,8 @@
             "resume-hooks-silently-lost-2-5",
             "resume-hooks-silently-lost-2-6",
             "resume-hooks-silently-lost-2-7",
-            "resume-hooks-silently-lost-2-8"
+            "resume-hooks-silently-lost-2-8",
+            "resume-hooks-silently-lost-2-9"
           ],
           "staging": {
             "p1": {

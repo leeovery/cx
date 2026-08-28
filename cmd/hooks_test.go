@@ -16,9 +16,7 @@ import (
 
 func TestHooksListCommand(t *testing.T) {
 	t.Run("outputs hooks in tab-separated format", func(t *testing.T) {
-		dir := t.TempDir()
-		hooksFile := filepath.Join(dir, "hooks.json")
-		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
+		_, hooksFile := hooksFileInTempDir(t)
 
 		// Stub bootstrap so the real orchestrator never runs against the test's
 		// tmux server.
@@ -47,9 +45,7 @@ func TestHooksListCommand(t *testing.T) {
 	})
 
 	t.Run("produces empty output when no hooks registered", func(t *testing.T) {
-		dir := t.TempDir()
-		hooksFile := filepath.Join(dir, "hooks.json")
-		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
+		_, hooksFile := hooksFileInTempDir(t)
 
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{})
 
@@ -69,9 +65,7 @@ func TestHooksListCommand(t *testing.T) {
 	})
 
 	t.Run("produces empty output when hooks file does not exist", func(t *testing.T) {
-		dir := t.TempDir()
-		hooksFile := filepath.Join(dir, "hooks.json")
-		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
+		hooksFileInTempDir(t)
 
 		buf := new(bytes.Buffer)
 		resetRootCmd()
@@ -89,9 +83,7 @@ func TestHooksListCommand(t *testing.T) {
 	})
 
 	t.Run("outputs hooks sorted by key then event", func(t *testing.T) {
-		dir := t.TempDir()
-		hooksFile := filepath.Join(dir, "hooks.json")
-		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
+		_, hooksFile := hooksFileInTempDir(t)
 
 		// Stub bootstrap so the real orchestrator never runs against the test's
 		// tmux server.
@@ -122,9 +114,7 @@ func TestHooksListCommand(t *testing.T) {
 	})
 
 	t.Run("accepts no arguments", func(t *testing.T) {
-		dir := t.TempDir()
-		hooksFile := filepath.Join(dir, "hooks.json")
-		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
+		hooksFileInTempDir(t)
 
 		resetRootCmd()
 		rootCmd.SetOut(new(bytes.Buffer))
@@ -147,9 +137,7 @@ func (m *mockKeyResolver) ResolveHookKey(_ string) (string, error) {
 
 func TestHooksSetCommand(t *testing.T) {
 	t.Run("sets hook for current pane", func(t *testing.T) {
-		dir := t.TempDir()
-		hooksFile := filepath.Join(dir, "hooks.json")
-		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
+		_, hooksFile := hooksFileInTempDir(t)
 		t.Setenv("TMUX_PANE", "%3")
 
 		resolver := &mockKeyResolver{key: "aaa111"}
@@ -171,9 +159,7 @@ func TestHooksSetCommand(t *testing.T) {
 	})
 
 	t.Run("reads pane ID from TMUX_PANE environment variable", func(t *testing.T) {
-		dir := t.TempDir()
-		hooksFile := filepath.Join(dir, "hooks.json")
-		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
+		_, hooksFile := hooksFileInTempDir(t)
 		t.Setenv("TMUX_PANE", "%99")
 
 		resolver := &mockKeyResolver{key: "bbb222"}
@@ -198,9 +184,7 @@ func TestHooksSetCommand(t *testing.T) {
 	})
 
 	t.Run("returns error when TMUX_PANE is not set", func(t *testing.T) {
-		dir := t.TempDir()
-		hooksFile := filepath.Join(dir, "hooks.json")
-		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
+		_, hooksFile := hooksFileInTempDir(t)
 		t.Setenv("TMUX_PANE", "")
 
 		resolver := &mockKeyResolver{key: "unus00"}
@@ -225,9 +209,7 @@ func TestHooksSetCommand(t *testing.T) {
 	})
 
 	t.Run("returns error when on-resume flag is not provided", func(t *testing.T) {
-		dir := t.TempDir()
-		hooksFile := filepath.Join(dir, "hooks.json")
-		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
+		hooksFileInTempDir(t)
 		t.Setenv("TMUX_PANE", "%3")
 
 		resolver := &mockKeyResolver{key: "aaa111"}
@@ -248,9 +230,7 @@ func TestHooksSetCommand(t *testing.T) {
 	})
 
 	t.Run("overwrites existing hook for same pane idempotently", func(t *testing.T) {
-		dir := t.TempDir()
-		hooksFile := filepath.Join(dir, "hooks.json")
-		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
+		_, hooksFile := hooksFileInTempDir(t)
 		t.Setenv("TMUX_PANE", "%3")
 
 		resolver := &mockKeyResolver{key: "aaa111"}
@@ -278,9 +258,7 @@ func TestHooksSetCommand(t *testing.T) {
 	})
 
 	t.Run("writes correct JSON structure to hooks file", func(t *testing.T) {
-		dir := t.TempDir()
-		hooksFile := filepath.Join(dir, "hooks.json")
-		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
+		_, hooksFile := hooksFileInTempDir(t)
 		t.Setenv("TMUX_PANE", "%3")
 
 		resolver := &mockKeyResolver{key: "aaa111"}
@@ -313,9 +291,7 @@ func TestHooksSetCommand(t *testing.T) {
 	})
 
 	t.Run("it aborts hooks set when the hook-key read fails", func(t *testing.T) {
-		dir := t.TempDir()
-		hooksFile := filepath.Join(dir, "hooks.json")
-		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
+		_, hooksFile := hooksFileInTempDir(t)
 		t.Setenv("TMUX_PANE", "%3")
 
 		resolver := &mockKeyResolver{err: fmt.Errorf("tmux not responding")}
@@ -340,9 +316,7 @@ func TestHooksSetCommand(t *testing.T) {
 	})
 
 	t.Run("it stores the hook under the resolved hook key", func(t *testing.T) {
-		dir := t.TempDir()
-		hooksFile := filepath.Join(dir, "hooks.json")
-		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
+		_, hooksFile := hooksFileInTempDir(t)
 		t.Setenv("TMUX_PANE", "%3")
 
 		resolver := &mockKeyResolver{key: "tok123"}
@@ -363,9 +337,7 @@ func TestHooksSetCommand(t *testing.T) {
 	})
 
 	t.Run("it errors when TMUX_PANE is unset for set", func(t *testing.T) {
-		dir := t.TempDir()
-		hooksFile := filepath.Join(dir, "hooks.json")
-		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
+		hooksFileInTempDir(t)
 		t.Setenv("TMUX_PANE", "")
 
 		resolver := &mockKeyResolver{key: "unus00"}
@@ -389,9 +361,7 @@ func TestHooksSetCommand(t *testing.T) {
 
 func TestHooksRmCommand(t *testing.T) {
 	t.Run("removes hook for current pane", func(t *testing.T) {
-		dir := t.TempDir()
-		hooksFile := filepath.Join(dir, "hooks.json")
-		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
+		_, hooksFile := hooksFileInTempDir(t)
 		t.Setenv("TMUX_PANE", "%3")
 
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{
@@ -417,9 +387,7 @@ func TestHooksRmCommand(t *testing.T) {
 	})
 
 	t.Run("reads pane ID from TMUX_PANE and resolves hook key", func(t *testing.T) {
-		dir := t.TempDir()
-		hooksFile := filepath.Join(dir, "hooks.json")
-		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
+		_, hooksFile := hooksFileInTempDir(t)
 		t.Setenv("TMUX_PANE", "%42")
 
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{
@@ -448,9 +416,7 @@ func TestHooksRmCommand(t *testing.T) {
 	})
 
 	t.Run("returns error when TMUX_PANE is not set", func(t *testing.T) {
-		dir := t.TempDir()
-		hooksFile := filepath.Join(dir, "hooks.json")
-		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
+		hooksFileInTempDir(t)
 		t.Setenv("TMUX_PANE", "")
 
 		resolver := &mockKeyResolver{key: "unus00"}
@@ -471,9 +437,7 @@ func TestHooksRmCommand(t *testing.T) {
 	})
 
 	t.Run("returns error when on-resume flag is not provided", func(t *testing.T) {
-		dir := t.TempDir()
-		hooksFile := filepath.Join(dir, "hooks.json")
-		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
+		hooksFileInTempDir(t)
 		t.Setenv("TMUX_PANE", "%3")
 
 		resolver := &mockKeyResolver{key: "aaa111"}
@@ -494,9 +458,7 @@ func TestHooksRmCommand(t *testing.T) {
 	})
 
 	t.Run("silent no-op when no hook exists for pane", func(t *testing.T) {
-		dir := t.TempDir()
-		hooksFile := filepath.Join(dir, "hooks.json")
-		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
+		_, hooksFile := hooksFileInTempDir(t)
 		t.Setenv("TMUX_PANE", "%99")
 
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{})
@@ -520,9 +482,7 @@ func TestHooksRmCommand(t *testing.T) {
 	})
 
 	t.Run("removes correct JSON entry from hooks file", func(t *testing.T) {
-		dir := t.TempDir()
-		hooksFile := filepath.Join(dir, "hooks.json")
-		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
+		_, hooksFile := hooksFileInTempDir(t)
 		t.Setenv("TMUX_PANE", "%3")
 
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{
@@ -554,9 +514,7 @@ func TestHooksRmCommand(t *testing.T) {
 	})
 
 	t.Run("cleans up pane key when last event removed", func(t *testing.T) {
-		dir := t.TempDir()
-		hooksFile := filepath.Join(dir, "hooks.json")
-		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
+		_, hooksFile := hooksFileInTempDir(t)
 		t.Setenv("TMUX_PANE", "%5")
 
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{
@@ -585,9 +543,7 @@ func TestHooksRmCommand(t *testing.T) {
 	})
 
 	t.Run("it aborts hooks rm when the hook-key read fails and leaves the entry intact", func(t *testing.T) {
-		dir := t.TempDir()
-		hooksFile := filepath.Join(dir, "hooks.json")
-		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
+		_, hooksFile := hooksFileInTempDir(t)
 		t.Setenv("TMUX_PANE", "%3")
 
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{
@@ -617,9 +573,7 @@ func TestHooksRmCommand(t *testing.T) {
 	})
 
 	t.Run("--pane-key flag removes specified key without requiring TMUX_PANE", func(t *testing.T) {
-		dir := t.TempDir()
-		hooksFile := filepath.Join(dir, "hooks.json")
-		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
+		_, hooksFile := hooksFileInTempDir(t)
 		t.Setenv("TMUX_PANE", "")
 
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{
@@ -652,9 +606,7 @@ func TestHooksRmCommand(t *testing.T) {
 	})
 
 	t.Run("--pane-key unset falls back to resolveCurrentPaneKey", func(t *testing.T) {
-		dir := t.TempDir()
-		hooksFile := filepath.Join(dir, "hooks.json")
-		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
+		_, hooksFile := hooksFileInTempDir(t)
 		t.Setenv("TMUX_PANE", "%7")
 
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{
@@ -680,9 +632,7 @@ func TestHooksRmCommand(t *testing.T) {
 	})
 
 	t.Run("it removes the verbatim key on rm --pane-key without consulting the resolver", func(t *testing.T) {
-		dir := t.TempDir()
-		hooksFile := filepath.Join(dir, "hooks.json")
-		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
+		_, hooksFile := hooksFileInTempDir(t)
 		t.Setenv("TMUX_PANE", "")
 
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{
@@ -714,9 +664,7 @@ func TestHooksRmCommand(t *testing.T) {
 	})
 
 	t.Run("it errors when TMUX_PANE is unset for the rm fallback", func(t *testing.T) {
-		dir := t.TempDir()
-		hooksFile := filepath.Join(dir, "hooks.json")
-		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
+		hooksFileInTempDir(t)
 		t.Setenv("TMUX_PANE", "")
 
 		resolver := &mockKeyResolver{key: "unus00"}
@@ -772,9 +720,7 @@ func TestHookCommandRename(t *testing.T) {
 	})
 
 	t.Run("keeps hooks working as a silent cobra alias", func(t *testing.T) {
-		dir := t.TempDir()
-		hooksFile := filepath.Join(dir, "hooks.json")
-		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
+		_, hooksFile := hooksFileInTempDir(t)
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{})
 
 		outBuf := new(bytes.Buffer)
@@ -797,9 +743,7 @@ func TestHookCommandRename(t *testing.T) {
 	})
 
 	t.Run("machine-generated hooks set still persists via the alias", func(t *testing.T) {
-		dir := t.TempDir()
-		hooksFile := filepath.Join(dir, "hooks.json")
-		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
+		_, hooksFile := hooksFileInTempDir(t)
 		t.Setenv("TMUX_PANE", "%3")
 
 		resolver := &mockKeyResolver{key: "aaa111"}
@@ -888,9 +832,7 @@ func assertTouchWarn(t *testing.T, sink *logtest.Sink, wantKey string) {
 
 func TestHooksSetTouchesSaveRequested(t *testing.T) {
 	t.Run("it touches save.requested after a successful registration", func(t *testing.T) {
-		dir := t.TempDir()
-		hooksFile := filepath.Join(dir, "hooks.json")
-		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
+		hooksFileInTempDir(t)
 		stateDir := t.TempDir()
 		t.Setenv("PORTAL_STATE_DIR", stateDir)
 
@@ -904,9 +846,7 @@ func TestHooksSetTouchesSaveRequested(t *testing.T) {
 	})
 
 	t.Run("it exits 0 when the state directory cannot be resolved", func(t *testing.T) {
-		dir := t.TempDir()
-		hooksFile := filepath.Join(dir, "hooks.json")
-		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
+		dir, hooksFile := hooksFileInTempDir(t)
 
 		blocker := filepath.Join(dir, "not-a-dir")
 		if err := os.WriteFile(blocker, []byte("x"), 0o600); err != nil {
@@ -929,9 +869,7 @@ func TestHooksSetTouchesSaveRequested(t *testing.T) {
 	})
 
 	t.Run("it exits 0 when the touch itself fails", func(t *testing.T) {
-		dir := t.TempDir()
-		hooksFile := filepath.Join(dir, "hooks.json")
-		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
+		dir, hooksFile := hooksFileInTempDir(t)
 
 		stateDir := filepath.Join(dir, "state")
 		if err := os.MkdirAll(filepath.Join(stateDir, "scrollback"), 0o700); err != nil {
@@ -958,9 +896,8 @@ func TestHooksSetTouchesSaveRequested(t *testing.T) {
 	})
 
 	t.Run("it emits no set WARN when only the dirty-flag touch fails", func(t *testing.T) {
-		dir := t.TempDir()
-		t.Setenv("PORTAL_HOOKS_FILE", filepath.Join(dir, "hooks.json"))
-		t.Setenv("PORTAL_STATE_DIR", filepath.Join(dir, "hooks.json", "state"))
+		_, hooksFile := hooksFileInTempDir(t)
+		t.Setenv("PORTAL_STATE_DIR", filepath.Join(hooksFile, "state"))
 
 		sink := &logtest.Sink{}
 		log.SetTestHandler(t, sink)
@@ -977,9 +914,8 @@ func TestHooksSetTouchesSaveRequested(t *testing.T) {
 	})
 
 	t.Run("it emits exactly one warn per failing hook set", func(t *testing.T) {
-		dir := t.TempDir()
-		t.Setenv("PORTAL_HOOKS_FILE", filepath.Join(dir, "hooks.json"))
-		t.Setenv("PORTAL_STATE_DIR", filepath.Join(dir, "hooks.json", "state"))
+		_, hooksFile := hooksFileInTempDir(t)
+		t.Setenv("PORTAL_STATE_DIR", filepath.Join(hooksFile, "state"))
 
 		sink := &logtest.Sink{}
 		log.SetTestHandler(t, sink)
@@ -994,14 +930,12 @@ func TestHooksSetTouchesSaveRequested(t *testing.T) {
 	})
 
 	t.Run("it does not touch when the write fails", func(t *testing.T) {
-		dir := t.TempDir()
-		hooksFile := filepath.Join(dir, "hooks.json")
+		_, hooksFile := hooksFileInTempDir(t)
 		// A directory at the hooks.json path makes the store's own read fail, so
 		// the command aborts before it could touch anything.
 		if err := os.MkdirAll(hooksFile, 0o700); err != nil {
 			t.Fatalf("mkdir bogus hooks path: %v", err)
 		}
-		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
 		stateDir := t.TempDir()
 		t.Setenv("PORTAL_STATE_DIR", stateDir)
 
@@ -1023,8 +957,7 @@ func TestHooksSetTouchesSaveRequested(t *testing.T) {
 	})
 
 	t.Run("it touches on a no-op re-registration", func(t *testing.T) {
-		dir := t.TempDir()
-		t.Setenv("PORTAL_HOOKS_FILE", filepath.Join(dir, "hooks.json"))
+		hooksFileInTempDir(t)
 		stateDir := t.TempDir()
 		t.Setenv("PORTAL_STATE_DIR", stateDir)
 
@@ -1045,9 +978,7 @@ func TestHooksSetTouchesSaveRequested(t *testing.T) {
 	})
 
 	t.Run("it does not touch from hook rm", func(t *testing.T) {
-		dir := t.TempDir()
-		hooksFile := filepath.Join(dir, "hooks.json")
-		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
+		_, hooksFile := hooksFileInTempDir(t)
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{
 			"tok123": {"on-resume": "claude --resume abc"},
 		})

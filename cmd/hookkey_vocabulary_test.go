@@ -1,3 +1,6 @@
+// The hook-key subject vocabulary shared across the cmd test suites: the seed
+// keys, the enumeration rows they arrive in, and the seam fakes that answer
+// with them.
 package cmd
 
 import (
