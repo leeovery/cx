@@ -167,7 +167,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 2,
-          "current_task": "resume-hooks-silently-lost-2-2",
+          "current_task": "resume-hooks-silently-lost-2-3",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -319,6 +319,17 @@
                 "cmd/run_hook_stale_cleanup_test.go",
                 "internal/tmux/tmux.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-2-2",
+              "source": "reviewer",
+              "summary": "The hooks CLI test setup is now duplicated 28 ways beside two helpers that encapsulate it.",
+              "detail": "cmd/hooks_pane_token_test.go:34-48 adds hooksFileInTempDir and runHookSet, which capture exactly the shape cmd/hooks_test.go open-codes 28 times (filepath.Join(t.TempDir(), \"hooks.json\") + t.Setenv(\"PORTAL_HOOKS_FILE\", ...)) and 29 times (resetRootCmd() + SetOut/SetErr/SetArgs). The consolidation reaches into subtests this task had no reason to touch, so it belongs at the phase boundary — and the helpers likely belong beside writeHooksJSON/readHooksJSON in cmd/testhelpers_test.go rather than in a feature-specific file. Phase 2 adds more hook set / hook rm cases in 2-3 and 4-2, so the count grows before it shrinks.",
+              "files": [
+                "cmd/hooks_pane_token_test.go",
+                "cmd/hooks_test.go",
+                "cmd/testhelpers_test.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -333,7 +344,8 @@
             "resume-hooks-silently-lost-1-9",
             "resume-hooks-silently-lost-1-10",
             "resume-hooks-silently-lost-1-11",
-            "resume-hooks-silently-lost-2-1"
+            "resume-hooks-silently-lost-2-1",
+            "resume-hooks-silently-lost-2-2"
           ],
           "staging": {
             "p1": {

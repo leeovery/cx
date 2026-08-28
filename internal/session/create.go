@@ -11,10 +11,9 @@ import (
 const PortalDirOption = "@portal-dir"
 
 // PortalIDOption stamps a session with an immutable opaque token frozen at
-// creation — the identity resume hooks key on, so a rename cannot orphan them.
-// It cannot be re-derived, so it must be persisted across reboots and re-stamped
-// on restore. The literal must stay byte-identical to the "@portal-id" embedded
-// in tmux.HookKeyFormat, or key-producing sites disagree.
+// creation — the identity restore bakes its resume-hook keys from, so a rename
+// cannot orphan them. It cannot be re-derived, so it must be persisted across
+// reboots and re-stamped on restore.
 const PortalIDOption = "@portal-id"
 
 func ShellFromEnv() string {

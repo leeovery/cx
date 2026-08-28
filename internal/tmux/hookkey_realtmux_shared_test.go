@@ -5,26 +5,34 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
 	"github.com/leeovery/portal/internal/tmuxtest"
 )
 
-func seedThreePaneStampedSession(t *testing.T, ts *tmuxtest.Socket, client *tmux.Client, sessionName, portalID string) []string {
+// seedThreePaneStampedSession builds a three-pane session and stamps the token
+// onto the first pane only, so callers have a stamped pane and two unstamped
+// siblings to tell apart.
+func seedThreePaneStampedSession(t *testing.T, ts *tmuxtest.Socket, client *tmux.Client, sessionName, token string) []string {
 	t.Helper()
 	if err := client.NewSession(sessionName, t.TempDir(), ""); err != nil {
 		t.Fatalf("NewSession(%q): %v", sessionName, err)
 	}
 	ts.WaitForSession(t, sessionName, 2*time.Second)
-	if err := client.SetSessionOption(sessionName, portalIDLiteral, portalID); err != nil {
-		t.Fatalf("SetSessionOption(%q, %q, %q): %v", sessionName, portalIDLiteral, portalID, err)
-	}
 	if err := client.SplitWindow(sessionName+":0", "", ""); err != nil {
 		t.Fatalf("SplitWindow(%q): %v", sessionName+":0", err)
 	}
 	if err := client.NewWindow(sessionName, "", "", ""); err != nil {
 		t.Fatalf("NewWindow(%q): %v", sessionName, err)
 	}
-	return sessionPaneIDs(t, ts, sessionName)
+	paneIDs := sessionPaneIDs(t, ts, sessionName)
+	if len(paneIDs) == 0 {
+		t.Fatalf("session %q reported no panes", sessionName)
+	}
+	if err := client.SetPaneOption(paneIDs[0], state.PortalPaneIDOption, token); err != nil {
+		t.Fatalf("SetPaneOption(%q, %q, %q): %v", paneIDs[0], state.PortalPaneIDOption, token, err)
+	}
+	return paneIDs
 }
 
 func sessionPaneIDs(t *testing.T, ts *tmuxtest.Socket, session string) []string {

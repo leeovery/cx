@@ -1,22 +1,10 @@
 package tmux_test
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/leeovery/portal/internal/tmux"
 )
-
-const portalIDLiteral = "@portal-id"
-
-func TestHookKeyFormatContainsPortalIDLiteral(t *testing.T) {
-	if portalIDLiteral != "@portal-id" {
-		t.Fatalf("portalIDLiteral = %q; want %q (must stay byte-identical to session.PortalIDOption)", portalIDLiteral, "@portal-id")
-	}
-	if !strings.Contains(tmux.HookKeyFormat, portalIDLiteral) {
-		t.Errorf("HookKeyFormat = %q does not contain the exact literal %q", tmux.HookKeyFormat, portalIDLiteral)
-	}
-}
 
 func TestHookKey(t *testing.T) {
 	tests := []struct {

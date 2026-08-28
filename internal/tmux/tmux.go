@@ -231,10 +231,9 @@ func (c *Client) ResolveStructuralKey(paneID string) (string, error) {
 	return output, nil
 }
 
-// ResolveHookKey resolves the pane's hook key live from tmux, which picks the
-// @portal-id or session-name branch itself. A read failure must never fall back
-// to synthesising a name-based key: that would key a stamped session's hook off
-// the mutable name and orphan it on the next rename.
+// ResolveHookKey reads the pane's hook key — its durable pane token — live from
+// tmux. A live pane that has never been stamped resolves to an empty key, which
+// is not an error: it is a pane with no hook identity yet.
 func (c *Client) ResolveHookKey(paneID string) (string, error) {
 	output, err := c.cmd.Run("display-message", "-p", "-t", paneID, HookKeyFormat)
 	if err != nil {
@@ -284,6 +283,17 @@ func (c *Client) SetServerOption(name, value string) error {
 	_, err := c.cmd.Run("set-option", "-s", name, value)
 	if err != nil {
 		return fmt.Errorf("failed to set server option %q: %w", name, err)
+	}
+	return nil
+}
+
+// SetPaneOption sets a tmux option scoped to one pane. The option name comes
+// from the caller, and a target naming no live pane fails here rather than
+// silently succeeding.
+func (c *Client) SetPaneOption(target, name, value string) error {
+	_, err := c.cmd.Run("set-option", "-p", "-t", target, name, value)
+	if err != nil {
+		return fmt.Errorf("failed to set pane option %s on %s: %w", name, target, err)
 	}
 	return nil
 }
@@ -393,10 +403,10 @@ func PaneTargetExact(session string, window, pane int) string {
 	return fmt.Sprintf("=%s:%d.%d", session, window, pane)
 }
 
-// HookKey formats a hook key from saved state — the in-Go mirror of
-// HookKeyFormat's tmux-side conditional. Both inputs are used verbatim, so a key
-// built here is byte-identical to a live read of the same pane, and the format
-// must stay stable: changing it silently invalidates every hooks.json entry.
+// HookKey formats the positional hook key restore bakes from saved state,
+// preferring the session's immutable id over its renameable name. Both inputs
+// are used verbatim, and the format must stay stable: changing it silently
+// invalidates every entry already written under it.
 func HookKey(portalID, name string, window, pane int) string {
 	if portalID != "" {
 		return fmt.Sprintf("%s:%d.%d", portalID, window, pane)
@@ -558,13 +568,10 @@ func (c *Client) ShowEnvironment(session string) (string, error) {
 // see HookKeyFormat.
 const StructuralKeyFormat = "#{session_name}:#{window_index}.#{pane_index}"
 
-// HookKeyFormat yields a pane's hook key, the tmux-resolved sibling of HookKey:
-// a stamped session resolves to "<id>:w.p" (rename-immune) and an un-stamped one
-// falls back to "<name>:w.p", the key already on disk. It must stay stable and
-// identical at every site producing or consuming a hook key — drift re-orphans
-// stamped sessions' hooks en masse — and its "@portal-id" literal must match
-// session.PortalIDOption.
-const HookKeyFormat = "#{?@portal-id,#{@portal-id},#{session_name}}:#{window_index}.#{pane_index}"
+// HookKeyFormat yields a pane's hook key: the pane's durable token and nothing
+// else. It carries no session component and no coordinates, so no tmux operation
+// that moves a pane can recompute it. An un-stamped pane yields an empty key.
+const HookKeyFormat = "#{" + state.PortalPaneIDOption + "}"
 
 // ListAllPanes returns the structural key of every live pane on the server — for
 // structural enumeration, not hook-key lookup (see ListAllPaneHookKeys). A tmux

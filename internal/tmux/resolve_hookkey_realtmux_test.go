@@ -5,11 +5,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
 	"github.com/leeovery/portal/internal/tmuxtest"
 )
 
-func TestResolveHookKey_StampedSession(t *testing.T) {
+func TestResolveHookKey_StampedPane(t *testing.T) {
 	tmuxtest.SkipIfNoTmux(t)
 
 	ts := tmuxtest.New(t, "ptl-hookkey-")
@@ -24,20 +25,21 @@ func TestResolveHookKey_StampedSession(t *testing.T) {
 	}
 	ts.WaitForSession(t, sessionName, 2*time.Second)
 
-	if err := client.SetSessionOption(sessionName, portalIDLiteral, "tok123"); err != nil {
-		t.Fatalf("SetSessionOption(%q, %q, tok123): %v", sessionName, portalIDLiteral, err)
+	const paneTarget = sessionName + ":0.0"
+	if err := client.SetPaneOption(paneTarget, state.PortalPaneIDOption, "tok123"); err != nil {
+		t.Fatalf("SetPaneOption(%q, %q, tok123): %v", paneTarget, state.PortalPaneIDOption, err)
 	}
 
-	got, err := client.ResolveHookKey(sessionName)
+	got, err := client.ResolveHookKey(paneTarget)
 	if err != nil {
-		t.Fatalf("ResolveHookKey(%q): %v", sessionName, err)
+		t.Fatalf("ResolveHookKey(%q): %v", paneTarget, err)
 	}
-	if got != "tok123:0.0" {
-		t.Errorf("stamped hook key = %q, want %q (conditional must take the @portal-id branch)", got, "tok123:0.0")
+	if got != "tok123" {
+		t.Errorf("stamped pane hook key = %q, want %q", got, "tok123")
 	}
 }
 
-func TestResolveHookKey_UnstampedSession(t *testing.T) {
+func TestResolveHookKey_UnstampedPane(t *testing.T) {
 	tmuxtest.SkipIfNoTmux(t)
 
 	ts := tmuxtest.New(t, "ptl-hookkey-")
@@ -52,13 +54,12 @@ func TestResolveHookKey_UnstampedSession(t *testing.T) {
 	}
 	ts.WaitForSession(t, sessionName, 2*time.Second)
 
-	want := sessionName + ":0.0"
-	got, err := client.ResolveHookKey(sessionName)
+	got, err := client.ResolveHookKey(sessionName + ":0.0")
 	if err != nil {
-		t.Fatalf("ResolveHookKey(%q): %v", sessionName, err)
+		t.Fatalf("ResolveHookKey on a live un-stamped pane: %v", err)
 	}
-	if got != want {
-		t.Errorf("un-stamped hook key = %q, want %q (unset @portal-id must take the #{session_name} branch)", got, want)
+	if got != "" {
+		t.Errorf("un-stamped pane hook key = %q, want an empty token", got)
 	}
 }
 
@@ -81,7 +82,7 @@ func TestResolveHookKey_ReadFailureWrapsError(t *testing.T) {
 		t.Fatal("expected a wrapped error from a failed display-message read, got nil")
 	}
 	if got != "" {
-		t.Errorf("hook key on read failure = %q, want \"\" (MUST NOT synthesize a name-based key)", got)
+		t.Errorf("hook key on read failure = %q, want \"\" (a failed read MUST NOT be reported as a resolved key)", got)
 	}
 
 	var cmdErr *tmux.CommandError

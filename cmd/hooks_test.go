@@ -147,7 +147,7 @@ func TestHooksSetCommand(t *testing.T) {
 		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
 		t.Setenv("TMUX_PANE", "%3")
 
-		resolver := &mockKeyResolver{key: "my-session:0.0"}
+		resolver := &mockKeyResolver{key: "aaa111"}
 		hooksDeps = &HooksDeps{KeyResolver: resolver}
 		t.Cleanup(func() { hooksDeps = nil })
 
@@ -160,8 +160,8 @@ func TestHooksSetCommand(t *testing.T) {
 		}
 
 		data := readHooksJSON(t, hooksFile)
-		if data["my-session:0.0"]["on-resume"] != "claude --resume abc123" {
-			t.Errorf("hook command = %q, want %q", data["my-session:0.0"]["on-resume"], "claude --resume abc123")
+		if data["aaa111"]["on-resume"] != "claude --resume abc123" {
+			t.Errorf("hook command = %q, want %q", data["aaa111"]["on-resume"], "claude --resume abc123")
 		}
 	})
 
@@ -171,7 +171,7 @@ func TestHooksSetCommand(t *testing.T) {
 		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
 		t.Setenv("TMUX_PANE", "%99")
 
-		resolver := &mockKeyResolver{key: "proj-xyz:1.2"}
+		resolver := &mockKeyResolver{key: "bbb222"}
 		hooksDeps = &HooksDeps{KeyResolver: resolver}
 		t.Cleanup(func() { hooksDeps = nil })
 
@@ -184,8 +184,8 @@ func TestHooksSetCommand(t *testing.T) {
 		}
 
 		data := readHooksJSON(t, hooksFile)
-		if _, ok := data["proj-xyz:1.2"]; !ok {
-			t.Error("expected hook entry for hook key proj-xyz:1.2, not found")
+		if _, ok := data["bbb222"]; !ok {
+			t.Error("expected hook entry for hook key bbb222, not found")
 		}
 		if _, ok := data["%99"]; ok {
 			t.Error("raw pane ID %99 should not be used as key")
@@ -198,7 +198,7 @@ func TestHooksSetCommand(t *testing.T) {
 		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
 		t.Setenv("TMUX_PANE", "")
 
-		resolver := &mockKeyResolver{key: "unused:0.0"}
+		resolver := &mockKeyResolver{key: "unus00"}
 		hooksDeps = &HooksDeps{KeyResolver: resolver}
 		t.Cleanup(func() { hooksDeps = nil })
 
@@ -225,7 +225,7 @@ func TestHooksSetCommand(t *testing.T) {
 		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
 		t.Setenv("TMUX_PANE", "%3")
 
-		resolver := &mockKeyResolver{key: "my-session:0.0"}
+		resolver := &mockKeyResolver{key: "aaa111"}
 		hooksDeps = &HooksDeps{KeyResolver: resolver}
 		t.Cleanup(func() { hooksDeps = nil })
 
@@ -248,7 +248,7 @@ func TestHooksSetCommand(t *testing.T) {
 		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
 		t.Setenv("TMUX_PANE", "%3")
 
-		resolver := &mockKeyResolver{key: "my-session:0.0"}
+		resolver := &mockKeyResolver{key: "aaa111"}
 		hooksDeps = &HooksDeps{KeyResolver: resolver}
 		t.Cleanup(func() { hooksDeps = nil })
 
@@ -267,8 +267,8 @@ func TestHooksSetCommand(t *testing.T) {
 		}
 
 		data := readHooksJSON(t, hooksFile)
-		if data["my-session:0.0"]["on-resume"] != "new-cmd" {
-			t.Errorf("hook command = %q, want %q", data["my-session:0.0"]["on-resume"], "new-cmd")
+		if data["aaa111"]["on-resume"] != "new-cmd" {
+			t.Errorf("hook command = %q, want %q", data["aaa111"]["on-resume"], "new-cmd")
 		}
 	})
 
@@ -278,7 +278,7 @@ func TestHooksSetCommand(t *testing.T) {
 		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
 		t.Setenv("TMUX_PANE", "%3")
 
-		resolver := &mockKeyResolver{key: "my-session:0.0"}
+		resolver := &mockKeyResolver{key: "aaa111"}
 		hooksDeps = &HooksDeps{KeyResolver: resolver}
 		t.Cleanup(func() { hooksDeps = nil })
 
@@ -295,12 +295,12 @@ func TestHooksSetCommand(t *testing.T) {
 			t.Fatalf("expected 1 entry, got %d", len(data))
 		}
 
-		events, ok := data["my-session:0.0"]
+		events, ok := data["aaa111"]
 		if !ok {
-			t.Fatal("expected entry for hook key my-session:0.0")
+			t.Fatal("expected entry for hook key aaa111")
 		}
 		if len(events) != 1 {
-			t.Fatalf("expected 1 event for my-session:0.0, got %d", len(events))
+			t.Fatalf("expected 1 event for aaa111, got %d", len(events))
 		}
 		if events["on-resume"] != "claude --resume abc123" {
 			t.Errorf("on-resume = %q, want %q", events["on-resume"], "claude --resume abc123")
@@ -340,7 +340,7 @@ func TestHooksSetCommand(t *testing.T) {
 		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
 		t.Setenv("TMUX_PANE", "%3")
 
-		resolver := &mockKeyResolver{key: "tok123:0.0"}
+		resolver := &mockKeyResolver{key: "tok123"}
 		hooksDeps = &HooksDeps{KeyResolver: resolver}
 		t.Cleanup(func() { hooksDeps = nil })
 
@@ -352,8 +352,8 @@ func TestHooksSetCommand(t *testing.T) {
 		}
 
 		data := readHooksJSON(t, hooksFile)
-		if data["tok123:0.0"]["on-resume"] != "claude --resume abc123" {
-			t.Errorf("hook command = %q, want %q", data["tok123:0.0"]["on-resume"], "claude --resume abc123")
+		if data["tok123"]["on-resume"] != "claude --resume abc123" {
+			t.Errorf("hook command = %q, want %q", data["tok123"]["on-resume"], "claude --resume abc123")
 		}
 	})
 
@@ -363,7 +363,7 @@ func TestHooksSetCommand(t *testing.T) {
 		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
 		t.Setenv("TMUX_PANE", "")
 
-		resolver := &mockKeyResolver{key: "unused:0.0"}
+		resolver := &mockKeyResolver{key: "unus00"}
 		hooksDeps = &HooksDeps{KeyResolver: resolver}
 		t.Cleanup(func() { hooksDeps = nil })
 
@@ -390,10 +390,10 @@ func TestHooksRmCommand(t *testing.T) {
 		t.Setenv("TMUX_PANE", "%3")
 
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{
-			"my-session:0.0": {"on-resume": "claude --resume abc123"},
+			"aaa111": {"on-resume": "claude --resume abc123"},
 		})
 
-		resolver := &mockKeyResolver{key: "my-session:0.0"}
+		resolver := &mockKeyResolver{key: "aaa111"}
 		hooksDeps = &HooksDeps{KeyResolver: resolver}
 		t.Cleanup(func() { hooksDeps = nil })
 
@@ -406,8 +406,8 @@ func TestHooksRmCommand(t *testing.T) {
 		}
 
 		data := readHooksJSON(t, hooksFile)
-		if _, ok := data["my-session:0.0"]; ok {
-			t.Error("expected hook key my-session:0.0 entry to be removed from hooks file")
+		if _, ok := data["aaa111"]; ok {
+			t.Error("expected hook key aaa111 entry to be removed from hooks file")
 		}
 	})
 
@@ -418,10 +418,10 @@ func TestHooksRmCommand(t *testing.T) {
 		t.Setenv("TMUX_PANE", "%42")
 
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{
-			"proj-xyz:1.2": {"on-resume": "some-cmd"},
+			"bbb222": {"on-resume": "some-cmd"},
 		})
 
-		resolver := &mockKeyResolver{key: "proj-xyz:1.2"}
+		resolver := &mockKeyResolver{key: "bbb222"}
 		hooksDeps = &HooksDeps{KeyResolver: resolver}
 		t.Cleanup(func() { hooksDeps = nil })
 
@@ -434,8 +434,8 @@ func TestHooksRmCommand(t *testing.T) {
 		}
 
 		data := readHooksJSON(t, hooksFile)
-		if _, ok := data["proj-xyz:1.2"]; ok {
-			t.Error("expected hook key proj-xyz:1.2 entry to be removed")
+		if _, ok := data["bbb222"]; ok {
+			t.Error("expected hook key bbb222 entry to be removed")
 		}
 		if _, ok := data["%42"]; ok {
 			t.Error("raw pane ID %42 should not be used as key")
@@ -448,7 +448,7 @@ func TestHooksRmCommand(t *testing.T) {
 		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
 		t.Setenv("TMUX_PANE", "")
 
-		resolver := &mockKeyResolver{key: "unused:0.0"}
+		resolver := &mockKeyResolver{key: "unus00"}
 		hooksDeps = &HooksDeps{KeyResolver: resolver}
 		t.Cleanup(func() { hooksDeps = nil })
 
@@ -471,7 +471,7 @@ func TestHooksRmCommand(t *testing.T) {
 		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
 		t.Setenv("TMUX_PANE", "%3")
 
-		resolver := &mockKeyResolver{key: "my-session:0.0"}
+		resolver := &mockKeyResolver{key: "aaa111"}
 		hooksDeps = &HooksDeps{KeyResolver: resolver}
 		t.Cleanup(func() { hooksDeps = nil })
 
@@ -496,7 +496,7 @@ func TestHooksRmCommand(t *testing.T) {
 
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{})
 
-		resolver := &mockKeyResolver{key: "some-session:0.0"}
+		resolver := &mockKeyResolver{key: "ccc333"}
 		hooksDeps = &HooksDeps{KeyResolver: resolver}
 		t.Cleanup(func() { hooksDeps = nil })
 
@@ -521,11 +521,11 @@ func TestHooksRmCommand(t *testing.T) {
 		t.Setenv("TMUX_PANE", "%3")
 
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{
-			"my-session:0.0": {"on-resume": "claude --resume abc123"},
+			"aaa111":         {"on-resume": "claude --resume abc123"},
 			"other-proj:0.0": {"on-resume": "npm start"},
 		})
 
-		resolver := &mockKeyResolver{key: "my-session:0.0"}
+		resolver := &mockKeyResolver{key: "aaa111"}
 		hooksDeps = &HooksDeps{KeyResolver: resolver}
 		t.Cleanup(func() { hooksDeps = nil })
 
@@ -539,8 +539,8 @@ func TestHooksRmCommand(t *testing.T) {
 
 		data := readHooksJSON(t, hooksFile)
 
-		if _, ok := data["my-session:0.0"]; ok {
-			t.Error("expected hook key my-session:0.0 to be removed")
+		if _, ok := data["aaa111"]; ok {
+			t.Error("expected hook key aaa111 to be removed")
 		}
 
 		if data["other-proj:0.0"]["on-resume"] != "npm start" {
@@ -555,10 +555,10 @@ func TestHooksRmCommand(t *testing.T) {
 		t.Setenv("TMUX_PANE", "%5")
 
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{
-			"my-session:0.0": {"on-resume": "some-cmd"},
+			"aaa111": {"on-resume": "some-cmd"},
 		})
 
-		resolver := &mockKeyResolver{key: "my-session:0.0"}
+		resolver := &mockKeyResolver{key: "aaa111"}
 		hooksDeps = &HooksDeps{KeyResolver: resolver}
 		t.Cleanup(func() { hooksDeps = nil })
 
@@ -571,8 +571,8 @@ func TestHooksRmCommand(t *testing.T) {
 		}
 
 		data := readHooksJSON(t, hooksFile)
-		if _, ok := data["my-session:0.0"]; ok {
-			t.Error("expected hook key my-session:0.0 to be removed when last event deleted")
+		if _, ok := data["aaa111"]; ok {
+			t.Error("expected hook key aaa111 to be removed when last event deleted")
 		}
 		if len(data) != 0 {
 			t.Errorf("expected empty hooks file, got %d entries", len(data))
@@ -586,7 +586,7 @@ func TestHooksRmCommand(t *testing.T) {
 		t.Setenv("TMUX_PANE", "%3")
 
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{
-			"my-session:0.0": {"on-resume": "some-cmd"},
+			"aaa111": {"on-resume": "some-cmd"},
 		})
 
 		resolver := &mockKeyResolver{err: fmt.Errorf("tmux not responding")}
@@ -606,7 +606,7 @@ func TestHooksRmCommand(t *testing.T) {
 		}
 
 		data := readHooksJSON(t, hooksFile)
-		if _, ok := data["my-session:0.0"]; !ok {
+		if _, ok := data["aaa111"]; !ok {
 			t.Error("hook should not have been removed on resolver failure")
 		}
 	})
@@ -618,7 +618,7 @@ func TestHooksRmCommand(t *testing.T) {
 		t.Setenv("TMUX_PANE", "")
 
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{
-			"sess:0.1":       {"on-resume": "claude --resume xyz"},
+			"eee555":         {"on-resume": "claude --resume xyz"},
 			"other-proj:0.0": {"on-resume": "npm start"},
 		})
 
@@ -631,15 +631,15 @@ func TestHooksRmCommand(t *testing.T) {
 		resetRootCmd()
 		rootCmd.SetOut(new(bytes.Buffer))
 		rootCmd.SetErr(new(bytes.Buffer))
-		rootCmd.SetArgs([]string{"hooks", "rm", "--pane-key", "sess:0.1", "--on-resume"})
+		rootCmd.SetArgs([]string{"hooks", "rm", "--pane-key", "eee555", "--on-resume"})
 		err := rootCmd.Execute()
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
 		data := readHooksJSON(t, hooksFile)
-		if _, ok := data["sess:0.1"]; ok {
-			t.Error("expected sess:0.1 entry to be removed via --pane-key")
+		if _, ok := data["eee555"]; ok {
+			t.Error("expected eee555 entry to be removed via --pane-key")
 		}
 		if data["other-proj:0.0"]["on-resume"] != "npm start" {
 			t.Errorf("other-proj:0.0 on-resume = %q, want %q", data["other-proj:0.0"]["on-resume"], "npm start")
@@ -653,10 +653,10 @@ func TestHooksRmCommand(t *testing.T) {
 		t.Setenv("TMUX_PANE", "%7")
 
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{
-			"resolved-session:0.0": {"on-resume": "some-cmd"},
+			"ddd444": {"on-resume": "some-cmd"},
 		})
 
-		resolver := &mockKeyResolver{key: "resolved-session:0.0"}
+		resolver := &mockKeyResolver{key: "ddd444"}
 		hooksDeps = &HooksDeps{KeyResolver: resolver}
 		t.Cleanup(func() { hooksDeps = nil })
 
@@ -669,8 +669,8 @@ func TestHooksRmCommand(t *testing.T) {
 		}
 
 		data := readHooksJSON(t, hooksFile)
-		if _, ok := data["resolved-session:0.0"]; ok {
-			t.Error("expected resolved-session:0.0 entry to be removed via fallback")
+		if _, ok := data["ddd444"]; ok {
+			t.Error("expected ddd444 entry to be removed via fallback")
 		}
 	})
 
@@ -681,7 +681,7 @@ func TestHooksRmCommand(t *testing.T) {
 		t.Setenv("TMUX_PANE", "")
 
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{
-			"sess:0.1":       {"on-resume": "claude --resume xyz"},
+			"eee555":         {"on-resume": "claude --resume xyz"},
 			"other-proj:0.0": {"on-resume": "npm start"},
 		})
 
@@ -694,14 +694,14 @@ func TestHooksRmCommand(t *testing.T) {
 		resetRootCmd()
 		rootCmd.SetOut(new(bytes.Buffer))
 		rootCmd.SetErr(new(bytes.Buffer))
-		rootCmd.SetArgs([]string{"hooks", "rm", "--pane-key", "sess:0.1", "--on-resume"})
+		rootCmd.SetArgs([]string{"hooks", "rm", "--pane-key", "eee555", "--on-resume"})
 		if err := rootCmd.Execute(); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
 		data := readHooksJSON(t, hooksFile)
-		if _, ok := data["sess:0.1"]; ok {
-			t.Error("expected verbatim key sess:0.1 to be removed via --pane-key")
+		if _, ok := data["eee555"]; ok {
+			t.Error("expected verbatim key eee555 to be removed via --pane-key")
 		}
 		if data["other-proj:0.0"]["on-resume"] != "npm start" {
 			t.Errorf("other-proj:0.0 on-resume = %q, want %q", data["other-proj:0.0"]["on-resume"], "npm start")
@@ -714,7 +714,7 @@ func TestHooksRmCommand(t *testing.T) {
 		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
 		t.Setenv("TMUX_PANE", "")
 
-		resolver := &mockKeyResolver{key: "unused:0.0"}
+		resolver := &mockKeyResolver{key: "unus00"}
 		hooksDeps = &HooksDeps{KeyResolver: resolver}
 		t.Cleanup(func() { hooksDeps = nil })
 
@@ -797,7 +797,7 @@ func TestHookCommandRename(t *testing.T) {
 		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
 		t.Setenv("TMUX_PANE", "%3")
 
-		resolver := &mockKeyResolver{key: "my-session:0.0"}
+		resolver := &mockKeyResolver{key: "aaa111"}
 		hooksDeps = &HooksDeps{KeyResolver: resolver}
 		t.Cleanup(func() { hooksDeps = nil })
 
@@ -809,8 +809,8 @@ func TestHookCommandRename(t *testing.T) {
 		}
 
 		data := readHooksJSON(t, hooksFile)
-		if data["my-session:0.0"]["on-resume"] != "claude --resume abc123" {
-			t.Errorf("hook command = %q, want %q", data["my-session:0.0"]["on-resume"], "claude --resume abc123")
+		if data["aaa111"]["on-resume"] != "claude --resume abc123" {
+			t.Errorf("hook command = %q, want %q", data["aaa111"]["on-resume"], "claude --resume abc123")
 		}
 	})
 }
