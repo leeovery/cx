@@ -10,7 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/tmux"
 )
 
@@ -84,7 +83,7 @@ func TestHydrateReplayedLog_BytesEqualsCopyCountForPopulatedFile(t *testing.T) {
 
 	// Read as a structured int attr: the rendered bytes=N is indistinguishable
 	// from a stringified count.
-	rec := scrollbackReplayedRecord(t, sink)
+	rec := hydrateRecord(t, sink, "scrollback replayed")
 	if got := rec.IntAttr(t, "bytes"); got != int64(len(payload)) {
 		t.Errorf("bytes attr = %d, want %d", got, len(payload))
 	}
@@ -138,25 +137,6 @@ func TestHydrateReplayedLog_FiveMegabyteFileReportsExactByteCount(t *testing.T) 
 	}
 }
 
-// scrollbackReplayedRecord returns the single hydrate "scrollback replayed"
-// record. The structured form is what lets a test assert the took attr's Kind,
-// which substring rendering cannot distinguish from a stringified duration.
-func scrollbackReplayedRecord(t *testing.T, sink *logtest.Sink) logtest.Record {
-	t.Helper()
-	var out []logtest.Record
-	for _, r := range sink.Records() {
-		comp, ok := r.Attrs["component"]
-		if !ok || comp.String() != "hydrate" || r.Msg != "scrollback replayed" {
-			continue
-		}
-		out = append(out, r)
-	}
-	if len(out) != 1 {
-		t.Fatalf("expected exactly 1 hydrate: scrollback replayed record, got %d: %+v", len(out), sink.Records())
-	}
-	return out[0]
-}
-
 func TestHydrateReplayedLog_TookIsDurationAcrossReplayNotSettleSleep(t *testing.T) {
 	dir := t.TempDir()
 	fifo := makeFIFO(t, dir, "hydrate-dur__0.0.fifo")
@@ -174,7 +154,7 @@ func TestHydrateReplayedLog_TookIsDurationAcrossReplayNotSettleSleep(t *testing.
 		t.Fatalf("runHydrate: %v", err)
 	}
 
-	rec := scrollbackReplayedRecord(t, sink)
+	rec := hydrateRecord(t, sink, "scrollback replayed")
 	took, ok := rec.Attrs["took"]
 	if !ok {
 		t.Fatalf("scrollback replayed record missing took attr: %+v", rec.Attrs)

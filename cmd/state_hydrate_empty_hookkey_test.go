@@ -9,7 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/tmux"
 )
 
@@ -157,7 +156,7 @@ func TestHydrateTimeoutLog_EmptyHookKeyRendersEmpty(t *testing.T) {
 			t.Fatalf("runHydrate: %v", err)
 		}
 
-		rec := hydrateWarnRecord(t, sink, "timeout waiting for hydrate signal")
+		rec := hydrateRecord(t, sink, "timeout waiting for hydrate signal")
 		hookKey, ok := rec.Attrs["hook_key"]
 		if !ok {
 			t.Fatalf("timeout WARN missing hook_key attr: %+v", rec.Attrs)
@@ -166,19 +165,4 @@ func TestHydrateTimeoutLog_EmptyHookKeyRendersEmpty(t *testing.T) {
 			t.Errorf("hook_key = %q, want empty", hookKey.String())
 		}
 	})
-}
-
-func hydrateWarnRecord(t *testing.T, sink *logtest.Sink, msg string) logtest.Record {
-	t.Helper()
-	var out []logtest.Record
-	for _, r := range sink.Records() {
-		if comp, ok := r.Attrs["component"]; !ok || comp.String() != "hydrate" || r.Msg != msg {
-			continue
-		}
-		out = append(out, r)
-	}
-	if len(out) != 1 {
-		t.Fatalf("expected exactly 1 hydrate %q record, got %d: %+v", msg, len(out), sink.Records())
-	}
-	return out[0]
 }

@@ -179,7 +179,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 3,
-          "current_task": "resume-hooks-silently-lost-3-5",
+          "current_task": "resume-hooks-silently-lost-3-6",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -499,6 +499,18 @@
               "files": [
                 "internal/hooks/lookup_test.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-3-6",
+              "summary": "Four hand-rolled (component,msg) exactly-one-record sink filters remain across three packages; internal/logtest is the natural home",
+              "detail": "cmd/bootstrap/clean_sweep_summary_test.go:18 and internal/state/fifo_sweep_summary_test.go:19 are byte-for-byte the same summariesFor(comp,msg) + onlySummary(t,comp,msg) pair; cmd/state_daemon_cycle_summary_test.go:21 is the same body with capture/tick-complete hardcoded; cmd/state_hydrate_test.go:51 (task 3-6 survivor) is the same filter with hydrate hardcoded. internal/logtest already owns OnlyRecord and RecordsAtLevel (internal/logtest/capture.go:162,172), so RecordsWith(component,msg) / OnlyRecordWith(t,component,msg) would subsume all four. Crosses three packages and changes a shared test-helper API task 3-6 does not own.",
+              "files": [
+                "internal/logtest/capture.go",
+                "cmd/state_hydrate_test.go",
+                "cmd/state_daemon_cycle_summary_test.go",
+                "cmd/bootstrap/clean_sweep_summary_test.go",
+                "internal/state/fifo_sweep_summary_test.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -529,7 +541,8 @@
             "resume-hooks-silently-lost-3-2",
             "resume-hooks-silently-lost-3-3",
             "resume-hooks-silently-lost-3-4",
-            "resume-hooks-silently-lost-3-5"
+            "resume-hooks-silently-lost-3-5",
+            "resume-hooks-silently-lost-3-6"
           ],
           "staging": {
             "p1": {

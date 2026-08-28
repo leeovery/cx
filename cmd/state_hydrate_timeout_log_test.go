@@ -10,28 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/tmux"
 )
-
-// signalTimeoutRecord works on records rather than rendered text because
-// substring matching cannot distinguish a slog.KindDuration attr from a
-// stringified one.
-func signalTimeoutRecord(t *testing.T, sink *logtest.Sink) logtest.Record {
-	t.Helper()
-	var out []logtest.Record
-	for _, r := range sink.Records() {
-		comp, ok := r.Attrs["component"]
-		if !ok || comp.String() != "hydrate" || r.Msg != "signal timeout" {
-			continue
-		}
-		out = append(out, r)
-	}
-	if len(out) != 1 {
-		t.Fatalf("expected exactly 1 hydrate: signal timeout record, got %d: %+v", len(out), sink.Records())
-	}
-	return out[0]
-}
 
 func TestHydrateTimeoutLog_EmitsSignalTimeoutTookOnTimeoutPath(t *testing.T) {
 	dir := t.TempDir()
@@ -61,7 +41,7 @@ func TestHydrateTimeoutLog_TookAttrIsDurationNotString(t *testing.T) {
 		t.Fatalf("runHydrate: %v", err)
 	}
 
-	rec := signalTimeoutRecord(t, sink)
+	rec := hydrateRecord(t, sink, "signal timeout")
 	took, ok := rec.Attrs["took"]
 	if !ok {
 		t.Fatalf("signal timeout record missing took attr: %+v", rec.Attrs)
