@@ -477,6 +477,48 @@
                 "internal/session/panetoken.go",
                 "internal/hooks/store.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-3-5",
+              "summary": "Four integration tests exec portal state hydrate from the ambient PATH instead of staging a binary",
+              "detail": "internal/restore/integration_test.go (TestPhase3Integration_SaveRestoreRoundTrip, TestPhase3Integration_RestoreUsesLiveIndicesUnderBaseIndexDrift) and cmd/bootstrap/phase5_integration_test.go:106 / cmd/bootstrap/phase5_marker_suppression_integration_test.go:58 drive a real restore whose panes respawn into portal state hydrate, but never call restoretest.BuildPortalBinaryDir + PrependPATH. They pass or fail on whatever portal the developer has installed, and today fail with the misleading expected-alpha-in-list-sessions message. The fix is one shared prologue across four files in two packages, outside this task surface.",
+              "files": [
+                "internal/restore/integration_test.go",
+                "cmd/bootstrap/phase5_integration_test.go",
+                "cmd/bootstrap/phase5_marker_suppression_integration_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-3-5",
+              "summary": "The restore-under-marker bracket is written twice, in two packages that cannot share a test file",
+              "detail": "restoreUnderMarker (cmd/noncontiguous_window_reboot_integration_test.go:394-403) duplicates restoreWithMarker (internal/restore/integration_test.go:17-29) — same set/restore/unset of @portal-restoring around o.Restore(). internal/restoretest is the natural home (both callers already import it) and would also be the place for the hydrate-and-await trio these reboot tests repeat.",
+              "files": [
+                "cmd/noncontiguous_window_reboot_integration_test.go",
+                "internal/restore/integration_test.go",
+                "internal/restoretest/restoretest.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-3-5",
+              "summary": "tmux.PaneTarget doc comment forbids what ~15 test call sites do",
+              "detail": "internal/tmux/tmux.go:404-405 states anything issuing a tmux -t flag must use PaneTargetExact, yet tmuxtest.StampPaneToken (internal/tmuxtest/stamp.go:13) issues set-option -p -t <target> and every caller passes the non-exact PaneTarget — cmd/rename_restore_cleanup_survival_integration_test.go:40, cmd/bootstrap/reboot_roundtrip_test.go:106, internal/restore/multipane_legacy_integration_test.go:81-82, internal/restore/rename_reboot_hook_integration_test.go:107, and cmd/noncontiguous_window_reboot_integration_test.go:287. Either the doc comment is over-broad (the exact-match hazard is session-name prefix matching, which single-session fixtures cannot hit) or the call sites are wrong. Both readings cannot be right, and the next reviewer hits the same ambiguity.",
+              "files": [
+                "internal/tmux/tmux.go",
+                "internal/tmuxtest/stamp.go",
+                "cmd/rename_restore_cleanup_survival_integration_test.go",
+                "cmd/bootstrap/reboot_roundtrip_test.go",
+                "internal/restore/multipane_legacy_integration_test.go",
+                "internal/restore/rename_reboot_hook_integration_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-3-5",
+              "pre_existing": true,
+              "summary": "Session-level -t targets in the tmux client that bypass the package own exactness rule",
+              "detail": "internal/tmux/tmux.go:419 states every session-level -t target must route through PaneTargetExact, and :412 repeats it, but seven sites pass a bare session name: :259 (display-message), :315 (set-option), :426 (ListPanesInSession), :483, :534, :555 (show-environment), :756 (set-environment). tmux prefix-matches session names, so list-panes -s -t foo resolves to a live foo-2 once foo is gone — the same class the exactTarget helper was introduced to close on the kill path. Pre-existing; no effect on the 3-5 test, whose server holds one user session.",
+              "files": [
+                "internal/tmux/tmux.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -506,7 +548,8 @@
             "resume-hooks-silently-lost-3-1",
             "resume-hooks-silently-lost-3-2",
             "resume-hooks-silently-lost-3-3",
-            "resume-hooks-silently-lost-3-4"
+            "resume-hooks-silently-lost-3-4",
+            "resume-hooks-silently-lost-3-5"
           ],
           "staging": {
             "p1": {
