@@ -174,7 +174,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 2,
-          "current_task": "resume-hooks-silently-lost-2-8",
+          "current_task": "resume-hooks-silently-lost-2-9",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -318,6 +318,39 @@
                 "cmd/state_daemon_hook_cleanup_integration_test.go",
                 "internal/portaltest/teardown_guard.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-2-8",
+              "source": "executor",
+              "summary": "stubAllPaneLister is the last piece of the hook-sweep seam vocabulary still sited with a single consumer.",
+              "detail": "cmd/bootstrap_production_test.go:101-115 declares stubAllPaneLister, an AllPaneLister fake structurally identical to recordingHookKeyLister (now in cmd/hookkey_vocabulary_test.go:62) minus the call counter, and it reaches cross-file for restoringOption. It is used 3 times in its own file and 19 times in cmd/run_hook_stale_cleanup_test.go. Moving it — or collapsing the two fakes into one — belongs with whatever next consolidates the sweep seam fakes.",
+              "files": [
+                "cmd/bootstrap_production_test.go",
+                "cmd/run_hook_stale_cleanup_test.go",
+                "cmd/hookkey_vocabulary_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-2-8",
+              "source": "reviewer",
+              "summary": "Package cmd now holds two helper-only test files that want to be one.",
+              "detail": "cmd/testhelpers_test.go (writeHooksJSON, readHooksJSON) and the new cmd/hookkey_vocabulary_test.go (seed vocabulary, row builders, restoringOption, recordingHookKeyLister) are both shared-helper homes with no source file behind them. Task 2-9 already plans to move hooksFileInTempDir/runHookSet from cmd/hooks_pane_token_test.go:37-51 into cmd/testhelpers_test.go — that pass should decide whether cmd ends with one helper file or a deliberate two, rather than accreting a third.",
+              "files": [
+                "cmd/testhelpers_test.go",
+                "cmd/hookkey_vocabulary_test.go",
+                "cmd/hooks_pane_token_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-2-8",
+              "source": "reviewer",
+              "summary": "Two package-level names in package cmd now hold one key value.",
+              "detail": "renameRestoreToken (cmd/rename_restore_cleanup_survival_integration_test.go:21) and reapableSeedB (cmd/hookkey_vocabulary_test.go:15) are both ReapableHookKey(1) and both package-scope in package cmd. Nothing composes them today, so it is latent rather than live. Same for liveKey at cleanstale_transient_listpanes_doctorfix_integration_test.go:99. The end state is those two in-package fixtures reaching the vocabulary directly (reapableSeedB / a new liveSeed*) rather than re-deriving the index. The task text prescribed ReapableHookKey(n) literally, so the executor is correct as delivered; closing this touches the seed vocabulary that other phases re-point.",
+              "files": [
+                "cmd/rename_restore_cleanup_survival_integration_test.go",
+                "cmd/cleanstale_transient_listpanes_doctorfix_integration_test.go",
+                "cmd/hookkey_vocabulary_test.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -338,7 +371,8 @@
             "resume-hooks-silently-lost-2-4",
             "resume-hooks-silently-lost-2-5",
             "resume-hooks-silently-lost-2-6",
-            "resume-hooks-silently-lost-2-7"
+            "resume-hooks-silently-lost-2-7",
+            "resume-hooks-silently-lost-2-8"
           ],
           "staging": {
             "p1": {

@@ -10,14 +10,15 @@ import (
 	"github.com/leeovery/portal/internal/transienttest"
 )
 
-// The pane token is stamped once and read back after the session is renamed:
-// the key a restored hook was registered under must still name a live pane, or
-// the sweep reaps it the way the mutable session name used to let it.
 const (
-	renameRestoreToken   = "tokrst"
 	renameRestoreName    = "renamedst"
 	renameRestoreNewName = "renamedst2"
 )
+
+// The pane token is stamped once and read back after the session is renamed:
+// the key a restored hook was registered under must still name a live pane, or
+// the sweep reaps it the way the mutable session name used to let it.
+var renameRestoreToken = transienttest.ReapableHookKey(1)
 
 func TestRenameRestoreCleanupSurvival_KeepsRestoredTokenKeyedHook(t *testing.T) {
 	if testing.Short() {

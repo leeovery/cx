@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -107,25 +106,6 @@ type stubAllPaneLister struct {
 
 func (s *stubAllPaneLister) ListAllPaneHookKeys() ([]tmux.PaneHookRow, error) {
 	return s.rows, s.err
-}
-
-// tokenRows models the enumeration's answer for stamped panes, and
-// unstampedRows for panes carrying no token. The location half is display-only,
-// so these fabricate a distinct one per row rather than asserting on it.
-func tokenRows(tokens ...string) []tmux.PaneHookRow {
-	rows := make([]tmux.PaneHookRow, 0, len(tokens))
-	for i, token := range tokens {
-		rows = append(rows, tmux.PaneHookRow{Token: token, Location: fmt.Sprintf("stamped%d:0.0", i)})
-	}
-	return rows
-}
-
-func unstampedRows(n int) []tmux.PaneHookRow {
-	rows := make([]tmux.PaneHookRow, 0, n)
-	for i := range n {
-		rows = append(rows, tmux.PaneHookRow{Location: fmt.Sprintf("bare%d:0.0", i)})
-	}
-	return rows
 }
 
 func (s *stubAllPaneLister) TryGetServerOption(string) (string, bool, error) {

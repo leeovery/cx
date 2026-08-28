@@ -96,7 +96,7 @@ func TestDoctorFix_TmuxTransient_DoesNotWipeHooks(t *testing.T) {
 		}
 		// The entry must survive because its pane is live, so the pane carries a
 		// token-shaped key the reaper can judge.
-		const liveKey = "livetk"
+		liveKey := transienttest.ReapableHookKey(1)
 		sock.StampPaneToken(t, "live:0.0", liveKey)
 
 		staleKey := transienttest.ReapableHookKey(0)

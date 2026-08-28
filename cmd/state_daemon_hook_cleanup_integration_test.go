@@ -39,15 +39,17 @@ const (
 	preIntervalSafetyCeiling = hookCleanupIntervalMirror - 2*time.Second
 
 	liveWorkSession = "work"
+)
+
+var (
+	// staleHookKey has no matching live pane on the test server, and its token
+	// shape is one the reaper can judge, so it is genuinely reapable.
+	staleHookKey = transienttest.ReapableHookKey(0)
 
 	// liveHookToken is token-shaped, so an entry keyed on it survives because
 	// its pane is live rather than because the reaper cannot judge the key.
-	liveHookToken = "livetk"
+	liveHookToken = transienttest.ReapableHookKey(1)
 )
-
-// staleHookKey has no matching live pane on the test server, and its token
-// shape is one the reaper can judge, so it is genuinely reapable.
-var staleHookKey = transienttest.ReapableHookKey(0)
 
 func TestDaemon_ThrottledHookCleanup_ReapsStaleRetainsLiveOnIdleServer(t *testing.T) {
 	tmuxtest.SkipIfNoTmux(t)

@@ -16,61 +16,7 @@ import (
 	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/state"
-	"github.com/leeovery/portal/internal/tmux"
-	"github.com/leeovery/portal/internal/transienttest"
 )
-
-// The hook-key seed vocabulary the cmd suites share: a reapable key is one the
-// staleness rule can judge, so it is swept once absent from the live set; an
-// unjudgeable key is retained whatever the live set says.
-var (
-	reapableSeedA = transienttest.ReapableHookKey(0)
-	reapableSeedB = transienttest.ReapableHookKey(1)
-	reapableSeedC = transienttest.ReapableHookKey(2)
-	reapableSeedD = transienttest.ReapableHookKey(3)
-
-	unjudgeableSeedA = transienttest.UnjudgeableHookKey(0)
-	unjudgeableSeedB = transienttest.UnjudgeableHookKey(1)
-
-	// The live half of the vocabulary: token-shaped keys the enumeration
-	// reports, so an entry under one is preserved because its pane is live and
-	// not because the reaper cannot judge its shape.
-	liveSeedA = transienttest.ReapableHookKey(4)
-	liveSeedB = transienttest.ReapableHookKey(5)
-	liveSeedC = transienttest.ReapableHookKey(6)
-)
-
-// restoringOption models the @portal-restoring read for the sweep's seam fakes:
-// absent by default, so a fake that says nothing about a restore is not
-// restoring.
-func restoringOption(restoring bool, readErr error) (string, bool, error) {
-	if readErr != nil {
-		return "", false, readErr
-	}
-	if !restoring {
-		return "", false, nil
-	}
-	return "1", true, nil
-}
-
-type recordingHookKeyLister struct {
-	rows         []tmux.PaneHookRow
-	err          error
-	hookKeyCalls int
-	restoring    bool
-	restoringErr error
-}
-
-func (r *recordingHookKeyLister) ListAllPaneHookKeys() ([]tmux.PaneHookRow, error) {
-	r.hookKeyCalls++
-	return r.rows, r.err
-}
-
-func (r *recordingHookKeyLister) TryGetServerOption(string) (string, bool, error) {
-	return restoringOption(r.restoring, r.restoringErr)
-}
-
-var _ AllPaneLister = (*recordingHookKeyLister)(nil)
 
 func TestRunHookStaleCleanup(t *testing.T) {
 	const entryDebugFmt = "stale-hook cleanup counts"
@@ -785,8 +731,8 @@ func TestHookSweepGuardCountsPaneRowsNotTokens(t *testing.T) {
 	t.Run("it does not fire the mass-deletion guard when no pane is stamped", func(t *testing.T) {
 		seed := fmt.Sprintf(`{
   %q: {"on-resume": "cmd-old"},
-  "live:0.0": {"on-resume": "cmd-live"}
-}`, unjudgeableSeedA)
+  %q: {"on-resume": "cmd-live"}
+}`, unjudgeableSeedA, unjudgeableSeedB)
 		store, path := newTempHooksStore(t, seed)
 		before := readFileBytes(t, path)
 
@@ -862,7 +808,7 @@ func TestHookSweepGuardCountsPaneRowsNotTokens(t *testing.T) {
 	})
 
 	t.Run("it counts the rows, not the tokens, on the counts line", func(t *testing.T) {
-		store, _ := newTempHooksStore(t, `{"live:0.0": {"on-resume": "cmd-live"}}`)
+		store, _ := newTempHooksStore(t, fmt.Sprintf(`{%q: {"on-resume": "cmd-live"}}`, unjudgeableSeedB))
 
 		logger := &recordingLogger{}
 		lister := &stubAllPaneLister{rows: unstampedRows(4)}
