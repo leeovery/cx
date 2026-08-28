@@ -413,17 +413,6 @@ func PaneTargetExact(session string, window, pane int) string {
 	return fmt.Sprintf("=%s:%d.%d", session, window, pane)
 }
 
-// HookKey formats the positional hook key restore bakes from saved state,
-// preferring the session's immutable id over its renameable name. Both inputs
-// are used verbatim, and the format must stay stable: changing it silently
-// invalidates every entry already written under it.
-func HookKey(portalID, name string, window, pane int) string {
-	if portalID != "" {
-		return fmt.Sprintf("%s:%d.%d", portalID, window, pane)
-	}
-	return fmt.Sprintf("%s:%d.%d", name, window, pane)
-}
-
 // Every session-level `-t` target must route through here. tmux otherwise
 // prefix-matches, so `-t foo` silently resolves to a live "foo-2" once "foo"
 // is gone — on the kill path, that destroys the wrong session with no error.

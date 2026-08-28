@@ -18,22 +18,13 @@ func (m *mockSessionChecker) HasSession(name string) bool {
 	return m.existingSessions[name]
 }
 
-// wantExecArgs builds the expected tmux exec chain. An empty token drops the
-// @portal-id step.
-func wantExecArgs(name, dir, shellCmd, token string) []string {
+func wantExecArgs(name, dir, shellCmd string) []string {
 	args := []string{"tmux", "new-session", "-d", "-s", name, "-c", dir}
 	if shellCmd != "" {
 		args = append(args, shellCmd)
 	}
-	args = append(args,
-		";", "set-option", "-t", name, session.PortalDirOption, dir,
-	)
-	if token != "" {
-		args = append(args,
-			";", "set-option", "-t", name, session.PortalIDOption, token,
-		)
-	}
 	return append(args,
+		";", "set-option", "-t", name, session.PortalDirOption, dir,
 		";", "attach-session", "-t", name,
 	)
 }
@@ -62,7 +53,7 @@ func TestQuickStart(t *testing.T) {
 		}
 
 		wantSessionName := filepath.Base(gitRoot) + "-abc123"
-		wantArgs := wantExecArgs(wantSessionName, gitRoot, "", "abc123")
+		wantArgs := wantExecArgs(wantSessionName, gitRoot, "")
 		if !reflect.DeepEqual(result.ExecArgs, wantArgs) {
 			t.Fatalf("result.ExecArgs = %v, want %v", result.ExecArgs, wantArgs)
 		}
@@ -96,7 +87,7 @@ func TestQuickStart(t *testing.T) {
 		}
 	})
 
-	t.Run("interpolates the @portal-id token as a literal set-option step in the exec chain", func(t *testing.T) {
+	t.Run("it emits no legacy session-id link in the QuickStart ExecArgs", func(t *testing.T) {
 		gitRoot := t.TempDir()
 		gitResolver := &mockGitResolver{resolvedDir: gitRoot}
 		store := &mockProjectStore{}
@@ -110,34 +101,18 @@ func TestQuickStart(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		wantSessionName := filepath.Base(gitRoot) + "-abc123"
-		assertContainsSubseq(t, result.ExecArgs, []string{
-			"set-option", "-t", wantSessionName, session.PortalIDOption, "abc123",
-		})
-	})
-
-	t.Run("orders the @portal-id stamp before attach-session", func(t *testing.T) {
-		gitRoot := t.TempDir()
-		gitResolver := &mockGitResolver{resolvedDir: gitRoot}
-		store := &mockProjectStore{}
-		checker := &mockSessionChecker{existingSessions: map[string]bool{}}
-		gen := func() (string, error) { return "abc123", nil }
-
-		qs := session.NewQuickStart(gitResolver, store, checker, gen)
-
-		result, err := qs.Run(gitRoot, nil)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		name := filepath.Base(gitRoot) + "-abc123"
+		want := []string{
+			"tmux", "new-session", "-d", "-s", name, "-c", gitRoot,
+			";", "set-option", "-t", name, session.PortalDirOption, gitRoot,
+			";", "attach-session", "-t", name,
 		}
-
-		idIdx := indexOfSubseq(result.ExecArgs, []string{session.PortalIDOption})
-		attachIdx := indexOf(result.ExecArgs, "attach-session")
-		if idIdx < 0 || attachIdx < 0 || idIdx >= attachIdx {
-			t.Errorf("@portal-id stamp (%d) must precede attach-session (%d) in %v", idIdx, attachIdx, result.ExecArgs)
+		if !reflect.DeepEqual(result.ExecArgs, want) {
+			t.Fatalf("result.ExecArgs = %v, want %v", result.ExecArgs, want)
 		}
 	})
 
-	t.Run("orders the @portal-id stamp after the @portal-dir stamp", func(t *testing.T) {
+	t.Run("it keeps @portal-dir before attach-session in the ExecArgs chain", func(t *testing.T) {
 		gitRoot := t.TempDir()
 		gitResolver := &mockGitResolver{resolvedDir: gitRoot}
 		store := &mockProjectStore{}
@@ -152,44 +127,9 @@ func TestQuickStart(t *testing.T) {
 		}
 
 		dirIdx := indexOfSubseq(result.ExecArgs, []string{session.PortalDirOption})
-		idIdx := indexOfSubseq(result.ExecArgs, []string{session.PortalIDOption})
-		if dirIdx < 0 || idIdx < 0 || dirIdx >= idIdx {
-			t.Errorf("@portal-dir stamp (%d) must precede @portal-id stamp (%d) in %v", dirIdx, idIdx, result.ExecArgs)
-		}
-	})
-
-	t.Run("omits the @portal-id step when stamp-time token generation fails", func(t *testing.T) {
-		// gen is called twice: once for the name suffix, once for the stamp token.
-		// Only the second call fails here.
-		gitRoot := t.TempDir()
-		gitResolver := &mockGitResolver{resolvedDir: gitRoot}
-		store := &mockProjectStore{}
-		checker := &mockSessionChecker{existingSessions: map[string]bool{}}
-
-		calls := 0
-		gen := func() (string, error) {
-			calls++
-			if calls == 1 {
-				return "abc123", nil
-			}
-			return "", fmt.Errorf("stamp token generation failed")
-		}
-
-		qs := session.NewQuickStart(gitResolver, store, checker, gen)
-
-		result, err := qs.Run(gitRoot, nil)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		if indexOfSubseq(result.ExecArgs, []string{session.PortalIDOption}) >= 0 {
-			t.Errorf("ExecArgs must not contain a @portal-id step when stamp generation fails: %v", result.ExecArgs)
-		}
-
-		wantSessionName := filepath.Base(gitRoot) + "-abc123"
-		wantArgs := wantExecArgs(wantSessionName, gitRoot, "", "")
-		if !reflect.DeepEqual(result.ExecArgs, wantArgs) {
-			t.Fatalf("result.ExecArgs = %v, want %v", result.ExecArgs, wantArgs)
+		attachIdx := indexOf(result.ExecArgs, "attach-session")
+		if dirIdx < 0 || attachIdx < 0 || dirIdx >= attachIdx {
+			t.Errorf("@portal-dir stamp (%d) must precede attach-session (%d) in %v", dirIdx, attachIdx, result.ExecArgs)
 		}
 	})
 
@@ -284,7 +224,7 @@ func TestQuickStart(t *testing.T) {
 			t.Errorf("result.SessionName = %q, want %q", result.SessionName, wantSessionName)
 		}
 
-		wantArgs := wantExecArgs(wantSessionName, dir, "", "abc123")
+		wantArgs := wantExecArgs(wantSessionName, dir, "")
 		if !reflect.DeepEqual(result.ExecArgs, wantArgs) {
 			t.Fatalf("result.ExecArgs = %v, want %v", result.ExecArgs, wantArgs)
 		}
@@ -352,7 +292,7 @@ func TestQuickStart(t *testing.T) {
 
 		wantSessionName := filepath.Base(dir) + "-abc123"
 		shellCmd := "/bin/zsh -ic 'claude --resume; exec /bin/zsh'"
-		wantArgs := wantExecArgs(wantSessionName, dir, shellCmd, "abc123")
+		wantArgs := wantExecArgs(wantSessionName, dir, shellCmd)
 		if !reflect.DeepEqual(result.ExecArgs, wantArgs) {
 			t.Fatalf("result.ExecArgs = %v, want %v", result.ExecArgs, wantArgs)
 		}
@@ -377,7 +317,7 @@ func TestQuickStart(t *testing.T) {
 
 		wantSessionName := filepath.Base(dir) + "-abc123"
 		shellCmd := "/usr/local/bin/fish -ic 'vim; exec /usr/local/bin/fish'"
-		wantArgs := wantExecArgs(wantSessionName, dir, shellCmd, "abc123")
+		wantArgs := wantExecArgs(wantSessionName, dir, shellCmd)
 		if !reflect.DeepEqual(result.ExecArgs, wantArgs) {
 			t.Fatalf("result.ExecArgs = %v, want %v", result.ExecArgs, wantArgs)
 		}
@@ -398,7 +338,7 @@ func TestQuickStart(t *testing.T) {
 		}
 
 		wantSessionName := filepath.Base(dir) + "-abc123"
-		wantArgs := wantExecArgs(wantSessionName, dir, "", "abc123")
+		wantArgs := wantExecArgs(wantSessionName, dir, "")
 		if !reflect.DeepEqual(result.ExecArgs, wantArgs) {
 			t.Fatalf("result.ExecArgs = %v, want %v", result.ExecArgs, wantArgs)
 		}

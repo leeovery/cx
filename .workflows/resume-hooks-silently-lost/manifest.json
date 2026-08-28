@@ -174,7 +174,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 3,
-          "current_task": "resume-hooks-silently-lost-3-4",
+          "current_task": "resume-hooks-silently-lost-3-5",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -465,6 +465,18 @@
                 "cmd/state_hydrate_timeout_log_test.go",
                 "cmd/state_hydrate_replayed_log_test.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-3-4",
+              "source": "reviewer",
+              "summary": "CLAUDE.md never describes the shape-aware reaper or internal/session new token surfaces, so the retain-old-format-forever rule is undocumented.",
+              "detail": "Phase 1 made the sweep retain any key that is not token-shaped, and 3-1 added internal/session/panetoken.go (NewPaneToken) and internal/session/tokenshape.go (IsTokenShaped). CLAUDE.md only mention of any of this is NewPaneToken in passing at CLAUDE.md:166; IsTokenShaped, token-shaped and the retention rule appear nowhere, and the session row (CLAUDE.md:64) still describes the package as session-creation-only. The consequence is the dangerous one CLAUDE.md exists to prevent: an old-format entry sitting inert forever reads as cruft to a future agent, who deletes exactly the entries the spec 8.3 safety argument depends on. Out of scope for 3-4 (whose CLAUDE.md criteria are closed over the @portal-id passages, the state row and the Resume-hooks section) and unassigned — phase-1-tasks.md carries no CLAUDE.md acceptance criterion. Tasks 4-2 and 5-1 both already prescribe further edits to the same Resume-hooks paragraph, so this consolidates naturally with them.",
+              "files": [
+                "CLAUDE.md",
+                "internal/session/tokenshape.go",
+                "internal/session/panetoken.go",
+                "internal/hooks/store.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -493,7 +505,8 @@
             "resume-hooks-silently-lost-2-12",
             "resume-hooks-silently-lost-3-1",
             "resume-hooks-silently-lost-3-2",
-            "resume-hooks-silently-lost-3-3"
+            "resume-hooks-silently-lost-3-3",
+            "resume-hooks-silently-lost-3-4"
           ],
           "staging": {
             "p1": {

@@ -10,12 +10,6 @@ import (
 // session maps back to its directory without going through its renameable name.
 const PortalDirOption = "@portal-dir"
 
-// PortalIDOption stamps a session with an immutable opaque token frozen at
-// creation — the identity restore bakes its resume-hook keys from, so a rename
-// cannot orphan them. It cannot be re-derived, so it must be persisted across
-// reboots and re-stamped on restore.
-const PortalIDOption = "@portal-id"
-
 func ShellFromEnv() string {
 	shell := os.Getenv("SHELL")
 	if shell == "" {
@@ -81,15 +75,10 @@ func (sc *SessionCreator) CreateFromDir(dir string, command []string) (string, e
 		return "", fmt.Errorf("failed to create tmux session: %w", err)
 	}
 
-	// Both stamps are best-effort and swallowed: a stamp failure must never fail
+	// The stamp is best-effort and swallowed: a stamp failure must never fail
 	// session creation, and this package has no log component to report it. An
-	// unstamped session falls back to a derived directory and to its name as
-	// identity; the id has no uniqueness check beyond the generator's width.
+	// unstamped session falls back to a derived directory.
 	_ = sc.tmux.SetSessionOption(prepared.SessionName, PortalDirOption, prepared.ResolvedDir)
-
-	if token, genErr := sc.gen(); genErr == nil {
-		_ = sc.tmux.SetSessionOption(prepared.SessionName, PortalIDOption, token)
-	}
 
 	return prepared.SessionName, nil
 }

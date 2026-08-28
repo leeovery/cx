@@ -84,7 +84,7 @@ func TestStateCommandRegistration(t *testing.T) {
 				t.Errorf("portal state --help must not list removed subcommand %q; got %v", removed, listed)
 			}
 		}
-		hidden := []string{"daemon", "notify", "signal-hydrate", "hydrate", "migrate-rename", "commit-now"}
+		hidden := []string{"daemon", "notify", "signal-hydrate", "hydrate", "commit-now"}
 		for _, h := range hidden {
 			if listed[h] {
 				t.Errorf("portal state --help must not list hidden subcommand %q; got %v", h, listed)
@@ -109,7 +109,7 @@ func TestStateCommandRegistration(t *testing.T) {
 		}
 		listed := availableCommandNames(buf.String())
 
-		hidden := []string{"signal-hydrate", "migrate-rename", "hydrate", "notify"}
+		hidden := []string{"signal-hydrate", "hydrate", "notify"}
 		for _, h := range hidden {
 			if listed[h] {
 				t.Errorf("portal --help must not list hidden subcommand %q; got %v", h, listed)
@@ -143,13 +143,12 @@ func TestStateInternalSubcommandsAcceptValidArgv(t *testing.T) {
 		{name: "signal-hydrate with session name", args: []string{"state", "signal-hydrate", "foo"}},
 		{name: "hydrate with all flags", args: []string{"state", "hydrate", "--fifo", "/tmp/f", "--file", "/tmp/s", "--hook-key", "paneTokenA"}},
 		{name: "it accepts a hydrate invocation with no hook-key flag", args: []string{"state", "hydrate", "--fifo", "/tmp/f", "--file", "/tmp/s"}},
-		{name: "migrate-rename with old and new", args: []string{"state", "migrate-rename", "old", "new"}},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// A fresh per-subtest state dir so notify / signal-hydrate / hydrate /
-			// migrate-rename never touch the developer's real state.
+			// A fresh per-subtest state dir so notify / signal-hydrate / hydrate
+			// never touch the developer's real state.
 			t.Setenv("PORTAL_STATE_DIR", t.TempDir())
 			if len(tt.args) >= 2 && tt.args[0] == "state" && tt.args[1] == "daemon" {
 				prev := daemonRunFunc
@@ -237,7 +236,6 @@ var stateChildCommands = []*cobra.Command{
 	stateSignalHydrateCmd,
 	stateNotifyCmd,
 	stateCommitNowCmd,
-	stateMigrateRenameCmd,
 }
 
 func TestStateParentIsHidden(t *testing.T) {
@@ -250,7 +248,10 @@ func TestStateParentIsHidden(t *testing.T) {
 }
 
 func TestStateHiddenSubcommandsAreHidden(t *testing.T) {
-	t.Run("each of the six child command vars is Hidden", func(t *testing.T) {
+	t.Run("it registers exactly five hidden state children", func(t *testing.T) {
+		if len(stateChildCommands) != 5 {
+			t.Fatalf("stateChildCommands has %d entries, want 5", len(stateChildCommands))
+		}
 		for _, c := range stateChildCommands {
 			if !c.Hidden {
 				t.Errorf("state child %q must have Hidden=true", c.Name())
@@ -272,7 +273,7 @@ func TestStateHiddenSubcommandsAreHidden(t *testing.T) {
 }
 
 func TestStateChildrenRemainInvocableByArgv(t *testing.T) {
-	names := []string{"daemon", "hydrate", "signal-hydrate", "notify", "commit-now", "migrate-rename"}
+	names := []string{"daemon", "hydrate", "signal-hydrate", "notify", "commit-now"}
 	for _, name := range names {
 		t.Run(name+" resolves via Find", func(t *testing.T) {
 			resetRootCmd()
@@ -287,8 +288,18 @@ func TestStateChildrenRemainInvocableByArgv(t *testing.T) {
 	}
 }
 
+func TestStateMigrateRenameIsRetired(t *testing.T) {
+	t.Run("it does not resolve portal state migrate-rename", func(t *testing.T) {
+		resetRootCmd()
+		found, _, err := rootCmd.Find([]string{"state", "migrate-rename"})
+		if err == nil && found.Name() == "migrate-rename" {
+			t.Fatal("portal state migrate-rename still resolves; the subcommand must be retired")
+		}
+	})
+}
+
 func TestStateHiddenSubcommandsAbsentFromShellCompletions(t *testing.T) {
-	hidden := []string{"daemon", "notify", "signal-hydrate", "hydrate", "migrate-rename", "commit-now"}
+	hidden := []string{"daemon", "notify", "signal-hydrate", "hydrate", "commit-now"}
 	// The completion boilerplate contains the word "statement(s)", so a bare
 	// substring check for "state" false-positives; \bstate\b matches only a
 	// standalone command entry.

@@ -33,19 +33,15 @@ func NewQuickStart(git GitResolver, store ProjectStore, checker SessionChecker, 
 // returning the argv for a single chained tmux invocation with literal ";"
 // separators. When command is non-empty it is appended to the new-session step.
 //
-// Order is load-bearing: the session is created detached so @portal-dir and
-// @portal-id can be stamped before attach-session blocks the chain. The name is
-// unique upstream, so plain new-session always creates — -A would attach to an
-// existing session immediately and skip the stamps.
+// Order is load-bearing: the session is created detached so @portal-dir can be
+// stamped before attach-session blocks the chain. The name is unique upstream,
+// so plain new-session always creates — -A would attach to an existing session
+// immediately and skip the stamp.
 func (qs *QuickStart) Run(path string, command []string) (*QuickStartResult, error) {
 	prepared, err := PrepareSession(path, command, qs.git, qs.store, qs.checker, qs.gen, qs.shell)
 	if err != nil {
 		return nil, err
 	}
-
-	// Generated here because the argv chain has no error-return point: on failure
-	// the stamp step is simply omitted and the session keeps its name as identity.
-	idToken, idGenErr := qs.gen()
 
 	execArgs := []string{"tmux", "new-session", "-d", "-s", prepared.SessionName, "-c", prepared.ResolvedDir}
 	if prepared.ShellCmd != "" {
@@ -53,13 +49,6 @@ func (qs *QuickStart) Run(path string, command []string) (*QuickStartResult, err
 	}
 	execArgs = append(execArgs,
 		";", "set-option", "-t", prepared.SessionName, PortalDirOption, prepared.ResolvedDir,
-	)
-	if idGenErr == nil && idToken != "" {
-		execArgs = append(execArgs,
-			";", "set-option", "-t", prepared.SessionName, PortalIDOption, idToken,
-		)
-	}
-	execArgs = append(execArgs,
 		";", "attach-session", "-t", prepared.SessionName,
 	)
 
