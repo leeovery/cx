@@ -86,8 +86,7 @@ func TestDaemon_ThrottledHookCleanup_ReapsStaleRetainsLiveOnIdleServer(t *testin
 	sock.Run(t, "new-session", "-d", "-s", liveWorkSession, "sh", "-c", "exec tail -f /dev/null")
 	livePaneTarget := liveWorkSession + ":0.0"
 	sock.StampPaneToken(t, livePaneTarget, liveHookToken)
-	liveHookKey := strings.TrimSpace(sock.Run(t, "display-message",
-		"-p", "-t", livePaneTarget, "#{"+state.PortalPaneIDOption+"}"))
+	liveHookKey := sock.ReadPaneToken(t, livePaneTarget)
 	if liveHookKey != liveHookToken {
 		t.Fatalf("live pane token = %q, want %q (the stamp did not land)", liveHookKey, liveHookToken)
 	}

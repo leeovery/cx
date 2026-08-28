@@ -1,6 +1,7 @@
 package tmuxtest
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/leeovery/portal/internal/state"
@@ -11,4 +12,21 @@ import (
 func (s *Socket) StampPaneToken(t *testing.T, target, token string) {
 	t.Helper()
 	s.Run(t, "set-option", "-p", "-t", target, state.PortalPaneIDOption, token)
+}
+
+// ReadPaneToken reads Portal's pane-token option back off target using raw
+// tmux, reporting "" when the option is unset: an unset pane user-option makes
+// `show-options -p -v` exit non-zero.
+//
+// The read is deliberately `show-options` and not `display-message -F`: on a
+// target no pane answers to, `display-message` exits 0 having fallen back to
+// the session's current pane (the `=` prefix does not change this), so it
+// would hand a fixture another pane's token instead of failing.
+func (s *Socket) ReadPaneToken(t *testing.T, target string) string {
+	t.Helper()
+	out, err := s.TryRun("show-options", "-p", "-t", target, "-v", state.PortalPaneIDOption)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(out)
 }

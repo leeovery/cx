@@ -10,8 +10,6 @@ import (
 	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/restoretest"
 	"github.com/leeovery/portal/internal/state"
-	"github.com/leeovery/portal/internal/tmux"
-	"github.com/leeovery/portal/internal/tmuxtest"
 )
 
 const (
@@ -21,18 +19,6 @@ const (
 
 	rebootScrollback = "\x1b[31mred\x1b[0m\nbefore reboot\n"
 )
-
-// readPaneToken reports "" when the option is unset: an unset pane user-option
-// makes `show-options -p -v` exit non-zero.
-func readPaneToken(t *testing.T, ts *tmuxtest.Socket, sessionName string) string {
-	t.Helper()
-	out, err := ts.TryRun("show-options", "-p", "-t", tmux.PaneTarget(sessionName, 0, 0),
-		"-v", state.PortalPaneIDOption)
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(out)
-}
 
 func capturedPaneToken(t *testing.T, sess state.Session) string {
 	t.Helper()

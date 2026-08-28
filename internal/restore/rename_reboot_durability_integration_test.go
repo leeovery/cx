@@ -92,7 +92,7 @@ func TestRenameRebootHook_DurableAcrossRepeatedReboots(t *testing.T) {
 		t.Fatalf("cycle 2 rebootAndHydrate: %v", err)
 	}
 
-	if liveToken := readPaneToken(t, ts, renameNewName); liveToken != renamePaneToken {
+	if liveToken := ts.ReadPaneToken(t, tmux.PaneTarget(renameNewName, 0, 0)); liveToken != renamePaneToken {
 		t.Errorf("live pane token after the second reboot = %q; want %q (must survive repeated reboots)",
 			liveToken, renamePaneToken)
 	}

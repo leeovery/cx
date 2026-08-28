@@ -179,7 +179,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 3,
-          "current_task": "resume-hooks-silently-lost-3-8",
+          "current_task": "resume-hooks-silently-lost-3-9",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -532,6 +532,14 @@
                 "internal/restoretest/scrollback.go",
                 "internal/restore/rename_reboot_shared_test.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-3-9",
+              "summary": "readHookKey in internal/tmux is a third fixture pane-token read that must NOT be consolidated",
+              "detail": "internal/tmux/hookkey_format_realtmux_test.go:11-15 holds readHookKey, a fixture-level pane-token read via display-message + tmux.HookKeyFormat. It is correctly out of scope for the ReadPaneToken consolidation and must stay as it is: the format read IS its subject under test and is the production mechanism ResolveHookKey uses, so folding it into tmuxtest.ReadPaneToken would stop it testing anything. Recorded so a later consolidation sweep does not mistake it for a fourth copy.",
+              "files": [
+                "internal/tmux/hookkey_format_realtmux_test.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -565,7 +573,8 @@
             "resume-hooks-silently-lost-3-5",
             "resume-hooks-silently-lost-3-6",
             "resume-hooks-silently-lost-3-7",
-            "resume-hooks-silently-lost-3-8"
+            "resume-hooks-silently-lost-3-8",
+            "resume-hooks-silently-lost-3-9"
           ],
           "staging": {
             "p1": {
