@@ -418,7 +418,10 @@ func respawnPaneHookKeys(t *testing.T, calls [][]string) []string {
 		if len(args) != 5 {
 			t.Fatalf("respawn-pane args = %v, want length 5", args)
 		}
-		key, _ := extractHookKey(t, args[4])
+		key, found := extractHookKey(t, args[4])
+		if !found {
+			t.Fatalf("respawn-pane args = %v carry no --hook-key flag", args)
+		}
 		keys = append(keys, key)
 	}
 	return keys
