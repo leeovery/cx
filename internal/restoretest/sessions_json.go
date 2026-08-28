@@ -26,7 +26,7 @@ func SeedSessionsJSONWithSavedAt(t *testing.T, stateDir string, savedAt time.Tim
 	for _, name := range names {
 		sessions = append(sessions, singlePaneSession(name, ""))
 	}
-	writeIndex(t, stateDir, savedAt, sessions)
+	WriteIndex(t, stateDir, state.Index{SavedAt: savedAt, Sessions: sessions})
 }
 
 // SeedSessionsJSONWithPaneTokens writes one single-window/single-pane session
@@ -44,7 +44,7 @@ func SeedSessionsJSONWithPaneTokens(t *testing.T, stateDir string, tokens map[st
 	for _, name := range names {
 		sessions = append(sessions, singlePaneSession(name, tokens[name]))
 	}
-	writeIndex(t, stateDir, time.Time{}, sessions)
+	WriteIndex(t, stateDir, state.Index{Sessions: sessions})
 }
 
 func singlePaneSession(name, paneToken string) state.Session {
@@ -64,9 +64,11 @@ func singlePaneSession(name, paneToken string) state.Session {
 	}
 }
 
-func writeIndex(t *testing.T, stateDir string, savedAt time.Time, sessions []state.Session) {
+// WriteIndex persists idx as sessions.json. It takes the whole index rather
+// than its fields so a caller round-tripping a captured one cannot drop a field
+// on the way through; EncodeIndex canonicalizes, so a zero Version is filled in.
+func WriteIndex(t *testing.T, stateDir string, idx state.Index) {
 	t.Helper()
-	idx := state.Index{SavedAt: savedAt, Sessions: sessions}
 	data, err := state.EncodeIndex(idx)
 	if err != nil {
 		t.Fatalf("EncodeIndex: %v", err)
@@ -74,4 +76,19 @@ func writeIndex(t *testing.T, stateDir string, savedAt time.Time, sessions []sta
 	if err := os.WriteFile(state.SessionsJSON(stateDir), data, 0o600); err != nil {
 		t.Fatalf("write sessions.json: %v", err)
 	}
+}
+
+// FindCapturedSession fails the test naming every session the index does hold,
+// so a miss reads as "captured the wrong thing" rather than a bare index error.
+func FindCapturedSession(t *testing.T, idx state.Index, name string) state.Session {
+	t.Helper()
+	var names []string
+	for _, s := range idx.Sessions {
+		if s.Name == name {
+			return s
+		}
+		names = append(names, s.Name)
+	}
+	t.Fatalf("captured index has no session %q; captured names=%v", name, names)
+	return state.Session{}
 }

@@ -73,7 +73,7 @@ func TestRenameRebootHook_DurableAcrossRepeatedReboots(t *testing.T) {
 	}
 
 	t.Run("it re-persists the pane token on the next capture after restore", func(t *testing.T) {
-		sess := findCapturedSession(t, nextIdx, renameNewName)
+		sess := restoretest.FindCapturedSession(t, nextIdx, renameNewName)
 		if got := capturedPaneToken(t, sess); got != renamePaneToken {
 			t.Fatalf("next capture pane token = %q; want %q (the token must be RE-PERSISTED by the "+
 				"restore re-stamp — an empty one here orphans the hook on the next reboot)",
@@ -86,7 +86,7 @@ func TestRenameRebootHook_DurableAcrossRepeatedReboots(t *testing.T) {
 	// The second cycle is driven from the post-restore capture, not the original
 	// snapshot: that is what makes it a round-trip rather than a replay.
 	persistIndex(t, nextIdx, stateDir)
-	seedScrollback(t, stateDir, renameNewName)
+	restoretest.SeedScrollback(t, stateDir, renameNewName, 0, 0, []byte(rebootScrollback))
 
 	if err := rebootAndHydrate(t, ts, client, stateDir); err != nil {
 		t.Fatalf("cycle 2 rebootAndHydrate: %v", err)
@@ -110,13 +110,13 @@ func captureAndPersist(t *testing.T, client *tmux.Client, stateDir, name, wantPa
 		t.Fatalf("CaptureStructure: %v", err)
 	}
 
-	sess := findCapturedSession(t, idx, name)
+	sess := restoretest.FindCapturedSession(t, idx, name)
 	if got := capturedPaneToken(t, sess); got != wantPaneToken {
 		t.Fatalf("captured session %q pane token = %q; want %q (token must persist under the post-rename name)",
 			name, got, wantPaneToken)
 	}
 
-	seedScrollback(t, stateDir, name)
+	restoretest.SeedScrollback(t, stateDir, name, 0, 0, []byte(rebootScrollback))
 	persistIndex(t, idx, stateDir)
 }
 
@@ -137,7 +137,7 @@ func rebootAndHydrate(t *testing.T, ts *tmuxtest.Socket, client *tmux.Client, st
 		StateDir: stateDir,
 		Logger:   logger,
 	}
-	if err := restoreWithMarker(t, client, o); err != nil {
+	if err := restoretest.RestoreWithMarker(t, client, o); err != nil {
 		return err
 	}
 

@@ -3,7 +3,6 @@
 package restore_test
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -120,29 +119,15 @@ func runRenameRebootFire(t *testing.T, rename func(t *testing.T, ts *tmuxtest.So
 		t.Fatalf("CaptureStructure: %v", err)
 	}
 
-	sess := findCapturedSession(t, idx, renameNewName)
+	sess := restoretest.FindCapturedSession(t, idx, renameNewName)
 	if got := capturedPaneToken(t, sess); got != renamePaneToken {
 		t.Fatalf("captured session %q pane token = %q; want %q (token must persist under the post-rename name)",
 			renameNewName, got, renamePaneToken)
 	}
 	verifyHookKeyed(t, hooksPath, stableKey)
 
-	scrollbackKey := state.SanitizePaneKey(renameNewName, 0, 0)
-	scrollbackPath := state.ScrollbackFile(stateDir, scrollbackKey)
-	if err := os.MkdirAll(filepath.Dir(scrollbackPath), 0o700); err != nil {
-		t.Fatalf("mkdir scrollback dir: %v", err)
-	}
-	if err := os.WriteFile(scrollbackPath, []byte("\x1b[31mred\x1b[0m\nbefore reboot\n"), 0o600); err != nil {
-		t.Fatalf("write fixture scrollback: %v", err)
-	}
-
-	data, err := state.EncodeIndex(idx)
-	if err != nil {
-		t.Fatalf("EncodeIndex: %v", err)
-	}
-	if err := os.WriteFile(state.SessionsJSON(stateDir), data, 0o600); err != nil {
-		t.Fatalf("write sessions.json: %v", err)
-	}
+	restoretest.SeedScrollback(t, stateDir, renameNewName, 0, 0, []byte(rebootScrollback))
+	persistIndex(t, idx, stateDir)
 
 	ts.KillServer()
 	if _, err := ts.TryRun("list-sessions"); err == nil {
@@ -158,7 +143,7 @@ func runRenameRebootFire(t *testing.T, rename func(t *testing.T, ts *tmuxtest.So
 		StateDir: stateDir,
 		Logger:   logger,
 	}
-	if err := restoreWithMarker(t, client, o); err != nil {
+	if err := restoretest.RestoreWithMarker(t, client, o); err != nil {
 		t.Fatalf("restoreWithMarker: %v", err)
 	}
 

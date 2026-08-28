@@ -14,20 +14,6 @@ import (
 	"github.com/leeovery/portal/internal/tmuxtest"
 )
 
-func restoreWithMarker(t *testing.T, client *tmux.Client, o *restore.Orchestrator) error {
-	t.Helper()
-	if err := client.SetServerOption(state.RestoringMarkerName, "1"); err != nil {
-		return err
-	}
-	defer func() {
-		if err := client.UnsetServerOption(state.RestoringMarkerName); err != nil {
-			t.Logf("UnsetServerOption(%s): %v", state.RestoringMarkerName, err)
-		}
-	}()
-	_, err := o.Restore()
-	return err
-}
-
 func TestPhase3Integration_SaveRestoreRoundTrip(t *testing.T) {
 	tmuxtest.SkipIfNoTmux(t)
 
@@ -76,7 +62,7 @@ func TestPhase3Integration_SaveRestoreRoundTrip(t *testing.T) {
 		StateDir: stateDir,
 		Logger:   logger,
 	}
-	if err := restoreWithMarker(t, client, o); err != nil {
+	if err := restoretest.RestoreWithMarker(t, client, o); err != nil {
 		t.Fatalf("restoreWithMarker: %v", err)
 	}
 
@@ -163,7 +149,7 @@ func TestPhase3Integration_CorruptSessionsJSON(t *testing.T) {
 		StateDir: stateDir,
 		Logger:   logger,
 	}
-	rwmErr := restoreWithMarker(t, client, o)
+	rwmErr := restoretest.RestoreWithMarker(t, client, o)
 	if rwmErr == nil {
 		t.Fatal("restoreWithMarker returned nil; expected wrapped state.ErrCorruptIndex")
 	}
@@ -230,7 +216,7 @@ func TestPhase3Integration_RestoreUsesLiveIndicesUnderBaseIndexDrift(t *testing.
 		StateDir: stateDir,
 		Logger:   logger,
 	}
-	if err := restoreWithMarker(t, client, o); err != nil {
+	if err := restoretest.RestoreWithMarker(t, client, o); err != nil {
 		t.Fatalf("restoreWithMarker: %v", err)
 	}
 

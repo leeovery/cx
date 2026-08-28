@@ -90,7 +90,7 @@ func TestMultiPaneLegacy_PerPaneHookRouting(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CaptureStructure: %v", err)
 	}
-	sess := findCapturedSession(t, idx, renameNewName)
+	sess := restoretest.FindCapturedSession(t, idx, renameNewName)
 	if len(sess.Windows) != 1 || len(sess.Windows[0].Panes) != 2 {
 		t.Fatalf("captured session %q topology = %d window(s) / %v panes; want 1 window / 2 panes",
 			renameNewName, len(sess.Windows), paneIndices(sess))
@@ -103,8 +103,8 @@ func TestMultiPaneLegacy_PerPaneHookRouting(t *testing.T) {
 	verifyHookKeyed(t, hooksPath, pane0Key)
 	verifyHookKeyed(t, hooksPath, pane1Key)
 
-	seedPaneScrollback(t, stateDir, renameNewName, 0, 0)
-	seedPaneScrollback(t, stateDir, renameNewName, 0, 1)
+	restoretest.SeedScrollback(t, stateDir, renameNewName, 0, 0, []byte(rebootScrollback))
+	restoretest.SeedScrollback(t, stateDir, renameNewName, 0, 1, []byte(rebootScrollback))
 
 	persistIndex(t, idx, stateDir)
 
@@ -118,7 +118,7 @@ func TestMultiPaneLegacy_PerPaneHookRouting(t *testing.T) {
 
 	logger := restoretest.OpenTestLogger(t, stateDir)
 	o := &restore.Orchestrator{Client: client, StateDir: stateDir, Logger: logger}
-	if err := restoreWithMarker(t, client, o); err != nil {
+	if err := restoretest.RestoreWithMarker(t, client, o); err != nil {
 		t.Fatalf("restoreWithMarker: %v", err)
 	}
 
@@ -168,12 +168,12 @@ func TestMultiPaneLegacy_UnstampedNoHookLandsOnBareShell(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CaptureStructure: %v", err)
 	}
-	sess := findCapturedSession(t, idx, legacyName)
+	sess := restoretest.FindCapturedSession(t, idx, legacyName)
 	if got := capturedPaneToken(t, sess); got != "" {
 		t.Fatalf("captured un-stamped session %q pane token = %q; want \"\"", legacyName, got)
 	}
 
-	seedPaneScrollback(t, stateDir, legacyName, 0, 0)
+	restoretest.SeedScrollback(t, stateDir, legacyName, 0, 0, []byte(rebootScrollback))
 	persistIndex(t, idx, stateDir)
 
 	ts.KillServer()
@@ -186,7 +186,7 @@ func TestMultiPaneLegacy_UnstampedNoHookLandsOnBareShell(t *testing.T) {
 
 	logger := restoretest.OpenTestLogger(t, stateDir)
 	o := &restore.Orchestrator{Client: client, StateDir: stateDir, Logger: logger}
-	if err := restoreWithMarker(t, client, o); err != nil {
+	if err := restoretest.RestoreWithMarker(t, client, o); err != nil {
 		t.Fatalf("restoreWithMarker (no-hook clean miss): %v", err)
 	}
 
@@ -208,18 +208,6 @@ func paneIndices(sess state.Session) [][]int {
 		out = append(out, panes)
 	}
 	return out
-}
-
-func seedPaneScrollback(t *testing.T, stateDir, name string, window, pane int) {
-	t.Helper()
-	scrollbackKey := state.SanitizePaneKey(name, window, pane)
-	scrollbackPath := state.ScrollbackFile(stateDir, scrollbackKey)
-	if err := os.MkdirAll(filepath.Dir(scrollbackPath), 0o700); err != nil {
-		t.Fatalf("mkdir scrollback dir: %v", err)
-	}
-	if err := os.WriteFile(scrollbackPath, []byte("\x1b[31mred\x1b[0m\nbefore reboot\n"), 0o600); err != nil {
-		t.Fatalf("write fixture scrollback: %v", err)
-	}
 }
 
 func assertMarkerFiredOnce(t *testing.T, path, marker string) {

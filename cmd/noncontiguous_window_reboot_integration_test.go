@@ -320,7 +320,7 @@ func (fx *divergentRebootFixture) saveIndex(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CaptureStructure: %v", err)
 	}
-	sess := fx.capturedSession(t, idx)
+	sess := restoretest.FindCapturedSession(t, idx, divergentSessionName)
 
 	for _, w := range sess.Windows {
 		fx.savedWindows = append(fx.savedWindows, w.Index)
@@ -335,7 +335,8 @@ func (fx *divergentRebootFixture) saveIndex(t *testing.T) {
 			t.Fatalf("saved token for pane %s (w%d.p%d) = %q; want %q",
 				p.role, p.savedWin, p.savedPane, got, p.token)
 		}
-		divergentSeedScrollback(t, fx.stateDir, p)
+		restoretest.SeedScrollback(t, fx.stateDir, divergentSessionName, p.savedWin, p.savedPane,
+			[]byte(fmt.Sprintf("before reboot: %s\n", p.role)))
 	}
 
 	for _, p := range fx.stamped {
@@ -352,13 +353,7 @@ func (fx *divergentRebootFixture) saveIndex(t *testing.T) {
 		t.Fatalf("hooks.Set stale: %v", err)
 	}
 
-	data, err := state.EncodeIndex(idx)
-	if err != nil {
-		t.Fatalf("EncodeIndex: %v", err)
-	}
-	if err := os.WriteFile(state.SessionsJSON(fx.stateDir), data, 0o600); err != nil {
-		t.Fatalf("write sessions.json: %v", err)
-	}
+	restoretest.WriteIndex(t, fx.stateDir, idx)
 }
 
 // reboot kills the server and restores from the saved index on a fresh one,
@@ -380,7 +375,7 @@ func (fx *divergentRebootFixture) reboot(t *testing.T) {
 		StateDir: fx.stateDir,
 		Logger:   restoretest.OpenTestLogger(t, fx.stateDir),
 	}
-	if err := fx.restoreUnderMarker(o); err != nil {
+	if err := restoretest.RestoreWithMarker(t, fx.client, o); err != nil {
 		t.Fatalf("restore: %v", err)
 	}
 
@@ -410,19 +405,6 @@ func (fx *divergentRebootFixture) reboot(t *testing.T) {
 		}
 	}
 	slices.Sort(fx.armedFIFOKeys)
-}
-
-// restoreUnderMarker brackets the restore with @portal-restoring exactly as
-// bootstrap does, so the sweep's stand-down window opens and closes here.
-func (fx *divergentRebootFixture) restoreUnderMarker(o *restore.Orchestrator) error {
-	if err := fx.client.SetServerOption(state.RestoringMarkerName, "1"); err != nil {
-		return err
-	}
-	if _, err := o.Restore(); err != nil {
-		_ = fx.client.UnsetServerOption(state.RestoringMarkerName)
-		return err
-	}
-	return fx.client.UnsetServerOption(state.RestoringMarkerName)
 }
 
 func (fx *divergentRebootFixture) hydrate(t *testing.T) {
@@ -489,19 +471,6 @@ func (fx *divergentRebootFixture) allPanes() []divergentPane {
 	return append(slices.Clone(fx.stamped), fx.unstamped)
 }
 
-func (fx *divergentRebootFixture) capturedSession(t *testing.T, idx state.Index) state.Session {
-	t.Helper()
-	var names []string
-	for _, s := range idx.Sessions {
-		if s.Name == divergentSessionName {
-			return s
-		}
-		names = append(names, s.Name)
-	}
-	t.Fatalf("captured index has no session %q; captured names=%v", divergentSessionName, names)
-	return state.Session{}
-}
-
 func divergentIsNonContiguous(indices []int) bool {
 	for i := 1; i < len(indices); i++ {
 		if indices[i] != indices[i-1]+1 {
@@ -525,19 +494,6 @@ func divergentSavedToken(t *testing.T, sess state.Session, p divergentPane) stri
 	}
 	t.Fatalf("captured session has no pane w%d.p%d for %s", p.savedWin, p.savedPane, p.role)
 	return ""
-}
-
-func divergentSeedScrollback(t *testing.T, stateDir string, p divergentPane) {
-	t.Helper()
-	key := state.SanitizePaneKey(divergentSessionName, p.savedWin, p.savedPane)
-	path := state.ScrollbackFile(stateDir, key)
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		t.Fatalf("mkdir scrollback dir: %v", err)
-	}
-	body := fmt.Sprintf("before reboot: %s\n", p.role)
-	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
-		t.Fatalf("write fixture scrollback %s: %v", path, err)
-	}
 }
 
 // assertDivergentHookFiredInPane pins both halves of "fires exactly once, in its

@@ -179,7 +179,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 3,
-          "current_task": "resume-hooks-silently-lost-3-7",
+          "current_task": "resume-hooks-silently-lost-3-8",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -511,6 +511,27 @@
                 "cmd/bootstrap/clean_sweep_summary_test.go",
                 "internal/state/fifo_sweep_summary_test.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-3-8",
+              "summary": "The marker bracket set half is unobserved by every caller, not just internal/restore",
+              "detail": "Deleting client.SetServerOption(state.RestoringMarkerName, \"1\") from internal/restoretest/restore_marker.go:21-23 leaves go test ./internal/restore/ AND go test -tags integration ./internal/restore/ green, and leaves TestNonContiguousWindowReboot_KeepsTokenKeyedHooks green too. Only the unset is asserted (internal/restore/integration_test.go:80-82, integration_full_test.go:282-288). Pre-existing — the old restoreWithMarker had the same hole — but now that the bracket is one shared function, one assertion that the marker is set during Restore() would cover every caller at once.",
+              "files": [
+                "internal/restoretest/restore_marker.go",
+                "internal/restore/integration_test.go",
+                "internal/restore/integration_full_test.go",
+                "cmd/noncontiguous_window_reboot_integration_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-3-8",
+              "summary": "Two more copies of the scrollback seeder survive in cmd/bootstrap, in the one package that actually asserts on the payload",
+              "detail": "cmd/bootstrap/reboot_roundtrip_test.go:110-116 and :624-629 each re-author the same literal + SanitizePaneKey -> ScrollbackFile -> WriteFile (minus the MkdirAll), and verifyANSIScrollback (:418-436) is the assertion the deleted comments were reaching for. Folding these two into restoretest.SeedScrollback would finish the consolidation and give the shared const a caller that justifies its ANSI prefix. Out of task 3-8 named scope (a third package).",
+              "files": [
+                "cmd/bootstrap/reboot_roundtrip_test.go",
+                "internal/restoretest/scrollback.go",
+                "internal/restore/rename_reboot_shared_test.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -543,7 +564,8 @@
             "resume-hooks-silently-lost-3-4",
             "resume-hooks-silently-lost-3-5",
             "resume-hooks-silently-lost-3-6",
-            "resume-hooks-silently-lost-3-7"
+            "resume-hooks-silently-lost-3-7",
+            "resume-hooks-silently-lost-3-8"
           ],
           "staging": {
             "p1": {

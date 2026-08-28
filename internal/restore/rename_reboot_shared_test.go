@@ -4,11 +4,11 @@ package restore_test
 
 import (
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/leeovery/portal/internal/hooks"
+	"github.com/leeovery/portal/internal/restoretest"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
 	"github.com/leeovery/portal/internal/tmuxtest"
@@ -18,6 +18,8 @@ const (
 	renamePaneToken = "tok123"
 	renameOldName   = "renamesrc"
 	renameNewName   = "renamedst"
+
+	rebootScrollback = "\x1b[31mred\x1b[0m\nbefore reboot\n"
 )
 
 // readPaneToken reports "" when the option is unset: an unset pane user-option
@@ -40,17 +42,9 @@ func capturedPaneToken(t *testing.T, sess state.Session) string {
 	return sess.Windows[0].Panes[0].PortalPaneID
 }
 
-func findCapturedSession(t *testing.T, idx state.Index, name string) state.Session {
+func persistIndex(t *testing.T, idx state.Index, stateDir string) {
 	t.Helper()
-	var names []string
-	for _, s := range idx.Sessions {
-		if s.Name == name {
-			return s
-		}
-		names = append(names, s.Name)
-	}
-	t.Fatalf("captured index has no session %q; captured names=%v", name, names)
-	return state.Session{}
+	restoretest.WriteIndex(t, stateDir, idx)
 }
 
 func verifyHookKeyed(t *testing.T, hooksPath, wantKey string) {
@@ -61,29 +55,6 @@ func verifyHookKeyed(t *testing.T, hooksPath, wantKey string) {
 	}
 	if _, ok := events["on-resume"]; !ok {
 		t.Fatalf("hooks.json missing on-resume entry under stable key %q; got events=%v", wantKey, events)
-	}
-}
-
-func persistIndex(t *testing.T, idx state.Index, stateDir string) {
-	t.Helper()
-	data, err := state.EncodeIndex(idx)
-	if err != nil {
-		t.Fatalf("EncodeIndex: %v", err)
-	}
-	if err := os.WriteFile(state.SessionsJSON(stateDir), data, 0o600); err != nil {
-		t.Fatalf("write sessions.json: %v", err)
-	}
-}
-
-func seedScrollback(t *testing.T, stateDir, name string) {
-	t.Helper()
-	scrollbackKey := state.SanitizePaneKey(name, 0, 0)
-	scrollbackPath := state.ScrollbackFile(stateDir, scrollbackKey)
-	if err := os.MkdirAll(filepath.Dir(scrollbackPath), 0o700); err != nil {
-		t.Fatalf("mkdir scrollback dir: %v", err)
-	}
-	if err := os.WriteFile(scrollbackPath, []byte("\x1b[31mred\x1b[0m\nbefore reboot\n"), 0o600); err != nil {
-		t.Fatalf("write fixture scrollback: %v", err)
 	}
 }
 

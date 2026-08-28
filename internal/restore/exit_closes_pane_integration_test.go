@@ -166,7 +166,7 @@ func setupExitClosesPane(t *testing.T, hookCmd string) (string, *tmuxtest.Socket
 		StateDir: stateDir,
 		Logger:   logger,
 	}
-	if err := restoreWithMarker(t, client, o); err != nil {
+	if err := restoretest.RestoreWithMarker(t, client, o); err != nil {
 		t.Fatalf("restoreWithMarker: %v", err)
 	}
 
