@@ -167,7 +167,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 2,
-          "current_task": "resume-hooks-silently-lost-2-5",
+          "current_task": null,
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -371,6 +371,18 @@
                 "cmd/hooks_test.go",
                 "cmd/run_hook_stale_cleanup_test.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-2-5",
+              "source": "reviewer",
+              "summary": "Three near-miss real-tmux fixture builders across the hook-key suites share an identical server-bootstrap preamble.",
+              "detail": "newStampedPaneFixture (internal/tmux/hookkey_moved_pane_realtmux_test.go:139), liveHookKeyPane (internal/tmux/resolve_hookkey_realtmux_test.go:16) and seedThreePaneStampedSession (internal/tmux/hookkey_realtmux_shared_test.go:16) each open with the same tmuxtest.New -> Client() -> EnsureServer -> NewSession -> WaitForSession block and diverge only in the seeded topology. stampPaneToken (internal/tmux/list_all_pane_hookkeys_realtmux_test.go:73) is a raw-tmux twin of client.SetPaneOption used elsewhere in the same suites. A single parameterised seeder in the shared file would collapse all four; the fix reaches into sibling tasks files. Also minor: token literals in the moved-pane suite are tokMove/tokRespawn/tokSplit (7-10 chars), not token-shaped under the 6-char rule the sibling suite uses (tokMix) — irrelevant at the tmux layer but non-uniform.",
+              "files": [
+                "internal/tmux/hookkey_moved_pane_realtmux_test.go",
+                "internal/tmux/resolve_hookkey_realtmux_test.go",
+                "internal/tmux/hookkey_realtmux_shared_test.go",
+                "internal/tmux/list_all_pane_hookkeys_realtmux_test.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -388,7 +400,8 @@
             "resume-hooks-silently-lost-2-1",
             "resume-hooks-silently-lost-2-2",
             "resume-hooks-silently-lost-2-3",
-            "resume-hooks-silently-lost-2-4"
+            "resume-hooks-silently-lost-2-4",
+            "resume-hooks-silently-lost-2-5"
           ],
           "staging": {
             "p1": {
