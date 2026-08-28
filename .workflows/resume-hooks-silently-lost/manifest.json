@@ -101,7 +101,12 @@
             "resume-hooks-silently-lost-2-9": "tick-30285b",
             "resume-hooks-silently-lost-2-10": "tick-c4a7e8",
             "resume-hooks-silently-lost-2-11": "tick-404bd6",
-            "resume-hooks-silently-lost-2-12": "tick-1d8500"
+            "resume-hooks-silently-lost-2-12": "tick-1d8500",
+            "resume-hooks-silently-lost-3-6": "tick-d6f5a9",
+            "resume-hooks-silently-lost-3-7": "tick-7b9f24",
+            "resume-hooks-silently-lost-3-8": "tick-3274ae",
+            "resume-hooks-silently-lost-3-9": "tick-31679f",
+            "resume-hooks-silently-lost-3-10": "tick-104a61"
           },
           "storage_paths": [
             ".tick/"
@@ -412,27 +417,6 @@
               ]
             },
             {
-              "task": "resume-hooks-silently-lost-3-1",
-              "source": "reviewer",
-              "summary": "Restore the capture-driven second reboot cycle once the production pane re-stamp exists.",
-              "detail": "internal/restore/rename_reboot_durability_integration_test.go:63-83 previously ran cycle 2 from a fresh CaptureStructure taken after cycle 1 restore, asserting the identity was re-persisted — the end-to-end proof that a hook survives two reboots in a row via live capture, which is this work unit headline guarantee. It now replays the same snapshot (persistIndex at :74, re-writing bytes already on disk), so cycle 2 no longer exercises capture-after-restore. Not repairable at 3-1: production has no pane re-stamp until 3-2. Task 3-2 tests are all unit-level against the mock Commander and 3-5 covers the post-restore sweep, so neither restores the composite. After 3-2 lands, revert cycle 2 to state.CaptureStructure -> assert capturedPaneToken == renamePaneToken -> persistIndex -> reboot, keeping assertHookFireCount(t, hookFireFile, 2).",
-              "files": [
-                "internal/restore/rename_reboot_durability_integration_test.go",
-                "internal/restore/session.go"
-              ]
-            },
-            {
-              "task": "resume-hooks-silently-lost-3-1",
-              "source": "reviewer",
-              "summary": "One name for reading a pane token in fixtures, as StampPaneToken is for writing one.",
-              "detail": "StampPaneToken gave the write one home, but the read has two ad-hoc shapes: show-options -p -t <target> -v <opt> at internal/restore/rename_reboot_shared_test.go:22-30, and an inline display-message -p -t <target> #{...} at cmd/state_daemon_hook_cleanup_integration_test.go:89-90. Both want the pane token, or empty if unstamped, which one tmuxtest.Socket.ReadPaneToken sibling would serve. The fix crosses task 3-1 boundary — the cmd site is a phase-2 task output. Also noted: four new fixture tokens (alphaPaneToken, betaPaneToken, mpPaneToken0/1, exitClosesPaneToken) are not token-shaped under session.IsTokenShaped, inert today because none of those fixtures runs a stale sweep, but worth watching if a later phase adds one to those paths.",
-              "files": [
-                "internal/tmuxtest/stamp.go",
-                "internal/restore/rename_reboot_shared_test.go",
-                "cmd/state_daemon_hook_cleanup_integration_test.go"
-              ]
-            },
-            {
               "task": "resume-hooks-silently-lost-3-2",
               "source": "reviewer",
               "summary": "assertHookFireCount reads the hook-fire file with no wait, racing the hydrate helper across the whole restore hook-fire family.",
@@ -453,17 +437,6 @@
                 "internal/restore/session.go",
                 "internal/restore/integration_test.go",
                 "internal/spawn/command.go"
-              ]
-            },
-            {
-              "task": "resume-hooks-silently-lost-3-3",
-              "source": "reviewer",
-              "summary": "Three near-identical logtest.Record filter helpers in cmd.",
-              "detail": "hydrateWarnRecord (cmd/state_hydrate_empty_hookkey_test.go:171) is the parameterised form of signalTimeoutRecord (cmd/state_hydrate_timeout_log_test.go:20) and scrollbackReplayedRecord (cmd/state_hydrate_replayed_log_test.go:144) — same loop, same component==hydrate filter, same exactly-one fatal, differing only in the hardcoded message. The new one is the third instance, so Rule of Three fires; the other two collapse into it cleanly but live in files task 3-3 does not own.",
-              "files": [
-                "cmd/state_hydrate_empty_hookkey_test.go",
-                "cmd/state_hydrate_timeout_log_test.go",
-                "cmd/state_hydrate_replayed_log_test.go"
               ]
             },
             {
@@ -490,34 +463,41 @@
             },
             {
               "task": "resume-hooks-silently-lost-3-5",
-              "summary": "The restore-under-marker bracket is written twice, in two packages that cannot share a test file",
-              "detail": "restoreUnderMarker (cmd/noncontiguous_window_reboot_integration_test.go:394-403) duplicates restoreWithMarker (internal/restore/integration_test.go:17-29) — same set/restore/unset of @portal-restoring around o.Restore(). internal/restoretest is the natural home (both callers already import it) and would also be the place for the hydrate-and-await trio these reboot tests repeat.",
-              "files": [
-                "cmd/noncontiguous_window_reboot_integration_test.go",
-                "internal/restore/integration_test.go",
-                "internal/restoretest/restoretest.go"
-              ]
-            },
-            {
-              "task": "resume-hooks-silently-lost-3-5",
-              "summary": "tmux.PaneTarget doc comment forbids what ~15 test call sites do",
-              "detail": "internal/tmux/tmux.go:404-405 states anything issuing a tmux -t flag must use PaneTargetExact, yet tmuxtest.StampPaneToken (internal/tmuxtest/stamp.go:13) issues set-option -p -t <target> and every caller passes the non-exact PaneTarget — cmd/rename_restore_cleanup_survival_integration_test.go:40, cmd/bootstrap/reboot_roundtrip_test.go:106, internal/restore/multipane_legacy_integration_test.go:81-82, internal/restore/rename_reboot_hook_integration_test.go:107, and cmd/noncontiguous_window_reboot_integration_test.go:287. Either the doc comment is over-broad (the exact-match hazard is session-name prefix matching, which single-session fixtures cannot hit) or the call sites are wrong. Both readings cannot be right, and the next reviewer hits the same ambiguity.",
-              "files": [
-                "internal/tmux/tmux.go",
-                "internal/tmuxtest/stamp.go",
-                "cmd/rename_restore_cleanup_survival_integration_test.go",
-                "cmd/bootstrap/reboot_roundtrip_test.go",
-                "internal/restore/multipane_legacy_integration_test.go",
-                "internal/restore/rename_reboot_hook_integration_test.go"
-              ]
-            },
-            {
-              "task": "resume-hooks-silently-lost-3-5",
               "pre_existing": true,
               "summary": "Session-level -t targets in the tmux client that bypass the package own exactness rule",
               "detail": "internal/tmux/tmux.go:419 states every session-level -t target must route through PaneTargetExact, and :412 repeats it, but seven sites pass a bare session name: :259 (display-message), :315 (set-option), :426 (ListPanesInSession), :483, :534, :555 (show-environment), :756 (set-environment). tmux prefix-matches session names, so list-panes -s -t foo resolves to a live foo-2 once foo is gone — the same class the exactTarget helper was introduced to close on the kill path. Pre-existing; no effect on the 3-5 test, whose server holds one user session.",
               "files": [
                 "internal/tmux/tmux.go"
+              ]
+            },
+            {
+              "source": "finder",
+              "pre_existing": true,
+              "summary": "The two rename-reboot integration tests duplicate the whole capture-persist-reboot-hydrate bracket; one file names it in helpers, the other inlines it",
+              "detail": "internal/restore/rename_reboot_durability_integration_test.go:105-121 (captureAndPersist) and :123-153 (rebootAndHydrate) are re-implemented line for line inside runRenameRebootFire at internal/restore/rename_reboot_hook_integration_test.go:118-145 and :147-173, in the same package. The two also share a ~35-line setup preamble verbatim at rename_reboot_durability_integration_test.go:26-56 and rename_reboot_hook_integration_test.go:77-107. Phase 3 edited both sides (tasks 3-1, 3-2) but the duplication predates it in the same shape.",
+              "files": [
+                "internal/restore/rename_reboot_durability_integration_test.go",
+                "internal/restore/rename_reboot_hook_integration_test.go",
+                "internal/restore/rename_reboot_shared_test.go"
+              ]
+            },
+            {
+              "source": "finder",
+              "pre_existing": true,
+              "summary": "Four fixture helpers in restore_test are pairwise generalisations of one another",
+              "detail": "seedScrollback(t, stateDir, name) (internal/restore/rename_reboot_shared_test.go:78-88) is exactly seedPaneScrollback(t, stateDir, name, 0, 0) (internal/restore/multipane_legacy_integration_test.go:213-223) — same body, same payload bytes. assertHookFireCount (rename_reboot_shared_test.go:90-100) hardcodes the marker HOOK_FIRED and parameterises the count; assertMarkerFiredOnce (multipane_legacy_integration_test.go:225-235) parameterises the marker and fixes the count at 1. One assertMarkerCount serves both. All four predate phase 3; consolidation task 3 subsumes the scrollback pair as a side effect.",
+              "files": [
+                "internal/restore/rename_reboot_shared_test.go",
+                "internal/restore/multipane_legacy_integration_test.go"
+              ]
+            },
+            {
+              "source": "finder",
+              "pre_existing": true,
+              "summary": "TestLookupOnResume repeats a five-line seed preamble and the same three-assertion no-hook block across eleven subtests",
+              "detail": "internal/hooks/lookup_test.go — every subtest opens with dir := t.TempDir() / filePath := filepath.Join(dir, hooks.json) / os.WriteFile / hooks.NewStore, and eight close with the identical err/ok/cmd triple (:17-27, :37-47, :58-68, :79-89, :100-110, :165-175, :187-197, :239-252). Eight predate phase 3; task 3-3 added three more in the established shape, so the subject is pre-existing.",
+              "files": [
+                "internal/hooks/lookup_test.go"
               ]
             }
           ],
@@ -572,11 +552,21 @@
                 "6": "approved",
                 "7": "approved"
               }
+            },
+            "p3": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved",
+                "3": "approved",
+                "4": "approved",
+                "5": "approved"
+              }
             }
           },
           "consolidated_phases": [
             1,
-            2
+            2,
+            3
           ],
           "completed_phases": [
             1,
