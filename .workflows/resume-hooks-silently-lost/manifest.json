@@ -167,7 +167,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 2,
-          "current_task": "resume-hooks-silently-lost-2-4",
+          "current_task": "resume-hooks-silently-lost-2-5",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -350,6 +350,27 @@
                 "cmd/hooks_pane_token_test.go",
                 "cmd/hooks_test.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-2-4",
+              "source": "reviewer",
+              "summary": "A level-filtering accessor belongs in logtest beside OnlyRecord.",
+              "detail": "warnRecords (cmd/hooks_test.go:839) and the inline `if r.Level >= slog.LevelWarn` scan in standDownRecord (cmd/run_hook_stale_cleanup_test.go:598-605) are the same filter written twice, in two files owned by different tasks of this phase. internal/logtest/capture.go already owns the typed accessors (OnlyRecord, AttrString, HasAttr) and has no level filter; a Sink.RecordsAtLevel(min slog.Level) []Record would serve both and any third consumer.",
+              "files": [
+                "internal/logtest/capture.go",
+                "cmd/hooks_test.go",
+                "cmd/run_hook_stale_cleanup_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-2-4",
+              "source": "reviewer",
+              "summary": "Two near-parallel hooks-component log-record assertion helpers in cmd tests.",
+              "detail": "assertTouchWarn (cmd/hooks_test.go:857) and standDownRecord (cmd/run_hook_stale_cleanup_test.go:598, landed by task 2-1) both assert the same record shape — level, message, component=hooks, op, via — differing only in expected level and op. Spec 6.5 adds a third op (load-unlocked) still to come, which will want the same assertions again. One assertHooksRecord(t, rec, wantLevel, wantOp, wantVia) would carry all three. Consolidation edits another task output, so it was not an issue at review time.",
+              "files": [
+                "cmd/hooks_test.go",
+                "cmd/run_hook_stale_cleanup_test.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -366,7 +387,8 @@
             "resume-hooks-silently-lost-1-11",
             "resume-hooks-silently-lost-2-1",
             "resume-hooks-silently-lost-2-2",
-            "resume-hooks-silently-lost-2-3"
+            "resume-hooks-silently-lost-2-3",
+            "resume-hooks-silently-lost-2-4"
           ],
           "staging": {
             "p1": {

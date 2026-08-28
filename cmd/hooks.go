@@ -160,8 +160,32 @@ var hooksSetCmd = &cobra.Command{
 			return err
 		}
 
-		return store.Set(hookKey, "on-resume", command, "cli")
+		if err := store.Set(hookKey, "on-resume", command, "cli"); err != nil {
+			return err
+		}
+
+		touchSaveRequestedForHook(hookKey)
+		return nil
 	},
+}
+
+// touchSaveRequestedForHook nudges the daemon into capturing the pane's token on
+// its next tick rather than waiting for its gap branch, narrowing the window in
+// which a crash leaves an entry keyed to a token no saved pane carries.
+//
+// Best-effort by design: the entry is already durably written, so a failure here
+// costs a latency optimisation, not a registration — hence its own op, never set,
+// and no effect on the exit status. Both failure modes share the one emission so
+// neither can double up.
+func touchSaveRequestedForHook(hookKey string) {
+	dir, err := state.EnsureDir()
+	if err == nil {
+		err = state.TouchSaveRequested(dir)
+	}
+	if err != nil {
+		hooksLogger.Warn("touch-save-requested", "op", "touch-save-requested",
+			"hook_key", hookKey, "via", "cli", "error", err)
+	}
 }
 
 func loadHookStore() (*hooks.Store, error) {

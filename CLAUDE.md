@@ -42,7 +42,7 @@ Portal is a CLI for interactive tmux session management, built with **Cobra** (C
 
 **Teardown:** `cmd/uninstall.go` — `portal uninstall` removes ONLY Portal's tmux-runtime footprint: it kills `_portal-saver` (delivering SIGHUP so the daemon flushes a final atomic state) then unregisters the global hooks, and touches NO files — saved sessions and config survive, and `portal open` re-bootstraps the runtime on the next run. Bootstrap-exempt.
 
-**Resume-hook command:** `cmd/hooks.go` — `portal hook set/rm/list` manages per-pane resume hooks (see "Resume hooks" below). `hook` is the canonical verb; `hooks` is retained as a permanent, silent cobra alias (back-compat for machine-written `portal hooks set …`). Bootstrap-exempt (config-file only).
+**Resume-hook command:** `cmd/hooks.go` — `portal hook set/rm/list` manages per-pane resume hooks (see "Resume hooks" below). `hook` is the canonical verb; `hooks` is retained as a permanent, silent cobra alias (back-compat for machine-written `portal hooks set …`). Bootstrap-exempt: it starts no tmux server. Its one write outside the config directory holding `hooks.json` is `hook set`'s best-effort touch of `save.requested` in the state directory, which asks the daemon to capture the new pane token on its next tick.
 
 ### Resolution chain (cmd/open.go → internal/resolver/)
 

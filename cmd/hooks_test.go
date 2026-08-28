@@ -3,10 +3,15 @@ package cmd
 import (
 	"bytes"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/leeovery/portal/internal/log"
+	"github.com/leeovery/portal/internal/logtest"
+	"github.com/leeovery/portal/internal/state"
 )
 
 func TestHooksListCommand(t *testing.T) {
@@ -811,6 +816,258 @@ func TestHookCommandRename(t *testing.T) {
 		data := readHooksJSON(t, hooksFile)
 		if data["aaa111"]["on-resume"] != "claude --resume abc123" {
 			t.Errorf("hook command = %q, want %q", data["aaa111"]["on-resume"], "claude --resume abc123")
+		}
+	})
+}
+
+// runHookSetForKey drives `hook set` with the pane resolver stubbed to answer key,
+// so the command writes under it without a stamp.
+func runHookSetForKey(t *testing.T, key, command string) error {
+	t.Helper()
+
+	t.Setenv("TMUX_PANE", "%3")
+	hooksDeps = &HooksDeps{KeyResolver: &mockKeyResolver{key: key}}
+	t.Cleanup(func() { hooksDeps = nil })
+
+	return runHookSet(t, command)
+}
+
+// warnRecords returns every captured record at WARN or above.
+func warnRecords(sink *logtest.Sink) []logtest.Record {
+	var out []logtest.Record
+	for _, r := range sink.Records() {
+		if r.Level >= slog.LevelWarn {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+func saveRequestedExists(t *testing.T, stateDir string) bool {
+	t.Helper()
+	_, err := os.Stat(state.SaveRequested(stateDir))
+	if err != nil && !os.IsNotExist(err) {
+		t.Fatalf("stat save.requested: %v", err)
+	}
+	return err == nil
+}
+
+// assertTouchWarn asserts the sink holds exactly one record at WARN or above and
+// that it is the dirty-flag touch failure for wantKey.
+func assertTouchWarn(t *testing.T, sink *logtest.Sink, wantKey string) {
+	t.Helper()
+
+	warns := warnRecords(sink)
+	if len(warns) != 1 {
+		t.Fatalf("WARN record count = %d, want 1: %+v", len(warns), warns)
+	}
+
+	rec := warns[0]
+	if rec.Level != slog.LevelWarn {
+		t.Errorf("level = %v, want WARN", rec.Level)
+	}
+	if rec.Msg != "touch-save-requested" {
+		t.Errorf("message = %q, want %q", rec.Msg, "touch-save-requested")
+	}
+	if got := rec.AttrString(t, "component"); got != "hooks" {
+		t.Errorf("component = %q, want %q", got, "hooks")
+	}
+	if got := rec.AttrString(t, "op"); got != "touch-save-requested" {
+		t.Errorf("op = %q, want %q", got, "touch-save-requested")
+	}
+	if got := rec.AttrString(t, "hook_key"); got != wantKey {
+		t.Errorf("hook_key = %q, want %q", got, wantKey)
+	}
+	if got := rec.AttrString(t, "via"); got != "cli" {
+		t.Errorf("via = %q, want %q", got, "cli")
+	}
+	if got := rec.AttrString(t, "error"); got == "" {
+		t.Error("error attr is empty, want the failure it carries")
+	}
+}
+
+func TestHooksSetTouchesSaveRequested(t *testing.T) {
+	t.Run("it touches save.requested after a successful registration", func(t *testing.T) {
+		dir := t.TempDir()
+		hooksFile := filepath.Join(dir, "hooks.json")
+		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
+		stateDir := t.TempDir()
+		t.Setenv("PORTAL_STATE_DIR", stateDir)
+
+		if err := runHookSetForKey(t, "tok123", "claude --resume abc"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if !saveRequestedExists(t, stateDir) {
+			t.Error("save.requested was not created in the state directory")
+		}
+	})
+
+	t.Run("it exits 0 when the state directory cannot be resolved", func(t *testing.T) {
+		dir := t.TempDir()
+		hooksFile := filepath.Join(dir, "hooks.json")
+		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
+
+		blocker := filepath.Join(dir, "not-a-dir")
+		if err := os.WriteFile(blocker, []byte("x"), 0o600); err != nil {
+			t.Fatalf("write blocker file: %v", err)
+		}
+		t.Setenv("PORTAL_STATE_DIR", filepath.Join(blocker, "state"))
+
+		sink := &logtest.Sink{}
+		log.SetTestHandler(t, sink)
+
+		if err := runHookSetForKey(t, "tok123", "claude --resume abc"); err != nil {
+			t.Fatalf("hook set failed on an unresolvable state directory: %v", err)
+		}
+
+		data := readHooksJSON(t, hooksFile)
+		if data["tok123"]["on-resume"] != "claude --resume abc" {
+			t.Errorf("hook command = %q, want %q", data["tok123"]["on-resume"], "claude --resume abc")
+		}
+		assertTouchWarn(t, sink, "tok123")
+	})
+
+	t.Run("it exits 0 when the touch itself fails", func(t *testing.T) {
+		dir := t.TempDir()
+		hooksFile := filepath.Join(dir, "hooks.json")
+		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
+
+		stateDir := filepath.Join(dir, "state")
+		if err := os.MkdirAll(filepath.Join(stateDir, "scrollback"), 0o700); err != nil {
+			t.Fatalf("mkdir state dir: %v", err)
+		}
+		if err := os.Chmod(stateDir, 0o500); err != nil {
+			t.Fatalf("chmod state dir: %v", err)
+		}
+		t.Cleanup(func() { _ = os.Chmod(stateDir, 0o700) })
+		t.Setenv("PORTAL_STATE_DIR", stateDir)
+
+		sink := &logtest.Sink{}
+		log.SetTestHandler(t, sink)
+
+		if err := runHookSetForKey(t, "tok123", "claude --resume abc"); err != nil {
+			t.Fatalf("hook set failed on a failing touch: %v", err)
+		}
+
+		data := readHooksJSON(t, hooksFile)
+		if data["tok123"]["on-resume"] != "claude --resume abc" {
+			t.Errorf("hook command = %q, want %q", data["tok123"]["on-resume"], "claude --resume abc")
+		}
+		assertTouchWarn(t, sink, "tok123")
+	})
+
+	t.Run("it emits no set WARN when only the dirty-flag touch fails", func(t *testing.T) {
+		dir := t.TempDir()
+		t.Setenv("PORTAL_HOOKS_FILE", filepath.Join(dir, "hooks.json"))
+		t.Setenv("PORTAL_STATE_DIR", filepath.Join(dir, "hooks.json", "state"))
+
+		sink := &logtest.Sink{}
+		log.SetTestHandler(t, sink)
+
+		if err := runHookSetForKey(t, "tok123", "claude --resume abc"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		for _, r := range warnRecords(sink) {
+			if r.HasAttr("op") && r.AttrString(t, "op") == "set" {
+				t.Errorf("a set WARN was emitted for a registration that succeeded: %+v", r)
+			}
+		}
+	})
+
+	t.Run("it emits exactly one warn per failing hook set", func(t *testing.T) {
+		dir := t.TempDir()
+		t.Setenv("PORTAL_HOOKS_FILE", filepath.Join(dir, "hooks.json"))
+		t.Setenv("PORTAL_STATE_DIR", filepath.Join(dir, "hooks.json", "state"))
+
+		sink := &logtest.Sink{}
+		log.SetTestHandler(t, sink)
+
+		if err := runHookSetForKey(t, "tok123", "claude --resume abc"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if got := len(warnRecords(sink)); got != 1 {
+			t.Errorf("WARN record count = %d, want 1: %+v", got, warnRecords(sink))
+		}
+	})
+
+	t.Run("it does not touch when the write fails", func(t *testing.T) {
+		dir := t.TempDir()
+		hooksFile := filepath.Join(dir, "hooks.json")
+		// A directory at the hooks.json path makes the store's own read fail, so
+		// the command aborts before it could touch anything.
+		if err := os.MkdirAll(hooksFile, 0o700); err != nil {
+			t.Fatalf("mkdir bogus hooks path: %v", err)
+		}
+		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
+		stateDir := t.TempDir()
+		t.Setenv("PORTAL_STATE_DIR", stateDir)
+
+		sink := &logtest.Sink{}
+		log.SetTestHandler(t, sink)
+
+		if err := runHookSetForKey(t, "tok123", "claude --resume abc"); err == nil {
+			t.Fatal("expected an error from a failed write, got nil")
+		}
+
+		if saveRequestedExists(t, stateDir) {
+			t.Error("save.requested was touched despite the write failing")
+		}
+		for _, r := range sink.Records() {
+			if r.Msg == "touch-save-requested" {
+				t.Errorf("touch emission on a failed write: %+v", r)
+			}
+		}
+	})
+
+	t.Run("it touches on a no-op re-registration", func(t *testing.T) {
+		dir := t.TempDir()
+		t.Setenv("PORTAL_HOOKS_FILE", filepath.Join(dir, "hooks.json"))
+		stateDir := t.TempDir()
+		t.Setenv("PORTAL_STATE_DIR", stateDir)
+
+		if err := runHookSetForKey(t, "tok123", "same-cmd"); err != nil {
+			t.Fatalf("first set: unexpected error: %v", err)
+		}
+		if err := os.Remove(state.SaveRequested(stateDir)); err != nil {
+			t.Fatalf("remove save.requested: %v", err)
+		}
+
+		if err := runHookSetForKey(t, "tok123", "same-cmd"); err != nil {
+			t.Fatalf("second set: unexpected error: %v", err)
+		}
+
+		if !saveRequestedExists(t, stateDir) {
+			t.Error("a no-op re-registration did not touch save.requested")
+		}
+	})
+
+	t.Run("it does not touch from hook rm", func(t *testing.T) {
+		dir := t.TempDir()
+		hooksFile := filepath.Join(dir, "hooks.json")
+		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
+		writeHooksJSON(t, hooksFile, map[string]map[string]string{
+			"tok123": {"on-resume": "claude --resume abc"},
+		})
+		stateDir := t.TempDir()
+		t.Setenv("PORTAL_STATE_DIR", stateDir)
+		t.Setenv("TMUX_PANE", "%3")
+
+		hooksDeps = &HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}}
+		t.Cleanup(func() { hooksDeps = nil })
+
+		resetRootCmd()
+		rootCmd.SetOut(new(bytes.Buffer))
+		rootCmd.SetErr(new(bytes.Buffer))
+		rootCmd.SetArgs([]string{"hook", "rm", "--on-resume"})
+		if err := rootCmd.Execute(); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if saveRequestedExists(t, stateDir) {
+			t.Error("hook rm touched save.requested")
 		}
 	})
 }
