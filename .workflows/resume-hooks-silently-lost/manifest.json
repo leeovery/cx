@@ -166,8 +166,8 @@
             ".claude/skills/golang-spf13-cobra",
             ".claude/skills/golang-dependency-management"
           ],
-          "current_phase": 1,
-          "current_task": "resume-hooks-silently-lost-2-1",
+          "current_phase": 2,
+          "current_task": "resume-hooks-silently-lost-2-2",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -296,6 +296,29 @@
               "files": [
                 "cmd/doctor_test.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-2-1",
+              "source": "reviewer",
+              "summary": "The two real-tmux enumeration tests now overlap and want merging once 2-2 restores the cross-site comparison.",
+              "detail": "internal/tmux/hookkey_cross_site_realtmux_test.go:13 (TestPaneTokenEnumeration_PerPaneTokensAreDistinct) and internal/tmux/list_all_pane_hookkeys_realtmux_test.go:13 (TestListAllPaneHookKeys_StampedAndUnstampedInOneRead) each spin a real server, stamp panes and assert the stamped/unstamped token split; the former is the narrowed remnant of a cross-site test that 2-2 re-points at ResolveHookKey versus the enumeration. Consolidating now would collide with that task; consolidating after it would leave one focused enumeration test plus one genuine cross-site test. The file name also no longer matches its single test subject.",
+              "files": [
+                "internal/tmux/hookkey_cross_site_realtmux_test.go",
+                "internal/tmux/list_all_pane_hookkeys_realtmux_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-2-1",
+              "source": "reviewer",
+              "summary": "Three hand-written token literals bypass the ReapableHookKey drift guard in files that already import it.",
+              "detail": "liveHookToken = \"livetk\" (cmd/state_daemon_hook_cleanup_integration_test.go:45, one line above staleHookKey = transienttest.ReapableHookKey(0)), liveKey = \"livetk\" (cmd/cleanstale_transient_listpanes_doctorfix_integration_test.go:101) and renameRestoreToken = \"tokrst\" (cmd/rename_restore_cleanup_survival_integration_test.go:42). All three are token-shaped today and all three genuinely measure liveness, but they bypass the panic-on-drift the helper exists for; a suffixLen/alphabet change would turn each into a vacuous pass. Also: \"live:0.0\" at cmd/run_hook_stale_cleanup_test.go:788 and :865 is named live while surviving purely on unjudgeability — unjudgeableSeedB would read straight. And paneHookRowFormat intentionally restates the location shape rather than reusing StructuralKeyFormat (spec 3.3), but nothing at internal/tmux/tmux.go:594 says so and the two constants sit ~40 lines apart — a plausible future simplification target.",
+              "files": [
+                "cmd/state_daemon_hook_cleanup_integration_test.go",
+                "cmd/cleanstale_transient_listpanes_doctorfix_integration_test.go",
+                "cmd/rename_restore_cleanup_survival_integration_test.go",
+                "cmd/run_hook_stale_cleanup_test.go",
+                "internal/tmux/tmux.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -309,7 +332,8 @@
             "resume-hooks-silently-lost-1-8",
             "resume-hooks-silently-lost-1-9",
             "resume-hooks-silently-lost-1-10",
-            "resume-hooks-silently-lost-1-11"
+            "resume-hooks-silently-lost-1-11",
+            "resume-hooks-silently-lost-2-1"
           ],
           "staging": {
             "p1": {

@@ -16,6 +16,7 @@ import (
 	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/state"
+	"github.com/leeovery/portal/internal/tmux"
 	"github.com/leeovery/portal/internal/transienttest"
 )
 
@@ -30,6 +31,13 @@ var (
 
 	unjudgeableSeedA = transienttest.UnjudgeableHookKey(0)
 	unjudgeableSeedB = transienttest.UnjudgeableHookKey(1)
+
+	// The live half of the vocabulary: token-shaped keys the enumeration
+	// reports, so an entry under one is preserved because its pane is live and
+	// not because the reaper cannot judge its shape.
+	liveSeedA = transienttest.ReapableHookKey(4)
+	liveSeedB = transienttest.ReapableHookKey(5)
+	liveSeedC = transienttest.ReapableHookKey(6)
 )
 
 // restoringOption models the @portal-restoring read for the sweep's seam fakes:
@@ -46,16 +54,16 @@ func restoringOption(restoring bool, readErr error) (string, bool, error) {
 }
 
 type recordingHookKeyLister struct {
-	panes        []string
+	rows         []tmux.PaneHookRow
 	err          error
 	hookKeyCalls int
 	restoring    bool
 	restoringErr error
 }
 
-func (r *recordingHookKeyLister) ListAllPaneHookKeys() ([]string, error) {
+func (r *recordingHookKeyLister) ListAllPaneHookKeys() ([]tmux.PaneHookRow, error) {
 	r.hookKeyCalls++
-	return r.panes, r.err
+	return r.rows, r.err
 }
 
 func (r *recordingHookKeyLister) TryGetServerOption(string) (string, bool, error) {
@@ -79,7 +87,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		before := readFileBytes(t, path)
 
 		logger := &recordingLogger{}
-		lister := &stubAllPaneLister{panes: []string{}, err: nil}
+		lister := &stubAllPaneLister{rows: tokenRows(), err: nil}
 
 		if err := runHookStaleCleanup(lister, store, logger.Logger().With("component", "bootstrap"), nil, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
@@ -112,7 +120,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		before := readFileBytes(t, path)
 
 		logger := &recordingLogger{}
-		lister := &stubAllPaneLister{panes: []string{}, err: nil}
+		lister := &stubAllPaneLister{rows: tokenRows(), err: nil}
 
 		if err := runHookStaleCleanup(lister, store, logger.Logger().With("component", "bootstrap"), nil, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
@@ -145,7 +153,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 
 		sentinel := errors.New("tmux dead")
 		logger := &recordingLogger{}
-		lister := &stubAllPaneLister{panes: nil, err: sentinel}
+		lister := &stubAllPaneLister{rows: nil, err: sentinel}
 
 		err := runHookStaleCleanup(lister, store, logger.Logger().With("component", "bootstrap"), nil, nil)
 		if err != nil {
@@ -178,7 +186,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		store := hooks.NewStore(bogusPath)
 
 		logger := &recordingLogger{}
-		lister := &stubAllPaneLister{panes: []string{"a:0.0"}, err: nil}
+		lister := &stubAllPaneLister{rows: tokenRows(liveSeedA), err: nil}
 
 		err := runHookStaleCleanup(lister, store, logger.Logger().With("component", "bootstrap"), nil, nil)
 		if err == nil {
@@ -196,15 +204,15 @@ func TestRunHookStaleCleanup(t *testing.T) {
 
 	t.Run("onRemoved invoked once per removed entry", func(t *testing.T) {
 		seed := fmt.Sprintf(`{
-  "a:0.0": {"on-resume": "cmd-a"},
+  %q: {"on-resume": "cmd-a"},
   %q: {"on-resume": "cmd-b"},
   %q: {"on-resume": "cmd-c"},
   %q: {"on-resume": "cmd-d"}
-}`, reapableSeedB, reapableSeedC, reapableSeedD)
+}`, liveSeedA, reapableSeedB, reapableSeedC, reapableSeedD)
 		store, _ := newTempHooksStore(t, seed)
 
 		logger := &recordingLogger{}
-		lister := &stubAllPaneLister{panes: []string{"a:0.0"}, err: nil}
+		lister := &stubAllPaneLister{rows: tokenRows(liveSeedA), err: nil}
 
 		var removedSeen []string
 		onRemoved := func(name string) {
@@ -229,13 +237,13 @@ func TestRunHookStaleCleanup(t *testing.T) {
 
 	t.Run("nil onRemoved is safe under normal removal", func(t *testing.T) {
 		seed := fmt.Sprintf(`{
-  "a:0.0": {"on-resume": "cmd-a"},
+  %q: {"on-resume": "cmd-a"},
   %q: {"on-resume": "cmd-b"}
-}`, reapableSeedB)
+}`, liveSeedA, reapableSeedB)
 		store, _ := newTempHooksStore(t, seed)
 
 		logger := &recordingLogger{}
-		lister := &stubAllPaneLister{panes: []string{"a:0.0"}, err: nil}
+		lister := &stubAllPaneLister{rows: tokenRows(liveSeedA), err: nil}
 
 		if err := runHookStaleCleanup(lister, store, logger.Logger().With("component", "bootstrap"), nil, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
@@ -248,15 +256,15 @@ func TestRunHookStaleCleanup(t *testing.T) {
 
 	t.Run("happy-path normal removal emits entry + completion Debug", func(t *testing.T) {
 		seed := fmt.Sprintf(`{
-  "a:0.0": {"on-resume": "cmd-a"},
-  "b:0.0": {"on-resume": "cmd-b"},
-  "c:0.0": {"on-resume": "cmd-c"},
+  %q: {"on-resume": "cmd-a"},
+  %q: {"on-resume": "cmd-b"},
+  %q: {"on-resume": "cmd-c"},
   %q: {"on-resume": "cmd-d"}
-}`, reapableSeedD)
+}`, liveSeedA, liveSeedB, liveSeedC, reapableSeedD)
 		store, _ := newTempHooksStore(t, seed)
 
 		logger := &recordingLogger{}
-		lister := &stubAllPaneLister{panes: []string{"a:0.0", "b:0.0", "c:0.0"}, err: nil}
+		lister := &stubAllPaneLister{rows: tokenRows(liveSeedA, liveSeedB, liveSeedC), err: nil}
 
 		if err := runHookStaleCleanup(lister, store, logger.Logger().With("component", "bootstrap"), nil, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
@@ -266,7 +274,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		if err != nil {
 			t.Fatalf("store.Load post-run: %v", err)
 		}
-		wantKeys := map[string]struct{}{"a:0.0": {}, "b:0.0": {}, "c:0.0": {}}
+		wantKeys := map[string]struct{}{liveSeedA: {}, liveSeedB: {}, liveSeedC: {}}
 		if len(postRun) != len(wantKeys) {
 			t.Errorf("post-run hook count = %d (keys=%v), want %d", len(postRun), keysOf(postRun), len(wantKeys))
 		}
@@ -290,9 +298,9 @@ func TestRunHookStaleCleanup(t *testing.T) {
 	})
 
 	t.Run("nil logger does not panic", func(t *testing.T) {
-		seed := `{"a:0.0": {"on-resume": "cmd-a"}}`
+		seed := fmt.Sprintf(`{%q: {"on-resume": "cmd-a"}}`, liveSeedA)
 		store, _ := newTempHooksStore(t, seed)
-		lister := &stubAllPaneLister{panes: []string{"a:0.0"}, err: nil}
+		lister := &stubAllPaneLister{rows: tokenRows(liveSeedA), err: nil}
 
 		if err := runHookStaleCleanup(lister, store, nil, nil, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup with nil logger: %v", err)
@@ -300,11 +308,11 @@ func TestRunHookStaleCleanup(t *testing.T) {
 	})
 
 	t.Run("it enumerates live keys via ListAllPaneHookKeys not ListAllPanes", func(t *testing.T) {
-		seed := `{"a:0.0": {"on-resume": "cmd-a"}}`
+		seed := fmt.Sprintf(`{%q: {"on-resume": "cmd-a"}}`, liveSeedA)
 		store, _ := newTempHooksStore(t, seed)
 
 		logger := &recordingLogger{}
-		rec := &recordingHookKeyLister{panes: []string{"a:0.0"}}
+		rec := &recordingHookKeyLister{rows: tokenRows(liveSeedA)}
 
 		if err := runHookStaleCleanup(rec, store, logger.Logger().With("component", "bootstrap"), nil, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
@@ -315,15 +323,15 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		}
 	})
 
-	t.Run("it preserves a stamped-session hook whose id-key matches the live set", func(t *testing.T) {
+	t.Run("it preserves a hook whose token matches the live set", func(t *testing.T) {
 		seed := fmt.Sprintf(`{
-  "tok123:0.0": {"on-resume": "cmd-live"},
+  %q: {"on-resume": "cmd-live"},
   %q: {"on-resume": "cmd-stale"}
-}`, reapableSeedA)
+}`, liveSeedA, reapableSeedA)
 		store, _ := newTempHooksStore(t, seed)
 
 		logger := &recordingLogger{}
-		lister := &stubAllPaneLister{panes: []string{"tok123:0.0"}, err: nil}
+		lister := &stubAllPaneLister{rows: tokenRows(liveSeedA), err: nil}
 
 		if err := runHookStaleCleanup(lister, store, logger.Logger().With("component", "bootstrap"), nil, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
@@ -333,8 +341,8 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		if err != nil {
 			t.Fatalf("store.Load post-run: %v", err)
 		}
-		if _, ok := postRun["tok123:0.0"]; !ok {
-			t.Errorf("stamped-session hook tok123:0.0 was removed; want preserved (present in live set); got %v", keysOf(postRun))
+		if _, ok := postRun[liveSeedA]; !ok {
+			t.Errorf("hook %s keyed on a live pane's token was removed; want preserved (present in live set); got %v", liveSeedA, keysOf(postRun))
 		}
 		if _, ok := postRun[reapableSeedA]; ok {
 			t.Errorf("truly-stale hook %s survived; want removed; got %v", reapableSeedA, keysOf(postRun))
@@ -348,16 +356,16 @@ func TestUnjudgeableHookKeyRetention(t *testing.T) {
 	t.Run("it retains a non-token-shaped key across the daemon sweep", func(t *testing.T) {
 		retained := unjudgeableSeedA
 		seed := fmt.Sprintf(`{
-  "live:0.0": {"on-resume": "cmd-live"},
+  %q: {"on-resume": "cmd-live"},
   %q: {"on-resume": "cmd-old"}
-}`, retained)
+}`, liveSeedA, retained)
 		store, path := newTempHooksStore(t, seed)
 		before, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatalf("read seeded hooks.json: %v", err)
 		}
 
-		lister := &stubAllPaneLister{panes: []string{"live:0.0"}}
+		lister := &stubAllPaneLister{rows: tokenRows(liveSeedA)}
 		if err := runHookStaleCleanup(lister, store, nil, nil, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
@@ -384,7 +392,7 @@ func TestUnjudgeableHookKeyRetention(t *testing.T) {
 		seedHealthyStateDir(t, dir)
 		hookStore, hooksPath := seedHooksJSON(t, unjudgeableSeedA)
 		projectStore, _ := seedProjectsJSON(t, t.TempDir())
-		deps := staleDeps(dir, fakeHookLister{keys: []string{"live:0.0"}}, hookStore, projectStore)
+		deps := staleDeps(dir, fakeHookLister{rows: tokenRows(liveSeedA)}, hookStore, projectStore)
 
 		outBuf, _, err := runDoctorFixCmd(t, deps)
 		if err != nil {
@@ -408,7 +416,7 @@ func TestUnjudgeableHookKeyRetention(t *testing.T) {
 		seedHealthyStateDir(t, dir)
 		hookStore, _ := seedHooksJSON(t, unjudgeableSeedA, unjudgeableSeedB)
 		projectStore, _ := seedProjectsJSON(t, t.TempDir())
-		deps := staleDeps(dir, fakeHookLister{keys: []string{"live:0.0"}}, hookStore, projectStore)
+		deps := staleDeps(dir, fakeHookLister{rows: tokenRows(liveSeedA)}, hookStore, projectStore)
 
 		outBuf, _, err := runDoctorCmd(t, deps)
 		if err != nil {
@@ -427,14 +435,14 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 	staleKey := reapableSeedA
 	staleSeed := fmt.Sprintf(`{
   %q: {"on-resume": "cmd-gone"},
-  "live:0.0": {"on-resume": "cmd-live"}
-}`, staleKey)
+  %q: {"on-resume": "cmd-live"}
+}`, staleKey, liveSeedA)
 
 	t.Run("it deletes nothing while the restore marker is set", func(t *testing.T) {
 		store, path := newTempHooksStore(t, staleSeed)
 		before := readFileBytes(t, path)
 
-		lister := &recordingHookKeyLister{panes: []string{"live:0.0"}, restoring: true}
+		lister := &recordingHookKeyLister{rows: tokenRows(liveSeedA), restoring: true}
 
 		if err := runHookStaleCleanup(lister, store, nil, nil, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
@@ -453,7 +461,7 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 		before := readFileBytes(t, path)
 
 		sentinel := errors.New("tmux dead")
-		lister := &recordingHookKeyLister{panes: []string{"live:0.0"}, restoringErr: sentinel}
+		lister := &recordingHookKeyLister{rows: tokenRows(liveSeedA), restoringErr: sentinel}
 
 		sink := &logtest.Sink{}
 		log.SetTestHandler(t, sink)
@@ -484,7 +492,7 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 		}
 		store := hooks.NewStore(bogusPath)
 
-		lister := &recordingHookKeyLister{panes: []string{"live:0.0"}, restoring: true}
+		lister := &recordingHookKeyLister{rows: tokenRows(liveSeedA), restoring: true}
 
 		var removed []string
 		onRemoved := func(key string) { removed = append(removed, key) }
@@ -502,7 +510,7 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 
 	t.Run("it logs the stand-down at DEBUG and never WARN", func(t *testing.T) {
 		store, _ := newTempHooksStore(t, staleSeed)
-		lister := &recordingHookKeyLister{panes: []string{"live:0.0"}, restoring: true}
+		lister := &recordingHookKeyLister{rows: tokenRows(liveSeedA), restoring: true}
 
 		sink := &logtest.Sink{}
 		log.SetTestHandler(t, sink)
@@ -519,7 +527,7 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 
 	t.Run("it sweeps normally when the marker is absent", func(t *testing.T) {
 		store, _ := newTempHooksStore(t, staleSeed)
-		lister := &recordingHookKeyLister{panes: []string{"live:0.0"}}
+		lister := &recordingHookKeyLister{rows: tokenRows(liveSeedA)}
 
 		if err := runHookStaleCleanup(lister, store, nil, nil, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
@@ -535,7 +543,7 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 		if _, ok := postRun[staleKey]; ok {
 			t.Errorf("stale key %s survived a marker-absent sweep; got %v", staleKey, keysOf(postRun))
 		}
-		if _, ok := postRun["live:0.0"]; !ok {
+		if _, ok := postRun[liveSeedA]; !ok {
 			t.Errorf("live key was reaped; got %v", keysOf(postRun))
 		}
 	})
@@ -561,7 +569,7 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 	t.Run("it leaves the daemon's tick behaviour unchanged", func(t *testing.T) {
 		store, _ := newTempHooksStore(t, staleSeed)
 		fc := &daemonFakeCommander{
-			panesOut:     "live:0.0",
+			panesOut:     livePaneRowOut,
 			optionByName: map[string]string{state.RestoringMarkerName: "1"},
 		}
 		deps := hookCleanupDeps(fc, store, discardDaemonLogger())
@@ -624,13 +632,13 @@ func TestHookSweepReportsStandDown(t *testing.T) {
 	staleKey := reapableSeedA
 	staleSeed := fmt.Sprintf(`{
   %q: {"on-resume": "cmd-gone"},
-  "live:0.0": {"on-resume": "cmd-live"}
-}`, staleKey)
+  %q: {"on-resume": "cmd-live"}
+}`, staleKey, liveSeedA)
 
 	t.Run("it reports the restore stand-down to the caller", func(t *testing.T) {
 		store, path := newTempHooksStore(t, staleSeed)
 		before := readFileBytes(t, path)
-		lister := &recordingHookKeyLister{panes: []string{"live:0.0"}, restoring: true}
+		lister := &recordingHookKeyLister{rows: tokenRows(liveSeedA), restoring: true}
 
 		var skipped, removed []string
 		err := runHookStaleCleanup(lister, store, nil,
@@ -655,7 +663,7 @@ func TestHookSweepReportsStandDown(t *testing.T) {
 	t.Run("it reports the empty-pane-read stand-down to the caller", func(t *testing.T) {
 		store, path := newTempHooksStore(t, staleSeed)
 		before := readFileBytes(t, path)
-		lister := &stubAllPaneLister{panes: []string{}}
+		lister := &stubAllPaneLister{rows: tokenRows()}
 
 		sink := &logtest.Sink{}
 		log.SetTestHandler(t, sink)
@@ -706,13 +714,13 @@ func TestHookSweepReportsStandDown(t *testing.T) {
 
 	t.Run("it survives a nil onSkipped on both stand-down branches", func(t *testing.T) {
 		restoringStore, _ := newTempHooksStore(t, staleSeed)
-		restoringLister := &recordingHookKeyLister{panes: []string{"live:0.0"}, restoring: true}
+		restoringLister := &recordingHookKeyLister{rows: tokenRows(liveSeedA), restoring: true}
 		if err := runHookStaleCleanup(restoringLister, restoringStore, nil, nil, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup on the restore branch: %v", err)
 		}
 
 		emptyStore, _ := newTempHooksStore(t, staleSeed)
-		emptyLister := &stubAllPaneLister{panes: []string{}}
+		emptyLister := &stubAllPaneLister{rows: tokenRows()}
 		if err := runHookStaleCleanup(emptyLister, emptyStore, nil, nil, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup on the empty-pane-read branch: %v", err)
 		}
@@ -720,7 +728,7 @@ func TestHookSweepReportsStandDown(t *testing.T) {
 
 	t.Run("it reports nothing when the live set is empty and no entries are persisted", func(t *testing.T) {
 		store, _ := newTempHooksStore(t, "")
-		lister := &stubAllPaneLister{panes: []string{}}
+		lister := &stubAllPaneLister{rows: tokenRows()}
 
 		sink := &logtest.Sink{}
 		log.SetTestHandler(t, sink)
@@ -766,6 +774,132 @@ func TestHookSweepReportsStandDown(t *testing.T) {
 		}
 		if got := countMatching(injected.entries, "warn", "bootstrap", "stale-hook cleanup: list-panes failed"); got != 1 {
 			t.Errorf("list-panes Warn count = %d, want 1; entries=%+v", got, injected.entries)
+		}
+	})
+}
+
+// Under lazy stamping a server with no stamped pane at all is the ordinary
+// steady state, so the guard's question — did the tmux read succeed? — is
+// answered by the pane rows, never by the tokens they carry.
+func TestHookSweepGuardCountsPaneRowsNotTokens(t *testing.T) {
+	t.Run("it does not fire the mass-deletion guard when no pane is stamped", func(t *testing.T) {
+		seed := fmt.Sprintf(`{
+  %q: {"on-resume": "cmd-old"},
+  "live:0.0": {"on-resume": "cmd-live"}
+}`, unjudgeableSeedA)
+		store, path := newTempHooksStore(t, seed)
+		before := readFileBytes(t, path)
+
+		sink := &logtest.Sink{}
+		log.SetTestHandler(t, sink)
+
+		injected := &recordingLogger{}
+		var skipped []string
+		err := runHookStaleCleanup(&stubAllPaneLister{rows: unstampedRows(3)}, store,
+			injected.Logger().With("component", "bootstrap"), nil,
+			func(reason string) { skipped = append(skipped, reason) },
+		)
+		if err != nil {
+			t.Fatalf("runHookStaleCleanup: %v", err)
+		}
+
+		if len(skipped) != 0 {
+			t.Errorf("onSkipped invocations = %v, want none (rows present means the read succeeded)", skipped)
+		}
+		if recs := sink.Records(); len(recs) != 0 {
+			t.Errorf("hooks-component records = %+v, want none (no hazard exists at zero stamped panes)", recs)
+		}
+		for _, e := range injected.entries {
+			if e.level == "warn" {
+				t.Errorf("unexpected Warn with rows present and no token: %+v", e)
+			}
+		}
+		if after := readFileBytes(t, path); !bytes.Equal(before, after) {
+			t.Errorf("hooks.json rewritten with only unjudgeable entries present\nbefore: %s\nafter:  %s", before, after)
+		}
+	})
+
+	t.Run("it still deletes a token-shaped key absent from the live token set", func(t *testing.T) {
+		seed := fmt.Sprintf(`{%q: {"on-resume": "cmd-gone"}}`, reapableSeedA)
+		store, _ := newTempHooksStore(t, seed)
+
+		lister := &stubAllPaneLister{rows: append(tokenRows(reapableSeedB), unstampedRows(1)...)}
+		if err := runHookStaleCleanup(lister, store, nil, nil, nil); err != nil {
+			t.Fatalf("runHookStaleCleanup: %v", err)
+		}
+
+		postRun, err := store.Load()
+		if err != nil {
+			t.Fatalf("store.Load post-run: %v", err)
+		}
+		if _, ok := postRun[reapableSeedA]; ok {
+			t.Errorf("token-shaped key %s absent from the live token set survived; got %v", reapableSeedA, keysOf(postRun))
+		}
+	})
+
+	t.Run("it takes the empty-pane-read branch only on zero rows", func(t *testing.T) {
+		seed := fmt.Sprintf(`{%q: {"on-resume": "cmd-gone"}}`, reapableSeedA)
+		store, _ := newTempHooksStore(t, seed)
+
+		var skipped []string
+		err := runHookStaleCleanup(&stubAllPaneLister{rows: nil}, store, nil, nil,
+			func(reason string) { skipped = append(skipped, reason) },
+		)
+		if err != nil {
+			t.Fatalf("runHookStaleCleanup: %v", err)
+		}
+
+		if len(skipped) != 1 || skipped[0] != skipReasonEmptyPaneRead {
+			t.Errorf("onSkipped invocations = %v, want [%s]", skipped, skipReasonEmptyPaneRead)
+		}
+		postRun, err := store.Load()
+		if err != nil {
+			t.Fatalf("store.Load post-run: %v", err)
+		}
+		if _, ok := postRun[reapableSeedA]; !ok {
+			t.Errorf("a zero-row read reaped an entry; got %v", keysOf(postRun))
+		}
+	})
+
+	t.Run("it counts the rows, not the tokens, on the counts line", func(t *testing.T) {
+		store, _ := newTempHooksStore(t, `{"live:0.0": {"on-resume": "cmd-live"}}`)
+
+		logger := &recordingLogger{}
+		lister := &stubAllPaneLister{rows: unstampedRows(4)}
+		if err := runHookStaleCleanup(lister, store, logger.Logger().With("component", "bootstrap"), nil, nil); err != nil {
+			t.Fatalf("runHookStaleCleanup: %v", err)
+		}
+
+		rec := onlyMatching(t, logger.entries, "debug", "bootstrap", "stale-hook cleanup counts")
+		if got := rec.intAttr(t, "panes"); got != 4 {
+			t.Errorf("panes = %d, want 4 (the count is of live panes; none of these carries a token)", got)
+		}
+	})
+
+	t.Run("it reaps an empty key when a pane carries no token", func(t *testing.T) {
+		seed := fmt.Sprintf(`{
+  "": {"on-resume": "cmd-empty"},
+  %q: {"on-resume": "cmd-old"}
+}`, unjudgeableSeedA)
+		store, _ := newTempHooksStore(t, seed)
+
+		lister := &stubAllPaneLister{rows: unstampedRows(2)}
+		if err := runHookStaleCleanup(lister, store, nil, nil, nil); err != nil {
+			t.Fatalf("runHookStaleCleanup: %v", err)
+		}
+
+		postRun, err := store.Load()
+		if err != nil {
+			t.Fatalf("store.Load post-run: %v", err)
+		}
+		// An unstamped pane protects no key. Were its empty token to enter the
+		// live set, this entry would be permanently unreachable by the reaper
+		// and would fire its command on every unstamped restored pane.
+		if _, ok := postRun[""]; ok {
+			t.Errorf("empty-keyed entry survived alongside unstamped panes; got %v", keysOf(postRun))
+		}
+		if _, ok := postRun[unjudgeableSeedA]; !ok {
+			t.Errorf("unjudgeable entry was swept; got %v", keysOf(postRun))
 		}
 	})
 }

@@ -527,13 +527,13 @@ func TestDaemonTick_RunsHookCleanupOnIdleTick(t *testing.T) {
 
 	seed := fmt.Sprintf(`{
   %q: {"on-resume": "cmd-stale"},
-  "live:0.0": {"on-resume": "cmd-live"}
-}`, reapableSeedA)
+  %q: {"on-resume": "cmd-live"}
+}`, reapableSeedA, livePaneToken)
 	store, _ := newTempHooksStore(t, seed)
 
 	// The stale key is absent from panesOut so the cleanup reaps it; no
 	// sessionsOut, because capture must not run on an idle tick.
-	fc := &daemonFakeCommander{panesOut: "live:0.0"}
+	fc := &daemonFakeCommander{panesOut: livePaneRowOut}
 	deps := makeDeps(t, dir, fc)
 	deps.HookStore = store
 	deps.LastSaveAt = time.Now()
@@ -549,7 +549,7 @@ func TestDaemonTick_RunsHookCleanupOnIdleTick(t *testing.T) {
 	if _, ok := postRun[reapableSeedA]; ok {
 		t.Errorf("stale hook entry not reaped on idle tick; hooks=%v", keysOf(postRun))
 	}
-	if _, ok := postRun["live:0.0"]; !ok {
+	if _, ok := postRun[livePaneToken]; !ok {
 		t.Errorf("live hook entry wrongly reaped on idle tick; hooks=%v", keysOf(postRun))
 	}
 
@@ -569,7 +569,7 @@ func TestDaemonTick_SkipsHookCleanupWhenRestoring(t *testing.T) {
 
 	fc := &daemonFakeCommander{
 		optionByName: map[string]string{state.RestoringMarkerName: "1"},
-		panesOut:     "live:0.0",
+		panesOut:     livePaneRowOut,
 	}
 	deps := makeDeps(t, dir, fc)
 	deps.HookStore = store

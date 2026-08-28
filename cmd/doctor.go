@@ -294,9 +294,11 @@ func checkHostTerminal(detector TerminalDetector, resolve spawn.AdapterResolver)
 	return checkResult{name: name, status: checkInfo, detail: fmt.Sprintf("%s (supported)", id.Name)}
 }
 
-// The guards below must precede the stale count: an unreadable or empty live
-// set would otherwise report every judgeable entry stale and mislead a --fix
-// into mass-deleting user-authored on-resume commands.
+// The guards below must precede the stale count: an unreadable pane list, or a
+// server with no panes at all, would otherwise report every judgeable entry
+// stale and mislead a --fix into mass-deleting user-authored on-resume
+// commands. A live pane carrying no token is not that case — under lazy
+// stamping it is the ordinary one, and the count proceeds.
 func checkStaleHooks(lister AllPaneLister, store *hooks.Store) checkResult {
 	const name = "stale hooks"
 	if store == nil {
@@ -309,17 +311,17 @@ func checkStaleHooks(lister AllPaneLister, store *hooks.Store) checkResult {
 	if active, _ := restoreWindowActive(lister); active {
 		return checkResult{name: name, status: checkNotEvaluable, detail: restoreStandDownPhrase + " (not evaluable)"}
 	}
-	live, err := lister.ListAllPaneHookKeys()
+	rows, err := lister.ListAllPaneHookKeys()
 	if err != nil {
 		return checkResult{name: name, status: checkNotEvaluable, detail: "could not enumerate live panes"}
 	}
-	if len(live) == 0 {
+	if len(rows) == 0 {
 		if len(persisted) == 0 {
 			return checkResult{name: name, status: checkPass, detail: "no hooks"}
 		}
 		return checkResult{name: name, status: checkNotEvaluable, detail: "zero live panes with hooks present (not evaluable)"}
 	}
-	stale := len(hooks.StaleKeys(persisted, live))
+	stale := len(hooks.StaleKeys(persisted, liveTokensFrom(rows)))
 	if stale > 0 {
 		return checkResult{name: name, status: checkFail, detail: pluralCount(stale, "stale hook entry", "stale hook entries")}
 	}

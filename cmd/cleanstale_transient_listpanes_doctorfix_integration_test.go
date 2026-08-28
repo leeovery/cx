@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/portaltest"
+	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
 	"github.com/leeovery/portal/internal/tmuxtest"
 	"github.com/leeovery/portal/internal/transienttest"
@@ -91,15 +92,20 @@ func TestDoctorFix_TmuxTransient_DoesNotWipeHooks(t *testing.T) {
 		env, stateDir := isolateCleanStaleTestEnv(t)
 		sock := tmuxtest.New(t, "ptl-doctorfix-pass-")
 
-		// The default session/window/pane indices yield the key "live:0.0".
 		if _, err := sock.TryRun("new-session", "-d", "-s", "live"); err != nil {
 			t.Fatalf("seed live session: %v", err)
+		}
+		// The entry must survive because its pane is live, so the pane carries a
+		// token-shaped key the reaper can judge.
+		const liveKey = "livetk"
+		if _, err := sock.TryRun("set-option", "-p", "-t", "live:0.0", state.PortalPaneIDOption, liveKey); err != nil {
+			t.Fatalf("stamp live pane: %v", err)
 		}
 
 		staleKey := transienttest.ReapableHookKey(0)
 		seedEntries := map[string]string{
-			"live:0.0": "echo live",
-			staleKey:   "echo gone",
+			liveKey:  "echo live",
+			staleKey: "echo gone",
 		}
 		transienttest.SeedHooksJSON(t, env, seedEntries)
 
@@ -114,9 +120,9 @@ func TestDoctorFix_TmuxTransient_DoesNotWipeHooks(t *testing.T) {
 		}
 
 		afterStr := string(transienttest.HooksJSONBytes(t, env))
-		if !strings.Contains(afterStr, `"live:0.0"`) {
-			t.Fatalf("normal path destroyed the live entry `live:0.0`; want it preserved\n"+
-				"  hooks.json after: %s", afterStr)
+		if !strings.Contains(afterStr, `"`+liveKey+`"`) {
+			t.Fatalf("normal path destroyed the live entry %q; want it preserved\n"+
+				"  hooks.json after: %s", liveKey, afterStr)
 		}
 		if strings.Contains(afterStr, `"`+staleKey+`"`) {
 			t.Fatalf("normal path failed to remove the stale entry %q; want it removed\n"+
@@ -127,7 +133,7 @@ func TestDoctorFix_TmuxTransient_DoesNotWipeHooks(t *testing.T) {
 		if !strings.Contains(output, wantLine) {
 			t.Fatalf("normal-path stdout missing %q\n  full output:\n%s", wantLine, output)
 		}
-		unwantLine := "Pruned stale hook: live:0.0"
+		unwantLine := "Pruned stale hook: " + liveKey
 		if strings.Contains(output, unwantLine) {
 			t.Fatalf("normal-path stdout unexpectedly reported %q (live entry must survive)\n  full output:\n%s", unwantLine, output)
 		}

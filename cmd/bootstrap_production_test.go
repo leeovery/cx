@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -19,6 +20,18 @@ type recordedLog struct {
 	level     string
 	component string
 	message   string
+	attrs     map[string]slog.Value
+}
+
+// intAttr fails the test rather than returning a zero for an absent attr: an
+// assertion on a value that was never emitted must not read as a mismatch.
+func (r recordedLog) intAttr(t *testing.T, key string) int64 {
+	t.Helper()
+	v, ok := r.attrs[key]
+	if !ok {
+		t.Fatalf("record %q carries no %q attr; attrs=%v", r.message, key, r.attrs)
+	}
+	return v.Int64()
 }
 
 // WithAttrs replays the bound attrs onto each record, so the captured component
@@ -55,10 +68,12 @@ func (r *recordingLogger) owner() *recordingLogger {
 
 func (r *recordingLogger) Handle(_ context.Context, rec slog.Record) error {
 	component := ""
+	attrs := map[string]slog.Value{}
 	read := func(a slog.Attr) bool {
 		if a.Key == "component" {
 			component = a.Value.String()
 		}
+		attrs[a.Key] = a.Value
 		return true
 	}
 	for _, a := range r.bound {
@@ -77,21 +92,40 @@ func (r *recordingLogger) Handle(_ context.Context, rec slog.Record) error {
 		level = "error"
 	}
 	owner := r.owner()
-	owner.entries = append(owner.entries, recordedLog{level, component, rec.Message})
+	owner.entries = append(owner.entries, recordedLog{level, component, rec.Message, attrs})
 	return nil
 }
 
 var _ slog.Handler = (*recordingLogger)(nil)
 
 type stubAllPaneLister struct {
-	panes        []string
+	rows         []tmux.PaneHookRow
 	err          error
 	restoring    bool
 	restoringErr error
 }
 
-func (s *stubAllPaneLister) ListAllPaneHookKeys() ([]string, error) {
-	return s.panes, s.err
+func (s *stubAllPaneLister) ListAllPaneHookKeys() ([]tmux.PaneHookRow, error) {
+	return s.rows, s.err
+}
+
+// tokenRows models the enumeration's answer for stamped panes, and
+// unstampedRows for panes carrying no token. The location half is display-only,
+// so these fabricate a distinct one per row rather than asserting on it.
+func tokenRows(tokens ...string) []tmux.PaneHookRow {
+	rows := make([]tmux.PaneHookRow, 0, len(tokens))
+	for i, token := range tokens {
+		rows = append(rows, tmux.PaneHookRow{Token: token, Location: fmt.Sprintf("stamped%d:0.0", i)})
+	}
+	return rows
+}
+
+func unstampedRows(n int) []tmux.PaneHookRow {
+	rows := make([]tmux.PaneHookRow, 0, n)
+	for i := range n {
+		rows = append(rows, tmux.PaneHookRow{Location: fmt.Sprintf("bare%d:0.0", i)})
+	}
+	return rows
 }
 
 func (s *stubAllPaneLister) TryGetServerOption(string) (string, bool, error) {
@@ -133,6 +167,23 @@ func countMatching(entries []recordedLog, level, component, message string) int 
 		}
 	}
 	return n
+}
+
+// onlyMatching returns the single record matching the triple, failing on none
+// or several so a per-attr assertion below it cannot silently read the wrong
+// record.
+func onlyMatching(t *testing.T, entries []recordedLog, level, component, message string) recordedLog {
+	t.Helper()
+	var found []recordedLog
+	for _, e := range entries {
+		if e.level == level && e.component == component && e.message == message {
+			found = append(found, e)
+		}
+	}
+	if len(found) != 1 {
+		t.Fatalf("records matching %s/%s/%q = %d, want 1; entries=%+v", level, component, message, len(found), entries)
+	}
+	return found[0]
 }
 
 func keysOf(m map[string]map[string]string) []string {

@@ -3,24 +3,24 @@
 package cmd
 
 import (
-	"slices"
 	"testing"
 	"time"
 
-	"github.com/leeovery/portal/internal/session"
-	"github.com/leeovery/portal/internal/tmux"
+	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmuxtest"
 	"github.com/leeovery/portal/internal/transienttest"
 )
 
-// The recreated session's name is the post-rename one; restore re-stamps
-// @portal-id onto it, and the hook was registered under that immutable id.
+// The pane token is stamped once and read back after the session is renamed:
+// the key a restored hook was registered under must still name a live pane, or
+// the sweep reaps it the way the mutable session name used to let it.
 const (
-	renameRestorePortalID = "tok123"
-	renameRestoreName     = "renamedst"
+	renameRestoreToken   = "tokrst"
+	renameRestoreName    = "renamedst"
+	renameRestoreNewName = "renamedst2"
 )
 
-func TestRenameRestoreCleanupSurvival_KeepsRestoredIdKeyedHook(t *testing.T) {
+func TestRenameRestoreCleanupSurvival_KeepsRestoredTokenKeyedHook(t *testing.T) {
 	if testing.Short() {
 		t.Skip("integration test; -short")
 	}
@@ -35,27 +35,23 @@ func TestRenameRestoreCleanupSurvival_KeepsRestoredIdKeyedHook(t *testing.T) {
 	ts.Run(t, "new-session", "-d", "-s", renameRestoreName, "sleep", "infinity")
 	ts.WaitForSession(t, renameRestoreName, 2*time.Second)
 
-	// Restore's re-stamp: re-seed the recreated live session with its saved
-	// @portal-id. Omitting it drops the live key back to the name and cleanup
-	// deletes the id-keyed hook.
-	if err := client.SetSessionOption(renameRestoreName, session.PortalIDOption, renameRestorePortalID); err != nil {
-		t.Fatalf("SetSessionOption %s=%s: %v", session.PortalIDOption, renameRestorePortalID, err)
-	}
+	// Restore's re-stamp: the recreated pane carries the token its saved state
+	// held. Omitting it leaves the pane unstamped and the entry unprotected.
+	ts.Run(t, "set-option", "-p", "-t", renameRestoreName+":0.0", state.PortalPaneIDOption, renameRestoreToken)
 
-	liveKey := tmux.HookKey(renameRestorePortalID, renameRestoreName, 0, 0)
-	if liveKey != renameRestorePortalID+":0.0" {
-		t.Fatalf("id-key = %q; want %q (id-key must not embed the name)", liveKey, renameRestorePortalID+":0.0")
+	if err := client.RenameSession(renameRestoreName, renameRestoreNewName); err != nil {
+		t.Fatalf("RenameSession: %v", err)
 	}
+	ts.WaitForSession(t, renameRestoreNewName, 2*time.Second)
 
-	assertLiveHookKeyPresent(t, client, liveKey)
-	assertLiveHookKeyAbsent(t, client, renameRestoreName+":0.0")
+	assertLiveTokenPresent(t, client, renameRestoreToken)
 
 	// Truly-stale entry with no matching live pane, token-shaped so the reaper
 	// can judge it: must still be swept.
 	staleKey := transienttest.ReapableHookKey(0)
 
 	seed := `{
-  "` + liveKey + `": {"on-resume": "echo restored"},
+  "` + renameRestoreToken + `": {"on-resume": "echo restored"},
   "` + staleKey + `": {"on-resume": "echo gone"}
 }`
 	store, path := newTempHooksStore(t, seed)
@@ -64,8 +60,8 @@ func TestRenameRestoreCleanupSurvival_KeepsRestoredIdKeyedHook(t *testing.T) {
 	if err != nil {
 		t.Fatalf("pre-cleanup store.Load: %v", err)
 	}
-	if _, ok := preRun[liveKey]; !ok {
-		t.Fatalf("pre-cleanup seed missing id-key %q; keys=%v", liveKey, keysOf(preRun))
+	if _, ok := preRun[renameRestoreToken]; !ok {
+		t.Fatalf("pre-cleanup seed missing token key %q; keys=%v", renameRestoreToken, keysOf(preRun))
 	}
 	if _, ok := preRun[staleKey]; !ok {
 		t.Fatalf("pre-cleanup seed missing stale key %q; keys=%v", staleKey, keysOf(preRun))
@@ -79,10 +75,10 @@ func TestRenameRestoreCleanupSurvival_KeepsRestoredIdKeyedHook(t *testing.T) {
 	if err != nil {
 		t.Fatalf("post-cleanup store.Load: %v", err)
 	}
-	if _, ok := postRun[liveKey]; !ok {
-		t.Errorf("freshly-restored id-keyed hook %q was swept; want preserved "+
-			"(re-stamped live @portal-id makes the live key match the on-disk id-key — chain (b)). "+
-			"post-cleanup keys=%v (path=%s)", liveKey, keysOf(postRun), path)
+	if _, ok := postRun[renameRestoreToken]; !ok {
+		t.Errorf("token-keyed hook %q was swept after a rename; want preserved "+
+			"(the token is stamped on the pane and a rename cannot move it). "+
+			"post-cleanup keys=%v (path=%s)", renameRestoreToken, keysOf(postRun), path)
 	}
 	if _, ok := postRun[staleKey]; ok {
 		t.Errorf("truly-stale hook %q survived; want swept "+
@@ -91,16 +87,16 @@ func TestRenameRestoreCleanupSurvival_KeepsRestoredIdKeyedHook(t *testing.T) {
 	}
 }
 
-// The re-stamp makes the id-key win, so the post-rename name key must be absent
-// from the live-key set.
-func assertLiveHookKeyAbsent(t *testing.T, lister AllPaneLister, notWant string) {
+func assertLiveTokenPresent(t *testing.T, lister AllPaneLister, want string) {
 	t.Helper()
-	live, err := lister.ListAllPaneHookKeys()
+	rows, err := lister.ListAllPaneHookKeys()
 	if err != nil {
 		t.Fatalf("ListAllPaneHookKeys: %v", err)
 	}
-	if slices.Contains(live, notWant) {
-		t.Fatalf("live hook key %q WAS enumerated; want absent (a stamped session must resolve "+
-			"to its @portal-id key, not the name — got %v)", notWant, live)
+	for _, row := range rows {
+		if row.Token == want {
+			return
+		}
 	}
+	t.Fatalf("token %q not enumerated; got %+v (a stamped pane must report its token)", want, rows)
 }

@@ -39,6 +39,10 @@ const (
 	preIntervalSafetyCeiling = hookCleanupIntervalMirror - 2*time.Second
 
 	liveWorkSession = "work"
+
+	// liveHookToken is token-shaped, so an entry keyed on it survives because
+	// its pane is live rather than because the reaper cannot judge the key.
+	liveHookToken = "livetk"
 )
 
 // staleHookKey has no matching live pane on the test server, and its token
@@ -74,13 +78,16 @@ func TestDaemon_ThrottledHookCleanup_ReapsStaleRetainsLiveOnIdleServer(t *testin
 	sock := tmuxtest.New(t, "ptl-daemon-hookclean-")
 	client := sock.Client()
 
-	// Read the live key back from tmux rather than assuming it, so the seeded
-	// entry matches exactly what the daemon's ListAllPanes enumerates.
+	// The live pane is stamped the way `hook set` stamps it, and the token is
+	// read back rather than assumed, so the seeded entry matches exactly what
+	// the daemon's enumeration reports.
 	sock.Run(t, "new-session", "-d", "-s", liveWorkSession, "sh", "-c", "exec tail -f /dev/null")
-	liveHookKey := strings.TrimSpace(sock.Run(t, "list-panes",
-		"-t", liveWorkSession, "-F", tmux.StructuralKeyFormat))
-	if liveHookKey == "" {
-		t.Fatalf("could not read live pane structural key for session %q", liveWorkSession)
+	livePaneTarget := liveWorkSession + ":0.0"
+	sock.Run(t, "set-option", "-p", "-t", livePaneTarget, state.PortalPaneIDOption, liveHookToken)
+	liveHookKey := strings.TrimSpace(sock.Run(t, "display-message",
+		"-p", "-t", livePaneTarget, "#{"+state.PortalPaneIDOption+"}"))
+	if liveHookKey != liveHookToken {
+		t.Fatalf("live pane token = %q, want %q (the stamp did not land)", liveHookKey, liveHookToken)
 	}
 	if liveHookKey == staleHookKey {
 		t.Fatalf("test setup collision: live key %q equals the stale key constant", liveHookKey)

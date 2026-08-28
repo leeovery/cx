@@ -20,6 +20,11 @@ const RestoringMarkerName = "@portal-restoring"
 // running binary version, so an upgraded binary re-bootstraps on first command.
 const BootstrappedMarkerName = "@portal-bootstrapped"
 
+// PortalPaneIDOption names the tmux pane user-option holding a pane's durable
+// identity token. Every format string, option argument and stamp must compose
+// the name from here rather than restate the literal, so no two sites can drift.
+const PortalPaneIDOption = "@portal-pane-id"
+
 // ServerOptionLister is declared here so internal/state need not import
 // internal/tmux, which imports it back and would cycle.
 type ServerOptionLister interface {

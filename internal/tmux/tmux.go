@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/leeovery/portal/internal/state"
 )
 
 var ErrOptionNotFound = errors.New("option not found")
@@ -576,17 +578,51 @@ func (c *Client) ListAllPanes() ([]string, error) {
 	return parsePaneOutput(raw), nil
 }
 
-// ListAllPaneHookKeys returns the hook key of every live pane on the server, each
-// resolved per-session by HookKeyFormat, so a mixed stamped/un-stamped population
-// resolves correctly within one read. A tmux failure returns (nil, err), never an
-// empty slice: a caller reading a failure as "no live panes" would orphan every
-// hooks.json entry at once.
-func (c *Client) ListAllPaneHookKeys() ([]string, error) {
-	raw, err := c.ListAllPanesWithFormat(HookKeyFormat)
+// PaneHookRow describes one live pane for the hook machinery. Token is the
+// pane's @portal-pane-id, empty for a pane that carries no stamp. Location is
+// the pane's "<session>:<window>.<pane>" address and is display-only — it is
+// never a key.
+type PaneHookRow struct {
+	Token    string
+	Location string
+}
+
+// paneHookRowSeparator must stay a non-whitespace character: the commander trims
+// the whole output, so a blank leading token followed by whitespace would lose
+// its separator on the first row.
+const paneHookRowSeparator = "|"
+
+const paneHookRowFormat = "#{" + state.PortalPaneIDOption + "}" + paneHookRowSeparator +
+	"#{session_name}:#{window_index}.#{pane_index}"
+
+// ListAllPaneHookKeys returns one row per live pane on the server, including
+// panes carrying no token — the row count is what tells a caller the read
+// succeeded, which is a different question from which panes are stamped. A tmux
+// failure returns (nil, err), never an empty slice: a caller reading a failure
+// as "no live panes" would orphan every hooks.json entry at once.
+func (c *Client) ListAllPaneHookKeys() ([]PaneHookRow, error) {
+	raw, err := c.ListAllPanesWithFormat(paneHookRowFormat)
 	if err != nil {
 		return nil, err
 	}
-	return parsePaneOutput(raw), nil
+	return parsePaneHookRows(raw)
+}
+
+// parsePaneHookRows splits each line at its first separator only: the location
+// half carries ":" and ".", and a session name may itself carry the separator.
+func parsePaneHookRows(output string) ([]PaneHookRow, error) {
+	rows := []PaneHookRow{}
+	for line := range strings.SplitSeq(output, "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		token, location, ok := strings.Cut(line, paneHookRowSeparator)
+		if !ok {
+			return nil, fmt.Errorf("failed to parse pane hook row %q: no %q separator", line, paneHookRowSeparator)
+		}
+		rows = append(rows, PaneHookRow{Token: token, Location: location})
+	}
+	return rows, nil
 }
 
 // SendKeys delivers a command, followed by Enter, to the pane addressed by the

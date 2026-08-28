@@ -5,6 +5,7 @@ import (
 
 	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/state"
+	"github.com/leeovery/portal/internal/tmux"
 )
 
 // The reasons a cycle declines to run. Both the logged reason attr and the
@@ -25,13 +26,28 @@ func standDownAttrs(reason string, extra ...any) []any {
 	return append([]any{"op", standDownMsg, "via", "internal", "reason", reason}, extra...)
 }
 
-// AllPaneLister returns every live pane's hook key, in the same
-// <@portal-id or session_name>:window.pane form registration writes — a divergent
-// form reaps freshly-registered entries as stale. It also carries the
-// @portal-restoring read that stands the sweep down for a restore's duration.
+// AllPaneLister returns one row per live pane: the pane's hook token, empty
+// for an unstamped pane, alongside its display-only location. The row count
+// answers whether the tmux read succeeded and the non-empty tokens answer which
+// panes are protected — two questions no consumer may conflate. It also carries
+// the @portal-restoring read that stands the sweep down for a restore's
+// duration.
 type AllPaneLister interface {
-	ListAllPaneHookKeys() ([]string, error)
+	ListAllPaneHookKeys() ([]tmux.PaneHookRow, error)
 	state.RestoringChecker
+}
+
+// liveTokensFrom projects the enumeration onto the staleness rule's vocabulary:
+// an unstamped pane protects no key, so its empty token must never enter the
+// live set.
+func liveTokensFrom(rows []tmux.PaneHookRow) []string {
+	tokens := make([]string, 0, len(rows))
+	for _, row := range rows {
+		if row.Token != "" {
+			tokens = append(tokens, row.Token)
+		}
+	}
+	return tokens
 }
 
 // restoreWindowActive reports whether hook-staleness work must stand down. A
@@ -72,7 +88,7 @@ func runHookStaleCleanup(
 		return nil
 	}
 
-	livePanes, err := lister.ListAllPaneHookKeys()
+	rows, err := lister.ListAllPaneHookKeys()
 	if err != nil {
 		logger.Warn("stale-hook cleanup: list-panes failed", "error", err)
 		return nil
@@ -84,12 +100,13 @@ func runHookStaleCleanup(
 		return err
 	}
 
-	logger.Debug("stale-hook cleanup counts", "panes", len(livePanes), "entries", len(persisted))
+	logger.Debug("stale-hook cleanup counts", "panes", len(rows), "entries", len(persisted))
 
-	// An empty live set is a bad read, not authority: it must never reach
+	// A pane-less read is a bad read, not authority: it must never reach
 	// CleanStale, which would delete every key the staleness rule can judge.
-	// Defer to the next run.
-	if len(livePanes) == 0 {
+	// Defer to the next run. The count is of rows — under lazy stamping a live
+	// server carrying no token at all is ordinary, not a failure.
+	if len(rows) == 0 {
 		if len(persisted) == 0 {
 			return nil
 		}
@@ -98,7 +115,7 @@ func runHookStaleCleanup(
 		return nil
 	}
 
-	removed, err := store.CleanStale(livePanes)
+	removed, err := store.CleanStale(liveTokensFrom(rows))
 	if err != nil {
 		return err
 	}

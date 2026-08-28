@@ -15,6 +15,15 @@ import (
 	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/tmux"
+	"github.com/leeovery/portal/internal/transienttest"
+)
+
+// A daemon-sweep fixture that expects an entry to survive must key it on a
+// token the enumeration reports, or the entry survives on the reaper's
+// retention of keys it cannot judge and the fixture stops measuring liveness.
+var (
+	livePaneToken  = transienttest.ReapableHookKey(9)
+	livePaneRowOut = livePaneToken + "|live:0.0"
 )
 
 func hookCleanupDeps(fc *daemonFakeCommander, store *hooks.Store, logger *slog.Logger) *daemonDeps {
@@ -34,7 +43,7 @@ func TestMaybeRunHookCleanup_DoesNotRunBeforeInterval(t *testing.T) {
   %q: {"on-resume": "cmd-stale"}
 }`, reapableSeedA)
 	store, _ := newTempHooksStore(t, seed)
-	fc := &daemonFakeCommander{panesOut: "live:0.0"}
+	fc := &daemonFakeCommander{panesOut: livePaneRowOut}
 	deps := hookCleanupDeps(fc, store, discardDaemonLogger())
 
 	anchor := time.Now()
@@ -62,10 +71,10 @@ func TestMaybeRunHookCleanup_DoesNotRunBeforeInterval(t *testing.T) {
 func TestMaybeRunHookCleanup_RunsAndResetsOnceIntervalElapsed(t *testing.T) {
 	seed := fmt.Sprintf(`{
   %q: {"on-resume": "cmd-stale"},
-  "live:0.0": {"on-resume": "cmd-live"}
-}`, reapableSeedA)
+  %q: {"on-resume": "cmd-live"}
+}`, reapableSeedA, livePaneToken)
 	store, _ := newTempHooksStore(t, seed)
-	fc := &daemonFakeCommander{panesOut: "live:0.0"}
+	fc := &daemonFakeCommander{panesOut: livePaneRowOut}
 	deps := hookCleanupDeps(fc, store, discardDaemonLogger())
 
 	deps.lastCleanup = time.Now().Add(-hookCleanupInterval - time.Second)
@@ -80,7 +89,7 @@ func TestMaybeRunHookCleanup_RunsAndResetsOnceIntervalElapsed(t *testing.T) {
 	if _, ok := postRun[reapableSeedA]; ok {
 		t.Errorf("stale entry not reaped once interval elapsed; hooks=%v", keysOf(postRun))
 	}
-	if _, ok := postRun["live:0.0"]; !ok {
+	if _, ok := postRun[livePaneToken]; !ok {
 		t.Errorf("live entry wrongly reaped; hooks=%v", keysOf(postRun))
 	}
 
@@ -94,7 +103,7 @@ func TestMaybeRunHookCleanup_FiresAtIntervalBoundary(t *testing.T) {
   %q: {"on-resume": "cmd-stale"}
 }`, reapableSeedA)
 	store, _ := newTempHooksStore(t, seed)
-	fc := &daemonFakeCommander{panesOut: "live:0.0"}
+	fc := &daemonFakeCommander{panesOut: livePaneRowOut}
 	deps := hookCleanupDeps(fc, store, discardDaemonLogger())
 
 	deps.lastCleanup = time.Now().Add(-hookCleanupInterval)
@@ -122,7 +131,7 @@ func TestMaybeRunHookCleanup_LogsWarnAndSwallowsCleanupError(t *testing.T) {
 
 	// Non-empty panesOut keeps the mass-deletion guard off the path, so Load fails
 	// first and the returned-error branch is the one exercised.
-	fc := &daemonFakeCommander{panesOut: "live:0.0"}
+	fc := &daemonFakeCommander{panesOut: livePaneRowOut}
 	logger, sink := newCaptureLoggerForComponent(t, "daemon")
 	deps := hookCleanupDeps(fc, store, logger)
 
@@ -173,7 +182,7 @@ func TestMaybeRunHookCleanup_ListPanesErrorSwallowedNoReap(t *testing.T) {
 
 func TestMaybeRunHookCleanup_NilStoreNoOps(t *testing.T) {
 	// A nil HookStore is what daemon startup leaves behind when loadHookStore fails.
-	fc := &daemonFakeCommander{panesOut: "live:0.0"}
+	fc := &daemonFakeCommander{panesOut: livePaneRowOut}
 	logger, sink := newCaptureLoggerForComponent(t, "daemon")
 	deps := hookCleanupDeps(fc, nil, logger)
 

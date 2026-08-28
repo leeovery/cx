@@ -15,6 +15,7 @@ import (
 	"github.com/leeovery/portal/internal/project"
 	"github.com/leeovery/portal/internal/spawn"
 	"github.com/leeovery/portal/internal/state"
+	"github.com/leeovery/portal/internal/tmux"
 )
 
 func doctorUnsupportedResolve(spawn.Identity) (spawn.Adapter, spawn.Resolution) {
@@ -795,13 +796,13 @@ func TestDoctorCheckOrder(t *testing.T) {
 }
 
 type fakeHookLister struct {
-	keys         []string
+	rows         []tmux.PaneHookRow
 	err          error
 	restoring    bool
 	restoringErr error
 }
 
-func (f fakeHookLister) ListAllPaneHookKeys() ([]string, error) { return f.keys, f.err }
+func (f fakeHookLister) ListAllPaneHookKeys() ([]tmux.PaneHookRow, error) { return f.rows, f.err }
 
 func (f fakeHookLister) TryGetServerOption(string) (string, bool, error) {
 	return restoringOption(f.restoring, f.restoringErr)
@@ -873,7 +874,7 @@ func seedStalePruneFixture(t *testing.T, stateDir string, lister fakeHookLister)
 // stale, and its token shape makes it judgeable; the set's non-emptiness keeps
 // the hazard guard from deferring.
 func staleHookLister() fakeHookLister {
-	return fakeHookLister{keys: []string{"sessB:0.0"}}
+	return fakeHookLister{rows: tokenRows(liveSeedB)}
 }
 
 // restoringHookLister reads the same live set through a set @portal-restoring
@@ -937,7 +938,7 @@ func downServerDeferFixture(t *testing.T, stateDir string) (deps *DoctorDeps, ho
 	deps = &DoctorDeps{
 		StateDir:      stateDir,
 		ServerRunning: func() bool { return false },
-		HookLister:    fakeHookLister{keys: []string{}},
+		HookLister:    fakeHookLister{rows: tokenRows()},
 		HookStore:     hookStore,
 		ProjectStore:  projectStore,
 		Detector:      fakeTerminalDetector{},
@@ -974,7 +975,7 @@ func TestDoctorStaleHooksCheck(t *testing.T) {
 	t.Run("persisted key with no live pane fails", func(t *testing.T) {
 		dir := t.TempDir()
 		hookStore, _ := seedHooksJSON(t, reapableSeedA)
-		lister := fakeHookLister{keys: []string{"sessB:0.0"}}
+		lister := fakeHookLister{rows: tokenRows(liveSeedB)}
 		results, err := runDoctorDiagnosis(staleDeps(dir, lister, hookStore, nil))
 		if err != nil {
 			t.Fatalf("runDoctorDiagnosis: %v", err)
@@ -991,7 +992,7 @@ func TestDoctorStaleHooksCheck(t *testing.T) {
 	t.Run("multiple stale entries use the plural count copy", func(t *testing.T) {
 		dir := t.TempDir()
 		hookStore, _ := seedHooksJSON(t, reapableSeedA, reapableSeedB)
-		lister := fakeHookLister{keys: []string{"sessC:0.0"}}
+		lister := fakeHookLister{rows: tokenRows(liveSeedC)}
 		results, err := runDoctorDiagnosis(staleDeps(dir, lister, hookStore, nil))
 		if err != nil {
 			t.Fatalf("runDoctorDiagnosis: %v", err)
@@ -1008,7 +1009,7 @@ func TestDoctorStaleHooksCheck(t *testing.T) {
 	t.Run("zero live panes with hooks present is not-evaluable, never all-stale", func(t *testing.T) {
 		dir := t.TempDir()
 		hookStore, _ := seedHooksJSON(t, reapableSeedA, reapableSeedB)
-		lister := fakeHookLister{keys: []string{}}
+		lister := fakeHookLister{rows: tokenRows()}
 		results, err := runDoctorDiagnosis(staleDeps(dir, lister, hookStore, nil))
 		if err != nil {
 			t.Fatalf("runDoctorDiagnosis: %v", err)
@@ -1019,6 +1020,43 @@ func TestDoctorStaleHooksCheck(t *testing.T) {
 		}
 		if got.detail != "zero live panes with hooks present (not evaluable)" {
 			t.Errorf("detail = %q; want %q", got.detail, "zero live panes with hooks present (not evaluable)")
+		}
+	})
+
+	// Zero stamped panes is the ordinary install until registration starts
+	// writing tokens, so the check must evaluate on the rows it was handed
+	// rather than stand down on an empty token set.
+	t.Run("it evaluates when rows are present and no pane is stamped", func(t *testing.T) {
+		dir := t.TempDir()
+		hookStore, _ := seedHooksJSON(t, reapableSeedA)
+		lister := fakeHookLister{rows: unstampedRows(3)}
+		results, err := runDoctorDiagnosis(staleDeps(dir, lister, hookStore, nil))
+		if err != nil {
+			t.Fatalf("runDoctorDiagnosis: %v", err)
+		}
+		got := findCheck(t, results, "stale hooks")
+		if got.status != checkFail {
+			t.Errorf("status = %v; want checkFail (the pane rows make the count evaluable)", got.status)
+		}
+		if got.detail != "1 stale hook entry" {
+			t.Errorf("detail = %q; want %q", got.detail, "1 stale hook entry")
+		}
+	})
+
+	t.Run("it does not reach the no-hooks door with unstamped rows present", func(t *testing.T) {
+		dir := t.TempDir()
+		hookStore, _ := seedHooksJSON(t)
+		lister := fakeHookLister{rows: unstampedRows(3)}
+		results, err := runDoctorDiagnosis(staleDeps(dir, lister, hookStore, nil))
+		if err != nil {
+			t.Fatalf("runDoctorDiagnosis: %v", err)
+		}
+		got := findCheck(t, results, "stale hooks")
+		if got.status != checkPass {
+			t.Errorf("status = %v; want checkPass", got.status)
+		}
+		if got.detail != "no stale hooks" {
+			t.Errorf("detail = %q; want %q (the zero-row branch must not swallow a live server)", got.detail, "no stale hooks")
 		}
 	})
 
@@ -1042,7 +1080,7 @@ func TestDoctorStaleHooksCheck(t *testing.T) {
 	t.Run("both empty passes as no hooks", func(t *testing.T) {
 		dir := t.TempDir()
 		hookStore, _ := seedHooksJSON(t)
-		lister := fakeHookLister{keys: []string{}}
+		lister := fakeHookLister{rows: tokenRows()}
 		results, err := runDoctorDiagnosis(staleDeps(dir, lister, hookStore, nil))
 		if err != nil {
 			t.Fatalf("runDoctorDiagnosis: %v", err)
@@ -1058,8 +1096,8 @@ func TestDoctorStaleHooksCheck(t *testing.T) {
 
 	t.Run("all persisted keys live passes", func(t *testing.T) {
 		dir := t.TempDir()
-		hookStore, _ := seedHooksJSON(t, "sessA:0.0", "sessB:0.0")
-		lister := fakeHookLister{keys: []string{"sessA:0.0", "sessB:0.0", "sessC:0.0"}}
+		hookStore, _ := seedHooksJSON(t, liveSeedA, liveSeedB)
+		lister := fakeHookLister{rows: tokenRows(liveSeedA, liveSeedB, liveSeedC)}
 		results, err := runDoctorDiagnosis(staleDeps(dir, lister, hookStore, nil))
 		if err != nil {
 			t.Fatalf("runDoctorDiagnosis: %v", err)
@@ -1078,7 +1116,7 @@ func TestDoctorStaleHooksCheck(t *testing.T) {
 	t.Run("it reports not evaluable while the restore marker is set", func(t *testing.T) {
 		dir := t.TempDir()
 		hookStore, _ := seedHooksJSON(t, reapableSeedA)
-		lister := fakeHookLister{keys: []string{"sessB:0.0"}, restoring: true}
+		lister := fakeHookLister{rows: tokenRows(liveSeedB), restoring: true}
 		got := staleHooksCheckResult(t, dir, lister, hookStore)
 		assertRestoreWindowResult(t, got)
 	})
@@ -1086,7 +1124,7 @@ func TestDoctorStaleHooksCheck(t *testing.T) {
 	t.Run("it treats a failed marker read as a set marker", func(t *testing.T) {
 		dir := t.TempDir()
 		hookStore, _ := seedHooksJSON(t, reapableSeedA)
-		lister := fakeHookLister{keys: []string{"sessB:0.0"}, restoringErr: errors.New("tmux transient")}
+		lister := fakeHookLister{rows: tokenRows(liveSeedB), restoringErr: errors.New("tmux transient")}
 		got := staleHooksCheckResult(t, dir, lister, hookStore)
 		assertRestoreWindowResult(t, got)
 	})
@@ -1094,7 +1132,7 @@ func TestDoctorStaleHooksCheck(t *testing.T) {
 	t.Run("it reads the marker before the empty-live-set branch", func(t *testing.T) {
 		dir := t.TempDir()
 		hookStore, _ := seedHooksJSON(t, reapableSeedA, reapableSeedB)
-		lister := fakeHookLister{keys: []string{}, restoring: true}
+		lister := fakeHookLister{rows: tokenRows(), restoring: true}
 		got := staleHooksCheckResult(t, dir, lister, hookStore)
 		assertRestoreWindowResult(t, got)
 	})
@@ -1102,7 +1140,7 @@ func TestDoctorStaleHooksCheck(t *testing.T) {
 	t.Run("it reads the marker before counting", func(t *testing.T) {
 		dir := t.TempDir()
 		hookStore, _ := seedHooksJSON(t, reapableSeedA)
-		lister := fakeHookLister{keys: []string{"sessB:0.0"}, restoring: true}
+		lister := fakeHookLister{rows: tokenRows(liveSeedB), restoring: true}
 		got := staleHooksCheckResult(t, dir, lister, hookStore)
 		assertRestoreWindowResult(t, got)
 	})
@@ -1124,7 +1162,7 @@ func TestDoctorStaleHooksCheck(t *testing.T) {
 	t.Run("it still fails on a genuinely stale token-shaped key alongside retained non-token-shaped entries", func(t *testing.T) {
 		dir := t.TempDir()
 		hookStore, _ := seedHooksJSON(t, reapableSeedA, unjudgeableSeedA, unjudgeableSeedB)
-		lister := fakeHookLister{keys: []string{"sessB:0.0"}}
+		lister := fakeHookLister{rows: tokenRows(liveSeedB)}
 		got := staleHooksCheckResult(t, dir, lister, hookStore)
 		if got.status != checkFail {
 			t.Errorf("status = %v; want checkFail for the one stale token-shaped key", got.status)
@@ -1139,7 +1177,7 @@ func TestDoctorStaleHooksCheck(t *testing.T) {
 		seedHealthyStateDir(t, dir)
 		hookStore, _ := seedHooksJSON(t, reapableSeedA)
 		projectStore, _ := seedProjectsJSON(t, t.TempDir())
-		lister := fakeHookLister{keys: []string{"sessB:0.0"}, restoring: true}
+		lister := fakeHookLister{rows: tokenRows(liveSeedB), restoring: true}
 
 		outBuf, _, err := runDoctorCmd(t, staleDeps(dir, lister, hookStore, projectStore))
 		if err != nil {
@@ -1179,16 +1217,16 @@ func TestDoctorStaleHooksParityWithPredicate(t *testing.T) {
 			persisted []string
 			live      []string
 		}{
-			{"one stale", []string{reapableSeedA}, []string{"sessB:0.0"}},
-			{"two stale", []string{reapableSeedA, reapableSeedB}, []string{"sessC:0.0"}},
-			{"one of three stale", []string{"sessA:0.0", "sessB:0.0", reapableSeedC}, []string{"sessA:0.0", "sessB:0.0"}},
-			{"none stale", []string{"sessA:0.0"}, []string{"sessA:0.0", "sessB:0.0"}},
+			{"one stale", []string{reapableSeedA}, []string{liveSeedA}},
+			{"two stale", []string{reapableSeedA, reapableSeedB}, []string{liveSeedC}},
+			{"one of three stale", []string{liveSeedA, liveSeedB, reapableSeedC}, []string{liveSeedA, liveSeedB}},
+			{"none stale", []string{liveSeedA}, []string{liveSeedA, liveSeedB}},
 		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
 				dir := t.TempDir()
 				hookStore, _ := seedHooksJSON(t, tc.persisted...)
-				lister := fakeHookLister{keys: tc.live}
+				lister := fakeHookLister{rows: tokenRows(tc.live...)}
 				results, err := runDoctorDiagnosis(staleDeps(dir, lister, hookStore, nil))
 				if err != nil {
 					t.Fatalf("runDoctorDiagnosis: %v", err)
@@ -1226,8 +1264,8 @@ func TestDoctorStaleHooksParityWithPredicate(t *testing.T) {
 			wantDetail string
 		}{
 			{"enumeration error", []string{reapableSeedA}, fakeHookLister{err: errors.New("tmux transient")}, checkNotEvaluable, "could not enumerate live panes"},
-			{"empty live with hooks present", []string{reapableSeedA}, fakeHookLister{keys: []string{}}, checkNotEvaluable, "zero live panes with hooks present (not evaluable)"},
-			{"empty live with no hooks", nil, fakeHookLister{keys: []string{}}, checkPass, "no hooks"},
+			{"empty live with hooks present", []string{reapableSeedA}, fakeHookLister{rows: tokenRows()}, checkNotEvaluable, "zero live panes with hooks present (not evaluable)"},
+			{"empty live with no hooks", nil, fakeHookLister{rows: tokenRows()}, checkPass, "no hooks"},
 		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
@@ -1357,7 +1395,7 @@ func TestDoctorExecuteStaleEntryReturnsUnhealthy(t *testing.T) {
 	// A persisted hook key with no matching live pane, against a non-empty live
 	// set, is genuinely stale.
 	hookStore, _ := seedHooksJSON(t, reapableSeedA)
-	lister := fakeHookLister{keys: []string{"sessB:0.0"}}
+	lister := fakeHookLister{rows: tokenRows(liveSeedB)}
 	goneDir := filepath.Join(t.TempDir(), "gone")
 	projectStore, _ := seedProjectsJSON(t, goneDir)
 
@@ -1420,7 +1458,7 @@ func TestDoctorFixProtectsUserHooksWhenLiveSetEmptyOrErrored(t *testing.T) {
 		name   string
 		lister fakeHookLister
 	}{
-		{"empty live set", fakeHookLister{keys: []string{}}},
+		{"empty live set", fakeHookLister{rows: tokenRows()}},
 		{"enumeration error", fakeHookLister{err: errors.New("tmux transient")}},
 	}
 	for _, tc := range cases {
@@ -1594,7 +1632,7 @@ func TestDoctorStaleChecksAreReadOnly(t *testing.T) {
 		t.Fatalf("read projects.json: %v", err)
 	}
 
-	lister := fakeHookLister{keys: []string{"sessB:0.0"}} // the seeded reapable key is stale
+	lister := fakeHookLister{rows: tokenRows(liveSeedB)} // the seeded reapable key is stale
 	results, err := runDoctorDiagnosis(staleDeps(dir, lister, hookStore, projectStore))
 	if err != nil {
 		t.Fatalf("runDoctorDiagnosis: %v", err)
@@ -1644,7 +1682,7 @@ func TestDoctorFixReportsSkippedHookPrune(t *testing.T) {
 	})
 
 	t.Run("it prints the skipped-prune line for an empty live read in doctor --fix", func(t *testing.T) {
-		out := runDoctorFixWithLister(t, fakeHookLister{keys: []string{}})
+		out := runDoctorFixWithLister(t, fakeHookLister{rows: tokenRows()})
 		assertSkippedPruneLine(t, out, "Skipped stale hook prune: could not read live panes")
 	})
 
