@@ -174,7 +174,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 2,
-          "current_task": "resume-hooks-silently-lost-2-10",
+          "current_task": "resume-hooks-silently-lost-2-11",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -372,6 +372,35 @@
                 "cmd/testhelpers_test.go",
                 "cmd/hooks_test.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-2-10",
+              "source": "reviewer",
+              "summary": "The last hand-rolled level filter now lives in internal/spawn, and it is not the same filter.",
+              "detail": "warnRecords at internal/spawn/terminalsconfig_test.go:21-29 is a second copy of the same helper, consumed 16 times across terminalsconfig_test.go, logemit_test.go, recipe_test.go, configadapter_script_test.go and resolver_config_test.go. It filters on r.Level == slog.LevelWarn, NOT >=, so it is not a drop-in for the new RecordsAtLevel — a re-point either widens 16 assertions to include ERROR or needs an exact-level sibling accessor in logtest. Out of task 2-10 scope (which named the two cmd sites), but it is what stops logtest owns the level filter from being true repo-wide.",
+              "files": [
+                "internal/logtest/capture.go",
+                "internal/spawn/terminalsconfig_test.go",
+                "internal/spawn/logemit_test.go",
+                "internal/spawn/recipe_test.go",
+                "internal/spawn/configadapter_script_test.go",
+                "internal/spawn/resolver_config_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-2-10",
+              "source": "reviewer",
+              "summary": "The same five-property audit-breadcrumb block is still written inline outside this task two helpers.",
+              "detail": "cmd/config_migrate_logging_test.go:42-57 is a verbatim fourth copy in the same package — level / msg / component == hooks / op / via, then its own path attr — and would be one assertHooksRecord call except that its sibling subtests parameterise component across hooks/aliases/projects, so the helper would need component as a field rather than a constant. The same shape recurs per-package in internal/alias/store_logging_test.go, internal/project/store_logging_test.go, internal/hooks/store_test.go and internal/storelog/clean_stale_test.go, each with its own component; the end state is a component-parameterised record assertion in logtest beside the typed accessors. Generalising hooksRecordWant that far is a design change to the helper task 2-10 was scoped to deliver.",
+              "files": [
+                "cmd/config_migrate_logging_test.go",
+                "cmd/logging_capture_test.go",
+                "internal/alias/store_logging_test.go",
+                "internal/project/store_logging_test.go",
+                "internal/hooks/store_test.go",
+                "internal/storelog/clean_stale_test.go",
+                "internal/logtest/capture.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -394,7 +423,8 @@
             "resume-hooks-silently-lost-2-6",
             "resume-hooks-silently-lost-2-7",
             "resume-hooks-silently-lost-2-8",
-            "resume-hooks-silently-lost-2-9"
+            "resume-hooks-silently-lost-2-9",
+            "resume-hooks-silently-lost-2-10"
           ],
           "staging": {
             "p1": {

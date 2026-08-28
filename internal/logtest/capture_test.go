@@ -196,6 +196,25 @@ func TestSink_OnlyRecord(t *testing.T) {
 	}
 }
 
+func TestSink_RecordsAtLevel(t *testing.T) {
+	logger, sink := logtest.NewCaptureLogger(t)
+	logger.Debug("below")
+	logger.Warn("at")
+	logger.Error("above")
+
+	got := sink.RecordsAtLevel(slog.LevelWarn)
+	if len(got) != 2 {
+		t.Fatalf("RecordsAtLevel(WARN) returned %d records, want 2: %+v", len(got), got)
+	}
+	if got[0].Msg != "at" || got[1].Msg != "above" {
+		t.Errorf("RecordsAtLevel(WARN) messages = [%q %q], want [\"at\" \"above\"]", got[0].Msg, got[1].Msg)
+	}
+
+	if none := sink.RecordsAtLevel(slog.LevelError + 1); none != nil {
+		t.Errorf("RecordsAtLevel above every captured level = %+v, want nil", none)
+	}
+}
+
 type fakeT struct {
 	failed bool
 }

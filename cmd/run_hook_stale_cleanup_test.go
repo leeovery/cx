@@ -544,32 +544,23 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 func standDownRecord(t *testing.T, sink *logtest.Sink) logtest.Record {
 	t.Helper()
 
-	for _, r := range sink.Records() {
-		if r.Level >= slog.LevelWarn {
-			t.Errorf("stand-down emitted at %v: %+v", r.Level, r)
-		}
+	for _, r := range sink.RecordsAtLevel(slog.LevelWarn) {
+		t.Errorf("stand-down emitted at %v: %+v", r.Level, r)
 	}
 
 	rec := sink.OnlyRecord(t)
-	if rec.Level != slog.LevelDebug {
-		t.Errorf("stand-down level = %v, want DEBUG", rec.Level)
-	}
-	if rec.Msg != "clean-stale-skipped" {
-		t.Errorf("stand-down message = %q, want %q", rec.Msg, "clean-stale-skipped")
-	}
-	if got := rec.AttrString(t, "component"); got != "hooks" {
-		t.Errorf("component = %q, want %q", got, "hooks")
-	}
-	if got := rec.AttrString(t, "op"); got != "clean-stale-skipped" {
-		t.Errorf("op = %q, want %q", got, "clean-stale-skipped")
-	}
-	if got := rec.AttrString(t, "via"); got != "internal" {
-		t.Errorf("via = %q, want %q", got, "internal")
-	}
+	assertHooksRecord(t, rec, standDownWant(slog.LevelDebug))
 	if got := rec.AttrString(t, "reason"); got != "restoring" {
 		t.Errorf("reason = %q, want %q", got, "restoring")
 	}
 	return rec
+}
+
+// standDownWant is the stand-down's half of the hooks record shape: every
+// stand-down carries the same message, op and via, and differs only in the
+// level it is reported at.
+func standDownWant(level slog.Level) hooksRecordWant {
+	return hooksRecordWant{level: level, msg: "clean-stale-skipped", op: "clean-stale-skipped", via: "internal"}
 }
 
 // A repair that silently did not run is indistinguishable from a repair that
@@ -635,21 +626,7 @@ func TestHookSweepReportsStandDown(t *testing.T) {
 		}
 
 		rec := sink.OnlyRecord(t)
-		if rec.Level != slog.LevelWarn {
-			t.Errorf("stand-down level = %v, want WARN", rec.Level)
-		}
-		if rec.Msg != "clean-stale-skipped" {
-			t.Errorf("stand-down message = %q, want %q", rec.Msg, "clean-stale-skipped")
-		}
-		if got := rec.AttrString(t, "component"); got != "hooks" {
-			t.Errorf("component = %q, want %q", got, "hooks")
-		}
-		if got := rec.AttrString(t, "op"); got != "clean-stale-skipped" {
-			t.Errorf("op = %q, want %q", got, "clean-stale-skipped")
-		}
-		if got := rec.AttrString(t, "via"); got != "internal" {
-			t.Errorf("via = %q, want %q", got, "internal")
-		}
+		assertHooksRecord(t, rec, standDownWant(slog.LevelWarn))
 		if got := rec.AttrString(t, "reason"); got != "empty-pane-read" {
 			t.Errorf("reason = %q, want %q", got, "empty-pane-read")
 		}

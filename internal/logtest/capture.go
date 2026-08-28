@@ -157,6 +157,18 @@ func (s *Sink) Records() []Record {
 	return append([]Record(nil), owner.records...)
 }
 
+// RecordsAtLevel returns a snapshot of the records captured at minLevel or
+// above, in capture order. Nil when none match.
+func (s *Sink) RecordsAtLevel(minLevel slog.Level) []Record {
+	var out []Record
+	for _, r := range s.Records() {
+		if r.Level >= minLevel {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
 func (s *Sink) OnlyRecord(t TestingT) Record {
 	t.Helper()
 	recs := s.Records()

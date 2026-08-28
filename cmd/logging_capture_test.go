@@ -37,3 +37,36 @@ func newCaptureLoggerForComponent(t *testing.T, component string) (*slog.Logger,
 	sink := &logtest.Sink{}
 	return slog.New(sink).With("component", component), sink
 }
+
+// hooksRecordWant is the shape of one hooks-component record. The message and
+// the op attr are separate fields because they are separate parts of the line's
+// contract, even though the component's emissions currently set both to the
+// same string.
+type hooksRecordWant struct {
+	level slog.Level
+	msg   string
+	op    string
+	via   string
+}
+
+// assertHooksRecord checks the parts every hooks-component record shares. The
+// attrs that belong to one emission — a stand-down's reason, a failure's error
+// — stay with their own caller.
+func assertHooksRecord(t *testing.T, rec logtest.Record, want hooksRecordWant) {
+	t.Helper()
+	if rec.Level != want.level {
+		t.Errorf("level = %v, want %v", rec.Level, want.level)
+	}
+	if rec.Msg != want.msg {
+		t.Errorf("message = %q, want %q", rec.Msg, want.msg)
+	}
+	if got := rec.AttrString(t, "component"); got != "hooks" {
+		t.Errorf("component = %q, want %q", got, "hooks")
+	}
+	if got := rec.AttrString(t, "op"); got != want.op {
+		t.Errorf("op = %q, want %q", got, want.op)
+	}
+	if got := rec.AttrString(t, "via"); got != want.via {
+		t.Errorf("via = %q, want %q", got, want.via)
+	}
+}
