@@ -126,29 +126,37 @@ func classifySet(h hooksFile, key, event, command string) string {
 }
 
 // Remove deletes the hook for key and event, dropping the outer key when its last
-// event goes. It rewrites the file even when the key or event is absent, so the
-// breadcrumb is emitted either way.
-func (s *Store) Remove(key, event, via string) error {
+// event goes, and reports whether it removed anything. A call that removes
+// nothing — an absent key, an absent event, an absent file — writes no file and
+// emits no breadcrumb, and a failed save reports no removal. The answer comes
+// from the map this call loaded and mutated, never from a separate read.
+func (s *Store) Remove(key, event, via string) (bool, error) {
 	h, err := s.Load()
 	if err != nil {
-		return fmt.Errorf("failed to load hooks: %w", err)
+		return false, fmt.Errorf("failed to load hooks: %w", err)
 	}
 
-	if events, ok := h[key]; ok {
-		delete(events, event)
-		if len(events) == 0 {
-			delete(h, key)
-		}
+	events, ok := h[key]
+	if !ok {
+		return false, nil
+	}
+	if _, ok := events[event]; !ok {
+		return false, nil
+	}
+
+	delete(events, event)
+	if len(events) == 0 {
+		delete(h, key)
 	}
 
 	if err := s.Save(h); err != nil {
 		logger.Warn("rm", "op", "rm", "hook_key", key, "via", via,
 			"error", err, "error_class", fileutil.ClassifyWriteError(err))
-		return err
+		return false, err
 	}
 
 	logger.Info("rm", "op", "rm", "hook_key", key, "via", via)
-	return nil
+	return true, nil
 }
 
 // List returns the hooks sorted by key then event.

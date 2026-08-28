@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/leeovery/portal/internal/fileutil"
 	"github.com/leeovery/portal/internal/hooks"
@@ -37,6 +38,28 @@ func readOnlyDirPath(t *testing.T) string {
 	}
 	t.Cleanup(func() { _ = os.Chmod(roDir, 0o700) })
 	return filepath.Join(roDir, "hooks.json")
+}
+
+// readFileBytes returns the file's exact bytes, so a test can assert a no-op
+// left the file untouched rather than rewritten to equivalent content.
+func readFileBytes(t *testing.T, path string) []byte {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("failed to read %s: %v", path, err)
+	}
+	return data
+}
+
+// modTime is the file's mtime, so a test can prove a no-op skipped Save even
+// when a rewrite would have produced byte-identical content.
+func modTime(t *testing.T, path string) time.Time {
+	t.Helper()
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("failed to stat %s: %v", path, err)
+	}
+	return info.ModTime()
 }
 
 // seedThenDenyWrites writes body to a hooks.json and only then locks its parent
@@ -291,7 +314,7 @@ func TestSet(t *testing.T) {
 }
 
 func TestRemove(t *testing.T) {
-	t.Run("deletes a hook entry", func(t *testing.T) {
+	t.Run("it reports a removal when the named event was deleted", func(t *testing.T) {
 		dir := t.TempDir()
 		filePath := filepath.Join(dir, "hooks.json")
 		store := hooks.NewStore(filePath)
@@ -303,8 +326,12 @@ func TestRemove(t *testing.T) {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
 
-		if err := store.Remove("my-session:0.0", "on-resume", "cli"); err != nil {
+		removed, err := store.Remove("my-session:0.0", "on-resume", "cli")
+		if err != nil {
 			t.Fatalf("unexpected error on remove: %v", err)
+		}
+		if !removed {
+			t.Error("removed = false, want true for a seeded entry")
 		}
 
 		h, err := store.Load()
@@ -323,7 +350,7 @@ func TestRemove(t *testing.T) {
 		}
 	})
 
-	t.Run("cleans up outer key when inner map is empty", func(t *testing.T) {
+	t.Run("it drops the outer key when its last event goes", func(t *testing.T) {
 		dir := t.TempDir()
 		filePath := filepath.Join(dir, "hooks.json")
 		store := hooks.NewStore(filePath)
@@ -332,8 +359,12 @@ func TestRemove(t *testing.T) {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
 
-		if err := store.Remove("my-session:0.0", "on-resume", "cli"); err != nil {
+		removed, err := store.Remove("my-session:0.0", "on-resume", "cli")
+		if err != nil {
 			t.Fatalf("unexpected error on remove: %v", err)
+		}
+		if !removed {
+			t.Error("removed = false, want true for a seeded entry")
 		}
 
 		h, err := store.Load()
@@ -349,7 +380,7 @@ func TestRemove(t *testing.T) {
 		}
 	})
 
-	t.Run("is a no-op when key does not exist", func(t *testing.T) {
+	t.Run("it keeps the other events of a key and reports a removal", func(t *testing.T) {
 		dir := t.TempDir()
 		filePath := filepath.Join(dir, "hooks.json")
 		store := hooks.NewStore(filePath)
@@ -357,9 +388,16 @@ func TestRemove(t *testing.T) {
 		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", "cli"); err != nil {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
+		if err := store.Set("my-session:0.0", "on-start", "echo hello", "cli"); err != nil {
+			t.Fatalf("unexpected error on set: %v", err)
+		}
 
-		if err := store.Remove("nonexistent:9.9", "on-resume", "cli"); err != nil {
+		removed, err := store.Remove("my-session:0.0", "on-resume", "cli")
+		if err != nil {
 			t.Fatalf("unexpected error on remove: %v", err)
+		}
+		if !removed {
+			t.Error("removed = false, want true for a seeded entry")
 		}
 
 		h, err := store.Load()
@@ -367,12 +405,54 @@ func TestRemove(t *testing.T) {
 			t.Fatalf("failed to load: %v", err)
 		}
 
+		events, ok := h["my-session:0.0"]
+		if !ok {
+			t.Fatalf("outer key my-session:0.0 should be retained, got %+v", h)
+		}
+		if _, ok := events["on-resume"]; ok {
+			t.Error("on-resume should have been removed")
+		}
+		if events["on-start"] != "echo hello" {
+			t.Errorf("on-start = %q, want %q", events["on-start"], "echo hello")
+		}
+	})
+
+	t.Run("it reports no removal when the key is absent", func(t *testing.T) {
+		dir := t.TempDir()
+		filePath := filepath.Join(dir, "hooks.json")
+		store := hooks.NewStore(filePath)
+
+		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", "cli"); err != nil {
+			t.Fatalf("unexpected error on set: %v", err)
+		}
+		before := readFileBytes(t, filePath)
+		beforeMod := modTime(t, filePath)
+
+		removed, err := store.Remove("nonexistent:9.9", "on-resume", "cli")
+		if err != nil {
+			t.Fatalf("unexpected error on remove: %v", err)
+		}
+		if removed {
+			t.Error("removed = true, want false for an absent key")
+		}
+
+		if after := readFileBytes(t, filePath); !bytes.Equal(before, after) {
+			t.Errorf("file rewritten on a no-op removal:\nbefore %s\nafter  %s", before, after)
+		}
+		if after := modTime(t, filePath); !after.Equal(beforeMod) {
+			t.Error("file was written on a no-op removal (Save should be skipped)")
+		}
+
+		h, err := store.Load()
+		if err != nil {
+			t.Fatalf("failed to load: %v", err)
+		}
 		if len(h) != 1 {
 			t.Fatalf("got %d keys, want 1 (original should remain)", len(h))
 		}
 	})
 
-	t.Run("is a no-op when event does not exist for key", func(t *testing.T) {
+	t.Run("it reports no removal when the key is present but the event is not", func(t *testing.T) {
 		dir := t.TempDir()
 		filePath := filepath.Join(dir, "hooks.json")
 		store := hooks.NewStore(filePath)
@@ -380,21 +460,110 @@ func TestRemove(t *testing.T) {
 		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", "cli"); err != nil {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
+		before := readFileBytes(t, filePath)
+		beforeMod := modTime(t, filePath)
 
-		if err := store.Remove("my-session:0.0", "on-start", "cli"); err != nil {
+		removed, err := store.Remove("my-session:0.0", "on-start", "cli")
+		if err != nil {
 			t.Fatalf("unexpected error on remove: %v", err)
+		}
+		if removed {
+			t.Error("removed = true, want false when the named event is absent")
+		}
+
+		if after := readFileBytes(t, filePath); !bytes.Equal(before, after) {
+			t.Errorf("file rewritten on a no-op removal:\nbefore %s\nafter  %s", before, after)
+		}
+		if after := modTime(t, filePath); !after.Equal(beforeMod) {
+			t.Error("file was written on a no-op removal (Save should be skipped)")
 		}
 
 		h, err := store.Load()
 		if err != nil {
 			t.Fatalf("failed to load: %v", err)
 		}
-
 		if len(h) != 1 {
 			t.Fatalf("got %d keys, want 1", len(h))
 		}
 		if h["my-session:0.0"]["on-resume"] != "claude --resume abc123" {
 			t.Errorf("my-session:0.0 on-resume = %q, want %q", h["my-session:0.0"]["on-resume"], "claude --resume abc123")
+		}
+	})
+
+	t.Run("it leaves an absent hooks.json absent when it removes nothing", func(t *testing.T) {
+		dir := t.TempDir()
+		filePath := filepath.Join(dir, "hooks.json")
+		store := hooks.NewStore(filePath)
+
+		removed, err := store.Remove("my-session:0.0", "on-resume", "cli")
+		if err != nil {
+			t.Fatalf("unexpected error on remove: %v", err)
+		}
+		if removed {
+			t.Error("removed = true, want false with no hooks file at all")
+		}
+
+		if _, err := os.Stat(filePath); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("hooks.json should still not exist, stat err = %v", err)
+		}
+	})
+
+	t.Run("it leaves a malformed hooks.json byte-identical when it removes nothing", func(t *testing.T) {
+		dir := t.TempDir()
+		filePath := filepath.Join(dir, "hooks.json")
+		before := []byte("not json")
+		if err := os.WriteFile(filePath, before, 0o600); err != nil {
+			t.Fatalf("seed: %v", err)
+		}
+		store := hooks.NewStore(filePath)
+
+		removed, err := store.Remove("my-session:0.0", "on-resume", "cli")
+		if err != nil {
+			t.Fatalf("unexpected error on remove: %v", err)
+		}
+		if removed {
+			t.Error("removed = true, want false for a malformed file")
+		}
+
+		if after := readFileBytes(t, filePath); !bytes.Equal(before, after) {
+			t.Errorf("malformed file rewritten:\nbefore %s\nafter  %s", before, after)
+		}
+	})
+
+	t.Run("it leaves a key mapped to an empty event map in place", func(t *testing.T) {
+		dir := t.TempDir()
+		filePath := filepath.Join(dir, "hooks.json")
+		before := []byte(`{"abc123": {}}`)
+		if err := os.WriteFile(filePath, before, 0o600); err != nil {
+			t.Fatalf("seed: %v", err)
+		}
+		store := hooks.NewStore(filePath)
+
+		removed, err := store.Remove("abc123", "on-resume", "cli")
+		if err != nil {
+			t.Fatalf("unexpected error on remove: %v", err)
+		}
+		if removed {
+			t.Error("removed = true, want false for a key with no events")
+		}
+
+		if after := readFileBytes(t, filePath); !bytes.Equal(before, after) {
+			t.Errorf("file rewritten on a no-op removal:\nbefore %s\nafter  %s", before, after)
+		}
+	})
+
+	t.Run("it reports no removal when the save fails", func(t *testing.T) {
+		store, _ := seedThenDenyWrites(t, []byte(`{"my-session:0.0":{"on-resume":"claude --resume abc123"}}`))
+
+		removed, err := store.Remove("my-session:0.0", "on-resume", "cli")
+		if err == nil {
+			t.Fatal("expected error from Remove on read-only dir, got nil")
+		}
+		if removed {
+			t.Error("removed = true, want false when the save failed")
+		}
+		if !errors.Is(err, fileutil.ErrWriteTempCreate) {
+			t.Errorf("returned error not classified as temp-create: %v", err)
 		}
 	})
 }
@@ -1437,7 +1606,7 @@ func TestSetEmitsOpAsJSONField(t *testing.T) {
 }
 
 func TestRemoveLogging(t *testing.T) {
-	t.Run("emits INFO op=rm without a value attr", func(t *testing.T) {
+	t.Run("it still emits INFO op=rm for a real removal", func(t *testing.T) {
 		dir := t.TempDir()
 		store := hooks.NewStore(filepath.Join(dir, "hooks.json"))
 
@@ -1446,8 +1615,12 @@ func TestRemoveLogging(t *testing.T) {
 		}
 
 		sink := installCapture(t)
-		if err := store.Remove("my-session:0.0", "on-resume", "cli"); err != nil {
+		removed, err := store.Remove("my-session:0.0", "on-resume", "cli")
+		if err != nil {
 			t.Fatalf("unexpected error on remove: %v", err)
+		}
+		if !removed {
+			t.Error("removed = false, want true for a seeded entry")
 		}
 
 		rec := sink.OnlyRecord(t)
@@ -1474,42 +1647,71 @@ func TestRemoveLogging(t *testing.T) {
 		}
 	})
 
-	t.Run("still emits INFO op=rm when removing an absent key", func(t *testing.T) {
-		dir := t.TempDir()
-		store := hooks.NewStore(filepath.Join(dir, "hooks.json"))
-
-		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", "cli"); err != nil {
-			t.Fatalf("unexpected error on set: %v", err)
+	t.Run("it emits no record at all when it removes nothing", func(t *testing.T) {
+		cases := []struct {
+			name string
+			seed map[string]map[string]string
+			key  string
+			ev   string
+		}{
+			{
+				name: "absent key",
+				seed: map[string]map[string]string{"my-session:0.0": {"on-resume": "claude --resume abc123"}},
+				key:  "nonexistent:9.9",
+				ev:   "on-resume",
+			},
+			{
+				name: "absent event",
+				seed: map[string]map[string]string{"my-session:0.0": {"on-resume": "claude --resume abc123"}},
+				key:  "my-session:0.0",
+				ev:   "on-start",
+			},
+			{
+				name: "absent file",
+				seed: nil,
+				key:  "my-session:0.0",
+				ev:   "on-resume",
+			},
 		}
 
-		sink := installCapture(t)
-		if err := store.Remove("nonexistent:9.9", "on-resume", "cli"); err != nil {
-			t.Fatalf("unexpected error on remove: %v", err)
-		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				dir := t.TempDir()
+				store := hooks.NewStore(filepath.Join(dir, "hooks.json"))
+				for key, events := range tc.seed {
+					for event, command := range events {
+						if err := store.Set(key, event, command, "cli"); err != nil {
+							t.Fatalf("unexpected error on set: %v", err)
+						}
+					}
+				}
 
-		rec := sink.OnlyRecord(t)
-		if rec.Level != slog.LevelInfo {
-			t.Errorf("level = %v, want INFO", rec.Level)
-		}
-		if rec.Msg != "rm" {
-			t.Errorf("msg = %q, want %q", rec.Msg, "rm")
-		}
-		if got := rec.AttrString(t, "op"); got != "rm" {
-			t.Errorf("op = %q, want %q", got, "rm")
-		}
-		if got := rec.AttrString(t, "hook_key"); got != "nonexistent:9.9" {
-			t.Errorf("hook_key = %q, want %q", got, "nonexistent:9.9")
+				sink := installCapture(t)
+				removed, err := store.Remove(tc.key, tc.ev, "cli")
+				if err != nil {
+					t.Fatalf("unexpected error on remove: %v", err)
+				}
+				if removed {
+					t.Error("removed = true, want false")
+				}
+
+				if recs := sink.Records(); len(recs) != 0 {
+					t.Errorf("a removal that removed nothing emitted %d log records, want 0: %+v", len(recs), recs)
+				}
+			})
 		}
 	})
 
 	t.Run("emits WARN with error_class=write-failed-temp-create when AtomicWrite fails on Remove", func(t *testing.T) {
-		path := readOnlyDirPath(t)
-		store := hooks.NewStore(path)
+		store, _ := seedThenDenyWrites(t, []byte(`{"my-session:0.0":{"on-resume":"claude --resume abc123"}}`))
 		sink := installCapture(t)
 
-		err := store.Remove("my-session:0.0", "on-resume", "cli")
+		removed, err := store.Remove("my-session:0.0", "on-resume", "cli")
 		if err == nil {
 			t.Fatal("expected error from Remove on read-only dir, got nil")
+		}
+		if removed {
+			t.Error("removed = true, want false when the save failed")
 		}
 		if !errors.Is(err, fileutil.ErrWriteTempCreate) {
 			t.Errorf("returned error not classified as temp-create: %v", err)

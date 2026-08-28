@@ -226,7 +226,8 @@ var hooksRmCmd = &cobra.Command{
 			return err
 		}
 
-		return store.Remove(hookKey, "on-resume", "cli")
+		_, err = store.Remove(hookKey, "on-resume", "cli")
+		return err
 	},
 }
 

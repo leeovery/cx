@@ -178,8 +178,8 @@
             ".claude/skills/golang-spf13-cobra",
             ".claude/skills/golang-dependency-management"
           ],
-          "current_phase": 3,
-          "current_task": "resume-hooks-silently-lost-3-10",
+          "current_phase": 4,
+          "current_task": "resume-hooks-silently-lost-4-1",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -549,6 +549,23 @@
                 "cmd/state_daemon.go",
                 "internal/tmux/tmux.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-4-1",
+              "summary": "project.Store.Remove still carries the identical defect task 4-1 just removed from hooks",
+              "detail": "internal/project/store.go:211-213 — its doc comment says it verbatim (\"It rewrites the file even when the path is absent, so the breadcrumb is emitted either way\"), so an absent path creates projects.json as {} and emits an INFO op=rm naming a removal that did not happen. Same class of falsehood as the hooks store, different store. Outside this work unit scope entirely, so it needs a scoping decision rather than a fix here.",
+              "files": [
+                "internal/project/store.go",
+                "internal/tui/model.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-4-1",
+              "summary": "The new readFileBytes helper duplicates an inline read-and-compare left by an earlier task in this unit",
+              "detail": "internal/hooks/store_test.go:1170-1176 does os.ReadFile + t.Fatalf + bytes.Equal inline, which is now exactly readFileBytes (:45). One-line consolidation; the fix touches a sibling task assertion, not 4-1 own.",
+              "files": [
+                "internal/hooks/store_test.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -584,7 +601,8 @@
             "resume-hooks-silently-lost-3-7",
             "resume-hooks-silently-lost-3-8",
             "resume-hooks-silently-lost-3-9",
-            "resume-hooks-silently-lost-3-10"
+            "resume-hooks-silently-lost-3-10",
+            "resume-hooks-silently-lost-4-1"
           ],
           "staging": {
             "p1": {
