@@ -2,9 +2,6 @@ package tmux_test
 
 import (
 	"testing"
-	"time"
-
-	"github.com/leeovery/portal/internal/tmuxtest"
 )
 
 // Registration reads one pane and the sweep enumerates them all; the two must
@@ -12,28 +9,9 @@ import (
 // the sweep will never see live. Pinned against a real server because what is
 // measured is tmux's own per-pane option resolution, not a fake's.
 func TestHookKeyCrossSite_ResolveAgreesWithEnumeration(t *testing.T) {
-	tmuxtest.SkipIfNoTmux(t)
-
-	ts := tmuxtest.New(t, "ptl-xsite-")
-	client := ts.Client()
-	if _, err := client.EnsureServer(); err != nil {
-		t.Fatalf("EnsureServer: %v", err)
-	}
-
 	const sessionName = "xsite-multi"
-	if err := client.NewSession(sessionName, t.TempDir(), ""); err != nil {
-		t.Fatalf("NewSession(%q): %v", sessionName, err)
-	}
-	ts.WaitForSession(t, sessionName, 2*time.Second)
-	if err := client.SplitWindow(sessionName+":0", "", ""); err != nil {
-		t.Fatalf("SplitWindow(%q): %v", sessionName+":0", err)
-	}
-	if err := client.NewWindow(sessionName, "", "", ""); err != nil {
-		t.Fatalf("NewWindow(%q): %v", sessionName, err)
-	}
-
-	stampPaneToken(t, ts, sessionName+":0.0", "tokA")
-	stampPaneToken(t, ts, sessionName+":0.1", "tokB")
+	ts, client, _ := seedThreePaneStampedSession(t, sessionName, "tokA")
+	ts.StampPaneToken(t, sessionName+":0.1", "tokB")
 
 	rows, err := client.ListAllPaneHookKeys()
 	if err != nil {

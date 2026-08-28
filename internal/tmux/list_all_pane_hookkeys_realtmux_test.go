@@ -3,30 +3,18 @@ package tmux_test
 import (
 	"errors"
 	"testing"
-	"time"
 
-	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
 	"github.com/leeovery/portal/internal/tmuxtest"
 )
 
 func TestListAllPaneHookKeys_StampedAndUnstampedInOneRead(t *testing.T) {
-	tmuxtest.SkipIfNoTmux(t)
-
-	ts := tmuxtest.New(t, "ptl-hookkeys-")
-	client := ts.Client()
-	if _, err := client.EnsureServer(); err != nil {
-		t.Fatalf("EnsureServer: %v", err)
-	}
-
 	const sessionName = "lapk-mix"
-	if err := client.NewSession(sessionName, t.TempDir(), ""); err != nil {
-		t.Fatalf("NewSession(%q): %v", sessionName, err)
-	}
-	ts.WaitForSession(t, sessionName, 2*time.Second)
-	ts.Run(t, "split-window", "-t", sessionName+":0")
+	ts, client := seedHookKeyServer(t, sessionName, func(ts *tmuxtest.Socket, _ *tmux.Client) {
+		ts.Run(t, "split-window", "-t", sessionName+":0")
+	})
 
-	stampPaneToken(t, ts, sessionName+":0.0", "tokMix")
+	ts.StampPaneToken(t, sessionName+":0.0", "tokMix")
 
 	rows, err := client.ListAllPaneHookKeys()
 	if err != nil {
@@ -44,13 +32,7 @@ func TestListAllPaneHookKeys_StampedAndUnstampedInOneRead(t *testing.T) {
 }
 
 func TestListAllPaneHookKeys_ListPanesFailurePropagates(t *testing.T) {
-	tmuxtest.SkipIfNoTmux(t)
-
-	ts := tmuxtest.New(t, "ptl-hookkeys-")
-	client := ts.Client()
-	if _, err := client.EnsureServer(); err != nil {
-		t.Fatalf("EnsureServer: %v", err)
-	}
+	ts, client := seedHookKeyServer(t, "lapk-fail", nil)
 
 	// Tear the server down so the subsequent list-panes -a fails with "no
 	// server running" — the reliable read-failure path.
@@ -68,11 +50,6 @@ func TestListAllPaneHookKeys_ListPanesFailurePropagates(t *testing.T) {
 	if !errors.As(err, &cmdErr) {
 		t.Errorf("error %v is not a recoverable *tmux.CommandError (errors.As failed)", err)
 	}
-}
-
-func stampPaneToken(t *testing.T, ts *tmuxtest.Socket, paneTarget, token string) {
-	t.Helper()
-	ts.Run(t, "set-option", "-p", "-t", paneTarget, state.PortalPaneIDOption, token)
 }
 
 func findPaneHookRow(t *testing.T, rows []tmux.PaneHookRow, location string) tmux.PaneHookRow {

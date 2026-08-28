@@ -5,34 +5,55 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
 	"github.com/leeovery/portal/internal/tmuxtest"
 )
 
-// seedThreePaneStampedSession builds a three-pane session and stamps the token
-// onto the first pane only, so callers have a stamped pane and two unstamped
-// siblings to tell apart.
-func seedThreePaneStampedSession(t *testing.T, ts *tmuxtest.Socket, client *tmux.Client, sessionName, token string) []string {
+// hookKeyFixtureSocketPrefix names the temp dir of every hook-key fixture's
+// socket, so a stray server left behind by any of these suites is recognisable.
+const hookKeyFixtureSocketPrefix = "ptl-hookkey-"
+
+// seedHookKeyServer starts an isolated tmux server holding one live session and
+// returns the socket and its client. topology, when non-nil, runs once the
+// session answers and shapes whatever windows and panes the caller needs.
+func seedHookKeyServer(t *testing.T, sessionName string, topology func(ts *tmuxtest.Socket, client *tmux.Client)) (*tmuxtest.Socket, *tmux.Client) {
 	t.Helper()
+	tmuxtest.SkipIfNoTmux(t)
+
+	ts := tmuxtest.New(t, hookKeyFixtureSocketPrefix)
+	client := ts.Client()
+	if _, err := client.EnsureServer(); err != nil {
+		t.Fatalf("EnsureServer: %v", err)
+	}
 	if err := client.NewSession(sessionName, t.TempDir(), ""); err != nil {
 		t.Fatalf("NewSession(%q): %v", sessionName, err)
 	}
 	ts.WaitForSession(t, sessionName, 2*time.Second)
-	if err := client.SplitWindow(sessionName+":0", "", ""); err != nil {
-		t.Fatalf("SplitWindow(%q): %v", sessionName+":0", err)
+	if topology != nil {
+		topology(ts, client)
 	}
-	if err := client.NewWindow(sessionName, "", "", ""); err != nil {
-		t.Fatalf("NewWindow(%q): %v", sessionName, err)
-	}
+	return ts, client
+}
+
+// seedThreePaneStampedSession builds a three-pane session and stamps the token
+// onto the first pane only, so callers have a stamped pane and two unstamped
+// siblings to tell apart.
+func seedThreePaneStampedSession(t *testing.T, sessionName, token string) (*tmuxtest.Socket, *tmux.Client, []string) {
+	t.Helper()
+	ts, client := seedHookKeyServer(t, sessionName, func(ts *tmuxtest.Socket, client *tmux.Client) {
+		if err := client.SplitWindow(sessionName+":0", "", ""); err != nil {
+			t.Fatalf("SplitWindow(%q): %v", sessionName+":0", err)
+		}
+		if err := client.NewWindow(sessionName, "", "", ""); err != nil {
+			t.Fatalf("NewWindow(%q): %v", sessionName, err)
+		}
+	})
 	paneIDs := sessionPaneIDs(t, ts, sessionName)
 	if len(paneIDs) == 0 {
 		t.Fatalf("session %q reported no panes", sessionName)
 	}
-	if err := client.SetPaneOption(paneIDs[0], state.PortalPaneIDOption, token); err != nil {
-		t.Fatalf("SetPaneOption(%q, %q, %q): %v", paneIDs[0], state.PortalPaneIDOption, token, err)
-	}
-	return paneIDs
+	ts.StampPaneToken(t, paneIDs[0], token)
+	return ts, client, paneIDs
 }
 
 func sessionPaneIDs(t *testing.T, ts *tmuxtest.Socket, session string) []string {

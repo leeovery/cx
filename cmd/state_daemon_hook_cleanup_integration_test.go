@@ -83,7 +83,7 @@ func TestDaemon_ThrottledHookCleanup_ReapsStaleRetainsLiveOnIdleServer(t *testin
 	// the daemon's enumeration reports.
 	sock.Run(t, "new-session", "-d", "-s", liveWorkSession, "sh", "-c", "exec tail -f /dev/null")
 	livePaneTarget := liveWorkSession + ":0.0"
-	sock.Run(t, "set-option", "-p", "-t", livePaneTarget, state.PortalPaneIDOption, liveHookToken)
+	sock.StampPaneToken(t, livePaneTarget, liveHookToken)
 	liveHookKey := strings.TrimSpace(sock.Run(t, "display-message",
 		"-p", "-t", livePaneTarget, "#{"+state.PortalPaneIDOption+"}"))
 	if liveHookKey != liveHookToken {

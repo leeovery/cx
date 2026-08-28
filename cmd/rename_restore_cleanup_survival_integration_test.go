@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmuxtest"
 	"github.com/leeovery/portal/internal/transienttest"
 )
@@ -37,7 +36,7 @@ func TestRenameRestoreCleanupSurvival_KeepsRestoredTokenKeyedHook(t *testing.T) 
 
 	// Restore's re-stamp: the recreated pane carries the token its saved state
 	// held. Omitting it leaves the pane unstamped and the entry unprotected.
-	ts.Run(t, "set-option", "-p", "-t", renameRestoreName+":0.0", state.PortalPaneIDOption, renameRestoreToken)
+	ts.StampPaneToken(t, renameRestoreName+":0.0", renameRestoreToken)
 
 	if err := client.RenameSession(renameRestoreName, renameRestoreNewName); err != nil {
 		t.Fatalf("RenameSession: %v", err)

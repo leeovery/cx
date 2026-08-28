@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
 	"github.com/leeovery/portal/internal/tmuxtest"
 )
@@ -139,33 +138,24 @@ type paneTokenProbe struct {
 func newStampedPaneFixture(t *testing.T, sessionName, token string) (*tmuxtest.Socket, *tmux.Client, *paneTokenProbe) {
 	t.Helper()
 
-	ts := tmuxtest.New(t, "ptl-panemove-")
-	client := ts.Client()
-	if _, err := client.EnsureServer(); err != nil {
-		t.Fatalf("EnsureServer: %v", err)
-	}
-	// renumber-windows is off in vanilla tmux; without it kill-window leaves the
-	// surviving window indices alone, so the renumbering case would exercise no
-	// renumbering at all.
-	ts.Run(t, "set-option", "-g", "renumber-windows", "on")
+	ts, client := seedHookKeyServer(t, sessionName, func(ts *tmuxtest.Socket, client *tmux.Client) {
+		// renumber-windows is off in vanilla tmux; without it kill-window leaves
+		// the surviving window indices alone, so the renumbering case would
+		// exercise no renumbering at all.
+		ts.Run(t, "set-option", "-g", "renumber-windows", "on")
 
-	if err := client.NewSession(sessionName, t.TempDir(), ""); err != nil {
-		t.Fatalf("NewSession(%q): %v", sessionName, err)
-	}
-	ts.WaitForSession(t, sessionName, 2*time.Second)
-	for range 2 {
-		if err := client.NewWindow(sessionName, "", "", ""); err != nil {
-			t.Fatalf("NewWindow(%q): %v", sessionName, err)
+		for range 2 {
+			if err := client.NewWindow(sessionName, "", "", ""); err != nil {
+				t.Fatalf("NewWindow(%q): %v", sessionName, err)
+			}
 		}
-	}
-	if err := client.SplitWindow(sessionName+":1", "", ""); err != nil {
-		t.Fatalf("SplitWindow(%q): %v", sessionName+":1", err)
-	}
+		if err := client.SplitWindow(sessionName+":1", "", ""); err != nil {
+			t.Fatalf("SplitWindow(%q): %v", sessionName+":1", err)
+		}
+	})
 
 	paneID := paneIDAt(t, ts, sessionName+":1.1")
-	if err := client.SetPaneOption(paneID, state.PortalPaneIDOption, token); err != nil {
-		t.Fatalf("SetPaneOption(%q, %q, %q): %v", paneID, state.PortalPaneIDOption, token, err)
-	}
+	ts.StampPaneToken(t, paneID, token)
 
 	probe := &paneTokenProbe{client: client, paneID: paneID, token: token}
 	probe.location = probe.tokenRow(t).Location

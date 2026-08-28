@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/portaltest"
-	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
 	"github.com/leeovery/portal/internal/tmuxtest"
 	"github.com/leeovery/portal/internal/transienttest"
@@ -98,9 +97,7 @@ func TestDoctorFix_TmuxTransient_DoesNotWipeHooks(t *testing.T) {
 		// The entry must survive because its pane is live, so the pane carries a
 		// token-shaped key the reaper can judge.
 		const liveKey = "livetk"
-		if _, err := sock.TryRun("set-option", "-p", "-t", "live:0.0", state.PortalPaneIDOption, liveKey); err != nil {
-			t.Fatalf("stamp live pane: %v", err)
-		}
+		sock.StampPaneToken(t, "live:0.0", liveKey)
 
 		staleKey := transienttest.ReapableHookKey(0)
 		seedEntries := map[string]string{

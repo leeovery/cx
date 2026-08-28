@@ -4,7 +4,6 @@ import (
 	"errors"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
@@ -15,17 +14,7 @@ import (
 // socket, its client and the session's sole pane id.
 func liveHookKeyPane(t *testing.T, sessionName string) (*tmuxtest.Socket, *tmux.Client, string) {
 	t.Helper()
-	tmuxtest.SkipIfNoTmux(t)
-
-	ts := tmuxtest.New(t, "ptl-hookkey-")
-	client := ts.Client()
-	if _, err := client.EnsureServer(); err != nil {
-		t.Fatalf("EnsureServer: %v", err)
-	}
-	if err := client.NewSession(sessionName, t.TempDir(), ""); err != nil {
-		t.Fatalf("NewSession(%q): %v", sessionName, err)
-	}
-	ts.WaitForSession(t, sessionName, 2*time.Second)
+	ts, client := seedHookKeyServer(t, sessionName, nil)
 
 	paneIDs := sessionPaneIDs(t, ts, sessionName)
 	if len(paneIDs) != 1 {
@@ -73,11 +62,9 @@ func TestResolveHookKey_AgainstARealServer(t *testing.T) {
 	})
 
 	t.Run("it resolves a stamped pane to its token", func(t *testing.T) {
-		_, client, pane := liveHookKeyPane(t, "rhk-stamped")
+		ts, client, pane := liveHookKeyPane(t, "rhk-stamped")
 
-		if err := client.SetPaneOption(pane, state.PortalPaneIDOption, "tok123"); err != nil {
-			t.Fatalf("SetPaneOption(%q, %q, tok123): %v", pane, state.PortalPaneIDOption, err)
-		}
+		ts.StampPaneToken(t, pane, "tok123")
 
 		got, err := client.ResolveHookKey(pane)
 		if err != nil {

@@ -174,7 +174,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 2,
-          "current_task": "resume-hooks-silently-lost-2-7",
+          "current_task": "resume-hooks-silently-lost-2-8",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -308,6 +308,16 @@
                 "cmd/bootstrap/stale_marker_cleanup.go",
                 "CLAUDE.md"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-2-7",
+              "source": "reviewer",
+              "summary": "A saver-hosting integration fixture omits the teardown guard CLAUDE.md prescribes for exactly its shape.",
+              "detail": "cmd/state_daemon_hook_cleanup_integration_test.go:52 spawns a _portal-saver-hosted daemon that flushes on SIGHUP at teardown but never calls portaltest.RegisterStateDirTeardownGuard. This is the direct cause of the TempDir RemoveAll: directory not empty failure the reviewer reproduced (1 in 4 runs) — every assertion logs success first, then cleanup unlinks a state dir the daemon is still writing. Its siblings register the guard (cmd/state_commit_now_reentrancy_integration_test.go:44, internal/tmux/portal_saver_endstate_integration_test.go:36). The file is one task 2-7 edited, but the fix is a new setup call, which its pure-movement brief excluded.",
+              "files": [
+                "cmd/state_daemon_hook_cleanup_integration_test.go",
+                "internal/portaltest/teardown_guard.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -327,7 +337,8 @@
             "resume-hooks-silently-lost-2-3",
             "resume-hooks-silently-lost-2-4",
             "resume-hooks-silently-lost-2-5",
-            "resume-hooks-silently-lost-2-6"
+            "resume-hooks-silently-lost-2-6",
+            "resume-hooks-silently-lost-2-7"
           ],
           "staging": {
             "p1": {
