@@ -179,7 +179,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 3,
-          "current_task": "resume-hooks-silently-lost-3-9",
+          "current_task": "resume-hooks-silently-lost-3-10",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -540,6 +540,15 @@
               "files": [
                 "internal/tmux/hookkey_format_realtmux_test.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-3-10",
+              "summary": "A third production bare -t issuer exists in the daemon capture loop, exposed to the rename class this workflow is about",
+              "detail": "cmd/state_daemon.go:278 builds tmux.PaneTarget(sess.Name, win.Index, pane.Index) and passes it to state.CaptureAndHashPane -> Client.CapturePane -> capture-pane -e -p -S - -t <bare target> (internal/tmux/tmux.go:700). Session names come from state.CaptureStructure live enumeration in the same tick (cmd/state_daemon.go:249), so the target is known-live only as of that read. If a session is renamed mid-tick and a prefix-sibling exists, capture-pane -t foo:0.0 silently captures the OTHER session pane into the scrollback file keyed for the renamed one — the rename-class failure this workflow is about. Measured on tmux 3.7c: with foo killed and foo-2 live, set-option -p -t foo:0.0 exits 0 and writes to foo-2; the = form fails correctly. Narrow and pre-existing; task 3-10 forbids changing call sites. The restore sites are not exposed the same way: armPanes holds the session it just created.",
+              "files": [
+                "cmd/state_daemon.go",
+                "internal/tmux/tmux.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -574,7 +583,8 @@
             "resume-hooks-silently-lost-3-6",
             "resume-hooks-silently-lost-3-7",
             "resume-hooks-silently-lost-3-8",
-            "resume-hooks-silently-lost-3-9"
+            "resume-hooks-silently-lost-3-9",
+            "resume-hooks-silently-lost-3-10"
           ],
           "staging": {
             "p1": {
@@ -615,7 +625,8 @@
           ],
           "completed_phases": [
             1,
-            2
+            2,
+            3
           ]
         }
       }

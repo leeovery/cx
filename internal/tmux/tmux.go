@@ -401,14 +401,19 @@ type PaneCoord struct {
 	Pane   int
 }
 
-// PaneTarget formats a plain "session:window.pane" target, for display and
-// name-based keys. Anything issuing a tmux `-t` flag must use PaneTargetExact.
+// PaneTarget formats a plain "session:window.pane" target, for display, for
+// name-based keys, and for a `-t` flag whose session is known to be live under
+// that exact name. Use PaneTargetExact when the session may have been renamed
+// away or destroyed: tmux prefix-matches, so `-t foo` silently resolves to a
+// live "foo-2" once "foo" is gone. The "=" prefix pins the session name only;
+// it makes no difference to the window.pane half, so a coordinate that has
+// renumbered onto a different pane is caught by neither form.
 func PaneTarget(session string, window, pane int) string {
 	return fmt.Sprintf("%s:%d.%d", session, window, pane)
 }
 
 // PaneTargetExact is the pane-level sibling of exactTarget: the "=" exact-match
-// prefix every `-t` flag needs.
+// prefix a `-t` needs when its session may be gone. See PaneTarget.
 func PaneTargetExact(session string, window, pane int) string {
 	return fmt.Sprintf("=%s:%d.%d", session, window, pane)
 }
