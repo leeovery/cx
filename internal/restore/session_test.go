@@ -307,7 +307,7 @@ func TestSessionRestorer_HydrateCommandBakesSavedPaneToken(t *testing.T) {
 		}
 	})
 
-	t.Run("it bakes an empty hook key for a saved pane with no token", func(t *testing.T) {
+	t.Run("it omits the hook-key flag for a saved pane with no token", func(t *testing.T) {
 		mock := &mockCommander{RunFunc: restoreRunFunc("0:0")}
 		client := tmux.NewClient(mock)
 		dir := t.TempDir()
@@ -324,8 +324,8 @@ func TestSessionRestorer_HydrateCommandBakesSavedPaneToken(t *testing.T) {
 		}
 
 		hydrate := respawnPaneHydrateCommand(t, mock.Calls)
-		if !strings.Contains(hydrate, "--hook-key ''") {
-			t.Errorf("hydrate cmd %q does not contain --hook-key '' for an untokened pane", hydrate)
+		if strings.Contains(hydrate, "--hook-key") {
+			t.Errorf("hydrate cmd %q must carry no --hook-key flag for an untokened pane", hydrate)
 		}
 	})
 }
@@ -418,23 +418,26 @@ func respawnPaneHookKeys(t *testing.T, calls [][]string) []string {
 		if len(args) != 5 {
 			t.Fatalf("respawn-pane args = %v, want length 5", args)
 		}
-		keys = append(keys, extractHookKey(t, args[4]))
+		key, _ := extractHookKey(t, args[4])
+		keys = append(keys, key)
 	}
 	return keys
 }
 
-func extractHookKey(t *testing.T, hydrate string) string {
+// The second return distinguishes "no --hook-key flag at all" - what an
+// untokened pane is armed with - from a flag carrying an empty value.
+func extractHookKey(t *testing.T, hydrate string) (string, bool) {
 	t.Helper()
 	const marker = "--hook-key '"
 	_, rest, found := strings.Cut(hydrate, marker)
 	if !found {
-		t.Fatalf("hydrate cmd %q lacks a %q token", hydrate, marker)
+		return "", false
 	}
 	key, _, closed := strings.Cut(rest, "'")
 	if !closed {
 		t.Fatalf("hydrate cmd %q has an unterminated --hook-key single quote", hydrate)
 	}
-	return key
+	return key, true
 }
 
 func TestSessionRestorer_FIFOUsesLivePaneKeyFromListPanesReQuery(t *testing.T) {

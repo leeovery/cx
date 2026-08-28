@@ -153,6 +153,79 @@ func TestLookupOnResume(t *testing.T) {
 		}
 	})
 
+	t.Run("returns no hook for an empty key even when hooks.json holds an empty-key entry", func(t *testing.T) {
+		dir := t.TempDir()
+		filePath := filepath.Join(dir, "hooks.json")
+		content := `{"":{"on-resume":"rm -rf /"}}`
+		if err := os.WriteFile(filePath, []byte(content), 0o644); err != nil {
+			t.Fatalf("failed to write test file: %v", err)
+		}
+
+		store := hooks.NewStore(filePath)
+		cmd, ok, err := hooks.LookupOnResume(store, "")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if ok {
+			t.Errorf("got ok=true, want false for an empty key")
+		}
+		if cmd != "" {
+			t.Errorf("got cmd=%q, want empty", cmd)
+		}
+	})
+
+	t.Run("reads no file for an empty key", func(t *testing.T) {
+		dir := t.TempDir()
+		filePath := filepath.Join(dir, "hooks.json")
+		// A directory would surface EISDIR out of the store's read, so a clean
+		// miss here proves the file was never consulted.
+		if err := os.Mkdir(filePath, 0o700); err != nil {
+			t.Fatalf("failed to create directory: %v", err)
+		}
+
+		store := hooks.NewStore(filePath)
+		cmd, ok, err := hooks.LookupOnResume(store, "")
+		if err != nil {
+			t.Fatalf("unexpected error for an empty key over an unreadable store: %v", err)
+		}
+		if ok {
+			t.Errorf("got ok=true, want false")
+		}
+		if cmd != "" {
+			t.Errorf("got cmd=%q, want empty", cmd)
+		}
+	})
+
+	t.Run("does not trim a whitespace-only key", func(t *testing.T) {
+		dir := t.TempDir()
+		filePath := filepath.Join(dir, "hooks.json")
+		content := `{"":{"on-resume":"rm -rf /"}}`
+		if err := os.WriteFile(filePath, []byte(content), 0o644); err != nil {
+			t.Fatalf("failed to write test file: %v", err)
+		}
+
+		store := hooks.NewStore(filePath)
+		cmd, ok, err := hooks.LookupOnResume(store, " ")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if ok || cmd != "" {
+			t.Errorf("got cmd=%q ok=%v, want a miss: a whitespace key must not collapse to the empty key", cmd, ok)
+		}
+
+		seeded := filepath.Join(dir, "seeded.json")
+		if err := os.WriteFile(seeded, []byte(`{" ":{"on-resume":"echo spaced"}}`), 0o644); err != nil {
+			t.Fatalf("failed to write test file: %v", err)
+		}
+		cmd, ok, err = hooks.LookupOnResume(hooks.NewStore(seeded), " ")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !ok || cmd != "echo spaced" {
+			t.Errorf("got cmd=%q ok=%v, want the literally-seeded whitespace key to hit", cmd, ok)
+		}
+	})
+
 	t.Run("surfaces a wrapped I/O error distinct from the no-hook case", func(t *testing.T) {
 		dir := t.TempDir()
 		filePath := filepath.Join(dir, "hooks.json")

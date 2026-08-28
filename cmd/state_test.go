@@ -141,7 +141,8 @@ func TestStateInternalSubcommandsAcceptValidArgv(t *testing.T) {
 		{name: "daemon with no args", args: []string{"state", "daemon"}},
 		{name: "notify with no args", args: []string{"state", "notify"}},
 		{name: "signal-hydrate with session name", args: []string{"state", "signal-hydrate", "foo"}},
-		{name: "hydrate with all required flags", args: []string{"state", "hydrate", "--fifo", "/tmp/f", "--file", "/tmp/s", "--hook-key", "k:0.0"}},
+		{name: "hydrate with all flags", args: []string{"state", "hydrate", "--fifo", "/tmp/f", "--file", "/tmp/s", "--hook-key", "paneTokenA"}},
+		{name: "it accepts a hydrate invocation with no hook-key flag", args: []string{"state", "hydrate", "--fifo", "/tmp/f", "--file", "/tmp/s"}},
 		{name: "migrate-rename with old and new", args: []string{"state", "migrate-rename", "old", "new"}},
 	}
 
@@ -194,22 +195,18 @@ func TestStateSignalHydrateRequiresSessionName(t *testing.T) {
 	}
 }
 
-func TestStateHydrateRequiresAllFlags(t *testing.T) {
+func TestStateHydrateRequiresFIFOAndFile(t *testing.T) {
 	tests := []struct {
 		name string
 		args []string
 	}{
 		{
 			name: "missing --fifo",
-			args: []string{"state", "hydrate", "--file", "/tmp/s", "--hook-key", "k:0.0"},
+			args: []string{"state", "hydrate", "--file", "/tmp/s", "--hook-key", "paneTokenA"},
 		},
 		{
 			name: "missing --file",
-			args: []string{"state", "hydrate", "--fifo", "/tmp/f", "--hook-key", "k:0.0"},
-		},
-		{
-			name: "missing --hook-key",
-			args: []string{"state", "hydrate", "--fifo", "/tmp/f", "--file", "/tmp/s"},
+			args: []string{"state", "hydrate", "--fifo", "/tmp/f", "--hook-key", "paneTokenA"},
 		},
 		{
 			name: "missing all flags",

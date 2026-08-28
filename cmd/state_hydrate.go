@@ -292,10 +292,11 @@ var stateHydrateCmd = &cobra.Command{
 func init() {
 	stateHydrateCmd.Flags().String("fifo", "", "Absolute path to the per-pane FIFO")
 	stateHydrateCmd.Flags().String("file", "", "Absolute path to the saved scrollback file")
-	stateHydrateCmd.Flags().String("hook-key", "", "Saved structural identifier (<session>:<window>.<pane>)")
+	// Optional: a pane with no durable token is armed with no key at all, and an
+	// absent flag reads the same as an empty one - "no hook".
+	stateHydrateCmd.Flags().String("hook-key", "", "Saved pane token identifying the pane's resume hook")
 	_ = stateHydrateCmd.MarkFlagRequired("fifo")
 	_ = stateHydrateCmd.MarkFlagRequired("file")
-	_ = stateHydrateCmd.MarkFlagRequired("hook-key")
 
 	stateCmd.AddCommand(stateHydrateCmd)
 }

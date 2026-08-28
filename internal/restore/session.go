@@ -304,11 +304,18 @@ func (r *SessionRestorer) applyEnvironment(sess state.Session) {
 // buildHydrateCommand takes no `exec` prefix: respawn already replaces the
 // pane's process rather than stacking one. Every interpolated value is
 // single-quoted so any bytes reach the helper's flag parser as one token.
+//
+// A pane with no saved token gets no --hook-key flag at all rather than an
+// empty one: an empty key must never reach a hooks.json lookup.
 func buildHydrateCommand(fifo, file, hookKey string) string {
-	return fmt.Sprintf(
-		"portal state hydrate --fifo %s --file %s --hook-key %s",
-		shellQuoteSingle(fifo), shellQuoteSingle(file), shellQuoteSingle(hookKey),
+	cmd := fmt.Sprintf(
+		"portal state hydrate --fifo %s --file %s",
+		shellQuoteSingle(fifo), shellQuoteSingle(file),
 	)
+	if hookKey == "" {
+		return cmd
+	}
+	return cmd + " --hook-key " + shellQuoteSingle(hookKey)
 }
 
 // shellQuoteSingle wraps s as one shell token, escaping embedded single quotes

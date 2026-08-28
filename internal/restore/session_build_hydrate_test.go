@@ -6,7 +6,7 @@ import (
 )
 
 func TestBuildHydrateCommand(t *testing.T) {
-	t.Run("typical inputs produce single-quoted invocation without sh -c envelope", func(t *testing.T) {
+	t.Run("it renders a quoted hook-key flag for a non-empty token", func(t *testing.T) {
 		got := buildHydrateCommand("/x.fifo", "/y.bin", "work:0.0")
 		want := "portal state hydrate --fifo '/x.fifo' --file '/y.bin' --hook-key 'work:0.0'"
 		if got != want {
@@ -14,11 +14,14 @@ func TestBuildHydrateCommand(t *testing.T) {
 		}
 	})
 
-	t.Run("empty hookKey produces well-formed quoted invocation", func(t *testing.T) {
+	t.Run("it omits the hook-key flag for a pane with no saved token", func(t *testing.T) {
 		got := buildHydrateCommand("/x.fifo", "/y.bin", "")
-		want := "portal state hydrate --fifo '/x.fifo' --file '/y.bin' --hook-key ''"
+		want := "portal state hydrate --fifo '/x.fifo' --file '/y.bin'"
 		if got != want {
 			t.Errorf("buildHydrateCommand empty hook-key:\n got %q\nwant %q", got, want)
+		}
+		if strings.Contains(got, "--hook-key") {
+			t.Errorf("buildHydrateCommand %q must emit no --hook-key token for an empty key", got)
 		}
 	})
 
