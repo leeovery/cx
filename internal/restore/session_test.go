@@ -3,8 +3,10 @@ package restore_test
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -827,4 +829,281 @@ func TestSessionRestorer_RejectsEmptyTopology(t *testing.T) {
 	if _, err := r.Restore(sessEmptyPanes); err == nil {
 		t.Fatal("expected error for empty panes, got nil")
 	}
+}
+
+func setPaneOptionCalls(calls [][]string) [][]string {
+	var out [][]string
+	for _, c := range calls {
+		if len(c) == 6 && c[0] == "set-option" && c[1] == "-p" {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+func assertPaneTokenStamp(t *testing.T, call []string, wantTarget, wantToken string) {
+	t.Helper()
+	if call[3] != wantTarget {
+		t.Errorf("stamp target = %q, want %q", call[3], wantTarget)
+	}
+	if call[4] != state.PortalPaneIDOption {
+		t.Errorf("stamp option = %q, want %q", call[4], state.PortalPaneIDOption)
+	}
+	if call[5] != wantToken {
+		t.Errorf("stamp value = %q, want %q", call[5], wantToken)
+	}
+}
+
+func failOnPaneOptionTarget(livePanesOutput, failTarget string) func(args ...string) (string, error) {
+	return func(args ...string) (string, error) {
+		if len(args) > 0 && args[0] == "list-panes" {
+			return livePanesOutput, nil
+		}
+		if len(args) == 6 && args[0] == "set-option" && args[1] == "-p" && args[3] == failTarget {
+			return "", errors.New("stamp boom")
+		}
+		return "", nil
+	}
+}
+
+func TestSessionRestorer_ReStampsSavedPaneToken(t *testing.T) {
+	t.Run("it stamps each saved token onto its paired live pane", func(t *testing.T) {
+		mock := &mockCommander{RunFunc: restoreRunFunc("0:0\n0:1")}
+		r := &restore.SessionRestorer{Client: tmux.NewClient(mock), StateDir: t.TempDir()}
+
+		sess := newSession("work", nil,
+			newWindow(0, "main",
+				newPaneWithToken(0, "/work", "scrollback/work__0.0.bin", "tokA"),
+				newPaneWithToken(1, "/work", "scrollback/work__0.1.bin", "tokB"),
+			),
+		)
+
+		if _, err := r.Restore(sess); err != nil {
+			t.Fatalf("Restore: %v", err)
+		}
+
+		stamps := setPaneOptionCalls(mock.Calls)
+		if len(stamps) != 2 {
+			t.Fatalf("set-option -p calls = %d, want 2; calls: %v", len(stamps), mock.Calls)
+		}
+		assertPaneTokenStamp(t, stamps[0], "work:0.0", "tokA")
+		assertPaneTokenStamp(t, stamps[1], "work:0.1", "tokB")
+	})
+
+	t.Run("it stamps before it arms the pane", func(t *testing.T) {
+		mock := &mockCommander{RunFunc: restoreRunFunc("0:0")}
+		r := &restore.SessionRestorer{Client: tmux.NewClient(mock), StateDir: t.TempDir()}
+
+		sess := newSession("work", nil,
+			newWindow(0, "main", newPaneWithToken(0, "/work", "scrollback/work__0.0.bin", "tokA")),
+		)
+
+		if _, err := r.Restore(sess); err != nil {
+			t.Fatalf("Restore: %v", err)
+		}
+
+		stampIdx := callsAt(mock.Calls, "set-option")
+		respawnIdx := callsAt(mock.Calls, "respawn-pane")
+		if stampIdx < 0 || respawnIdx < 0 {
+			t.Fatalf("expected both set-option and respawn-pane; calls: %v", mock.Calls)
+		}
+		if stampIdx > respawnIdx {
+			t.Errorf("set-option at %d follows respawn-pane at %d; the stamp must precede the arm", stampIdx, respawnIdx)
+		}
+	})
+
+	t.Run("it stamps nothing for a saved pane with an empty token", func(t *testing.T) {
+		mock := &mockCommander{RunFunc: restoreRunFunc("0:0")}
+		logger, sink := newCaptureLogger(t)
+		r := &restore.SessionRestorer{Client: tmux.NewClient(mock), StateDir: t.TempDir(), Logger: logger}
+
+		sess := newSession("work", nil,
+			newWindow(0, "main", newPane(0, "/work", "scrollback/work__0.0.bin")),
+		)
+
+		if _, err := r.Restore(sess); err != nil {
+			t.Fatalf("Restore: %v", err)
+		}
+
+		if stamps := setPaneOptionCalls(mock.Calls); len(stamps) != 0 {
+			t.Errorf("set-option -p calls = %v, want none for an untokened saved pane", stamps)
+		}
+		if body := sink.Body(); body != "" {
+			t.Errorf("log body = %q, want empty; an untokened pane is silent", body)
+		}
+	})
+
+	t.Run("it warns and continues when the stamp fails", func(t *testing.T) {
+		mock := &mockCommander{RunFunc: failOnPaneOptionTarget("0:0", "work:0.0")}
+		logger, sink := newCaptureLogger(t)
+		r := &restore.SessionRestorer{Client: tmux.NewClient(mock), StateDir: t.TempDir(), Logger: logger}
+
+		sess := newSession("work", nil,
+			newWindow(0, "main", newPaneWithToken(0, "/work", "scrollback/work__0.0.bin", "tokA")),
+		)
+
+		livePanes, err := r.Restore(sess)
+		if err != nil {
+			t.Fatalf("Restore returned %v, want nil (a failed stamp must not abort)", err)
+		}
+		if len(livePanes) != 1 {
+			t.Errorf("livePanes = %v, want the one live pane", livePanes)
+		}
+		if got := len(findAllCalls(mock.Calls, "respawn-pane")); got != 1 {
+			t.Errorf("respawn-pane calls = %d, want 1 (the pane is still armed)", got)
+		}
+
+		recs := sink.recordsWithMessage("set pane token failed")
+		if len(recs) != 1 {
+			t.Fatalf("'set pane token failed' records = %d, want 1; body: %q", len(recs), sink.Body())
+		}
+		if recs[0].level != slog.LevelWarn {
+			t.Errorf("level = %v, want WARN", recs[0].level)
+		}
+		wantKeys := []string{"session", "pane_key", "error"}
+		if !slices.Equal(recs[0].keys, wantKeys) {
+			t.Errorf("attr keys = %v, want %v", recs[0].keys, wantKeys)
+		}
+		rec := sink.Records()[0]
+		if got := rec.AttrString(t, "session"); got != "work" {
+			t.Errorf("session attr = %q, want %q", got, "work")
+		}
+	})
+
+	t.Run("it names the live structural key in pane_key", func(t *testing.T) {
+		mock := &mockCommander{RunFunc: failOnPaneOptionTarget("5:5", "work:5.5")}
+		logger, sink := newCaptureLogger(t)
+		r := &restore.SessionRestorer{Client: tmux.NewClient(mock), StateDir: t.TempDir(), Logger: logger}
+
+		sess := newSession("work", nil,
+			newWindow(0, "main", newPaneWithToken(0, "/work", "scrollback/work__0.0.bin", "tokA")),
+		)
+
+		if _, err := r.Restore(sess); err != nil {
+			t.Fatalf("Restore: %v", err)
+		}
+
+		recs := sink.Records()
+		if len(recs) != 1 {
+			t.Fatalf("records = %d, want 1; body: %q", len(recs), sink.Body())
+		}
+		got := recs[0].AttrString(t, "pane_key")
+		if want := state.SanitizePaneKey("work", 5, 5); got != want {
+			t.Errorf("pane_key = %q, want the live structural key %q", got, want)
+		}
+		if got == state.SanitizePaneKey("work", 0, 0) {
+			t.Errorf("pane_key = %q, must not be the saved key", got)
+		}
+		if got == "tokA" {
+			t.Errorf("pane_key = %q, must not be the token", got)
+		}
+	})
+
+	t.Run("it keeps stamping the remaining panes after one fails", func(t *testing.T) {
+		mock := &mockCommander{RunFunc: failOnPaneOptionTarget("0:0\n0:1", "work:0.0")}
+		logger, _ := newCaptureLogger(t)
+		r := &restore.SessionRestorer{Client: tmux.NewClient(mock), StateDir: t.TempDir(), Logger: logger}
+
+		sess := newSession("work", nil,
+			newWindow(0, "main",
+				newPaneWithToken(0, "/work", "scrollback/work__0.0.bin", "tokA"),
+				newPaneWithToken(1, "/work", "scrollback/work__0.1.bin", "tokB"),
+			),
+		)
+
+		if _, err := r.Restore(sess); err != nil {
+			t.Fatalf("Restore: %v", err)
+		}
+
+		stamps := setPaneOptionCalls(mock.Calls)
+		if len(stamps) != 2 {
+			t.Fatalf("set-option -p calls = %d, want 2 (the second is still attempted); calls: %v", len(stamps), mock.Calls)
+		}
+		assertPaneTokenStamp(t, stamps[1], "work:0.1", "tokB")
+	})
+
+	t.Run("it stamps only the paired prefix when more live panes than saved", func(t *testing.T) {
+		mock := &mockCommander{RunFunc: restoreRunFunc("0:0\n0:1\n0:2")}
+		logger, _ := newCaptureLogger(t)
+		r := &restore.SessionRestorer{Client: tmux.NewClient(mock), StateDir: t.TempDir(), Logger: logger}
+
+		sess := newSession("work", nil,
+			newWindow(0, "main",
+				newPaneWithToken(0, "/work", "scrollback/work__0.0.bin", "tokA"),
+				newPaneWithToken(1, "/work", "scrollback/work__0.1.bin", "tokB"),
+			),
+		)
+
+		if _, err := r.Restore(sess); err != nil {
+			t.Fatalf("Restore: %v", err)
+		}
+
+		stamps := setPaneOptionCalls(mock.Calls)
+		if len(stamps) != 2 {
+			t.Fatalf("set-option -p calls = %d, want 2; calls: %v", len(stamps), mock.Calls)
+		}
+		assertPaneTokenStamp(t, stamps[0], "work:0.0", "tokA")
+		assertPaneTokenStamp(t, stamps[1], "work:0.1", "tokB")
+		for _, c := range stamps {
+			if c[3] == "work:0.2" {
+				t.Errorf("unpaired live pane work:0.2 was stamped: %v", c)
+			}
+		}
+	})
+
+	t.Run("it stamps only the paired prefix when more saved panes than live", func(t *testing.T) {
+		mock := &mockCommander{RunFunc: restoreRunFunc("0:0\n0:1")}
+		logger, _ := newCaptureLogger(t)
+		r := &restore.SessionRestorer{Client: tmux.NewClient(mock), StateDir: t.TempDir(), Logger: logger}
+
+		sess := newSession("work", nil,
+			newWindow(0, "main",
+				newPaneWithToken(0, "/work", "scrollback/work__0.0.bin", "tokA"),
+				newPaneWithToken(1, "/work", "scrollback/work__0.1.bin", "tokB"),
+				newPaneWithToken(2, "/work", "scrollback/work__0.2.bin", "tokC"),
+			),
+		)
+
+		if _, err := r.Restore(sess); err != nil {
+			t.Fatalf("Restore: %v", err)
+		}
+
+		stamps := setPaneOptionCalls(mock.Calls)
+		if len(stamps) != 2 {
+			t.Fatalf("set-option -p calls = %d, want 2; calls: %v", len(stamps), mock.Calls)
+		}
+		assertPaneTokenStamp(t, stamps[0], "work:0.0", "tokA")
+		assertPaneTokenStamp(t, stamps[1], "work:0.1", "tokB")
+		for _, c := range stamps {
+			if c[5] == "tokC" {
+				t.Errorf("unpaired saved token tokC was stamped: %v", c)
+			}
+		}
+	})
+
+	t.Run("it emits no warn on a boot where every saved pane is unstamped", func(t *testing.T) {
+		mock := &mockCommander{RunFunc: restoreRunFunc("0:0\n0:1\n1:0")}
+		logger, sink := newCaptureLogger(t)
+		r := &restore.SessionRestorer{Client: tmux.NewClient(mock), StateDir: t.TempDir(), Logger: logger}
+
+		sess := newSession("work", nil,
+			newWindow(0, "main",
+				newPane(0, "/work", "scrollback/work__0.0.bin"),
+				newPane(1, "/work", "scrollback/work__0.1.bin"),
+			),
+			newWindow(1, "logs",
+				newPane(0, "/work", "scrollback/work__1.0.bin"),
+			),
+		)
+
+		if _, err := r.Restore(sess); err != nil {
+			t.Fatalf("Restore: %v", err)
+		}
+
+		for _, rec := range sink.Records() {
+			if rec.Level >= slog.LevelWarn {
+				t.Errorf("unexpected WARN on an all-unstamped restore: %s %v", rec.Msg, rec.Keys)
+			}
+		}
+	})
 }

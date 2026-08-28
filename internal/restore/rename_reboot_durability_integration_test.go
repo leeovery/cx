@@ -60,22 +60,41 @@ func TestRenameRebootHook_DurableAcrossRepeatedReboots(t *testing.T) {
 		t.Fatalf("session %q not live after rename: %v", renameNewName, err)
 	}
 
-	idx := captureAndPersist(t, client, stateDir, renameNewName, renamePaneToken)
+	captureAndPersist(t, client, stateDir, renameNewName, renamePaneToken)
 
 	if err := rebootAndHydrate(t, ts, client, stateDir); err != nil {
 		t.Fatalf("cycle 1 rebootAndHydrate: %v", err)
 	}
 	assertHookFireCount(t, hookFireFile, 1)
 
+	nextIdx, err := state.CaptureStructure(client, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("next CaptureStructure: %v", err)
+	}
+
+	t.Run("it re-persists the pane token on the next capture after restore", func(t *testing.T) {
+		sess := findCapturedSession(t, nextIdx, renameNewName)
+		if got := capturedPaneToken(t, sess); got != renamePaneToken {
+			t.Fatalf("next capture pane token = %q; want %q (the token must be RE-PERSISTED by the "+
+				"restore re-stamp — an empty one here orphans the hook on the next reboot)",
+				got, renamePaneToken)
+		}
+	})
+
 	verifyHookKeyed(t, hooksPath, stableKey)
 
-	// The same saved snapshot drives the second cycle: the token rides
-	// sessions.json, so a reboot resolves the hook from saved state alone.
-	persistIndex(t, idx, stateDir)
+	// The second cycle is driven from the post-restore capture, not the original
+	// snapshot: that is what makes it a round-trip rather than a replay.
+	persistIndex(t, nextIdx, stateDir)
 	seedScrollback(t, stateDir, renameNewName)
 
 	if err := rebootAndHydrate(t, ts, client, stateDir); err != nil {
 		t.Fatalf("cycle 2 rebootAndHydrate: %v", err)
+	}
+
+	if liveToken := readPaneToken(t, ts, renameNewName); liveToken != renamePaneToken {
+		t.Errorf("live pane token after the second reboot = %q; want %q (must survive repeated reboots)",
+			liveToken, renamePaneToken)
 	}
 
 	t.Run("it fires the resume hook again on a second reboot cycle", func(t *testing.T) {
@@ -83,7 +102,7 @@ func TestRenameRebootHook_DurableAcrossRepeatedReboots(t *testing.T) {
 	})
 }
 
-func captureAndPersist(t *testing.T, client *tmux.Client, stateDir, name, wantPaneToken string) state.Index {
+func captureAndPersist(t *testing.T, client *tmux.Client, stateDir, name, wantPaneToken string) {
 	t.Helper()
 
 	idx, err := state.CaptureStructure(client, nil, nil, nil)
@@ -99,7 +118,6 @@ func captureAndPersist(t *testing.T, client *tmux.Client, stateDir, name, wantPa
 
 	seedScrollback(t, stateDir, name)
 	persistIndex(t, idx, stateDir)
-	return idx
 }
 
 func rebootAndHydrate(t *testing.T, ts *tmuxtest.Socket, client *tmux.Client, stateDir string) error {

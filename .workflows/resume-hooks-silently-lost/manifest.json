@@ -174,7 +174,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 3,
-          "current_task": "resume-hooks-silently-lost-3-2",
+          "current_task": "resume-hooks-silently-lost-3-3",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -431,6 +431,18 @@
                 "internal/restore/rename_reboot_shared_test.go",
                 "cmd/state_daemon_hook_cleanup_integration_test.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-3-2",
+              "source": "reviewer",
+              "summary": "assertHookFireCount reads the hook-fire file with no wait, racing the hydrate helper across the whole restore hook-fire family.",
+              "detail": "internal/restore/rename_reboot_shared_test.go:90-100 reads the file immediately after rebootAndHydrate returns; that function last wait is WaitForSkeletonMarkersCleared, which clears BEFORE the helper execs sh -c <HOOK>; exec $SHELL. Reproduced at 1-in-5 iterations under -count=5 on the current tree (TestRenameRebootHook_PaneProcessKeptRunning) AND at HEAD (TestRenameRebootHook_ExternalRename), plus TestMultiPaneLegacy_PerPaneHookRouting and TestRenameRebootHook_DurableAcrossRepeatedReboots under ./internal/.... Pre-existing and not introduced by 3-2, but its new assertHookFireCount(t, hookFireFile, 2) inherits it, so the work unit headline guarantee now rides a racy read. Remedy is to poll to a deadline inside the shared helper — reaches four-plus tests owned by other tasks. The task other new assertions (capturedPaneToken after restore, readPaneToken after cycle 2) are deterministic and unaffected.",
+              "files": [
+                "internal/restore/rename_reboot_shared_test.go",
+                "internal/restore/rename_reboot_durability_integration_test.go",
+                "internal/restore/rename_reboot_hook_integration_test.go",
+                "internal/restore/multipane_legacy_integration_test.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -457,7 +469,8 @@
             "resume-hooks-silently-lost-2-10",
             "resume-hooks-silently-lost-2-11",
             "resume-hooks-silently-lost-2-12",
-            "resume-hooks-silently-lost-3-1"
+            "resume-hooks-silently-lost-3-1",
+            "resume-hooks-silently-lost-3-2"
           ],
           "staging": {
             "p1": {

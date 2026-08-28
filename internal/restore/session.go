@@ -27,12 +27,14 @@ type SessionRestorer struct {
 	Logger   *slog.Logger
 }
 
-// savedPaneArmInfo's hookKey is the pane's durable identity token as read from
-// saved state. The firing path must never read it from the live server: baking
-// from the snapshot keeps firing correct whatever the restore re-stamp does.
+// savedPaneArmInfo's paneToken is the pane's durable identity token as read
+// from saved state — one value serving as both the re-stamped pane option and
+// the baked hook key, since a second field would let the two drift. The firing
+// path must never read it from the live server: baking from the snapshot keeps
+// firing correct whatever the restore re-stamp does.
 type savedPaneArmInfo struct {
 	scrollAbs string
-	hookKey   string
+	paneToken string
 }
 
 // Restore returns the live pane coords, for the caller to thread into
@@ -57,7 +59,7 @@ func (r *SessionRestorer) collectArmInfos(sess state.Session) []savedPaneArmInfo
 		for _, p := range w.Panes {
 			infos = append(infos, savedPaneArmInfo{
 				scrollAbs: filepath.Join(r.StateDir, p.ScrollbackFile),
-				hookKey:   p.PortalPaneID,
+				paneToken: p.PortalPaneID,
 			})
 		}
 	}
@@ -124,19 +126,35 @@ func (r *SessionRestorer) armPanes(sess state.Session, armInfos []savedPaneArmIn
 		info := armInfos[i]
 
 		liveKey := state.SanitizePaneKey(sess.Name, live.Window, live.Pane)
+		liveTarget := tmux.PaneTarget(sess.Name, live.Window, live.Pane)
 		fifo := state.FIFOPath(r.StateDir, liveKey)
 		if err := state.CreateFIFO(fifo); err != nil {
 			return nil, fmt.Errorf("session %q: %w", sess.Name, err)
 		}
 
-		hydrateCmd := buildHydrateCommand(fifo, info.scrollAbs, info.hookKey)
-		liveTarget := tmux.PaneTarget(sess.Name, live.Window, live.Pane)
+		r.stampPaneToken(sess.Name, liveKey, liveTarget, info.paneToken)
+
+		hydrateCmd := buildHydrateCommand(fifo, info.scrollAbs, info.paneToken)
 		if err := r.Client.RespawnPane(liveTarget, hydrateCmd); err != nil {
 			return nil, fmt.Errorf("session %q: arm pane %s: %w", sess.Name, liveTarget, err)
 		}
 	}
 
 	return livePanes, nil
+}
+
+// stampPaneToken re-establishes a pane's durable identity on the live server,
+// which a tmux pane option cannot carry across a reboot. An empty saved token
+// is skipped rather than written: a stamped "" reads back indistinguishably
+// from absence. A failure costs that pane its hook rather than its session, so
+// it degrades to a WARN instead of aborting the restore.
+func (r *SessionRestorer) stampPaneToken(sessionName, liveKey, liveTarget, token string) {
+	if token == "" {
+		return
+	}
+	if err := r.Client.SetPaneOption(liveTarget, state.PortalPaneIDOption, token); err != nil {
+		r.logger().Warn("set pane token failed", "session", sessionName, "pane_key", liveKey, "error", err)
+	}
 }
 
 // ApplyWindowGeometry degrades locally on failure. Order matters: zoom is a
