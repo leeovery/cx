@@ -47,6 +47,9 @@ func TestHooksListCommand(t *testing.T) {
 
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{})
 
+		hooksDeps = &HooksDeps{PaneLister: &loudPaneHookLister{t: t}}
+		t.Cleanup(func() { hooksDeps = nil })
+
 		buf := new(bytes.Buffer)
 		resetRootCmd()
 		rootCmd.SetOut(buf)
@@ -64,6 +67,9 @@ func TestHooksListCommand(t *testing.T) {
 
 	t.Run("produces empty output when hooks file does not exist", func(t *testing.T) {
 		hooksFileInTempDir(t)
+
+		hooksDeps = &HooksDeps{PaneLister: &loudPaneHookLister{t: t}}
+		t.Cleanup(func() { hooksDeps = nil })
 
 		buf := new(bytes.Buffer)
 		resetRootCmd()
@@ -912,6 +918,9 @@ func TestHookCommandRename(t *testing.T) {
 	t.Run("keeps hooks working as a silent cobra alias", func(t *testing.T) {
 		_, hooksFile := hooksFileInTempDir(t)
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{})
+
+		hooksDeps = &HooksDeps{PaneLister: &loudPaneHookLister{t: t}}
+		t.Cleanup(func() { hooksDeps = nil })
 
 		outBuf := new(bytes.Buffer)
 		errBuf := new(bytes.Buffer)

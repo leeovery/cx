@@ -312,19 +312,28 @@ func TestPersistentPreRunE_CallsEnsureServer(t *testing.T) {
 
 				// Without these the command reaches real tmux and the
 				// developer's config dir.
-				if len(tt.argv) >= 2 && (tt.argv[1] == "set" || tt.argv[1] == "rm") {
-					dir := t.TempDir()
-					hooksFile := filepath.Join(dir, "hooks.json")
-					t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
-					t.Setenv("TMUX_PANE", "%3")
+				if len(tt.argv) >= 2 {
+					switch tt.argv[1] {
+					case "set", "rm":
+						dir := t.TempDir()
+						hooksFile := filepath.Join(dir, "hooks.json")
+						t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
+						t.Setenv("TMUX_PANE", "%3")
 
-					resolver := &mockKeyResolver{key: "my-session:0.0"}
-					hooksDeps = &HooksDeps{KeyResolver: resolver}
-					t.Cleanup(func() { hooksDeps = nil })
+						resolver := &mockKeyResolver{key: "my-session:0.0"}
+						hooksDeps = &HooksDeps{KeyResolver: resolver}
+						t.Cleanup(func() { hooksDeps = nil })
 
-					writeHooksJSON(t, hooksFile, map[string]map[string]string{
-						"my-session:0.0": {"on-resume": "claude --resume abc123"},
-					})
+						writeHooksJSON(t, hooksFile, map[string]map[string]string{
+							"my-session:0.0": {"on-resume": "claude --resume abc123"},
+						})
+					case "list":
+						// The list body resolves each entry's location through the
+						// pane enumeration, so it is the empty store — not a real
+						// tmux server — that must be what leaves the read untaken.
+						hooksDeps = &HooksDeps{PaneLister: &loudPaneHookLister{t: t}}
+						t.Cleanup(func() { hooksDeps = nil })
+					}
 				}
 
 				resetRootCmd()
