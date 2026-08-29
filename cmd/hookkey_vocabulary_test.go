@@ -62,17 +62,28 @@ func restoringOption(restoring bool, readErr error) (string, bool, error) {
 	return "1", true, nil
 }
 
-type recordingHookKeyLister struct {
-	rows         []tmux.PaneHookRow
-	err          error
-	hookKeyCalls int
-	restoring    bool
-	restoringErr error
+// recordingPaneHookLister answers the pane-token enumeration with a fixed set
+// of rows (or a fixed failure) and records every read it is asked for, so a
+// test can assert on the read count as well as the rows.
+type recordingPaneHookLister struct {
+	rows  []tmux.PaneHookRow
+	err   error
+	calls int
 }
 
-func (r *recordingHookKeyLister) ListAllPaneHookKeys() ([]tmux.PaneHookRow, error) {
-	r.hookKeyCalls++
+func (r *recordingPaneHookLister) ListAllPaneHookKeys() ([]tmux.PaneHookRow, error) {
+	r.calls++
 	return r.rows, r.err
+}
+
+var _ PaneHookLister = (*recordingPaneHookLister)(nil)
+
+// recordingHookKeyLister is the sweep's seam: the same enumeration fake, plus
+// the @portal-restoring marker read the sweep gates itself on.
+type recordingHookKeyLister struct {
+	recordingPaneHookLister
+	restoring    bool
+	restoringErr error
 }
 
 func (r *recordingHookKeyLister) TryGetServerOption(string) (string, bool, error) {

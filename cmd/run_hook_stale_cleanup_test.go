@@ -258,14 +258,14 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		store, _ := newTempHooksStore(t, seed)
 
 		logger := &recordingLogger{}
-		rec := &recordingHookKeyLister{rows: tokenRows(liveSeedA)}
+		rec := &recordingHookKeyLister{recordingPaneHookLister: recordingPaneHookLister{rows: tokenRows(liveSeedA)}}
 
 		if err := runHookStaleCleanup(rec, store, logger.Logger().With("component", "bootstrap"), nil, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
-		if rec.hookKeyCalls != 1 {
-			t.Errorf("ListAllPaneHookKeys call count = %d, want 1 (the enumeration must switch to the hook-key method)", rec.hookKeyCalls)
+		if rec.calls != 1 {
+			t.Errorf("ListAllPaneHookKeys call count = %d, want 1 (the enumeration must switch to the hook-key method)", rec.calls)
 		}
 	})
 
@@ -388,7 +388,7 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 		store, path := newTempHooksStore(t, staleSeed)
 		before := readFileBytes(t, path)
 
-		lister := &recordingHookKeyLister{rows: tokenRows(liveSeedA), restoring: true}
+		lister := &recordingHookKeyLister{recordingPaneHookLister: recordingPaneHookLister{rows: tokenRows(liveSeedA)}, restoring: true}
 
 		if err := runHookStaleCleanup(lister, store, nil, nil, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
@@ -397,8 +397,8 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 		if after := readFileBytes(t, path); !bytes.Equal(before, after) {
 			t.Errorf("hooks.json rewritten during a restore\nbefore: %s\nafter:  %s", before, after)
 		}
-		if lister.hookKeyCalls != 0 {
-			t.Errorf("ListAllPaneHookKeys call count = %d, want 0 (the sweep must stand down before enumerating)", lister.hookKeyCalls)
+		if lister.calls != 0 {
+			t.Errorf("ListAllPaneHookKeys call count = %d, want 0 (the sweep must stand down before enumerating)", lister.calls)
 		}
 	})
 
@@ -407,7 +407,7 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 		before := readFileBytes(t, path)
 
 		sentinel := errors.New("tmux dead")
-		lister := &recordingHookKeyLister{rows: tokenRows(liveSeedA), restoringErr: sentinel}
+		lister := &recordingHookKeyLister{recordingPaneHookLister: recordingPaneHookLister{rows: tokenRows(liveSeedA)}, restoringErr: sentinel}
 
 		sink := &logtest.Sink{}
 		log.SetTestHandler(t, sink)
@@ -419,8 +419,8 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 		if after := readFileBytes(t, path); !bytes.Equal(before, after) {
 			t.Errorf("hooks.json rewritten on a failed marker read\nbefore: %s\nafter:  %s", before, after)
 		}
-		if lister.hookKeyCalls != 0 {
-			t.Errorf("ListAllPaneHookKeys call count = %d, want 0 on a failed marker read", lister.hookKeyCalls)
+		if lister.calls != 0 {
+			t.Errorf("ListAllPaneHookKeys call count = %d, want 0 on a failed marker read", lister.calls)
 		}
 
 		rec := standDownRecord(t, sink)
@@ -438,7 +438,7 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 		}
 		store := hooks.NewStore(bogusPath)
 
-		lister := &recordingHookKeyLister{rows: tokenRows(liveSeedA), restoring: true}
+		lister := &recordingHookKeyLister{recordingPaneHookLister: recordingPaneHookLister{rows: tokenRows(liveSeedA)}, restoring: true}
 
 		var removed []string
 		onRemoved := func(key string) { removed = append(removed, key) }
@@ -446,8 +446,8 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 		if err := runHookStaleCleanup(lister, store, nil, onRemoved, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: want nil (store untouched), got %v", err)
 		}
-		if lister.hookKeyCalls != 0 {
-			t.Errorf("ListAllPaneHookKeys call count = %d, want 0", lister.hookKeyCalls)
+		if lister.calls != 0 {
+			t.Errorf("ListAllPaneHookKeys call count = %d, want 0", lister.calls)
 		}
 		if len(removed) != 0 {
 			t.Errorf("onRemoved invoked with %v, want no invocations", removed)
@@ -456,7 +456,7 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 
 	t.Run("it logs the stand-down at DEBUG and never WARN", func(t *testing.T) {
 		store, _ := newTempHooksStore(t, staleSeed)
-		lister := &recordingHookKeyLister{rows: tokenRows(liveSeedA), restoring: true}
+		lister := &recordingHookKeyLister{recordingPaneHookLister: recordingPaneHookLister{rows: tokenRows(liveSeedA)}, restoring: true}
 
 		sink := &logtest.Sink{}
 		log.SetTestHandler(t, sink)
@@ -473,14 +473,14 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 
 	t.Run("it sweeps normally when the marker is absent", func(t *testing.T) {
 		store, _ := newTempHooksStore(t, staleSeed)
-		lister := &recordingHookKeyLister{rows: tokenRows(liveSeedA)}
+		lister := &recordingHookKeyLister{recordingPaneHookLister: recordingPaneHookLister{rows: tokenRows(liveSeedA)}}
 
 		if err := runHookStaleCleanup(lister, store, nil, nil, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
-		if lister.hookKeyCalls != 1 {
-			t.Errorf("ListAllPaneHookKeys call count = %d, want 1", lister.hookKeyCalls)
+		if lister.calls != 1 {
+			t.Errorf("ListAllPaneHookKeys call count = %d, want 1", lister.calls)
 		}
 		postRun, err := store.Load()
 		if err != nil {
@@ -575,7 +575,7 @@ func TestHookSweepReportsStandDown(t *testing.T) {
 	t.Run("it reports the restore stand-down to the caller", func(t *testing.T) {
 		store, path := newTempHooksStore(t, staleSeed)
 		before := readFileBytes(t, path)
-		lister := &recordingHookKeyLister{rows: tokenRows(liveSeedA), restoring: true}
+		lister := &recordingHookKeyLister{recordingPaneHookLister: recordingPaneHookLister{rows: tokenRows(liveSeedA)}, restoring: true}
 
 		var skipped, removed []string
 		err := runHookStaleCleanup(lister, store, nil,
@@ -637,7 +637,7 @@ func TestHookSweepReportsStandDown(t *testing.T) {
 
 	t.Run("it survives a nil onSkipped on both stand-down branches", func(t *testing.T) {
 		restoringStore, _ := newTempHooksStore(t, staleSeed)
-		restoringLister := &recordingHookKeyLister{rows: tokenRows(liveSeedA), restoring: true}
+		restoringLister := &recordingHookKeyLister{recordingPaneHookLister: recordingPaneHookLister{rows: tokenRows(liveSeedA)}, restoring: true}
 		if err := runHookStaleCleanup(restoringLister, restoringStore, nil, nil, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup on the restore branch: %v", err)
 		}

@@ -30,7 +30,7 @@ func TestHooksListCommand(t *testing.T) {
 		}
 		writeHooksJSON(t, hooksFile, data)
 
-		hooksDeps = &HooksDeps{PaneLister: &mockPaneHookLister{rows: []tmux.PaneHookRow{
+		hooksDeps = &HooksDeps{PaneLister: &recordingPaneHookLister{rows: []tmux.PaneHookRow{
 			{Token: "aaa111", Location: "my-project-abc123:0.0"},
 		}}}
 		t.Cleanup(func() { hooksDeps = nil })
@@ -95,7 +95,7 @@ func TestHooksListCommand(t *testing.T) {
 		}
 		writeHooksJSON(t, hooksFile, data)
 
-		hooksDeps = &HooksDeps{PaneLister: &mockPaneHookLister{rows: []tmux.PaneHookRow{
+		hooksDeps = &HooksDeps{PaneLister: &recordingPaneHookLister{rows: []tmux.PaneHookRow{
 			{Token: "ccc333", Location: "proj-abc:1.0"},
 			{Token: "bbb222", Location: "proj-abc:0.0"},
 			{Token: "aaa111", Location: "other-proj:0.0"},
@@ -124,19 +124,6 @@ func TestHooksListCommand(t *testing.T) {
 	})
 }
 
-// mockPaneHookLister records every enumeration the list path takes, so a test
-// can assert on the read count as well as the rows.
-type mockPaneHookLister struct {
-	rows  []tmux.PaneHookRow
-	err   error
-	calls int
-}
-
-func (m *mockPaneHookLister) ListAllPaneHookKeys() ([]tmux.PaneHookRow, error) {
-	m.calls++
-	return m.rows, m.err
-}
-
 func TestHooksListLocationColumn(t *testing.T) {
 	t.Run("it appends the resolved location as a fourth column", func(t *testing.T) {
 		_, hooksFile := hooksFileInTempDir(t)
@@ -144,7 +131,7 @@ func TestHooksListLocationColumn(t *testing.T) {
 			"aaa111": {"on-resume": "claude --resume abc123"},
 		})
 
-		hooksDeps = &HooksDeps{PaneLister: &mockPaneHookLister{rows: []tmux.PaneHookRow{
+		hooksDeps = &HooksDeps{PaneLister: &recordingPaneHookLister{rows: []tmux.PaneHookRow{
 			{Token: "aaa111", Location: "my-project-abc123:0.0"},
 		}}}
 		t.Cleanup(func() { hooksDeps = nil })
@@ -162,7 +149,7 @@ func TestHooksListLocationColumn(t *testing.T) {
 			"": {"on-resume": "npm start"},
 		})
 
-		hooksDeps = &HooksDeps{PaneLister: &mockPaneHookLister{rows: []tmux.PaneHookRow{
+		hooksDeps = &HooksDeps{PaneLister: &recordingPaneHookLister{rows: []tmux.PaneHookRow{
 			{Token: "", Location: "unstamped-sess:0.0"},
 		}}}
 		t.Cleanup(func() { hooksDeps = nil })
@@ -180,7 +167,7 @@ func TestHooksListLocationColumn(t *testing.T) {
 			"dup777": {"on-resume": "npm start"},
 		})
 
-		hooksDeps = &HooksDeps{PaneLister: &mockPaneHookLister{rows: []tmux.PaneHookRow{
+		hooksDeps = &HooksDeps{PaneLister: &recordingPaneHookLister{rows: []tmux.PaneHookRow{
 			{Token: "dup777", Location: "first-sess:0.0"},
 			{Token: "dup777", Location: "second-sess:1.2"},
 		}}}
@@ -202,7 +189,7 @@ func TestHooksListLocationColumn(t *testing.T) {
 
 		// Rows alongside the error: a failed read must be judged by the error, not
 		// by whether the lister also handed back rows.
-		hooksDeps = &HooksDeps{PaneLister: &mockPaneHookLister{
+		hooksDeps = &HooksDeps{PaneLister: &recordingPaneHookLister{
 			rows: []tmux.PaneHookRow{{Token: "aaa111", Location: "my-project:0.0"}},
 			err:  errors.New("no server running"),
 		}}
@@ -234,7 +221,7 @@ func TestHooksListLocationColumn(t *testing.T) {
 			"ghost9": {"on-resume": "npm start"},
 		})
 
-		hooksDeps = &HooksDeps{PaneLister: &mockPaneHookLister{rows: []tmux.PaneHookRow{
+		hooksDeps = &HooksDeps{PaneLister: &recordingPaneHookLister{rows: []tmux.PaneHookRow{
 			{Token: "aaa111", Location: "my-project:0.0"},
 			{Token: "bbb222", Location: "my-project:0.1"},
 		}}}
@@ -254,7 +241,7 @@ func TestHooksListLocationColumn(t *testing.T) {
 			"sess:0.0": {"on-resume": "npm start"},
 		})
 
-		hooksDeps = &HooksDeps{PaneLister: &mockPaneHookLister{rows: []tmux.PaneHookRow{
+		hooksDeps = &HooksDeps{PaneLister: &recordingPaneHookLister{rows: []tmux.PaneHookRow{
 			{Token: "aaa111", Location: "sess:0.0"},
 		}}}
 		t.Cleanup(func() { hooksDeps = nil })
@@ -273,7 +260,7 @@ func TestHooksListLocationColumn(t *testing.T) {
 			"aaa111": {"on-resume": "npm start"},
 		})
 
-		hooksDeps = &HooksDeps{PaneLister: &mockPaneHookLister{rows: []tmux.PaneHookRow{
+		hooksDeps = &HooksDeps{PaneLister: &recordingPaneHookLister{rows: []tmux.PaneHookRow{
 			{Token: "aaa111", Location: "a|b:0.0"},
 		}}}
 		t.Cleanup(func() { hooksDeps = nil })
@@ -294,7 +281,7 @@ func TestHooksListLocationColumn(t *testing.T) {
 			"ddd444": {"on-resume": "four"},
 		})
 
-		lister := &mockPaneHookLister{rows: []tmux.PaneHookRow{
+		lister := &recordingPaneHookLister{rows: []tmux.PaneHookRow{
 			{Token: "aaa111", Location: "my-project:0.0"},
 		}}
 		hooksDeps = &HooksDeps{PaneLister: lister}
