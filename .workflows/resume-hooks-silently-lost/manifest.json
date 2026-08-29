@@ -214,7 +214,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 6,
-          "current_task": "resume-hooks-silently-lost-6-6",
+          "current_task": "resume-hooks-silently-lost-6-7",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -750,6 +750,112 @@
                 "internal/storelog/clean_stale.go",
                 "internal/hooks/via.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-6",
+              "source": "executor",
+              "summary": "The restore-arm seam is a trap a future unit-lane test will fall into silently.",
+              "detail": "With os.Executable() as the default, any test that drives a real restore without setting Exe arms its panes with the test binary. That binary does not fail loudly — it stops flag parsing at the state positional and re-runs its own suite inside the tmux pane, then exits 0 (verified against a compiled xdg test binary). The symptom is a vanished session, not an error. Nothing enforces the seam; discipline is the only guard, exactly like the IsolateStateForTest rule. A source guard over restore.Orchestrator{ / restore.SessionRestorer{ literals in *_test.go requiring an Exe field — or a restoretest constructor as the only supported route — would make it structural.",
+              "files": [
+                "internal/restore/session.go",
+                "internal/restoretest/restoretest.go",
+                "cmd/bootstrap/helpers_integration_test.go",
+                "cmd/reattach_integration_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-6",
+              "source": "executor",
+              "summary": "Three near-identical staged-restore-adapter helpers now exist across two packages.",
+              "detail": "restoretest.StagedHydrateExe (internal/restoretest/restoretest.go:51), restoreAdapterFor (cmd/bootstrap/helpers_integration_test.go:18) and stagedRestoreAdapter (cmd/reattach_integration_test.go:49) all do the same job — build a RestoreAdapter whose inner Exe points at a staged binary. The two wrappers exist only because restoretest cannot import bootstrapadapter without pulling that dependency into every restoretest consumer. Rule of Three is now met; one home would prevent drift.",
+              "files": [
+                "internal/restoretest/restoretest.go",
+                "cmd/bootstrap/helpers_integration_test.go",
+                "cmd/reattach_integration_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-6",
+              "source": "executor",
+              "summary": "assertHookFireCount reads a file the hook may not have written yet — observed flake.",
+              "detail": "internal/restore/rename_reboot_shared_test.go:48 stats the hook-fire file immediately after WaitForSkeletonMarkersCleared, but the marker clears when the helper reaches its exec step, before the hook echo >> completes. restoretest.WaitForFileExists (internal/restoretest/waitfor_file_exists.go:18) is the existing wait primitive and is not used here. TestRenameRebootHook_DurableAcrossRepeatedReboots failed once on a full integration run and could not be reproduced in isolation or under load, at HEAD or on this tree. Task 6-16 scopes exactly this fix.",
+              "files": [
+                "internal/restore/rename_reboot_shared_test.go",
+                "internal/restore/rename_reboot_durability_integration_test.go",
+                "internal/restore/rename_reboot_hook_integration_test.go",
+                "internal/restoretest/waitfor_file_exists.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-6",
+              "source": "executor",
+              "summary": "TestStagePortalBinary compiles the portal binary in the unit lane.",
+              "detail": "internal/portalbintest/build_test.go:33 runs a real go build of the CLI on every go test ./.... It only exec.LookPaths the result rather than running it, so it does not violate this task acceptance criterion as written, but it is the one remaining unit-lane test that produces a portal binary, and it costs a full build on every unit run. Deciding whether the lane rule should cover builds as well as execs is a repo-wide call.",
+              "files": [
+                "internal/portalbintest/build_test.go",
+                "CLAUDE.md"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-6",
+              "source": "reviewer",
+              "summary": "Ten PrependPATH call sites may now be dead setup after the Exe seam landed.",
+              "detail": "Step 4 of the Do list scoped the audit to the four named tests, which had no PATH prologue. Other sites were left untouched by design and may now be pure ceremony: internal/restore/integration_full_test.go:38, multipane_legacy_integration_test.go:30,152, rename_reboot_hook_integration_test.go:77, rename_reboot_durability_integration_test.go:27, exit_closes_pane_integration_test.go:107, plus cmd/bootstrap/reboot_roundtrip_test.go:63,458,595 and eager_signal_hydrate_integration_test.go:48,109,183. Some are genuinely load-bearing (tmux global hook bodies still resolve portal from PATH); telling them apart needs a per-test pass.",
+              "files": [
+                "internal/restore/integration_full_test.go",
+                "internal/restore/multipane_legacy_integration_test.go",
+                "internal/restore/rename_reboot_hook_integration_test.go",
+                "internal/restore/rename_reboot_durability_integration_test.go",
+                "internal/restore/exit_closes_pane_integration_test.go",
+                "cmd/bootstrap/reboot_roundtrip_test.go",
+                "cmd/bootstrap/eager_signal_hydrate_integration_test.go",
+                "cmd/noncontiguous_window_reboot_integration_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-6",
+              "source": "reviewer",
+              "summary": "Three pre-existing integration flakes surfaced during review, none attributable to this change.",
+              "detail": "(1) TestCompositeBootstrap_FObservables fails ~2-3 runs in 8 with pgrep -fx did not converge to 1 within 6s — reproduced at the same rate in a clean git archive HEAD tree, so a HEAD flake. (2) TestTransientListPanesHelpers_Smoke hit the documented TempDir RemoveAll: directory not empty teardown flake once; that fixture has no RegisterStateDirTeardownGuard. (3) TestPhase3Integration_RestoreUsesLiveIndicesUnderBaseIndexDrift failed once at armed_restore_integration_test.go:134 with server exited unexpectedly on the new-session immediately following ts.KillServer — a kill/create race in a body byte-identical to HEAD apart from the Exe field.",
+              "files": [
+                "cmd/bootstrap/composition_e2e_f_observables_integration_test.go",
+                "cmd/bootstrap/transient_listpanes_helpers_integration_test.go",
+                "internal/restore/armed_restore_integration_test.go",
+                "internal/restore/rename_reboot_durability_integration_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-6",
+              "source": "reviewer",
+              "summary": "A forgotten Exe: field in a future real-restore integration test arms panes with the test binary, which re-runs its own suite inside the pane.",
+              "detail": "StagedHydrateExe empty-binDir fatal catches a wrong value but not an omitted field. Every real-restore test still builds its restore.Orchestrator as a bare struct literal (internal/restore/armed_restore_integration_test.go:62,:140; rename_reboot_hook_integration_test.go:142; rename_reboot_durability_integration_test.go:136; exit_closes_pane_integration_test.go:75; integration_full_test.go:117; multipane_legacy_integration_test.go:120,:193; cmd/noncontiguous_window_reboot_integration_test.go:376), so the injection is opt-in at eight sites. A restoretest constructor taking binDir and always setting Exe would make it structurally impossible to omit. Crosses three packages and eight files.",
+              "files": [
+                "internal/restoretest/restoretest.go",
+                "internal/restore/armed_restore_integration_test.go",
+                "internal/restore/rename_reboot_hook_integration_test.go",
+                "internal/restore/rename_reboot_durability_integration_test.go",
+                "internal/restore/exit_closes_pane_integration_test.go",
+                "internal/restore/integration_full_test.go",
+                "internal/restore/multipane_legacy_integration_test.go",
+                "cmd/noncontiguous_window_reboot_integration_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-6",
+              "source": "reviewer",
+              "summary": "Do step 4 dead-PrependPATH sweep is unresolved outside the four named tests.",
+              "detail": "Step 4 scoped the audit to the four, none of which had a PATH prologue, so nothing was dropped. Eleven restoretest.PrependPATH sites remain across six files; for several the hydrate helper was the only stated reason and is now pinned, while others (e.g. reboot_roundtrip_test.go:595, whose orchestrator registers real portal state notify global hooks) still need it. Auditing each requires touching test files this task four do not cover.",
+              "files": [
+                "cmd/bootstrap/eager_signal_hydrate_integration_test.go",
+                "cmd/bootstrap/phase2_hook_fire_integration_test.go",
+                "cmd/bootstrap/reboot_roundtrip_test.go",
+                "cmd/noncontiguous_window_reboot_integration_test.go",
+                "internal/restore/exit_closes_pane_integration_test.go",
+                "internal/restore/rename_reboot_durability_integration_test.go",
+                "internal/restore/rename_reboot_hook_integration_test.go",
+                "internal/restore/multipane_legacy_integration_test.go",
+                "internal/restore/integration_full_test.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -807,7 +913,8 @@
             "resume-hooks-silently-lost-6-2",
             "resume-hooks-silently-lost-6-3",
             "resume-hooks-silently-lost-6-4",
-            "resume-hooks-silently-lost-6-5"
+            "resume-hooks-silently-lost-6-5",
+            "resume-hooks-silently-lost-6-6"
           ],
           "staging": {
             "p1": {
