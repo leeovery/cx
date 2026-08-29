@@ -184,7 +184,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 5,
-          "current_task": "resume-hooks-silently-lost-5-1",
+          "current_task": "resume-hooks-silently-lost-5-2",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -586,6 +586,23 @@
                 "internal/project/tags.go",
                 "internal/hooks/lock.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-5-2",
+              "summary": "The degraded read error attr renders the sidecar path twice on the now-routine ENOENT path",
+              "detail": "internal/hooks/lock.go:36 wraps with fmt.Errorf(\"open hooks lock %s: %w\", path, err) while the wrapped *os.PathError already carries the path, so a live probe emitted error=open hooks lock /.../hooks.json.lock: open /.../hooks.json.lock: no such file or directory. Harmless when it was a rare mutation failure (task 5-1 code, untouched by 5-2); it is now the shape every read on a pre-sidecar install logs. The fix belongs to acquireLock, which 5-1 owns and both acquire paths share.",
+              "files": [
+                "internal/hooks/lock.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-5-2",
+              "summary": "The sweep load-failure WARN text still names a method the sweep no longer calls",
+              "detail": "cmd/run_hook_stale_cleanup.go:101 warns \"stale-hook cleanup: hookStore.Load failed\" on the read that is now LoadSnapshot. The string is pinned by a test constant (loadWarnFmt, cmd/run_hook_stale_cleanup_test.go:25) and sits in the sweep spec-governed observability surface alongside the clean-stale-skipped reasons, so renaming it is an observability decision rather than a rename — better made in one pass with whatever else touches the sweep log strings.",
+              "files": [
+                "cmd/run_hook_stale_cleanup.go",
+                "cmd/run_hook_stale_cleanup_test.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -630,7 +647,8 @@
             "resume-hooks-silently-lost-4-6",
             "resume-hooks-silently-lost-4-7",
             "resume-hooks-silently-lost-4-8",
-            "resume-hooks-silently-lost-5-1"
+            "resume-hooks-silently-lost-5-1",
+            "resume-hooks-silently-lost-5-2"
           ],
           "staging": {
             "p1": {

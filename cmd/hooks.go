@@ -134,7 +134,7 @@ var hooksListCmd = &cobra.Command{
 			return err
 		}
 
-		list, err := store.List()
+		list, err := store.List("cli")
 		if err != nil {
 			return err
 		}

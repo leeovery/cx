@@ -304,7 +304,7 @@ func checkStaleHooks(lister AllPaneLister, store *hooks.Store) checkResult {
 	if store == nil {
 		return checkResult{name: name, status: checkNotEvaluable, detail: "could not read hooks.json"}
 	}
-	persisted, err := store.Load()
+	persisted, err := store.Load("doctor")
 	if err != nil {
 		return checkResult{name: name, status: checkNotEvaluable, detail: "could not read hooks.json"}
 	}

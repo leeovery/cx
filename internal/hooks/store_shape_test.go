@@ -43,7 +43,7 @@ func TestCleanStaleShapeAwareness(t *testing.T) {
 			t.Fatalf("CleanStale removed %v, want nothing", removed)
 		}
 
-		persisted, err := store.Load()
+		persisted, err := store.Load("internal")
 		if err != nil {
 			t.Fatalf("load: %v", err)
 		}
@@ -72,7 +72,7 @@ func TestCleanStaleShapeAwareness(t *testing.T) {
 			t.Fatalf("CleanStale removed %v, want [%s]", removed, staleKey)
 		}
 
-		h, err := store.Load()
+		h, err := store.Load("internal")
 		if err != nil {
 			t.Fatalf("load: %v", err)
 		}
@@ -95,7 +95,7 @@ func TestCleanStaleShapeAwareness(t *testing.T) {
 			t.Fatalf("CleanStale removed %v, want the empty key", removed)
 		}
 
-		h, err := store.Load()
+		h, err := store.Load("internal")
 		if err != nil {
 			t.Fatalf("load: %v", err)
 		}

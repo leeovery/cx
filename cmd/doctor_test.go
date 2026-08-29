@@ -1233,7 +1233,7 @@ func TestDoctorStaleHooksParityWithPredicate(t *testing.T) {
 				}
 				got := findCheck(t, results, "stale hooks")
 
-				persisted, err := hookStore.Load()
+				persisted, err := hookStore.Load("internal")
 				if err != nil {
 					t.Fatalf("load hooks: %v", err)
 				}

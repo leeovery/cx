@@ -51,9 +51,11 @@ func calleeName(call *ast.CallExpr) string {
 
 // Every mutation takes the file under one exclusive hold, so each must reach
 // the file through the unexported load/save — which do no locking of their own.
-// Routing through the exported Load/Save instead nests a second acquisition
-// inside the hold the mutation already owns: a deadlock-shaped regression that
-// degrades into a silent multi-second stall rather than failing a test.
+// Routing through any of the locking front doors instead nests a second
+// acquisition inside the hold the mutation already owns: a deadlock-shaped
+// regression that degrades into a silent multi-second stall rather than failing
+// a test. The read front doors are named alongside Load/Save because they
+// acquire the same sidecar, shared — which an exclusive holder still blocks.
 func TestMutationsDoNotCallExportedLoadOrSave(t *testing.T) {
 	paths, err := sourceguardtest.PackageGoFiles(".", false)
 	if err != nil {
@@ -61,7 +63,15 @@ func TestMutationsDoNotCallExportedLoadOrSave(t *testing.T) {
 	}
 
 	mutations := map[string]bool{"Set": true, "Remove": true, "CleanStale": true}
-	forbidden := map[string]bool{"Load": true, "Save": true}
+	forbidden := map[string]bool{
+		"Load":              true,
+		"Save":              true,
+		"LoadSnapshot":      true,
+		"List":              true,
+		"Get":               true,
+		"loadShared":        true,
+		"loadSharedBounded": true,
+	}
 
 	scanned := 0
 	for _, path := range paths {
@@ -74,7 +84,7 @@ func TestMutationsDoNotCallExportedLoadOrSave(t *testing.T) {
 		sourceguardtest.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
 			callee := calleeName(call)
 			if mutations[funcName] && forbidden[callee] && calleeReceiverName(call) == "s" {
-				t.Errorf("%s: %s calls s.%s — a mutation must reach the file through the unexported load/save, never re-enter the locking front door", fset.Position(call.Pos()), funcName, callee)
+				t.Errorf("%s: %s calls s.%s — a mutation must reach the file through the unexported load/save, never re-enter a locking front door", fset.Position(call.Pos()), funcName, callee)
 			}
 			return true
 		})

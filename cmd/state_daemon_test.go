@@ -858,9 +858,9 @@ func TestStateDaemon_HooksCleanupWiring(t *testing.T) {
 		if deps == nil {
 			t.Fatal("daemon deps not captured")
 		}
-		loaded, err := deps.HookStore.Load()
+		loaded, err := deps.HookStore.Load("internal")
 		if err != nil {
-			t.Fatalf("deps.HookStore.Load(): %v", err)
+			t.Fatalf("deps.HookStore.Load: %v", err)
 		}
 		events, ok := loaded[key]
 		if !ok {

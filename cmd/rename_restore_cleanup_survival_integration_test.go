@@ -56,7 +56,7 @@ func TestRenameRestoreCleanupSurvival_KeepsRestoredTokenKeyedHook(t *testing.T) 
 }`
 	store, path := newTempHooksStore(t, seed)
 
-	preRun, err := store.Load()
+	preRun, err := store.Load("internal")
 	if err != nil {
 		t.Fatalf("pre-cleanup store.Load: %v", err)
 	}
@@ -71,7 +71,7 @@ func TestRenameRestoreCleanupSurvival_KeepsRestoredTokenKeyedHook(t *testing.T) 
 		t.Fatalf("runHookStaleCleanup: %v", err)
 	}
 
-	postRun, err := store.Load()
+	postRun, err := store.Load("internal")
 	if err != nil {
 		t.Fatalf("post-cleanup store.Load: %v", err)
 	}

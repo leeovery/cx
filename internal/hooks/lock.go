@@ -69,3 +69,12 @@ func (s *Store) acquireMutationLock() (*os.File, error) {
 	_ = os.MkdirAll(filepath.Dir(s.path), 0o755)
 	return acquireLock(s.lockPath(), os.O_RDWR|os.O_CREATE, unix.LOCK_EX, lockTimeout)
 }
+
+// acquireSharedLock takes the shared hold a read runs under, at the bound its
+// caller supplies. It passes no O_CREATE deliberately: a read must create
+// nothing — not the config directory, not the sidecar — so a read-only `portal
+// doctor` and a display-only `hook list` keep having no write side effect on a
+// fresh install, and an absent sidecar degrades through the caller instead.
+func (s *Store) acquireSharedLock(bound time.Duration) (*os.File, error) {
+	return acquireLock(s.lockPath(), os.O_RDONLY, unix.LOCK_SH, bound)
+}

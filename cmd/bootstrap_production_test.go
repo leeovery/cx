@@ -122,6 +122,12 @@ func newTempHooksStore(t *testing.T, seed string) (*hooks.Store, string) {
 			t.Fatalf("write seed hooks.json: %v", err)
 		}
 	}
+	// The sidecar stands in for the one a writer establishes on a real install,
+	// so a read under this fixture takes its shared lock rather than degrading
+	// and emitting a load-unlocked breadcrumb the fixture never meant to model.
+	if err := os.WriteFile(path+".lock", nil, 0o600); err != nil {
+		t.Fatalf("create sidecar: %v", err)
+	}
 	return hooks.NewStore(path), path
 }
 

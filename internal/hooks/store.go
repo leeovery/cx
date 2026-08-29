@@ -37,8 +37,44 @@ func NewStore(path string) *Store {
 }
 
 // Load reads hooks from the JSON file, returning an empty map when the file is
-// missing or holds malformed JSON.
-func (s *Store) Load() (hooksFile, error) {
+// missing or holds malformed JSON. via names the calling surface for the
+// degradation breadcrumb.
+func (s *Store) Load(via string) (hooksFile, error) {
+	return s.loadShared(via)
+}
+
+// LoadSnapshot is the sweep's advisory pre-read. It exists as an exported read
+// because that pre-read lives in cmd and cannot reach the unexported helper,
+// and it is the only read taken at snapshotLockTimeout rather than lockTimeout:
+// one sweep cycle takes the sidecar twice — shared here, exclusive inside
+// CleanStale — so at the full bound a wedged writer would park the daemon's 1s
+// tick for two full bounds every cycle, which is the outcome the bound exists
+// to prevent.
+func (s *Store) LoadSnapshot(via string) (hooksFile, error) {
+	return s.loadSharedBounded(via, snapshotLockTimeout)
+}
+
+// loadShared reads under the shared hold every ordinary read takes.
+func (s *Store) loadShared(via string) (hooksFile, error) {
+	return s.loadSharedBounded(via, lockTimeout)
+}
+
+// loadSharedBounded reads under a shared hold acquired at bound, releasing it
+// before returning so no read ever hands a lock to its caller. Any acquisition
+// failure — an absent sidecar, an absent directory, an unreadable file, or the
+// bound elapsing — falls through to the non-locking read after one DEBUG
+// record: correctness never depends on the shared lock (AtomicWrite renames, so
+// a reader sees the pre-state or the post-state, never a torn one), and failing
+// a read would forfeit a hook for nothing. The bound is a parameter and is
+// never derived from via, which is a log attr.
+func (s *Store) loadSharedBounded(via string, bound time.Duration) (hooksFile, error) {
+	f, err := s.acquireSharedLock(bound)
+	if err != nil {
+		logger.Debug("load-unlocked", "op", "load-unlocked", "via", via, "error", err)
+		return s.load()
+	}
+	defer func() { _ = f.Close() }()
+
 	return s.load()
 }
 
@@ -165,8 +201,8 @@ func (s *Store) Remove(key, event, via string) (bool, error) {
 }
 
 // List returns the hooks sorted by key then event.
-func (s *Store) List() ([]Hook, error) {
-	h, err := s.Load()
+func (s *Store) List(via string) ([]Hook, error) {
+	h, err := s.loadShared(via)
 	if err != nil {
 		return nil, err
 	}
@@ -266,8 +302,8 @@ func (s *Store) CleanStale(liveKeys []string) ([]string, error) {
 }
 
 // Get returns the event map for key, or an empty map when the key has no hooks.
-func (s *Store) Get(key string) (map[string]string, error) {
-	h, err := s.Load()
+func (s *Store) Get(key, via string) (map[string]string, error) {
+	h, err := s.loadShared(via)
 	if err != nil {
 		return nil, err
 	}

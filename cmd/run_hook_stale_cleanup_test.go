@@ -216,7 +216,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
-		postRun, err := store.Load()
+		postRun, err := store.Load("internal")
 		if err != nil {
 			t.Fatalf("store.Load post-run: %v", err)
 		}
@@ -283,7 +283,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
-		postRun, err := store.Load()
+		postRun, err := store.Load("internal")
 		if err != nil {
 			t.Fatalf("store.Load post-run: %v", err)
 		}
@@ -316,7 +316,7 @@ func TestUnjudgeableHookKeyRetention(t *testing.T) {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
-		postRun, err := store.Load()
+		postRun, err := store.Load("internal")
 		if err != nil {
 			t.Fatalf("store.Load post-run: %v", err)
 		}
@@ -482,7 +482,7 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 		if lister.calls != 1 {
 			t.Errorf("ListAllPaneHookKeys call count = %d, want 1", lister.calls)
 		}
-		postRun, err := store.Load()
+		postRun, err := store.Load("internal")
 		if err != nil {
 			t.Fatalf("store.Load post-run: %v", err)
 		}
@@ -529,7 +529,7 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 		if got := fc.callsContaining("list-panes"); len(got) != 0 {
 			t.Errorf("tick enumerated panes despite the restoring marker: %v", got)
 		}
-		postRun, err := store.Load()
+		postRun, err := store.Load("internal")
 		if err != nil {
 			t.Fatalf("store.Load post-run: %v", err)
 		}
@@ -751,7 +751,7 @@ func TestHookSweepGuardCountsPaneRowsNotTokens(t *testing.T) {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
-		postRun, err := store.Load()
+		postRun, err := store.Load("internal")
 		if err != nil {
 			t.Fatalf("store.Load post-run: %v", err)
 		}
@@ -775,7 +775,7 @@ func TestHookSweepGuardCountsPaneRowsNotTokens(t *testing.T) {
 		if len(skipped) != 1 || skipped[0] != skipReasonEmptyPaneRead {
 			t.Errorf("onSkipped invocations = %v, want [%s]", skipped, skipReasonEmptyPaneRead)
 		}
-		postRun, err := store.Load()
+		postRun, err := store.Load("internal")
 		if err != nil {
 			t.Fatalf("store.Load post-run: %v", err)
 		}
@@ -811,7 +811,7 @@ func TestHookSweepGuardCountsPaneRowsNotTokens(t *testing.T) {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
-		postRun, err := store.Load()
+		postRun, err := store.Load("internal")
 		if err != nil {
 			t.Fatalf("store.Load post-run: %v", err)
 		}

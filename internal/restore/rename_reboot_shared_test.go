@@ -35,7 +35,7 @@ func persistIndex(t *testing.T, idx state.Index, stateDir string) {
 
 func verifyHookKeyed(t *testing.T, hooksPath, wantKey string) {
 	t.Helper()
-	events, err := hooks.NewStore(hooksPath).Get(wantKey)
+	events, err := hooks.NewStore(hooksPath).Get(wantKey, "internal")
 	if err != nil {
 		t.Fatalf("hooks.Get(%q): %v", wantKey, err)
 	}

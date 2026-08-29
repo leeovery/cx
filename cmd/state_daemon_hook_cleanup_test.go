@@ -51,7 +51,7 @@ func TestMaybeRunHookCleanup_DoesNotRunBeforeInterval(t *testing.T) {
 
 	maybeRunHookCleanup(deps)
 
-	postRun, err := store.Load()
+	postRun, err := store.Load("internal")
 	if err != nil {
 		t.Fatalf("store.Load: %v", err)
 	}
@@ -82,7 +82,7 @@ func TestMaybeRunHookCleanup_RunsAndResetsOnceIntervalElapsed(t *testing.T) {
 
 	maybeRunHookCleanup(deps)
 
-	postRun, err := store.Load()
+	postRun, err := store.Load("internal")
 	if err != nil {
 		t.Fatalf("store.Load: %v", err)
 	}
@@ -110,7 +110,7 @@ func TestMaybeRunHookCleanup_FiresAtIntervalBoundary(t *testing.T) {
 
 	maybeRunHookCleanup(deps)
 
-	postRun, err := store.Load()
+	postRun, err := store.Load("internal")
 	if err != nil {
 		t.Fatalf("store.Load: %v", err)
 	}
@@ -163,7 +163,7 @@ func TestMaybeRunHookCleanup_ListPanesErrorSwallowedNoReap(t *testing.T) {
 
 	maybeRunHookCleanup(deps)
 
-	postRun, err := store.Load()
+	postRun, err := store.Load("internal")
 	if err != nil {
 		t.Fatalf("store.Load: %v", err)
 	}
@@ -221,7 +221,7 @@ func TestMaybeRunHookCleanup_ReusesMassDeletionGuard(t *testing.T) {
 
 	maybeRunHookCleanup(deps)
 
-	postRun, err := store.Load()
+	postRun, err := store.Load("internal")
 	if err != nil {
 		t.Fatalf("store.Load: %v", err)
 	}

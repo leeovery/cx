@@ -542,7 +542,7 @@ func TestDaemonTick_RunsHookCleanupOnIdleTick(t *testing.T) {
 
 	tick(t.Context(), deps)
 
-	postRun, err := store.Load()
+	postRun, err := store.Load("internal")
 	if err != nil {
 		t.Fatalf("store.Load: %v", err)
 	}
@@ -578,7 +578,7 @@ func TestDaemonTick_SkipsHookCleanupWhenRestoring(t *testing.T) {
 
 	tick(t.Context(), deps)
 
-	postRun, err := store.Load()
+	postRun, err := store.Load("internal")
 	if err != nil {
 		t.Fatalf("store.Load: %v", err)
 	}
@@ -613,7 +613,7 @@ func TestDaemonTick_SkipsHookCleanupOnDirtyCaptureTick(t *testing.T) {
 	if got := fc.callsContaining("list-sessions"); len(got) == 0 {
 		t.Errorf("list-sessions not invoked; capture must run on a dirty tick")
 	}
-	postRun, err := store.Load()
+	postRun, err := store.Load("internal")
 	if err != nil {
 		t.Fatalf("store.Load: %v", err)
 	}
@@ -644,7 +644,7 @@ func TestDaemonTick_SkipsHookCleanupOnMaxGapCaptureTick(t *testing.T) {
 	if got := fc.callsContaining("list-sessions"); len(got) == 0 {
 		t.Errorf("list-sessions not invoked; capture must run on a max-gap tick")
 	}
-	postRun, err := store.Load()
+	postRun, err := store.Load("internal")
 	if err != nil {
 		t.Fatalf("store.Load: %v", err)
 	}

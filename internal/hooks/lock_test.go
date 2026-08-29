@@ -188,7 +188,7 @@ func TestMutationLockExclusion(t *testing.T) {
 			}
 		}
 
-		loaded, err := hooks.NewStore(path).Load()
+		loaded, err := hooks.NewStore(path).Load("internal")
 		if err != nil {
 			t.Fatalf("Load: %v", err)
 		}
@@ -221,7 +221,7 @@ func TestMutationLockExclusion(t *testing.T) {
 			t.Fatalf("Set blocked on the sidecar: %v", err)
 		}
 
-		loaded, err := hooks.NewStore(path).Load()
+		loaded, err := hooks.NewStore(path).Load("internal")
 		if err != nil {
 			t.Fatalf("Load: %v", err)
 		}

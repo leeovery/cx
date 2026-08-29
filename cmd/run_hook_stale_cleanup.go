@@ -94,7 +94,10 @@ func runHookStaleCleanup(
 		return nil
 	}
 
-	persisted, err := store.Load()
+	// The advisory pre-read takes the short bound: this cycle takes the sidecar
+	// again inside CleanStale, and at the full bound a wedged writer would park
+	// the daemon's tick for two of them.
+	persisted, err := store.LoadSnapshot("internal")
 	if err != nil {
 		logger.Warn("stale-hook cleanup: hookStore.Load failed", "error", err)
 		return err

@@ -103,7 +103,7 @@ func TestLoad(t *testing.T) {
 		dir := t.TempDir()
 		store := hooks.NewStore(filepath.Join(dir, "nonexistent", "hooks.json"))
 
-		h, err := store.Load()
+		h, err := store.Load("internal")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -122,7 +122,7 @@ func TestLoad(t *testing.T) {
 		}
 
 		store := hooks.NewStore(filePath)
-		h, err := store.Load()
+		h, err := store.Load("internal")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -142,7 +142,7 @@ func TestLoad(t *testing.T) {
 		}
 
 		store := hooks.NewStore(filePath)
-		h, err := store.Load()
+		h, err := store.Load("internal")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -192,7 +192,7 @@ func TestPersistence(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		loaded, err := store.Load()
+		loaded, err := store.Load("internal")
 		if err != nil {
 			t.Fatalf("failed to load saved file: %v", err)
 		}
@@ -248,7 +248,7 @@ func TestSet(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		h, err := store.Load()
+		h, err := store.Load("internal")
 		if err != nil {
 			t.Fatalf("failed to load: %v", err)
 		}
@@ -273,7 +273,7 @@ func TestSet(t *testing.T) {
 			t.Fatalf("unexpected error on second set: %v", err)
 		}
 
-		h, err := store.Load()
+		h, err := store.Load("internal")
 		if err != nil {
 			t.Fatalf("failed to load: %v", err)
 		}
@@ -304,7 +304,7 @@ func TestSet(t *testing.T) {
 			t.Fatalf("unexpected error on second set: %v", err)
 		}
 
-		h, err := store.Load()
+		h, err := store.Load("internal")
 		if err != nil {
 			t.Fatalf("failed to load: %v", err)
 		}
@@ -342,7 +342,7 @@ func TestRemove(t *testing.T) {
 			t.Error("removed = false, want true for a seeded entry")
 		}
 
-		h, err := store.Load()
+		h, err := store.Load("internal")
 		if err != nil {
 			t.Fatalf("failed to load: %v", err)
 		}
@@ -375,7 +375,7 @@ func TestRemove(t *testing.T) {
 			t.Error("removed = false, want true for a seeded entry")
 		}
 
-		h, err := store.Load()
+		h, err := store.Load("internal")
 		if err != nil {
 			t.Fatalf("failed to load: %v", err)
 		}
@@ -408,7 +408,7 @@ func TestRemove(t *testing.T) {
 			t.Error("removed = false, want true for a seeded entry")
 		}
 
-		h, err := store.Load()
+		h, err := store.Load("internal")
 		if err != nil {
 			t.Fatalf("failed to load: %v", err)
 		}
@@ -451,7 +451,7 @@ func TestRemove(t *testing.T) {
 			t.Error("file was written on a no-op removal (Save should be skipped)")
 		}
 
-		h, err := store.Load()
+		h, err := store.Load("internal")
 		if err != nil {
 			t.Fatalf("failed to load: %v", err)
 		}
@@ -486,7 +486,7 @@ func TestRemove(t *testing.T) {
 			t.Error("file was written on a no-op removal (Save should be skipped)")
 		}
 
-		h, err := store.Load()
+		h, err := store.Load("internal")
 		if err != nil {
 			t.Fatalf("failed to load: %v", err)
 		}
@@ -581,7 +581,7 @@ func TestList(t *testing.T) {
 		dir := t.TempDir()
 		store := hooks.NewStore(filepath.Join(dir, "hooks.json"))
 
-		list, err := store.List()
+		list, err := store.List("cli")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -601,7 +601,7 @@ func TestList(t *testing.T) {
 		}
 
 		store := hooks.NewStore(filePath)
-		list, err := store.List()
+		list, err := store.List("cli")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -638,7 +638,7 @@ func TestGet(t *testing.T) {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
 
-		events, err := store.Get("my-session:0.0")
+		events, err := store.Get("my-session:0.0", "internal")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -656,7 +656,7 @@ func TestGet(t *testing.T) {
 		filePath := filepath.Join(dir, "hooks.json")
 		store := hooks.NewStore(filePath)
 
-		events, err := store.Get("nonexistent:9.9")
+		events, err := store.Get("nonexistent:9.9", "internal")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -701,7 +701,7 @@ func TestCleanStale(t *testing.T) {
 			t.Errorf("removed[0] = %q, want %q", removed[0], reapableSeedA)
 		}
 
-		h, err := store.Load()
+		h, err := store.Load("internal")
 		if err != nil {
 			t.Fatalf("failed to load: %v", err)
 		}
@@ -773,7 +773,7 @@ func TestCleanStale(t *testing.T) {
 			t.Fatalf("got %d removed, want 2", len(removed))
 		}
 
-		h, err := store.Load()
+		h, err := store.Load("internal")
 		if err != nil {
 			t.Fatalf("failed to load: %v", err)
 		}
@@ -842,7 +842,7 @@ func TestCleanStale(t *testing.T) {
 			t.Errorf("removed[1] = %q, want %q", removed[1], reapableSeedB)
 		}
 
-		h, err := store.Load()
+		h, err := store.Load("internal")
 		if err != nil {
 			t.Fatalf("failed to load: %v", err)
 		}
@@ -895,7 +895,7 @@ func TestCleanStale(t *testing.T) {
 			t.Errorf("removed[1] = %q, want %q", removed[1], reapableSeedB)
 		}
 
-		h, err := store.Load()
+		h, err := store.Load("internal")
 		if err != nil {
 			t.Fatalf("failed to load: %v", err)
 		}
@@ -976,7 +976,7 @@ func TestCleanStaleRemovesExactlyStaleKeys(t *testing.T) {
 
 	live := []string{reapableSeedA, reapableSeedC}
 
-	persisted, err := store.Load()
+	persisted, err := store.Load("internal")
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
