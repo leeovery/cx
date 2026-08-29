@@ -214,7 +214,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 6,
-          "current_task": "resume-hooks-silently-lost-6-4",
+          "current_task": "resume-hooks-silently-lost-6-5",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -695,6 +695,17 @@
                 "internal/prefs/leaf_guard_test.go",
                 "internal/theme/leaf_guard_test.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-4",
+              "source": "executor",
+              "summary": "The sibling project store has the same log-before-write ordering in its stale reaper.",
+              "detail": "internal/project/store.go:174 emits its per-project clean-stale line in a loop above s.Save(kept), so a failed save leaves lines naming projects that are still in projects.json — the same misleading-record shape just fixed in hooks. It is at DEBUG rather than INFO, so it is invisible at the production default, which is why it is lower stakes; the two stores already share storelog.EmitCleanStaleSummary for the summary, so the emission ordering is the one part of the pattern that can still drift between them.",
+              "files": [
+                "internal/project/store.go",
+                "internal/hooks/store.go",
+                "internal/storelog"
+              ]
             }
           ],
           "completed_tasks": [
@@ -750,7 +761,8 @@
             "resume-hooks-silently-lost-5-9",
             "resume-hooks-silently-lost-6-1",
             "resume-hooks-silently-lost-6-2",
-            "resume-hooks-silently-lost-6-3"
+            "resume-hooks-silently-lost-6-3",
+            "resume-hooks-silently-lost-6-4"
           ],
           "staging": {
             "p1": {
