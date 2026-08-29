@@ -111,7 +111,11 @@
             "resume-hooks-silently-lost-4-5": "tick-c6cae7",
             "resume-hooks-silently-lost-4-6": "tick-46e09f",
             "resume-hooks-silently-lost-4-7": "tick-982fc6",
-            "resume-hooks-silently-lost-4-8": "tick-1f710f"
+            "resume-hooks-silently-lost-4-8": "tick-1f710f",
+            "resume-hooks-silently-lost-5-6": "tick-adcd7f",
+            "resume-hooks-silently-lost-5-7": "tick-7673ff",
+            "resume-hooks-silently-lost-5-8": "tick-951b45",
+            "resume-hooks-silently-lost-5-9": "tick-c97e60"
           },
           "storage_paths": [
             ".tick/"
@@ -280,16 +284,6 @@
               ]
             },
             {
-              "task": "resume-hooks-silently-lost-1-9",
-              "source": "reviewer",
-              "summary": "staleSeed is now declared twice, byte-identical, in one file.",
-              "detail": "cmd/run_hook_stale_cleanup_test.go:428 and :625, ~200 lines apart. The merge is what turned two cross-file copies into a same-file duplicate. Task 1-9 Do list scoped fixture parameterisation to seedStalePruneFixture only, so this is not a criterion miss, but it is the same class of thing the task exists to remove and the fix is entirely local — a package-level staleHookSeed beside the seed vocabulary at :25-33 would close it in one edit. Also: doctor_test.go now carries two helper regions (:856-922 and :1697-1750) with the latter calling the former across ~800 lines, so a reader tracing the fixture crosses the file twice.",
-              "files": [
-                "cmd/run_hook_stale_cleanup_test.go",
-                "cmd/doctor_test.go"
-              ]
-            },
-            {
               "task": "resume-hooks-silently-lost-1-11",
               "source": "reviewer",
               "summary": "The removal leaves two byte-identical subtests in TestDoctorStaleHooksCheck.",
@@ -327,17 +321,6 @@
               "files": [
                 "cmd/state_daemon_hook_cleanup_integration_test.go",
                 "internal/portaltest/teardown_guard.go"
-              ]
-            },
-            {
-              "task": "resume-hooks-silently-lost-2-8",
-              "source": "executor",
-              "summary": "stubAllPaneLister is the last piece of the hook-sweep seam vocabulary still sited with a single consumer.",
-              "detail": "cmd/bootstrap_production_test.go:101-115 declares stubAllPaneLister, an AllPaneLister fake structurally identical to recordingHookKeyLister (now in cmd/hookkey_vocabulary_test.go:62) minus the call counter, and it reaches cross-file for restoringOption. It is used 3 times in its own file and 19 times in cmd/run_hook_stale_cleanup_test.go. Moving it — or collapsing the two fakes into one — belongs with whatever next consolidates the sweep seam fakes.",
-              "files": [
-                "cmd/bootstrap_production_test.go",
-                "cmd/run_hook_stale_cleanup_test.go",
-                "cmd/hookkey_vocabulary_test.go"
               ]
             },
             {
@@ -551,25 +534,6 @@
               ]
             },
             {
-              "task": "resume-hooks-silently-lost-4-5",
-              "summary": "The package one file reader lives in a suite file, and the shared staging home now depends on it across the boundary",
-              "detail": "readFileBytes sits at cmd/bootstrap_production_test.go:130, beside bootstrap-specific fixtures (newTempHooksStore at :117, stubAllPaneLister). Task 4-5 correctly reused it rather than moving it — the Do-list said re-point, not relocate — but the result is that cmd/testhelpers_test.go:94 and :99 reach out of the staging home for the reader, while bootstrap_production_test.go carries no header claiming that role and run_hook_stale_cleanup_test.go consumes it 16 times. Moving readFileBytes into testhelpers_test.go finishes the consolidation 4-5 started. Related to but distinct from the 2-8 entry covering stubAllPaneLister siting in the same file.",
-              "files": [
-                "cmd/bootstrap_production_test.go",
-                "cmd/testhelpers_test.go",
-                "cmd/run_hook_stale_cleanup_test.go"
-              ]
-            },
-            {
-              "task": "resume-hooks-silently-lost-4-5",
-              "summary": "The hooks.json-unchanged assertion 4-5 consolidated is written nine more times, in three forms, one file over",
-              "detail": "cmd/run_hook_stale_cleanup_test.go asserts the same property inline at :43, :76, :110 (reflect.DeepEqual), :331 (bytes.Equal over a hand-rolled os.ReadFile pair at :309/:327) and :397, :419, :595, :624, :740 (bytes.Equal over readFileBytes). assertHooksFileUnchanged now names exactly this. TWO CAVEATS: each site carries a bespoke failure message (rewritten during a restore, rewritten on a failed marker read, ...) that a fixed-message helper would flatten, so the helper likely needs a message or context parameter; and the three reflect.DeepEqual sites are NOT equivalent to the six bytes.Equal ones — reflect.DeepEqual(nil, []byte{}) is false where bytes.Equal is true, so re-pointing them is a semantic change on the absent-vs-empty edge, not a mechanical swap.",
-              "files": [
-                "cmd/run_hook_stale_cleanup_test.go",
-                "cmd/testhelpers_test.go"
-              ]
-            },
-            {
               "task": "resume-hooks-silently-lost-5-1",
               "summary": "internal/restore multipane-legacy hook-fire assertions read their marker file once, unpolled, so they flake under full-lane load",
               "detail": "assertMarkerFiredOnce / assertMarkerAbsent (internal/restore/multipane_legacy_integration_test.go:213, :224) do a bare os.ReadFile right after WaitForSkeletonMarkersCleared returns — the hooked shell redirect may not have flushed yet. Every caller in the file inherits it, which is why the already-banked TestMultiPaneLegacy_UnstampedNoHookLandsOnBareShell and a TestMultiPaneLegacy_PerPaneHookRouting blip share one root cause. The fix is a bounded poll in the shared helper, matching WaitForSkeletonMarkersCleared own shape, and it touches a suite outside task 5-1.",
@@ -588,77 +552,11 @@
               ]
             },
             {
-              "task": "resume-hooks-silently-lost-5-2",
-              "summary": "The degraded read error attr renders the sidecar path twice on the now-routine ENOENT path",
-              "detail": "internal/hooks/lock.go:36 wraps with fmt.Errorf(\"open hooks lock %s: %w\", path, err) while the wrapped *os.PathError already carries the path, so a live probe emitted error=open hooks lock /.../hooks.json.lock: open /.../hooks.json.lock: no such file or directory. Harmless when it was a rare mutation failure (task 5-1 code, untouched by 5-2); it is now the shape every read on a pre-sidecar install logs. The fix belongs to acquireLock, which 5-1 owns and both acquire paths share.",
-              "files": [
-                "internal/hooks/lock.go"
-              ]
-            },
-            {
-              "task": "resume-hooks-silently-lost-5-2",
-              "summary": "The sweep load-failure WARN text still names a method the sweep no longer calls",
-              "detail": "cmd/run_hook_stale_cleanup.go:101 warns \"stale-hook cleanup: hookStore.Load failed\" on the read that is now LoadSnapshot. The string is pinned by a test constant (loadWarnFmt, cmd/run_hook_stale_cleanup_test.go:25) and sits in the sweep spec-governed observability surface alongside the clean-stale-skipped reasons, so renaming it is an observability decision rather than a rename — better made in one pass with whatever else touches the sweep log strings.",
-              "files": [
-                "cmd/run_hook_stale_cleanup.go",
-                "cmd/run_hook_stale_cleanup_test.go"
-              ]
-            },
-            {
-              "task": "resume-hooks-silently-lost-5-3",
-              "summary": "Two hook set drivers in package cmd, one a strict superset of the other",
-              "detail": "runHookSetCapturing (cmd/hooks_write_lock_test.go:24) differs from runHookSet (cmd/testhelpers_test.go:28) only in returning the captured buffer — which is what runHookRm (cmd/testhelpers_test.go:39) already does. The consolidation is to give runHookSet the (string, error) signature and drop the twin, but that re-points nine call sites in files owned by sibling tasks (cmd/hooks_test.go:490,975, cmd/hooks_pane_token_test.go:43,78,99,124,147,171,230). testhelpers_test.go own header declares itself the home for driver helpers, so the new one is also sited away from its stated home.",
-              "files": [
-                "cmd/hooks_write_lock_test.go",
-                "cmd/testhelpers_test.go",
-                "cmd/hooks_test.go",
-                "cmd/hooks_pane_token_test.go"
-              ]
-            },
-            {
-              "task": "resume-hooks-silently-lost-5-3",
-              "summary": "Three hook-key seam fakes in package cmd, the newest a stateful superset of the other two",
-              "detail": "mockKeyResolver (cmd/hooks_test.go:314, resolver only), recordingPaneStamper (cmd/hooks_pane_token_test.go:20, stamper only) and now stampedPane (cmd/hooks_write_lock_test.go:93, both, with the token actually round-tripping). cmd/hookkey_vocabulary_test.go:1-4 declares itself the home for the seam fakes that answer with the hook-key vocabulary, and none of the three live there. Same shape as the already-banked AllPaneLister-fakes item, so it consolidates cheaply alongside it.",
-              "files": [
-                "cmd/hooks_test.go",
-                "cmd/hooks_pane_token_test.go",
-                "cmd/hooks_write_lock_test.go",
-                "cmd/hookkey_vocabulary_test.go"
-              ]
-            },
-            {
-              "task": "resume-hooks-silently-lost-5-4",
-              "summary": "Two near-identical AllPaneLister fakes in package cmd that should be one",
-              "detail": "sideEffectPaneLister (cmd/hook_sweep_snapshot_order_test.go:21-35) and stubAllPaneLister (cmd/bootstrap_production_test.go:100-113) implement the same two-method seam and differ only by a during func() hook versus err/restoring/restoringErr fields. Adding during func() to stubAllPaneLister (invoked at the top of its ListAllPaneHookKeys) subsumes the new fake entirely and lets the new file delete it. The consolidation touches a fixture several sibling tasks in this phase drive.",
-              "files": [
-                "cmd/hook_sweep_snapshot_order_test.go",
-                "cmd/bootstrap_production_test.go"
-              ]
-            },
-            {
               "task": "resume-hooks-silently-lost-5-5",
               "summary": "CleanStale emits its per-key clean-stale INFO lines before the save, so a failed save leaves INFO lines naming deletions that did not happen",
               "detail": "internal/hooks/store.go:321 logs one INFO per key in removed, then :325 attempts the save and :326 emits the WARN summary carrying the error. At the production default level an operator greps hooks: and reads N deleted-X-command-was-Y lines followed by one WARN. Recoverable by reading the next line, but the per-key lines assert a deletion that did not occur — the same class of falsehood this work unit exists to remove. Task 5-5 made the failure classification explicit, which is what surfaces it; the fix reaches into a sibling task output.",
               "files": [
                 "internal/hooks/store.go"
-              ]
-            },
-            {
-              "task": "resume-hooks-silently-lost-5-5",
-              "summary": "A third temp hooks-store seeder in package cmd, duplicating the existing one body",
-              "detail": "cmd/hook_sweep_lock_timeout_test.go:211-231 (saveDeniedStore) repeats newTempHooksStore write-seed / create-sidecar / NewStore sequence (cmd/bootstrap_production_test.go:117-133) with only a caller-chosen directory and a chmod added. A newTempHooksStoreIn(dir, seed) would subsume both. Extends the existing bank entry Two temp hooks-store seeders in package cmd.",
-              "files": [
-                "cmd/hook_sweep_lock_timeout_test.go",
-                "cmd/bootstrap_production_test.go"
-              ]
-            },
-            {
-              "task": "resume-hooks-silently-lost-5-5",
-              "summary": "The two-entry stale seed is now declared three times byte-identically, across two cmd test files",
-              "detail": "cmd/hook_sweep_lock_timeout_test.go:19-23 (lockedStaleSeed), cmd/run_hook_stale_cleanup_test.go:382-385 and :570-574 are the same {reapableSeedA: cmd-gone, liveSeedA: cmd-live} literal. Extends the existing 1-9 bank entry, which recorded two.",
-              "files": [
-                "cmd/hook_sweep_lock_timeout_test.go",
-                "cmd/run_hook_stale_cleanup_test.go"
               ]
             }
           ],
@@ -749,13 +647,22 @@
                 "4": "approved",
                 "5": "approved"
               }
+            },
+            "p5": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved",
+                "3": "approved",
+                "4": "approved"
+              }
             }
           },
           "consolidated_phases": [
             1,
             2,
             3,
-            4
+            4,
+            5
           ],
           "completed_phases": [
             1,
