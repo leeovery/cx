@@ -214,7 +214,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 6,
-          "current_task": "resume-hooks-silently-lost-6-3",
+          "current_task": "resume-hooks-silently-lost-6-4",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -673,6 +673,28 @@
                 "cmd/run_hook_stale_cleanup.go",
                 "cmd/doctor.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-3",
+              "source": "reviewer",
+              "summary": "CLAUDE.md internal-package table has no internal/nanoid row.",
+              "detail": "The table at CLAUDE.md:60-100 aims to be complete — it carries rows for every leaf of this kind (xdg, tmuxout, tmuxerr, storelog, sourceguardtest). internal/nanoid is a new permanent architectural leaf and is absent. Nothing in the table is now false, so this is an addition rather than a correction. Banking rather than blocking because this phase other analysis-cycle tasks may also move package boundaries, and one docs sync at the phase boundary beats several competing edits to the same table.",
+              "files": [
+                "CLAUDE.md"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-3",
+              "source": "reviewer",
+              "summary": "Four leaf/import guards now each hand-roll the same go list -deps exec-and-parse.",
+              "detail": "internal/nanoid/leaf_guard_test.go:26-34 (packageDeps), internal/hooks/leaf_guard_test.go:59-63, internal/prefs/leaf_guard_test.go:20-26 and internal/theme/leaf_guard_test.go:25-29 are four copies of the same invocation, error-fatal and field-split. internal/sourceguardtest is the declared home for the primitives the repo source guards share (it already owns GoSourceFiles, PackageGoFiles, ForEachFuncCall) and is stdlib-only and untagged, so a PackageDeps(t, pkg) []string would land there cleanly. This task authored two of the four copies; the consolidation reaches the prefs and theme guards, which belong to other features output.",
+              "files": [
+                "internal/sourceguardtest/",
+                "internal/nanoid/leaf_guard_test.go",
+                "internal/hooks/leaf_guard_test.go",
+                "internal/prefs/leaf_guard_test.go",
+                "internal/theme/leaf_guard_test.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -727,7 +749,8 @@
             "resume-hooks-silently-lost-5-8",
             "resume-hooks-silently-lost-5-9",
             "resume-hooks-silently-lost-6-1",
-            "resume-hooks-silently-lost-6-2"
+            "resume-hooks-silently-lost-6-2",
+            "resume-hooks-silently-lost-6-3"
           ],
           "staging": {
             "p1": {
