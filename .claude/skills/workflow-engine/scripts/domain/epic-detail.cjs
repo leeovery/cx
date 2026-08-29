@@ -12,12 +12,13 @@
 // ---------------------------------------------------------------------------
 
 const path = require('path');
-const { WORK_TYPE_PIPELINES } = require('../kernel/manifest-schema.cjs');
+const { WORK_TYPE_PIPELINES, TERMINAL_STATUSES } = require('../kernel/manifest-schema.cjs');
 const {
   phaseItems,
   computeAnalysisCacheStatus,
   buildDiscoveryMap,
 } = require('./derivations.cjs');
+const { computeBuildOrderNeedsSequencing, sortItemsByBuildOrder } = require('./build-order.cjs');
 
 // Every phase the epic detail iterates and the epic dashboard / thin dump
 // surface — discovery (the map, not a pipeline phase) first, then the epic
@@ -124,10 +125,11 @@ const EPIC_DETAIL_PHASES = ['discovery', ...WORK_TYPE_PIPELINES.epic];
  * @property {string|null} active_session  in-progress discovery session number, or null
  * @property {string|null} convergence_state  `in-progress` | `settled` | null (no map)
  * @property {boolean} needs_sequencing
+ * @property {boolean} build_order_needs_sequencing  the live set's orders are not a contiguous 1..N permutation (missing, duplicate, or hole), or completion flagged them stale
  * @property {MapSummary|null} map_summary
  * @property {number} imports_count
  * @property {number} seeds_count
- * @property {{research_analysis: AnalysisCache, gap_analysis: AnalysisCache}} analysis_caches
+ * @property {{gap_analysis: AnalysisCache}} analysis_caches
  * @property {{can_start_specification: boolean, can_start_planning: boolean, can_start_implementation: boolean, can_start_review: boolean}} gating
  */
 
@@ -174,12 +176,11 @@ function resolveDeps(manifest, planItem) {
 /**
  * @param {string} cwd
  * @param {object} manifest
- * @returns {{research_analysis: AnalysisCache, gap_analysis: AnalysisCache}}
+ * @returns {{gap_analysis: AnalysisCache}}
  */
 function buildAnalysisCaches(cwd, manifest) {
   const workflowsDir = path.join(cwd, '.workflows');
   return {
-    research_analysis: computeAnalysisCacheStatus(manifest, workflowsDir, 'research-analysis'),
     gap_analysis: computeAnalysisCacheStatus(manifest, workflowsDir, 'gap-analysis'),
   };
 }
@@ -201,10 +202,17 @@ function epicDetail(cwd, manifest) {
   /** @type {NextPhaseEntry[]} */
   const nextPhaseReady = [];
 
+  const BUILD_ORDER_PHASES = ['specification', 'planning', 'implementation'];
   for (const phase of EPIC_DETAIL_PHASES) {
     if (phase === 'discovery') continue;
-    const items = phaseItems(manifest, phase);
+    let items = phaseItems(manifest, phase);
     if (items.length === 0) continue;
+    // The build order sorts the three build phases everywhere the detail
+    // feeds — dashboard trees, menu entries, recommendation scans — as a
+    // stable tiebreak within whatever grouping a surface applies on top.
+    if (BUILD_ORDER_PHASES.includes(phase)) {
+      items = sortItemsByBuildOrder(items, manifest, phase);
+    }
 
     const phaseEntries = [];
     for (const item of items) {
@@ -233,12 +241,16 @@ function epicDetail(cwd, manifest) {
         }
       }
 
-      // Enrich planning items with format and dependency data
+      // Enrich planning items with format and dependency data. Terminal
+      // items get no dep computation — a cancelled plan must never carry
+      // the blocked cue, surface in the ⚑ list, or take an unblock write.
       if (phase === 'planning') {
         if (item.format) entry.format = item.format;
-        const { deps_satisfied, deps_blocking } = resolveDeps(manifest, item);
-        entry.deps_satisfied = deps_satisfied;
-        if (deps_blocking.length > 0) entry.deps_blocking = deps_blocking;
+        if (!TERMINAL_STATUSES.includes(item.status || '')) {
+          const { deps_satisfied, deps_blocking } = resolveDeps(manifest, item);
+          entry.deps_satisfied = deps_satisfied;
+          if (deps_blocking.length > 0) entry.deps_blocking = deps_blocking;
+        }
       }
 
       // Enrich implementation items with progress data
@@ -283,9 +295,9 @@ function epicDetail(cwd, manifest) {
     }
   }
 
-  const specItems = phaseItems(manifest, 'specification');
-  const planItems = phaseItems(manifest, 'planning');
-  const implItems = phaseItems(manifest, 'implementation');
+  const specItems = sortItemsByBuildOrder(phaseItems(manifest, 'specification'), manifest, 'specification');
+  const planItems = sortItemsByBuildOrder(phaseItems(manifest, 'planning'), manifest, 'planning');
+  const implItems = sortItemsByBuildOrder(phaseItems(manifest, 'implementation'), manifest, 'implementation');
 
   // A spec item (proposed included) whose source discussion is back
   // in-progress is blocked from entry until it re-concludes — the epic menu
@@ -294,7 +306,7 @@ function epicDetail(cwd, manifest) {
   /** @type {{name: string, by: string[]}[]} */
   const specBlocked = [];
   for (const s of specItems) {
-    if (s.status === 'cancelled' || s.status === 'superseded' || s.status === 'promoted') continue;
+    if (TERMINAL_STATUSES.includes(s.status || '')) continue;
     const srcs = Array.isArray(s.sources)
       ? s.sources
       : Object.entries(s.sources || {}).map(([topic, data]) => ({ topic, ...(typeof data === 'object' ? data : {}) }));
@@ -387,6 +399,7 @@ function epicDetail(cwd, manifest) {
       ? manifest.phases.discovery.active_session : null,
     convergence_state: convergenceState,
     needs_sequencing: builtMap.needs_sequencing,
+    build_order_needs_sequencing: computeBuildOrderNeedsSequencing(manifest),
     map_summary: mapSummary,
     imports_count: importsCount,
     seeds_count: seedsCount,

@@ -234,6 +234,17 @@ function validateSet(segments, value, fieldSegments = segments) {
     return;
   }
 
+  // A phase item's `order` (the build order; the discovery map's sibling) is
+  // a positive integer — a quoted number would land silently through apply
+  // and read as unordered everywhere.
+  if (segments.length === 5 && segments[0] === 'phases' && segments[2] === 'items'
+    && segments[4] === 'order') {
+    if (!Number.isInteger(value) || value < 1) {
+      fail(`Invalid order ${JSON.stringify(value)} — must be a positive integer (a JSON number, never a quoted string)`);
+    }
+    return;
+  }
+
   // Top-level work_type
   if (segments.length === 1 && segments[0] === 'work_type') {
     validateWorkType(value);
@@ -272,9 +283,6 @@ function validateSet(segments, value, fieldSegments = segments) {
       const leaf = fieldSegments[fieldSegments.length - 1];
       if (leaf === 'status' && (typeof value !== 'string' || !['pending', 'approved', 'skipped', 'resolved'].includes(value))) {
         fail(`Invalid candidate status ${JSON.stringify(value)}. Must be one of: pending, approved, skipped, resolved`);
-      }
-      if (leaf === 'fanout_offer' && (typeof value !== 'string' || !['pending', 'marked', 'declined'].includes(value))) {
-        fail(`Invalid fanout_offer ${JSON.stringify(value)}. Must be one of: pending, marked, declined`);
       }
       return;
     }
@@ -894,6 +902,11 @@ function cmdPush(cwd, args) {
   // whole array; push validates the one entry it appends.
   if (segments.length === 5 && segments[2] === 'items' && segments[4] === 'storage_paths') {
     validateStoragePaths([value]);
+  }
+  // `order` is a scalar — pushing would land an array every reader treats as
+  // unordered. Refuse the route rather than the value.
+  if (segments.length === 5 && segments[2] === 'items' && segments[4] === 'order') {
+    fail('order is a scalar — use `manifest set` (or the sequence verbs), never push');
   }
 
   const length = manifestTarget(cwd, false, workUnit).transact((manifest, save) => {

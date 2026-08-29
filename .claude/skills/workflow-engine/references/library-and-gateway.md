@@ -71,6 +71,13 @@ engine.agents.reviewArming(cwd, wu, topic)        // → { armed, cycles, map_mo
 // domain: discovery-session queries
 engine.session.nextSessionNumber(sessionsDir)     // → next session-NNN number from the on-disk logs (1 when none)
 
+// domain: session presence
+engine.presence.scanPresence(cwd, wu)             // → { work_unit, live, live_sources, held, stale_after_seconds, sessions[] } — one work unit's heartbeats
+engine.presence.scanProject(cwd)                  // → the same shape and totals but no `live_sources`, with `scope: "project"` in place of `work_unit` and `work_unit` per row
+engine.presence.heldCodeSessions(cwd)             // → the project's held implementation/review rows, minus the caller's own — the code gate's read
+engine.presence.ownsRow(row)                      // → does the calling session own this heartbeat (its session id, or its pid)? Filter with it before marking any row as a peer's
+engine.presence.fmtAge(seconds)                   // → a row's age as `40s` / `12m` / `3h` / `2d`
+
 // domain: detail builders + projections
 engine.detail.epicDetail(cwd, manifest)           // → EpicDetail (the one structured object per epic)
 engine.detail.EPIC_DETAIL_PHASES                  // string[] — every phase the epic detail surfaces (discovery first, then the pipeline)
@@ -88,6 +95,7 @@ engine.project.epicMenu(wu, detail)               // → { keys, rendered } — 
 engine.project.epicCompletedMenu(wu, detail)      // → { keys, title, display, rendered } — Completed Topics resume sub-view
 engine.project.epicCancelMenu(detail)             // → { keys, title, display, rendered } — Cancellable Topics pick menu
 engine.project.epicReactivateMenu(detail)         // → { keys, title, display, rendered } — Cancelled Topics reactivate menu
+engine.project.epicUnblockMenu(detail)            // → { keys, title, display, rendered } — Blocked Plans unblock menu, one row per blocking dependency (`dep` on the key)
 engine.project.discoveryMapView(wu, map)          // → Discovery Map display block (box + tier header + rows)
 engine.project.discoverySynthesisView(wu, map, proposed) // → harvest proposal block (proposed set over the existing map)
 engine.project.discussionMap(topic, manifest)     // → Discussion Map display block
