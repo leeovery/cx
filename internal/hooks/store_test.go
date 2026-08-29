@@ -1167,10 +1167,7 @@ func TestCleanStaleLogging(t *testing.T) {
 			t.Errorf("error_class = %q, want %q", got, "write-failed-temp-create")
 		}
 
-		after, err := os.ReadFile(seeded)
-		if err != nil {
-			t.Fatalf("re-read hooks.json: %v", err)
-		}
+		after := readFileBytes(t, seeded)
 		if !bytes.Equal(after, body) {
 			t.Errorf("hooks.json changed on a failed save\nbefore: %s\nafter:  %s", body, after)
 		}
