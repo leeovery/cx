@@ -98,21 +98,6 @@ func (r *recordingLogger) Handle(_ context.Context, rec slog.Record) error {
 
 var _ slog.Handler = (*recordingLogger)(nil)
 
-type stubAllPaneLister struct {
-	rows         []tmux.PaneHookRow
-	err          error
-	restoring    bool
-	restoringErr error
-}
-
-func (s *stubAllPaneLister) ListAllPaneHookKeys() ([]tmux.PaneHookRow, error) {
-	return s.rows, s.err
-}
-
-func (s *stubAllPaneLister) TryGetServerOption(string) (string, bool, error) {
-	return restoringOption(s.restoring, s.restoringErr)
-}
-
 var _ AllPaneLister = (*tmux.Client)(nil)
 
 func newTempHooksStore(t *testing.T, seed string) (*hooks.Store, string) {

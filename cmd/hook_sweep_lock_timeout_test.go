@@ -3,7 +3,6 @@ package cmd
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -16,14 +15,6 @@ import (
 	"github.com/leeovery/portal/internal/transienttest"
 )
 
-// lockedStaleSeed is one genuinely stale token-shaped entry beside one live
-// one, so a cycle that takes the lock reaps exactly the stale key and a cycle
-// that cannot take it is measurably distinguishable from a no-op.
-var lockedStaleSeed = fmt.Sprintf(`{
-  %q: {"on-resume": "cmd-gone"},
-  %q: {"on-resume": "cmd-live"}
-}`, reapableSeedA, liveSeedA)
-
 // lockedSweepFixture stages the stale seed under a sidecar held exclusively
 // from an independent open file description, so the sweep's mutation contends
 // with a writer it cannot see and times out at the lowered bound. The returned
@@ -31,7 +22,7 @@ var lockedStaleSeed = fmt.Sprintf(`{
 func lockedSweepFixture(t *testing.T, bound time.Duration) (*hooks.Store, string, func()) {
 	t.Helper()
 	hooks.SetLockTimeoutForTest(t, bound)
-	store, path := newTempHooksStore(t, lockedStaleSeed)
+	store, path := newTempHooksStore(t, staleHookSeed)
 	return store, path, transienttest.HoldHooksSidecar(t, path)
 }
 
@@ -213,7 +204,7 @@ func saveDeniedStore(t *testing.T, dirName string) (*hooks.Store, string) {
 		t.Fatalf("mkdir fixture dir: %v", err)
 	}
 	path := filepath.Join(dir, "hooks.json")
-	if err := os.WriteFile(path, []byte(lockedStaleSeed), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(staleHookSeed), 0o644); err != nil {
 		t.Fatalf("write seed hooks.json: %v", err)
 	}
 	transienttest.CreateHooksSidecar(t, path)
@@ -295,7 +286,7 @@ func TestDoctorFixReportsLockedHookPrune(t *testing.T) {
 	// entry is reported as the stale hook it is rather than as a lock problem.
 	t.Run("it reports the un-pruned entry as stale in the same window", func(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, lockBound)
-		store, path := newTempHooksStore(t, lockedStaleSeed)
+		store, path := newTempHooksStore(t, staleHookSeed)
 		transienttest.HoldHooksSidecar(t, path)
 
 		got := checkStaleHooks(&stubAllPaneLister{rows: tokenRows(liveSeedA)}, store)

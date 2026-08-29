@@ -31,6 +31,14 @@ var (
 	liveSeedC = transienttest.ReapableHookKey(6)
 )
 
+// staleHookSeed is one genuinely stale token-shaped entry beside one live one,
+// so a sweep that runs reaps exactly the stale key and is measurably
+// distinguishable from one that stood down.
+var staleHookSeed = fmt.Sprintf(`{
+  %q: {"on-resume": "cmd-gone"},
+  %q: {"on-resume": "cmd-live"}
+}`, reapableSeedA, liveSeedA)
+
 // tokenRows models the enumeration's answer for stamped panes, and
 // unstampedRows for panes carrying no token. The location half is display-only,
 // so these fabricate a distinct one per row rather than asserting on it.
@@ -92,3 +100,86 @@ func (r *recordingHookKeyLister) TryGetServerOption(string) (string, bool, error
 }
 
 var _ AllPaneLister = (*recordingHookKeyLister)(nil)
+
+// stubAllPaneLister answers the sweep's two seams with fixed values: a fixed
+// row set (or failure) for the pane-token enumeration, and a fixed
+// @portal-restoring read. The optional during hook runs at the top of the
+// enumeration, so a test can land a concurrent writer's mutation inside it — in
+// the window between the sweep's snapshot and the token set that snapshot is
+// weighed against.
+type stubAllPaneLister struct {
+	rows         []tmux.PaneHookRow
+	err          error
+	restoring    bool
+	restoringErr error
+	during       func()
+}
+
+func (s *stubAllPaneLister) ListAllPaneHookKeys() ([]tmux.PaneHookRow, error) {
+	if s.during != nil {
+		s.during()
+	}
+	return s.rows, s.err
+}
+
+func (s *stubAllPaneLister) TryGetServerOption(string) (string, bool, error) {
+	return restoringOption(s.restoring, s.restoringErr)
+}
+
+var _ AllPaneLister = (*stubAllPaneLister)(nil)
+
+// mockKeyResolver answers the registration read with one fixed key (or one
+// fixed failure) however many times it is asked, and counts the asks. The fixed
+// answer is the point: a case that stamps still reads back the same key, so a
+// test can tell a re-read apart from a mint.
+type mockKeyResolver struct {
+	key   string
+	err   error
+	calls int
+}
+
+func (m *mockKeyResolver) ResolveHookKey(_ string) (string, error) {
+	m.calls++
+	return m.key, m.err
+}
+
+// paneStampCall is one recorded set-option -p, kept whole so a test can assert
+// the option name and value as well as the target.
+type paneStampCall struct {
+	target string
+	name   string
+	value  string
+}
+
+// recordingPaneStamper records every stamp it is asked for without applying
+// any, and can be armed with an err a case expects the command to surface — or,
+// on a path where no stamp is legal at all, with an err whose text names the
+// violation, so a call that should never happen fails loudly.
+type recordingPaneStamper struct {
+	calls  []paneStampCall
+	err    error
+	onCall func()
+}
+
+func (r *recordingPaneStamper) SetPaneOption(target, name, value string) error {
+	if r.onCall != nil {
+		r.onCall()
+	}
+	r.calls = append(r.calls, paneStampCall{target: target, name: name, value: value})
+	return r.err
+}
+
+// stampedPane models the pane itself: it answers with whatever token has been
+// stamped onto it, so a retry reads back the token the failed attempt left.
+type stampedPane struct {
+	token  string
+	stamps []paneStampCall
+}
+
+func (p *stampedPane) ResolveHookKey(_ string) (string, error) { return p.token, nil }
+
+func (p *stampedPane) SetPaneOption(target, name, value string) error {
+	p.stamps = append(p.stamps, paneStampCall{target: target, name: name, value: value})
+	p.token = value
+	return nil
+}

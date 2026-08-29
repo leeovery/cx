@@ -378,14 +378,8 @@ func TestUnjudgeableHookKeyRetention(t *testing.T) {
 // no token between skeleton construction and the re-stamp, so a sweep landing
 // there would reap every token-keyed entry on the machine.
 func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
-	staleKey := reapableSeedA
-	staleSeed := fmt.Sprintf(`{
-  %q: {"on-resume": "cmd-gone"},
-  %q: {"on-resume": "cmd-live"}
-}`, staleKey, liveSeedA)
-
 	t.Run("it deletes nothing while the restore marker is set", func(t *testing.T) {
-		store, path := newTempHooksStore(t, staleSeed)
+		store, path := newTempHooksStore(t, staleHookSeed)
 		before := readFileBytes(t, path)
 
 		lister := &recordingHookKeyLister{recordingPaneHookLister: recordingPaneHookLister{rows: tokenRows(liveSeedA)}, restoring: true}
@@ -403,7 +397,7 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 	})
 
 	t.Run("it treats a failed marker read as a set marker", func(t *testing.T) {
-		store, path := newTempHooksStore(t, staleSeed)
+		store, path := newTempHooksStore(t, staleHookSeed)
 		before := readFileBytes(t, path)
 
 		sentinel := errors.New("tmux dead")
@@ -455,7 +449,7 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 	})
 
 	t.Run("it logs the stand-down at DEBUG and never WARN", func(t *testing.T) {
-		store, _ := newTempHooksStore(t, staleSeed)
+		store, _ := newTempHooksStore(t, staleHookSeed)
 		lister := &recordingHookKeyLister{recordingPaneHookLister: recordingPaneHookLister{rows: tokenRows(liveSeedA)}, restoring: true}
 
 		sink := &logtest.Sink{}
@@ -472,7 +466,7 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 	})
 
 	t.Run("it sweeps normally when the marker is absent", func(t *testing.T) {
-		store, _ := newTempHooksStore(t, staleSeed)
+		store, _ := newTempHooksStore(t, staleHookSeed)
 		lister := &recordingHookKeyLister{recordingPaneHookLister: recordingPaneHookLister{rows: tokenRows(liveSeedA)}}
 
 		if err := runHookStaleCleanup(lister, store, nil, nil, nil); err != nil {
@@ -486,8 +480,8 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 		if err != nil {
 			t.Fatalf("store.Load post-run: %v", err)
 		}
-		if _, ok := postRun[staleKey]; ok {
-			t.Errorf("stale key %s survived a marker-absent sweep; got %v", staleKey, keysOf(postRun))
+		if _, ok := postRun[reapableSeedA]; ok {
+			t.Errorf("stale key %s survived a marker-absent sweep; got %v", reapableSeedA, keysOf(postRun))
 		}
 		if _, ok := postRun[liveSeedA]; !ok {
 			t.Errorf("live key was reaped; got %v", keysOf(postRun))
@@ -513,7 +507,7 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 	})
 
 	t.Run("it leaves the daemon's tick behaviour unchanged", func(t *testing.T) {
-		store, _ := newTempHooksStore(t, staleSeed)
+		store, _ := newTempHooksStore(t, staleHookSeed)
 		fc := &daemonFakeCommander{
 			panesOut:     livePaneRowOut,
 			optionByName: map[string]string{state.RestoringMarkerName: "1"},
@@ -533,7 +527,7 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 		if err != nil {
 			t.Fatalf("store.Load post-run: %v", err)
 		}
-		if _, ok := postRun[staleKey]; !ok {
+		if _, ok := postRun[reapableSeedA]; !ok {
 			t.Errorf("tick reaped a hook despite the restoring marker; got %v", keysOf(postRun))
 		}
 	})
@@ -566,14 +560,8 @@ func standDownWant(level slog.Level) hooksRecordWant {
 // A repair that silently did not run is indistinguishable from a repair that
 // found nothing to do, so every stand-down reports itself to its caller.
 func TestHookSweepReportsStandDown(t *testing.T) {
-	staleKey := reapableSeedA
-	staleSeed := fmt.Sprintf(`{
-  %q: {"on-resume": "cmd-gone"},
-  %q: {"on-resume": "cmd-live"}
-}`, staleKey, liveSeedA)
-
 	t.Run("it reports the restore stand-down to the caller", func(t *testing.T) {
-		store, path := newTempHooksStore(t, staleSeed)
+		store, path := newTempHooksStore(t, staleHookSeed)
 		before := readFileBytes(t, path)
 		lister := &recordingHookKeyLister{recordingPaneHookLister: recordingPaneHookLister{rows: tokenRows(liveSeedA)}, restoring: true}
 
@@ -598,7 +586,7 @@ func TestHookSweepReportsStandDown(t *testing.T) {
 	})
 
 	t.Run("it reports the empty-pane-read stand-down to the caller", func(t *testing.T) {
-		store, path := newTempHooksStore(t, staleSeed)
+		store, path := newTempHooksStore(t, staleHookSeed)
 		before := readFileBytes(t, path)
 		lister := &stubAllPaneLister{rows: tokenRows()}
 
@@ -636,13 +624,13 @@ func TestHookSweepReportsStandDown(t *testing.T) {
 	})
 
 	t.Run("it survives a nil onSkipped on both stand-down branches", func(t *testing.T) {
-		restoringStore, _ := newTempHooksStore(t, staleSeed)
+		restoringStore, _ := newTempHooksStore(t, staleHookSeed)
 		restoringLister := &recordingHookKeyLister{recordingPaneHookLister: recordingPaneHookLister{rows: tokenRows(liveSeedA)}, restoring: true}
 		if err := runHookStaleCleanup(restoringLister, restoringStore, nil, nil, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup on the restore branch: %v", err)
 		}
 
-		emptyStore, _ := newTempHooksStore(t, staleSeed)
+		emptyStore, _ := newTempHooksStore(t, staleHookSeed)
 		emptyLister := &stubAllPaneLister{rows: tokenRows()}
 		if err := runHookStaleCleanup(emptyLister, emptyStore, nil, nil, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup on the empty-pane-read branch: %v", err)
@@ -674,7 +662,7 @@ func TestHookSweepReportsStandDown(t *testing.T) {
 	})
 
 	t.Run("it emits no skipped line when the enumeration errors", func(t *testing.T) {
-		store, _ := newTempHooksStore(t, staleSeed)
+		store, _ := newTempHooksStore(t, staleHookSeed)
 		lister := &stubAllPaneLister{err: errors.New("tmux dead")}
 
 		sink := &logtest.Sink{}

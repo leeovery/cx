@@ -11,26 +11,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-type paneStampCall struct {
-	target string
-	name   string
-	value  string
-}
-
-type recordingPaneStamper struct {
-	calls  []paneStampCall
-	err    error
-	onCall func()
-}
-
-func (r *recordingPaneStamper) SetPaneOption(target, name, value string) error {
-	if r.onCall != nil {
-		r.onCall()
-	}
-	r.calls = append(r.calls, paneStampCall{target: target, name: name, value: value})
-	return r.err
-}
-
 func TestHooksSetStampsPaneToken(t *testing.T) {
 	t.Run("it stamps and writes under a freshly minted token", func(t *testing.T) {
 		_, hooksFile := hooksFileInTempDir(t)

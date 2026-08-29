@@ -85,21 +85,6 @@ func assertOneLockWarn(t *testing.T, sink *logtest.Sink, wantOp, wantKey string)
 	}
 }
 
-// stampedPane models the pane itself: it answers with whatever token has been
-// stamped onto it, so a retry reads back the token the failed attempt left.
-type stampedPane struct {
-	token  string
-	stamps []paneStampCall
-}
-
-func (p *stampedPane) ResolveHookKey(_ string) (string, error) { return p.token, nil }
-
-func (p *stampedPane) SetPaneOption(target, name, value string) error {
-	p.stamps = append(p.stamps, paneStampCall{target: target, name: name, value: value})
-	p.token = value
-	return nil
-}
-
 func TestHookSetLockTimeout(t *testing.T) {
 	t.Run("it exits non-zero from hook set on a lock timeout", func(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, lockBound)

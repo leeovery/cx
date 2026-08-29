@@ -311,17 +311,6 @@ func (l *loudPaneHookLister) ListAllPaneHookKeys() ([]tmux.PaneHookRow, error) {
 	return nil, nil
 }
 
-type mockKeyResolver struct {
-	key   string
-	err   error
-	calls int
-}
-
-func (m *mockKeyResolver) ResolveHookKey(_ string) (string, error) {
-	m.calls++
-	return m.key, m.err
-}
-
 func TestHooksSetCommand(t *testing.T) {
 	t.Run("sets hook for current pane", func(t *testing.T) {
 		_, hooksFile := hooksFileInTempDir(t)
