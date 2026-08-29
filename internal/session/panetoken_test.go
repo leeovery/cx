@@ -3,6 +3,7 @@ package session_test
 import (
 	"testing"
 
+	"github.com/leeovery/portal/internal/nanoid"
 	"github.com/leeovery/portal/internal/session"
 )
 
@@ -13,7 +14,7 @@ func TestNewPaneToken(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewPaneToken: %v", err)
 			}
-			if !session.IsTokenShaped(token) {
+			if !nanoid.IsTokenShaped(token) {
 				t.Fatalf("NewPaneToken() = %q, which is not token-shaped", token)
 			}
 		}

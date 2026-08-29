@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/hooks"
-	"github.com/leeovery/portal/internal/session"
+	"github.com/leeovery/portal/internal/nanoid"
 )
 
 // reapableSeedPrefix keeps a reapable seed key legible in test output while
@@ -79,16 +79,16 @@ func HooksJSONBytes(t *testing.T, env []string) []byte {
 // charset panics here rather than silently turning a reap fixture into a
 // retention one. n only disambiguates — distinct n give distinct keys.
 func ReapableHookKey(n int) string {
-	radix := len(session.NanoIDAlphabet)
+	radix := len(nanoid.Alphabet)
 	if n < 0 || n >= radix*radix {
 		panic(fmt.Sprintf("transienttest.ReapableHookKey: n = %d out of range [0,%d)", n, radix*radix))
 	}
 	key := reapableSeedPrefix + string([]byte{
-		session.NanoIDAlphabet[n/radix],
-		session.NanoIDAlphabet[n%radix],
+		nanoid.Alphabet[n/radix],
+		nanoid.Alphabet[n%radix],
 	})
-	if !session.IsTokenShaped(key) {
-		panic(fmt.Sprintf("transienttest.ReapableHookKey: %q is not token-shaped — the seed vocabulary has drifted from session.IsTokenShaped", key))
+	if !nanoid.IsTokenShaped(key) {
+		panic(fmt.Sprintf("transienttest.ReapableHookKey: %q is not token-shaped — the seed vocabulary has drifted from nanoid.IsTokenShaped", key))
 	}
 	return key
 }

@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/leeovery/portal/internal/session"
+	"github.com/leeovery/portal/internal/nanoid"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
 )
@@ -42,7 +42,7 @@ func TestHooksSetStampsPaneToken(t *testing.T) {
 		if data[call.value]["on-resume"] != "claude --resume abc123" {
 			t.Errorf("entry under the stamped token %q = %v, want the registered command", call.value, data)
 		}
-		if !session.IsTokenShaped(call.value) {
+		if !nanoid.IsTokenShaped(call.value) {
 			t.Errorf("stamped value %q is not token-shaped", call.value)
 		}
 	})

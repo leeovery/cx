@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/leeovery/portal/internal/session"
+	"github.com/leeovery/portal/internal/nanoid"
 )
 
 // SpawnMarkerPrefix is deliberately distinct from internal/state's
@@ -12,7 +12,7 @@ import (
 // other's markers.
 const SpawnMarkerPrefix = "@portal-spawn-"
 
-// NewSpawnID errors on a value outside session.NanoIDAlphabet rather than let
+// NewSpawnID errors on a value outside nanoid.Alphabet rather than let
 // it become a marker name set-option would reject.
 func NewSpawnID(gen func() (string, error)) (string, error) {
 	id, err := gen()
@@ -27,7 +27,7 @@ func NewSpawnID(gen func() (string, error)) (string, error) {
 
 func isOptionSafeID(s string) bool {
 	return s != "" && strings.IndexFunc(s, func(r rune) bool {
-		return !strings.ContainsRune(session.NanoIDAlphabet, r)
+		return !strings.ContainsRune(nanoid.Alphabet, r)
 	}) < 0
 }
 

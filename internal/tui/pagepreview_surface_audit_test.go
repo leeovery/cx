@@ -190,6 +190,7 @@ func TestSurfaceAudit_NoNewPackageForPreview(t *testing.T) {
 		"hooks":            {},
 		"log":              {},
 		"logtest":          {},
+		"nanoid":           {},
 		"portalbintest":    {},
 		"portaltest":       {},
 		"prefs":            {},

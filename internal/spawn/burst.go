@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/leeovery/portal/internal/session"
+	"github.com/leeovery/portal/internal/nanoid"
 )
 
 // Per-window is deliberate: each timer starts at its own window's spawn, so the
@@ -55,7 +55,7 @@ func NewBurster(adapter Adapter, ack AckCollector, exe ExecutableResolver, geten
 		Ack:     ack,
 		Exe:     exe,
 		Getenv:  getenv,
-		NewID:   session.NewNanoIDGenerator(),
+		NewID:   nanoid.NewGenerator(),
 		Timeout: spawnAckTimeout,
 		Poll:    defaultAckPoll,
 		Now:     time.Now,

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/leeovery/portal/internal/session"
+	"github.com/leeovery/portal/internal/nanoid"
 )
 
 func queuedGenerator(ids ...string) func() (string, error) {
@@ -136,7 +136,7 @@ func TestParseSpawnAckFlag_RejectsMissingColonOrEmptyPart(t *testing.T) {
 }
 
 func TestNewSpawnID_IndependentRealGeneratorIDs(t *testing.T) {
-	gen := session.NewNanoIDGenerator()
+	gen := nanoid.NewGenerator()
 
 	first, err := NewSpawnID(gen)
 	if err != nil {
@@ -155,17 +155,17 @@ func TestNewSpawnID_IndependentRealGeneratorIDs(t *testing.T) {
 		if id == "" {
 			t.Fatalf("NewSpawnID(real) produced an empty id")
 		}
-		if strings.IndexFunc(id, func(r rune) bool { return !strings.ContainsRune(session.NanoIDAlphabet, r) }) >= 0 {
+		if strings.IndexFunc(id, func(r rune) bool { return !strings.ContainsRune(nanoid.Alphabet, r) }) >= 0 {
 			t.Errorf("NewSpawnID(real) produced a non-option-safe id %q", id)
 		}
 	}
 }
 
-func TestIsOptionSafeID_GovernedBySharedNanoIDAlphabet(t *testing.T) {
-	if !isOptionSafeID(session.NanoIDAlphabet) {
-		t.Errorf("isOptionSafeID(NanoIDAlphabet) = false, want true (the whole shared alphabet must be option-safe)")
+func TestIsOptionSafeID_GovernedBySharedAlphabet(t *testing.T) {
+	if !isOptionSafeID(nanoid.Alphabet) {
+		t.Errorf("isOptionSafeID(Alphabet) = false, want true (the whole shared alphabet must be option-safe)")
 	}
-	if isOptionSafeID(session.NanoIDAlphabet + "-") {
-		t.Errorf("isOptionSafeID accepted a hyphen; its charset must be exactly session.NanoIDAlphabet, which excludes %q", "-")
+	if isOptionSafeID(nanoid.Alphabet + "-") {
+		t.Errorf("isOptionSafeID accepted a hyphen; its charset must be exactly nanoid.Alphabet, which excludes %q", "-")
 	}
 }

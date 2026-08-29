@@ -3,14 +3,14 @@ package transienttest_test
 import (
 	"testing"
 
-	"github.com/leeovery/portal/internal/session"
+	"github.com/leeovery/portal/internal/nanoid"
 	"github.com/leeovery/portal/internal/transienttest"
 )
 
 func TestHookKeySeedVocabulary(t *testing.T) {
 	t.Run("a reapable key is token-shaped", func(t *testing.T) {
 		for n := range 4 {
-			if got := transienttest.ReapableHookKey(n); !session.IsTokenShaped(got) {
+			if got := transienttest.ReapableHookKey(n); !nanoid.IsTokenShaped(got) {
 				t.Errorf("ReapableHookKey(%d) = %q, want a token-shaped key", n, got)
 			}
 		}
@@ -18,7 +18,7 @@ func TestHookKeySeedVocabulary(t *testing.T) {
 
 	t.Run("an unjudgeable key is not token-shaped", func(t *testing.T) {
 		for n := range 4 {
-			if got := transienttest.UnjudgeableHookKey(n); session.IsTokenShaped(got) {
+			if got := transienttest.UnjudgeableHookKey(n); nanoid.IsTokenShaped(got) {
 				t.Errorf("UnjudgeableHookKey(%d) = %q, want a key the staleness rule cannot judge", n, got)
 			}
 		}

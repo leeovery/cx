@@ -3,24 +3,10 @@ package session_test
 import (
 	"fmt"
 	"regexp"
-	"strings"
 	"testing"
 
 	"github.com/leeovery/portal/internal/session"
 )
-
-func TestNanoIDAlphabet_MatchesExpectedCharset(t *testing.T) {
-	// The absence of "-" is load-bearing for the "<batch>-<token>" marker split.
-	const want = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	if session.NanoIDAlphabet != want {
-		t.Errorf("NanoIDAlphabet = %q, want %q", session.NanoIDAlphabet, want)
-	}
-	for _, forbidden := range []rune{'.', ':', '-', ' '} {
-		if strings.ContainsRune(session.NanoIDAlphabet, forbidden) {
-			t.Errorf("NanoIDAlphabet contains forbidden rune %q; the option-name-safe marker scheme requires its absence", forbidden)
-		}
-	}
-}
 
 func TestSanitiseProjectName(t *testing.T) {
 	tests := []struct {

@@ -10,6 +10,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/leeovery/portal/internal/log"
+	"github.com/leeovery/portal/internal/nanoid"
 	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/project"
 	"github.com/leeovery/portal/internal/resolver"
@@ -410,7 +411,7 @@ func openPath(cmd *cobra.Command, resolvedPath string, command []string) error {
 		return err
 	}
 	store := project.NewStore(projectsPath)
-	gen := session.NewNanoIDGenerator()
+	gen := nanoid.NewGenerator()
 
 	insideTmux := tmux.InsideTmux()
 
@@ -563,7 +564,7 @@ func processTUIResult(model tui.Model, connector SessionConnector) error {
 func openTUI(cmd *cobra.Command, initialFilter string, command []string, serverStarted bool) error {
 	client := tmuxClient(cmd)
 	gitResolver := &resolverAdapter{}
-	gen := session.NewNanoIDGenerator()
+	gen := nanoid.NewGenerator()
 
 	var pipe *bootstrapProgressPipe
 	if deferred := deferredBootstrapFromContext(cmd); deferred != nil {

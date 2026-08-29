@@ -11,7 +11,7 @@ import (
 
 	"github.com/leeovery/portal/internal/fileutil"
 	"github.com/leeovery/portal/internal/log"
-	"github.com/leeovery/portal/internal/session"
+	"github.com/leeovery/portal/internal/nanoid"
 	"github.com/leeovery/portal/internal/storelog"
 )
 
@@ -248,7 +248,7 @@ func staleKeys(persisted hooksFile, live []string) []string {
 		if _, ok := liveSet[key]; ok {
 			continue
 		}
-		if key == "" || session.IsTokenShaped(key) {
+		if key == "" || nanoid.IsTokenShaped(key) {
 			stale = append(stale, key)
 		}
 	}
