@@ -1,6 +1,7 @@
 package hooks_test
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -72,8 +73,8 @@ func TestReadSharedLock(t *testing.T) {
 		if _, err := store.Get("k00", "cli"); err != nil {
 			t.Fatalf("Get: %v", err)
 		}
-		if _, err := store.LoadSnapshot("internal"); err != nil {
-			t.Fatalf("LoadSnapshot: %v", err)
+		if _, err := store.CleanStale(abortingEnumeration(nil)); !errors.Is(err, errAbortEnumeration) {
+			t.Fatalf("CleanStale snapshot read: %v", err)
 		}
 		if _, _, err := hooks.LookupOnResume(store, "k00"); err != nil {
 			t.Fatalf("LookupOnResume: %v", err)
@@ -237,21 +238,25 @@ func TestReadSharedLockBoundSelection(t *testing.T) {
 		transienttest.HoldHooksSidecar(t, path)
 
 		sink := installCapture(t)
+		var entries int
 		start := time.Now()
-		h, err := store.LoadSnapshot("internal")
+		// Aborted at the enumeration, so the elapsed time measures the snapshot
+		// read alone rather than the exclusive acquire that would follow it
+		// against the same held sidecar.
+		_, err := store.CleanStale(abortingEnumeration(&entries))
 		elapsed := time.Since(start)
 
-		if err != nil {
-			t.Fatalf("LoadSnapshot: %v", err)
+		if !errors.Is(err, errAbortEnumeration) {
+			t.Fatalf("CleanStale: %v", err)
 		}
-		if len(h) != 2 {
-			t.Fatalf("got %d entries, want 2", len(h))
+		if entries != 2 {
+			t.Fatalf("the snapshot held %d entries, want 2", entries)
 		}
 		if elapsed < short {
-			t.Errorf("LoadSnapshot returned after %v — it did not wait out the %v short bound", elapsed, short)
+			t.Errorf("the snapshot read returned after %v — it did not wait out the %v short bound", elapsed, short)
 		}
 		if elapsed >= time.Second {
-			t.Fatalf("LoadSnapshot took %v — it waited at lockTimeout, not snapshotLockTimeout", elapsed)
+			t.Fatalf("the snapshot read took %v — it waited at lockTimeout, not snapshotLockTimeout", elapsed)
 		}
 		transienttest.AssertDegradedRead(t, sink, "internal")
 	})
@@ -317,7 +322,12 @@ func TestReadSharedLockVia(t *testing.T) {
 		{"Load", "cli", func(s *hooks.Store) error { _, err := s.Load("cli"); return err }},
 		{"List", "doctor", func(s *hooks.Store) error { _, err := s.List("doctor"); return err }},
 		{"Get", "internal", func(s *hooks.Store) error { _, err := s.Get("k00", "internal"); return err }},
-		{"LoadSnapshot", "internal", func(s *hooks.Store) error { _, err := s.LoadSnapshot("internal"); return err }},
+		{"CleanStale snapshot", "internal", func(s *hooks.Store) error {
+			if _, err := s.CleanStale(abortingEnumeration(nil)); !errors.Is(err, errAbortEnumeration) {
+				return err
+			}
+			return nil
+		}},
 		{"LookupOnResume", "hydrate", func(s *hooks.Store) error {
 			_, _, err := hooks.LookupOnResume(s, "k00")
 			return err
@@ -380,4 +390,19 @@ func TestLookupOnResumeUnderHeldLock(t *testing.T) {
 			t.Fatalf("empty-key lookup emitted %+v", got)
 		}
 	})
+}
+
+// errAbortEnumeration ends a clean at its enumeration, so a fixture measures
+// the snapshot read that precedes it and nothing after.
+var errAbortEnumeration = errors.New("abort the enumeration")
+
+// abortingEnumeration records the snapshot's size, when entries is non-nil, and
+// aborts.
+func abortingEnumeration(entries *int) func(hooks.Snapshot) ([]string, error) {
+	return func(snapshot hooks.Snapshot) ([]string, error) {
+		if entries != nil {
+			*entries = len(snapshot)
+		}
+		return nil, errAbortEnumeration
+	}
 }

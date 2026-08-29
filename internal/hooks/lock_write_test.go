@@ -253,15 +253,19 @@ func TestMutationLockTimeoutLogging(t *testing.T) {
 		transienttest.HoldHooksSidecar(t, path)
 
 		sink := installCapture(t)
-		removed, err := hooks.NewStore(path).CleanStale(nil, []string{"tok123"})
+		removed, err := hooks.NewStore(path).CleanStale(enumerating())
 		if !errors.Is(err, hooks.ErrLockHeld) {
 			t.Fatalf("CleanStale error = %v, want errors.Is ErrLockHeld", err)
 		}
 		if len(removed) != 0 {
 			t.Errorf("removed = %v, want none", removed)
 		}
-		if recs := sink.Records(); len(recs) != 0 {
-			t.Errorf("CleanStale emitted %d store-side records, want 0 — the stood-down line belongs to its call site: %+v", len(recs), recs)
+		// The clean's own snapshot read degrades against the same held sidecar
+		// and says so; nothing else may be said.
+		for _, r := range sink.Records() {
+			if r.Msg != "load-unlocked" {
+				t.Errorf("CleanStale emitted %q, want only the read degradation — the stood-down line belongs to its call site: %+v", r.Msg, r)
+			}
 		}
 	})
 

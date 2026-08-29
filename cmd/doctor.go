@@ -336,9 +336,11 @@ func checkStaleHooks(reader staleSweepReader, store *hooks.Store) checkResult {
 		return checkResult{name: name, status: checkNotEvaluable, detail: "could not read hooks.json"}
 	}
 
-	view, _ := evaluateHookStaleness(reader, func() (map[string]map[string]string, error) {
-		return persisted, nil
-	})
+	if decline := hookStalenessStandDown(reader); decline.declined() {
+		return checkResult{name: name, status: checkNotEvaluable, detail: notEvaluableDetail(decline.reason)}
+	}
+
+	view := judgeAgainstLivePanes(reader, len(persisted))
 	if view.Decline.declined() {
 		return checkResult{name: name, status: checkNotEvaluable, detail: notEvaluableDetail(view.Decline.reason)}
 	}

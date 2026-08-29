@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"maps"
-	"slices"
 
 	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/state"
@@ -73,11 +71,10 @@ func errAttr(err error) []any {
 	return []any{"error", err}
 }
 
-// stalenessView is what the guards could establish about this moment: the live
-// token set persisted keys may be judged against, or the reason nothing may be
-// judged at all. A declined view's LiveTokens is not authority.
+// stalenessView is what the enumeration could establish about this moment: the
+// live token set persisted keys may be judged against, or the reason nothing
+// may be judged at all. A declined view's LiveTokens is not authority.
 type stalenessView struct {
-	Persisted  map[string]map[string]string
 	LiveTokens []string
 	// PaneRows is meaningful only where Enumerated is set: an empty read is a
 	// completed read, an unreached or failed one has no count to report.
@@ -86,45 +83,39 @@ type stalenessView struct {
 	Decline    standDown
 }
 
-// evaluateHookStaleness runs the guard ladder in the one order the sweep and
-// the diagnostic agree on, so neither can judge an entry the other protects.
-//
-// loadPersisted is called only after the restore gate, not before it: a caller
-// whose store read must not happen inside a restore window hands over the read
-// itself rather than its result, and one that has already read hands back what
-// it holds.
-func evaluateHookStaleness(reader staleSweepReader, loadPersisted func() (map[string]map[string]string, error)) (stalenessView, error) {
+// hookStalenessStandDown reports whether hook-staleness work may run at all.
+// Both the sweep and the diagnostic take it before they read their store, so
+// neither judges an entry the other protects.
+func hookStalenessStandDown(reader state.RestoringChecker) standDown {
 	if active, err := restoreWindowActive(reader); active {
-		return stalenessView{Decline: declineDebug(skipReasonRestoring, errAttr(err)...)}, nil
+		return declineDebug(skipReasonRestoring, errAttr(err)...)
 	}
+	return standDown{}
+}
 
-	persisted, err := loadPersisted()
-	if err != nil {
-		// The one decline a caller must also see as a failure: nothing but
-		// repair clears an unreadable store, so the daemon reports it while the
-		// reason still rides the view for a caller that only renders.
-		return stalenessView{Decline: declineWarn(skipReasonStoreReadFailed, "error", err)}, err
-	}
-
+// judgeAgainstLivePanes enumerates the live pane tokens persisted keys are
+// judged against. entries is how many keys the file holds, which is the whole
+// of what the guard below needs from it.
+func judgeAgainstLivePanes(reader PaneHookLister, entries int) stalenessView {
 	rows, err := reader.ListAllPaneHookKeys()
 	if err != nil {
-		return stalenessView{Persisted: persisted, Decline: declineWarn(skipReasonPaneReadFailed, "error", err)}, nil
+		return stalenessView{Decline: declineWarn(skipReasonPaneReadFailed, "error", err)}
 	}
 
-	view := stalenessView{Persisted: persisted, PaneRows: len(rows), Enumerated: true}
+	view := stalenessView{PaneRows: len(rows), Enumerated: true}
 
 	// A pane-less read is a bad read, not authority: it must never reach the
 	// staleness rule, which would judge every key it can parse stale. Defer to
 	// the next run. The count is of rows — under lazy stamping a live server
 	// carrying no token at all is ordinary, not a failure — and with nothing
 	// persisted there is nothing to protect, so the guard has no work.
-	if len(rows) == 0 && len(persisted) > 0 {
-		view.Decline = declineWarn(skipReasonEmptyPaneRead, "entries", len(persisted))
-		return view, nil
+	if len(rows) == 0 && entries > 0 {
+		view.Decline = declineWarn(skipReasonEmptyPaneRead, "entries", entries)
+		return view
 	}
 
 	view.LiveTokens = liveTokensFrom(rows)
-	return view, nil
+	return view
 }
 
 // liveTokensFrom projects the enumeration onto the staleness rule's vocabulary:
@@ -159,55 +150,80 @@ type sweepOutcome struct {
 	DeclineReason string
 }
 
+// The answers an enumeration gives that are not failures: a cycle that declined
+// on a guard, and a store holding nothing to sweep. Both abort the clean with
+// the file untouched, which is the point of returning them as errors.
+var (
+	errCycleDeclined    = errors.New("hook staleness cycle declined")
+	errNothingPersisted = errors.New("no hook entries to sweep")
+)
+
 func runHookStaleCleanup(reader staleSweepReader, store *hooks.Store, logger *slog.Logger) (sweepOutcome, error) {
 	if logger == nil {
 		logger = bootstrapLogger
 	}
 
-	view, err := evaluateHookStaleness(reader, func() (map[string]map[string]string, error) {
-		// The advisory pre-read's shared hold is released when it returns, so
-		// the enumeration after it runs with no lock held. Order is
-		// load-bearing: the enumeration is older than any mutation that lands
-		// after it, so a registration written in that window is absent from
-		// this snapshot and CleanStale retains it rather than reaping it on
-		// shape alone. The read takes the short bound because this cycle takes
-		// the sidecar again inside CleanStale, and at the full bound a wedged
-		// writer would park the daemon's tick for two of them.
-		return store.LoadSnapshot("internal")
-	})
-
-	if view.Enumerated {
-		logger.Debug("stale-hook cleanup counts", "panes", view.PaneRows, "entries", len(view.Persisted))
-	}
-	if view.Decline.declined() {
-		view.Decline.emit()
-		return sweepOutcome{DeclineReason: view.Decline.reason}, err
+	// Taken before the store is read at all: a restore window is no time to
+	// wait on this file's lock for an answer that cannot be acted on.
+	if decline := hookStalenessStandDown(reader); decline.declined() {
+		decline.emit()
+		return sweepOutcome{DeclineReason: decline.reason}, nil
 	}
 
-	// Nothing persisted is nothing to sweep, and reaching CleanStale is not
-	// free: it creates the config directory, creates the sidecar and takes an
-	// exclusive hold. An install that has never registered a hook would
-	// otherwise pay all three on every cycle, in every `hook set`'s way.
-	snapshot := slices.Collect(maps.Keys(view.Persisted))
-	if len(snapshot) == 0 {
-		return sweepOutcome{}, nil
-	}
-
-	removed, err := store.CleanStale(view.LiveTokens, snapshot)
-	if err != nil {
-		// Another writer held the sidecar past the bound: nothing was written
-		// and nothing is wrong, so the cycle stands down rather than reporting a
-		// defect, and the next cadence retries. The nil error keeps the caller
-		// from adding a second report for the same event. Every other failure
-		// stays a failure.
-		if errors.Is(err, hooks.ErrLockHeld) {
-			decline := declineWarn(skipReasonLockTimeout, "error", err)
-			decline.emit()
-			return sweepOutcome{DeclineReason: decline.reason}, nil
+	var decline standDown
+	removed, err := store.CleanStale(func(snapshot hooks.Snapshot) ([]string, error) {
+		view := judgeAgainstLivePanes(reader, len(snapshot))
+		if view.Enumerated {
+			logger.Debug("stale-hook cleanup counts", "panes", view.PaneRows, "entries", len(snapshot))
 		}
-		return sweepOutcome{}, err
+		if view.Decline.declined() {
+			decline = view.Decline
+			return nil, errCycleDeclined
+		}
+		// Nothing persisted is nothing to sweep, and the deletion that would
+		// follow is not free: it creates the config directory, creates the
+		// sidecar and takes an exclusive hold. An install that has never
+		// registered a hook would otherwise pay all three on every cycle, in
+		// every `hook set`'s way.
+		if len(snapshot) == 0 {
+			return nil, errNothingPersisted
+		}
+		return view.LiveTokens, nil
+	})
+	if err != nil {
+		return declinedSweep(decline, err)
 	}
+
 	logger.Debug("stale-hook cleanup removed", "reaped", len(removed))
 
 	return sweepOutcome{Removed: removed}, nil
+}
+
+// declinedSweep renders the outcome of a clean that wrote nothing. A guard's
+// own stand-down carries the reason it decided on; the store's own failure
+// modes are named here because only this cycle knows what they cost it.
+func declinedSweep(decline standDown, err error) (sweepOutcome, error) {
+	switch {
+	case errors.Is(err, errNothingPersisted):
+		return sweepOutcome{}, nil
+	case errors.Is(err, errCycleDeclined):
+		decline.emit()
+		return sweepOutcome{DeclineReason: decline.reason}, nil
+	case errors.Is(err, hooks.ErrLockHeld):
+		// Another writer held the sidecar past the bound: nothing was written
+		// and nothing is wrong, so the cycle stands down rather than reporting a
+		// defect, and the next cadence retries. The nil error keeps the caller
+		// from adding a second report for the same event.
+		lockDecline := declineWarn(skipReasonLockTimeout, "error", err)
+		lockDecline.emit()
+		return sweepOutcome{DeclineReason: lockDecline.reason}, nil
+	case errors.Is(err, hooks.ErrSnapshotRead):
+		// The one decline a caller must also see as a failure: nothing but
+		// repair clears an unreadable store, so the daemon reports it while the
+		// reason still rides the outcome for a caller that only renders.
+		readDecline := declineWarn(skipReasonStoreReadFailed, "error", err)
+		readDecline.emit()
+		return sweepOutcome{DeclineReason: readDecline.reason}, err
+	}
+	return sweepOutcome{}, err
 }

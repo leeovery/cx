@@ -10,14 +10,16 @@ import (
 )
 
 // The staleness rule has one implementation and both readers reach it directly.
-// CleanStale must not be layered on the exported StaleKeys: it judges the key
+// The clean must not be layered on the exported StaleKeys: it judges the key
 // set it has already loaded, and the exported query is free to grow
-// caller-facing behaviour that must not run inside CleanStale's own pass.
+// caller-facing behaviour that must not run inside the clean's own pass.
 func TestCleanStaleDoesNotCallStaleKeys(t *testing.T) {
 	paths, err := sourceguardtest.PackageGoFiles(".", false)
 	if err != nil {
 		t.Fatalf("enumerate package sources: %v", err)
 	}
+
+	cleanPath := map[string]bool{"CleanStale": true, "deleteStale": true}
 
 	scanned := 0
 	for _, path := range paths {
@@ -27,8 +29,8 @@ func TestCleanStaleDoesNotCallStaleKeys(t *testing.T) {
 		}
 		scanned++
 		sourceguardtest.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
-			if funcName == "CleanStale" && calleeName(call) == "StaleKeys" {
-				t.Errorf("%s: CleanStale calls StaleKeys — both must reach the staleness rule through the unexported implementation", path)
+			if cleanPath[funcName] && calleeName(call) == "StaleKeys" {
+				t.Errorf("%s: the clean calls StaleKeys — both must reach the staleness rule through the unexported implementation", path)
 			}
 			return true
 		})
@@ -62,11 +64,11 @@ func TestMutationsDoNotCallExportedLoadOrSave(t *testing.T) {
 		t.Fatalf("enumerate package sources: %v", err)
 	}
 
-	mutations := map[string]bool{"Set": true, "Remove": true, "CleanStale": true}
+	mutations := map[string]bool{"Set": true, "Remove": true, "deleteStale": true}
 	forbidden := map[string]bool{
 		"Load":              true,
 		"Save":              true,
-		"LoadSnapshot":      true,
+		"loadSnapshot":      true,
 		"List":              true,
 		"Get":               true,
 		"loadShared":        true,

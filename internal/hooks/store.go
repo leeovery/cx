@@ -43,15 +43,13 @@ func (s *Store) Load(via string) (hooksFile, error) {
 	return s.loadShared(via)
 }
 
-// LoadSnapshot is the sweep's advisory pre-read. It exists as an exported read
-// because that pre-read lives in cmd and cannot reach the unexported helper,
-// and it is the only read taken at snapshotLockTimeout rather than lockTimeout:
-// one sweep cycle takes the sidecar twice — shared here, exclusive inside
-// CleanStale — so at the full bound a wedged writer would park the daemon's 1s
-// tick for two full bounds every cycle, which is the outcome the bound exists
-// to prevent.
-func (s *Store) LoadSnapshot(via string) (hooksFile, error) {
-	return s.loadSharedBounded(via, snapshotLockTimeout)
+// loadSnapshot is the clean's advisory pre-read, and the only read taken at
+// snapshotLockTimeout rather than lockTimeout: one clean takes the sidecar
+// twice — shared here, exclusive in deleteStale — so at the full bound a wedged
+// writer would park the daemon's 1s tick for two full bounds every cycle, which
+// is the outcome the bound exists to prevent.
+func (s *Store) loadSnapshot() (hooksFile, error) {
+	return s.loadSharedBounded("internal", snapshotLockTimeout)
 }
 
 // loadShared reads under the shared hold every ordinary read takes.
@@ -258,11 +256,7 @@ func staleKeys(persisted hooksFile, live []string) []string {
 }
 
 // narrowToSnapshot drops every candidate the snapshot does not hold.
-func narrowToSnapshot(candidates, snapshotKeys []string) []string {
-	snapshot := make(map[string]struct{}, len(snapshotKeys))
-	for _, key := range snapshotKeys {
-		snapshot[key] = struct{}{}
-	}
+func narrowToSnapshot(candidates []string, snapshot Snapshot) []string {
 	var narrowed []string
 	for _, key := range candidates {
 		if _, ok := snapshot[key]; ok {
@@ -280,19 +274,53 @@ func StaleKeys(persisted map[string]map[string]string, live []string) []string {
 	return staleKeys(persisted, live)
 }
 
-// CleanStale removes and returns the hook entries whose key is absent from
-// liveTokens, whose shape the staleness rule can judge, and which snapshotKeys
-// holds; a key it cannot judge is retained untouched. A clean that removes
-// nothing writes no file and emits no summary.
+// Snapshot is the file as the clean found it before the enumeration ran: the
+// older view a deletion may be narrowed by.
+type Snapshot map[string]map[string]string
+
+// ErrSnapshotRead reports that the clean's own pre-read of the file failed, so
+// the enumeration never ran and nothing was judged — as distinct from a failure
+// of the deletion that would have followed it.
+var ErrSnapshotRead = errors.New("failed to read hooks snapshot")
+
+// CleanStale removes and returns the hook entries whose key enumerateLive's
+// answer leaves stale: absent from that live set, judgeable by the staleness
+// rule, and held by the snapshot this call read. A key it cannot judge is
+// retained untouched, and a clean that removes nothing writes no file and emits
+// no summary.
 //
-// The delete set is derived here, from the file this call loaded under its own
-// exclusive hold, so a deletion is decided on the file as it stands rather than
-// on the older view snapshotKeys describes. snapshotKeys is the key set the
-// caller read before whatever live enumeration produced liveTokens, and it may
-// only narrow the delete set, never widen it: a key it does not hold was
-// written after that enumeration and so was never offered to it for protection,
-// which makes it unjudgeable by this liveTokens however stale its shape looks.
-func (s *Store) CleanStale(liveTokens, snapshotKeys []string) ([]string, error) {
+// The two reads a safe deletion needs are sequenced here rather than by the
+// caller: the snapshot first, then enumerateLive with no lock held. Taking the
+// snapshot first is what keeps a registration landing between the two out of
+// the delete set: it is the older view, and deleteStale narrows to it. Running
+// enumerateLive under the hold would also park every writer behind it.
+//
+// enumerateLive is handed that snapshot and returns the live keys; any error it
+// returns aborts the clean with the file untouched and is returned unwrapped, so
+// a caller can carry its own reasons through. A failed snapshot read returns
+// ErrSnapshotRead and never calls it.
+func (s *Store) CleanStale(enumerateLive func(Snapshot) ([]string, error)) ([]string, error) {
+	h, err := s.loadSnapshot()
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrSnapshotRead, err)
+	}
+	snapshot := Snapshot(h)
+
+	live, err := enumerateLive(snapshot)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.deleteStale(live, snapshot)
+}
+
+// deleteStale is the clean's mutation: it derives the delete set from the file
+// it loads under its own exclusive hold, so a deletion is decided on the file as
+// it stands rather than on the older view the snapshot describes. The snapshot
+// may only narrow that set, never widen it: a key it does not hold was written
+// after the enumeration and so was never offered to it for protection, which
+// makes it unjudgeable by this live set however stale its shape looks.
+func (s *Store) deleteStale(live []string, snapshot Snapshot) ([]string, error) {
 	start := time.Now()
 
 	lock, err := s.acquireMutationLock()
@@ -306,7 +334,7 @@ func (s *Store) CleanStale(liveTokens, snapshotKeys []string) ([]string, error) 
 		return nil, fmt.Errorf("failed to load hooks: %w", err)
 	}
 
-	removed := narrowToSnapshot(staleKeys(h, liveTokens), snapshotKeys)
+	removed := narrowToSnapshot(staleKeys(h, live), snapshot)
 
 	if len(removed) == 0 {
 		return removed, nil

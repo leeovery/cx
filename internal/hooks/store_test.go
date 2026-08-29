@@ -680,7 +680,7 @@ func TestCleanStale(t *testing.T) {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
 
-		removed, err := store.CleanStale([]string{"my-session:0.0"}, snapshotAll(t, filePath))
+		removed, err := store.CleanStale(enumerating("my-session:0.0"))
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -711,7 +711,7 @@ func TestCleanStale(t *testing.T) {
 		dir := t.TempDir()
 		store := hooks.NewStore(filepath.Join(dir, "hooks.json"))
 
-		removed, err := store.CleanStale([]string{"my-session:0.0", "my-session:0.1"}, snapshotAll(t, filepath.Join(dir, "hooks.json")))
+		removed, err := store.CleanStale(enumerating("my-session:0.0", "my-session:0.1"))
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -733,7 +733,7 @@ func TestCleanStale(t *testing.T) {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
 
-		removed, err := store.CleanStale([]string{"my-session:0.0", "my-session:0.1"}, snapshotAll(t, filePath))
+		removed, err := store.CleanStale(enumerating("my-session:0.0", "my-session:0.1"))
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -755,7 +755,7 @@ func TestCleanStale(t *testing.T) {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
 
-		removed, err := store.CleanStale([]string{}, snapshotAll(t, filePath))
+		removed, err := store.CleanStale(enumerating())
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -787,7 +787,7 @@ func TestCleanStale(t *testing.T) {
 			t.Fatalf("failed to stat file: %v", err)
 		}
 
-		removed, err := store.CleanStale([]string{"my-session:0.0"}, snapshotAll(t, filePath))
+		removed, err := store.CleanStale(enumerating("my-session:0.0"))
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -816,7 +816,7 @@ func TestCleanStale(t *testing.T) {
 
 		store := hooks.NewStore(filePath)
 
-		removed, err := store.CleanStale([]string{"my-session:0.0"}, snapshotAll(t, filePath))
+		removed, err := store.CleanStale(enumerating("my-session:0.0"))
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -869,7 +869,7 @@ func TestCleanStale(t *testing.T) {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
 
-		removed, err := store.CleanStale([]string{"my-session:0.0", "other-session:0.1"}, snapshotAll(t, filePath))
+		removed, err := store.CleanStale(enumerating("my-session:0.0", "other-session:0.1"))
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -977,7 +977,7 @@ func TestCleanStaleRemovesExactlyStaleKeys(t *testing.T) {
 		t.Fatal("StaleKeys predicted nothing — an equality between two empty sets proves nothing here")
 	}
 
-	removed, err := store.CleanStale(live, keysOf(persisted))
+	removed, err := store.CleanStale(enumerating(live...))
 	if err != nil {
 		t.Fatalf("CleanStale: %v", err)
 	}
@@ -999,6 +999,12 @@ func TestCleanStaleRemovesExactlyStaleKeys(t *testing.T) {
 func partitionCleanStaleRecords(t *testing.T, recs []logtest.Record) (perKey, summaries []logtest.Record) {
 	t.Helper()
 	for _, r := range recs {
+		// The clean's own pre-read says so when it degrades, which it does
+		// wherever no sidecar has been staged. That breadcrumb is the read's,
+		// not one of the deletion's lines.
+		if r.Msg == "load-unlocked" {
+			continue
+		}
 		if r.Msg != "clean-stale" {
 			t.Errorf("unexpected msg %q in %+v", r.Msg, r)
 			continue
@@ -1037,7 +1043,7 @@ func TestCleanStaleLogging(t *testing.T) {
 		}
 
 		sink := installCapture(t)
-		removed, err := store.CleanStale([]string{"my-session:0.0"}, snapshotAll(t, filepath.Join(dir, "hooks.json")))
+		removed, err := store.CleanStale(enumerating("my-session:0.0"))
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -1092,7 +1098,7 @@ func TestCleanStaleLogging(t *testing.T) {
 		store := hooks.NewStore(path)
 
 		sink := installCapture(t)
-		if _, err := store.CleanStale([]string{"my-session:0.0"}, snapshotAll(t, path)); err != nil {
+		if _, err := store.CleanStale(enumerating("my-session:0.0")); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
@@ -1117,7 +1123,7 @@ func TestCleanStaleLogging(t *testing.T) {
 		store := hooks.NewStore(path)
 
 		sink := installCapture(t)
-		if _, err := store.CleanStale([]string{"my-session:0.0"}, snapshotAll(t, path)); err != nil {
+		if _, err := store.CleanStale(enumerating("my-session:0.0")); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
@@ -1135,7 +1141,7 @@ func TestCleanStaleLogging(t *testing.T) {
 		store, seeded := seedThenDenyWrites(t, body)
 		sink := installCapture(t)
 
-		if _, err := store.CleanStale([]string{"my-session:0.0"}, snapshotAll(t, seeded)); err == nil {
+		if _, err := store.CleanStale(enumerating("my-session:0.0")); err == nil {
 			t.Fatal("expected error from CleanStale on read-only dir, got nil")
 		}
 
@@ -1184,7 +1190,7 @@ func TestCleanStaleLogging(t *testing.T) {
 		}
 
 		sink := installCapture(t)
-		if _, err := store.CleanStale([]string{"my-session:0.0"}, snapshotAll(t, filepath.Join(dir, "hooks.json"))); err != nil {
+		if _, err := store.CleanStale(enumerating("my-session:0.0")); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
@@ -1205,10 +1211,10 @@ func TestCleanStaleLogging(t *testing.T) {
 	})
 
 	t.Run("emits WARN with write-failed-* error_class (not unexpected) when the batched Save fails", func(t *testing.T) {
-		store, seeded := seedThenDenyWrites(t, fmt.Appendf(nil, `{%q:{"on-resume":"x"},%q:{"on-resume":"y"}}`, reapableSeedA, reapableSeedB))
+		store, _ := seedThenDenyWrites(t, fmt.Appendf(nil, `{%q:{"on-resume":"x"},%q:{"on-resume":"y"}}`, reapableSeedA, reapableSeedB))
 		sink := installCapture(t)
 
-		_, err := store.CleanStale([]string{}, snapshotAll(t, seeded))
+		_, err := store.CleanStale(enumerating())
 		if err == nil {
 			t.Fatal("expected error from CleanStale on read-only dir, got nil")
 		}
@@ -1273,7 +1279,7 @@ func TestCleanStaleLogging(t *testing.T) {
 		}
 
 		sink := installCapture(t)
-		removed, err := store.CleanStale([]string{"my-session:0.0"}, snapshotAll(t, filePath))
+		removed, err := store.CleanStale(enumerating("my-session:0.0"))
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
