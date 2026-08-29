@@ -198,7 +198,7 @@ Hooks stay attached to a session even if you rename it, whether from the picker'
 xctl hook set --on-resume "npm start"            # register a resume hook
 xctl hook rm --on-resume                         # remove the current pane's hook
 xctl hook rm --on-resume --pane-key 'k3Xp7Q'     # remove a specific entry (works outside tmux)
-xctl hook list                                   # list all hooks
+xctl hook list                                   # list hooks: key, event, command, and the pane's current location (4th column, empty if no live pane carries the token)
 ```
 
 **When hooks fire:** resume hooks run only when Portal recreates a pane from saved state
