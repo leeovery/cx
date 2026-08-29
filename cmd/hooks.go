@@ -17,6 +17,14 @@ type HookKeyResolver interface {
 	ResolveHookKey(paneID string) (string, error)
 }
 
+// PaneHookLister returns one row per live pane: the pane's hook token, empty
+// for an unstamped pane, alongside its display-only location. It is narrower
+// than the stale sweep's AllPaneLister, which also carries a restore-marker
+// read the listing has no use for.
+type PaneHookLister interface {
+	ListAllPaneHookKeys() ([]tmux.PaneHookRow, error)
+}
+
 // PaneOptionSetter writes one tmux option onto one pane.
 type PaneOptionSetter interface {
 	SetPaneOption(target, name, value string) error
@@ -24,6 +32,7 @@ type PaneOptionSetter interface {
 
 var (
 	_ HookKeyResolver  = (*tmux.Client)(nil)
+	_ PaneHookLister   = (*tmux.Client)(nil)
 	_ PaneOptionSetter = (*tmux.Client)(nil)
 )
 
@@ -31,6 +40,7 @@ var hooksDeps *HooksDeps
 
 type HooksDeps struct {
 	KeyResolver HookKeyResolver
+	PaneLister  PaneHookLister
 	PaneStamper PaneOptionSetter
 	TokenMinter session.IDGenerator
 }
@@ -66,6 +76,13 @@ func resolveCurrentPaneKey() (hookKey, paneID string, err error) {
 func buildHookKeyResolver() HookKeyResolver {
 	if hooksDeps != nil && hooksDeps.KeyResolver != nil {
 		return hooksDeps.KeyResolver
+	}
+	return buildHooksTmuxClient()
+}
+
+func buildPaneHookLister() PaneHookLister {
+	if hooksDeps != nil && hooksDeps.PaneLister != nil {
+		return hooksDeps.PaneLister
 	}
 	return buildHooksTmuxClient()
 }
@@ -122,14 +139,48 @@ var hooksListCmd = &cobra.Command{
 			return err
 		}
 
+		// Nothing to resolve means no tmux read at all.
+		if len(list) == 0 {
+			return nil
+		}
+
+		locations := paneLocationsByToken(buildPaneHookLister())
+
 		for _, h := range list {
-			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\t%s\n", h.Key, h.Event, h.Command); err != nil {
+			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\t%s\t%s\n", h.Key, h.Event, h.Command, locations[h.Key]); err != nil {
 				return err
 			}
 		}
 
 		return nil
 	},
+}
+
+// paneLocationsByToken maps each live pane's token to where that pane lives.
+func paneLocationsByToken(lister PaneHookLister) map[string]string {
+	rows, err := lister.ListAllPaneHookKeys()
+	if err != nil {
+		// `hook` starts no tmux server, so a read against a machine with no server
+		// is ordinary rather than a failure: every location renders empty and the
+		// listing still succeeds.
+		return nil
+	}
+
+	locations := make(map[string]string, len(rows))
+	for _, row := range rows {
+		// An unstamped pane answers to no key: mapping its empty token would lend
+		// its location to an entry that names no pane.
+		if row.Token == "" {
+			continue
+		}
+		// A token two panes carry is a hand-stamped anomaly — a split inherits
+		// nothing — so first row wins and the entry resolves to one location.
+		if _, seen := locations[row.Token]; seen {
+			continue
+		}
+		locations[row.Token] = row.Location
+	}
+	return locations
 }
 
 var hooksSetCmd = &cobra.Command{

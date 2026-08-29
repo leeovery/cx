@@ -26,21 +26,17 @@ func TestHooksListCommand(t *testing.T) {
 		t.Cleanup(func() { bootstrapDeps = nil })
 
 		data := map[string]map[string]string{
-			"my-project-abc123:0.0": {"on-resume": "claude --resume abc123"},
+			"aaa111": {"on-resume": "claude --resume abc123"},
 		}
 		writeHooksJSON(t, hooksFile, data)
 
-		buf := new(bytes.Buffer)
-		resetRootCmd()
-		rootCmd.SetOut(buf)
-		rootCmd.SetArgs([]string{"hooks", "list"})
-		err := rootCmd.Execute()
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		hooksDeps = &HooksDeps{PaneLister: &mockPaneHookLister{rows: []tmux.PaneHookRow{
+			{Token: "aaa111", Location: "my-project-abc123:0.0"},
+		}}}
+		t.Cleanup(func() { hooksDeps = nil })
 
-		got := buf.String()
-		want := "my-project-abc123:0.0\ton-resume\tclaude --resume abc123\n"
+		got := runHookList(t)
+		want := "aaa111\ton-resume\tclaude --resume abc123\tmy-project-abc123:0.0\n"
 		if got != want {
 			t.Errorf("output = %q, want %q", got, want)
 		}
@@ -84,7 +80,7 @@ func TestHooksListCommand(t *testing.T) {
 		}
 	})
 
-	t.Run("outputs hooks sorted by key then event", func(t *testing.T) {
+	t.Run("it keeps the sort by key then event", func(t *testing.T) {
 		_, hooksFile := hooksFileInTempDir(t)
 
 		// Stub bootstrap so the real orchestrator never runs against the test's
@@ -93,23 +89,23 @@ func TestHooksListCommand(t *testing.T) {
 		t.Cleanup(func() { bootstrapDeps = nil })
 
 		data := map[string]map[string]string{
-			"proj-abc:1.0":   {"on-resume": "claude --resume def456"},
-			"proj-abc:0.0":   {"on-resume": "claude --resume abc123"},
-			"other-proj:0.0": {"on-resume": "npm start"},
+			"ccc333": {"on-resume": "claude --resume def456"},
+			"bbb222": {"on-resume": "claude --resume abc123"},
+			"aaa111": {"on-resume": "npm start"},
 		}
 		writeHooksJSON(t, hooksFile, data)
 
-		buf := new(bytes.Buffer)
-		resetRootCmd()
-		rootCmd.SetOut(buf)
-		rootCmd.SetArgs([]string{"hooks", "list"})
-		err := rootCmd.Execute()
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		hooksDeps = &HooksDeps{PaneLister: &mockPaneHookLister{rows: []tmux.PaneHookRow{
+			{Token: "ccc333", Location: "proj-abc:1.0"},
+			{Token: "bbb222", Location: "proj-abc:0.0"},
+			{Token: "aaa111", Location: "other-proj:0.0"},
+		}}}
+		t.Cleanup(func() { hooksDeps = nil })
 
-		got := buf.String()
-		want := "other-proj:0.0\ton-resume\tnpm start\nproj-abc:0.0\ton-resume\tclaude --resume abc123\nproj-abc:1.0\ton-resume\tclaude --resume def456\n"
+		got := runHookList(t)
+		want := "aaa111\ton-resume\tnpm start\tother-proj:0.0\n" +
+			"bbb222\ton-resume\tclaude --resume abc123\tproj-abc:0.0\n" +
+			"ccc333\ton-resume\tclaude --resume def456\tproj-abc:1.0\n"
 		if got != want {
 			t.Errorf("output = %q, want %q", got, want)
 		}
@@ -126,6 +122,200 @@ func TestHooksListCommand(t *testing.T) {
 			t.Fatal("expected error for extra argument, got nil")
 		}
 	})
+}
+
+// mockPaneHookLister records every enumeration the list path takes, so a test
+// can assert on the read count as well as the rows.
+type mockPaneHookLister struct {
+	rows  []tmux.PaneHookRow
+	err   error
+	calls int
+}
+
+func (m *mockPaneHookLister) ListAllPaneHookKeys() ([]tmux.PaneHookRow, error) {
+	m.calls++
+	return m.rows, m.err
+}
+
+func TestHooksListLocationColumn(t *testing.T) {
+	t.Run("it appends the resolved location as a fourth column", func(t *testing.T) {
+		_, hooksFile := hooksFileInTempDir(t)
+		writeHooksJSON(t, hooksFile, map[string]map[string]string{
+			"aaa111": {"on-resume": "claude --resume abc123"},
+		})
+
+		hooksDeps = &HooksDeps{PaneLister: &mockPaneHookLister{rows: []tmux.PaneHookRow{
+			{Token: "aaa111", Location: "my-project-abc123:0.0"},
+		}}}
+		t.Cleanup(func() { hooksDeps = nil })
+
+		got := runHookList(t)
+		want := "aaa111\ton-resume\tclaude --resume abc123\tmy-project-abc123:0.0\n"
+		if got != want {
+			t.Errorf("output = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("it does not let an unstamped pane's row lend its location", func(t *testing.T) {
+		_, hooksFile := hooksFileInTempDir(t)
+		writeHooksJSON(t, hooksFile, map[string]map[string]string{
+			"": {"on-resume": "npm start"},
+		})
+
+		hooksDeps = &HooksDeps{PaneLister: &mockPaneHookLister{rows: []tmux.PaneHookRow{
+			{Token: "", Location: "unstamped-sess:0.0"},
+		}}}
+		t.Cleanup(func() { hooksDeps = nil })
+
+		got := runHookList(t)
+		want := "\ton-resume\tnpm start\t\n"
+		if got != want {
+			t.Errorf("output = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("it renders one line for a token carried by two rows", func(t *testing.T) {
+		_, hooksFile := hooksFileInTempDir(t)
+		writeHooksJSON(t, hooksFile, map[string]map[string]string{
+			"dup777": {"on-resume": "npm start"},
+		})
+
+		hooksDeps = &HooksDeps{PaneLister: &mockPaneHookLister{rows: []tmux.PaneHookRow{
+			{Token: "dup777", Location: "first-sess:0.0"},
+			{Token: "dup777", Location: "second-sess:1.2"},
+		}}}
+		t.Cleanup(func() { hooksDeps = nil })
+
+		got := runHookList(t)
+		want := "dup777\ton-resume\tnpm start\tfirst-sess:0.0\n"
+		if got != want {
+			t.Errorf("output = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("it renders every fourth field empty when the enumeration fails", func(t *testing.T) {
+		_, hooksFile := hooksFileInTempDir(t)
+		writeHooksJSON(t, hooksFile, map[string]map[string]string{
+			"aaa111": {"on-resume": "claude --resume abc123"},
+			"bbb222": {"on-resume": "npm start"},
+		})
+
+		// Rows alongside the error: a failed read must be judged by the error, not
+		// by whether the lister also handed back rows.
+		hooksDeps = &HooksDeps{PaneLister: &mockPaneHookLister{
+			rows: []tmux.PaneHookRow{{Token: "aaa111", Location: "my-project:0.0"}},
+			err:  errors.New("no server running"),
+		}}
+		t.Cleanup(func() { hooksDeps = nil })
+
+		got := runHookList(t)
+		want := "aaa111\ton-resume\tclaude --resume abc123\t\nbbb222\ton-resume\tnpm start\t\n"
+		if got != want {
+			t.Errorf("output = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("it takes no enumeration read when there are no entries", func(t *testing.T) {
+		_, hooksFile := hooksFileInTempDir(t)
+		writeHooksJSON(t, hooksFile, map[string]map[string]string{})
+
+		hooksDeps = &HooksDeps{PaneLister: &loudPaneHookLister{t: t}}
+		t.Cleanup(func() { hooksDeps = nil })
+
+		got := runHookList(t)
+		if got != "" {
+			t.Errorf("output = %q, want empty string", got)
+		}
+	})
+
+	t.Run("it renders an empty fourth field for a token no row carries", func(t *testing.T) {
+		_, hooksFile := hooksFileInTempDir(t)
+		writeHooksJSON(t, hooksFile, map[string]map[string]string{
+			"ghost9": {"on-resume": "npm start"},
+		})
+
+		hooksDeps = &HooksDeps{PaneLister: &mockPaneHookLister{rows: []tmux.PaneHookRow{
+			{Token: "aaa111", Location: "my-project:0.0"},
+			{Token: "bbb222", Location: "my-project:0.1"},
+		}}}
+		t.Cleanup(func() { hooksDeps = nil })
+
+		got := runHookList(t)
+		want := "ghost9\ton-resume\tnpm start\t\n"
+		if got != want {
+			t.Errorf("output = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("it renders an empty fourth field for an old-format key", func(t *testing.T) {
+		_, hooksFile := hooksFileInTempDir(t)
+		writeHooksJSON(t, hooksFile, map[string]map[string]string{
+			"aaa111":   {"on-resume": "claude --resume abc123"},
+			"sess:0.0": {"on-resume": "npm start"},
+		})
+
+		hooksDeps = &HooksDeps{PaneLister: &mockPaneHookLister{rows: []tmux.PaneHookRow{
+			{Token: "aaa111", Location: "sess:0.0"},
+		}}}
+		t.Cleanup(func() { hooksDeps = nil })
+
+		got := runHookList(t)
+		want := "aaa111\ton-resume\tclaude --resume abc123\tsess:0.0\n" +
+			"sess:0.0\ton-resume\tnpm start\t\n"
+		if got != want {
+			t.Errorf("output = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("it renders a location whose session name carries a pipe verbatim", func(t *testing.T) {
+		_, hooksFile := hooksFileInTempDir(t)
+		writeHooksJSON(t, hooksFile, map[string]map[string]string{
+			"aaa111": {"on-resume": "npm start"},
+		})
+
+		hooksDeps = &HooksDeps{PaneLister: &mockPaneHookLister{rows: []tmux.PaneHookRow{
+			{Token: "aaa111", Location: "a|b:0.0"},
+		}}}
+		t.Cleanup(func() { hooksDeps = nil })
+
+		got := runHookList(t)
+		want := "aaa111\ton-resume\tnpm start\ta|b:0.0\n"
+		if got != want {
+			t.Errorf("output = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("it takes exactly one enumeration read for many entries", func(t *testing.T) {
+		_, hooksFile := hooksFileInTempDir(t)
+		writeHooksJSON(t, hooksFile, map[string]map[string]string{
+			"aaa111": {"on-resume": "one"},
+			"bbb222": {"on-resume": "two"},
+			"ccc333": {"on-resume": "three"},
+			"ddd444": {"on-resume": "four"},
+		})
+
+		lister := &mockPaneHookLister{rows: []tmux.PaneHookRow{
+			{Token: "aaa111", Location: "my-project:0.0"},
+		}}
+		hooksDeps = &HooksDeps{PaneLister: lister}
+		t.Cleanup(func() { hooksDeps = nil })
+
+		runHookList(t)
+
+		if lister.calls != 1 {
+			t.Errorf("enumeration reads = %d, want 1", lister.calls)
+		}
+	})
+}
+
+// loudPaneHookLister fails the test the moment it is read from: nothing to
+// resolve must mean no tmux read at all.
+type loudPaneHookLister struct{ t *testing.T }
+
+func (l *loudPaneHookLister) ListAllPaneHookKeys() ([]tmux.PaneHookRow, error) {
+	l.t.Helper()
+	l.t.Error("enumeration read taken with no entries to resolve")
+	return nil, nil
 }
 
 type mockKeyResolver struct {

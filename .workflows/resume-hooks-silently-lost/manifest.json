@@ -179,7 +179,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 4,
-          "current_task": "resume-hooks-silently-lost-4-2",
+          "current_task": "resume-hooks-silently-lost-4-3",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -580,6 +580,14 @@
                 "cmd/cleanstale_transient_listpanes_shared_test.go",
                 "cmd/bootstrap_production_test.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-4-3",
+              "summary": "cmd/hooks.go now carries four near-identical nil-check dependency builders",
+              "detail": "buildHookKeyResolver (hooks.go:76), buildPaneHookLister (hooks.go:83), buildPaneStamper (hooks.go:90) and buildTokenMinter (hooks.go:97) are the same three-line if hooksDeps != nil && hooksDeps.X != nil shape. Task 4-3 added the fourth, crossing Rule of Three. A single generic picker would collapse them, but the other three serve the set/rm paths owned by sibling tasks, so the edit reaches past 4-3 surface.",
+              "files": [
+                "cmd/hooks.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -617,7 +625,8 @@
             "resume-hooks-silently-lost-3-9",
             "resume-hooks-silently-lost-3-10",
             "resume-hooks-silently-lost-4-1",
-            "resume-hooks-silently-lost-4-2"
+            "resume-hooks-silently-lost-4-2",
+            "resume-hooks-silently-lost-4-3"
           ],
           "staging": {
             "p1": {

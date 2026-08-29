@@ -56,3 +56,18 @@ func readHooksJSON(t *testing.T, path string) map[string]map[string]string {
 	}
 	return data
 }
+
+// runHookList drives `hook list`, failing the test on a non-zero exit and
+// returning what the command wrote to stdout.
+func runHookList(t *testing.T) string {
+	t.Helper()
+	buf := new(bytes.Buffer)
+	resetRootCmd()
+	rootCmd.SetOut(buf)
+	rootCmd.SetErr(new(bytes.Buffer))
+	rootCmd.SetArgs([]string{"hook", "list"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	return buf.String()
+}
