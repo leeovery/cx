@@ -18,9 +18,11 @@ import (
 )
 
 // holdHooksSidecar takes the sidecar exclusively from an independent open file
-// description, modelling a writer in another process, so every read taken while
-// it is held must degrade rather than fail.
-func holdHooksSidecar(t *testing.T, hooksPath string) {
+// description, modelling a writer in another process: every read taken while it
+// is held must degrade rather than fail, and every mutation must time out at the
+// bound and write nothing. The returned release lets a caller free the lock
+// mid-test and retry the operation that could not take it.
+func holdHooksSidecar(t *testing.T, hooksPath string) func() {
 	t.Helper()
 	f, err := os.OpenFile(hooksPath+".lock", os.O_RDWR|os.O_CREATE, 0o600)
 	if err != nil {
@@ -30,12 +32,14 @@ func holdHooksSidecar(t *testing.T, hooksPath string) {
 		t.Fatalf("flock sidecar: %v", err)
 	}
 	var once sync.Once
-	t.Cleanup(func() {
+	release := func() {
 		once.Do(func() {
 			_ = unix.Flock(int(f.Fd()), unix.LOCK_UN)
 			_ = f.Close()
 		})
-	})
+	}
+	t.Cleanup(release)
+	return release
 }
 
 func installHooksSink(t *testing.T) *logtest.Sink {

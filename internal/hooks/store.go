@@ -115,6 +115,11 @@ func (s *Store) save(h hooksFile) error {
 func (s *Store) Set(key, event, command, via string) error {
 	lock, err := s.acquireMutationLock()
 	if err != nil {
+		// Under the method's own op, not classifySet's verdict: that verdict reads
+		// the loaded file, and the acquire is what prevented the load. No
+		// error_class — nothing reached the write phases it classifies — and no
+		// value, which names what a write carried.
+		logger.Warn("set", "op", "set", "hook_key", key, "via", via, "error", err)
 		return err
 	}
 	defer func() { _ = lock.Close() }()
@@ -168,6 +173,9 @@ func classifySet(h hooksFile, key, event, command string) string {
 func (s *Store) Remove(key, event, via string) (bool, error) {
 	lock, err := s.acquireMutationLock()
 	if err != nil {
+		// A failed operation, not the silent no-removal below: that one changed
+		// nothing because there was nothing to change, and this one could not look.
+		logger.Warn("rm", "op", "rm", "hook_key", key, "via", via, "error", err)
 		return false, err
 	}
 	defer func() { _ = lock.Close() }()

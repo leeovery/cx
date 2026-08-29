@@ -184,7 +184,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 5,
-          "current_task": "resume-hooks-silently-lost-5-2",
+          "current_task": "resume-hooks-silently-lost-5-3",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -603,6 +603,28 @@
                 "cmd/run_hook_stale_cleanup.go",
                 "cmd/run_hook_stale_cleanup_test.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-5-3",
+              "summary": "Two hook set drivers in package cmd, one a strict superset of the other",
+              "detail": "runHookSetCapturing (cmd/hooks_write_lock_test.go:24) differs from runHookSet (cmd/testhelpers_test.go:28) only in returning the captured buffer — which is what runHookRm (cmd/testhelpers_test.go:39) already does. The consolidation is to give runHookSet the (string, error) signature and drop the twin, but that re-points nine call sites in files owned by sibling tasks (cmd/hooks_test.go:490,975, cmd/hooks_pane_token_test.go:43,78,99,124,147,171,230). testhelpers_test.go own header declares itself the home for driver helpers, so the new one is also sited away from its stated home.",
+              "files": [
+                "cmd/hooks_write_lock_test.go",
+                "cmd/testhelpers_test.go",
+                "cmd/hooks_test.go",
+                "cmd/hooks_pane_token_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-5-3",
+              "summary": "Three hook-key seam fakes in package cmd, the newest a stateful superset of the other two",
+              "detail": "mockKeyResolver (cmd/hooks_test.go:314, resolver only), recordingPaneStamper (cmd/hooks_pane_token_test.go:20, stamper only) and now stampedPane (cmd/hooks_write_lock_test.go:93, both, with the token actually round-tripping). cmd/hookkey_vocabulary_test.go:1-4 declares itself the home for the seam fakes that answer with the hook-key vocabulary, and none of the three live there. Same shape as the already-banked AllPaneLister-fakes item, so it consolidates cheaply alongside it.",
+              "files": [
+                "cmd/hooks_test.go",
+                "cmd/hooks_pane_token_test.go",
+                "cmd/hooks_write_lock_test.go",
+                "cmd/hookkey_vocabulary_test.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -648,7 +670,8 @@
             "resume-hooks-silently-lost-4-7",
             "resume-hooks-silently-lost-4-8",
             "resume-hooks-silently-lost-5-1",
-            "resume-hooks-silently-lost-5-2"
+            "resume-hooks-silently-lost-5-2",
+            "resume-hooks-silently-lost-5-3"
           ],
           "staging": {
             "p1": {
