@@ -1,10 +1,8 @@
 package cmd
 
 import (
-	"bytes"
 	"errors"
 	"log/slog"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -54,9 +52,7 @@ func TestHookSweepStandsDownOnLockTimeout(t *testing.T) {
 			t.Fatalf("runHookStaleCleanup: want nil on a lock timeout, got %v", err)
 		}
 
-		if after := readFileBytes(t, path); !bytes.Equal(before, after) {
-			t.Errorf("hooks.json rewritten under a held lock\nbefore: %s\nafter:  %s", before, after)
-		}
+		assertHooksFileUnchanged(t, path, before, "rewritten under a held lock")
 	})
 
 	t.Run("it logs the stand-down at WARN with reason=lock-timeout", func(t *testing.T) {
@@ -184,9 +180,7 @@ func TestHookSweepStandsDownOnLockTimeout(t *testing.T) {
 
 		maybeRunHookCleanup(deps)
 
-		if after := readFileBytes(t, path); !bytes.Equal(before, after) {
-			t.Errorf("hooks.json rewritten by the daemon under a held lock\nbefore: %s\nafter:  %s", before, after)
-		}
+		assertHooksFileUnchanged(t, path, before, "rewritten by the daemon under a held lock")
 		lockStandDownRecord(t, sink)
 		if got := countMatching(injected.entries, "warn", "daemon", "hooks stale-cleanup failed"); got != 0 {
 			t.Errorf("daemon generic-failure WARN count = %d, want 0; entries=%+v", got, injected.entries)
@@ -194,32 +188,15 @@ func TestHookSweepStandsDownOnLockTimeout(t *testing.T) {
 	})
 }
 
-// saveDeniedStore stages the stale seed in a directory whose name the caller
-// chooses and which is then made unwritable, so the mutation takes its lock and
-// reads cleanly but cannot write.
-func saveDeniedStore(t *testing.T, dirName string) (*hooks.Store, string) {
-	t.Helper()
-	dir := filepath.Join(t.TempDir(), dirName)
-	if err := os.Mkdir(dir, 0o755); err != nil {
-		t.Fatalf("mkdir fixture dir: %v", err)
-	}
-	path := filepath.Join(dir, "hooks.json")
-	if err := os.WriteFile(path, []byte(staleHookSeed), 0o644); err != nil {
-		t.Fatalf("write seed hooks.json: %v", err)
-	}
-	transienttest.CreateHooksSidecar(t, path)
-	if err := os.Chmod(dir, 0o500); err != nil {
-		t.Fatalf("chmod fixture dir: %v", err)
-	}
-	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
-	return hooks.NewStore(path), path
-}
-
 func TestHookSweepDiscriminatesLockTimeoutFromFailure(t *testing.T) {
 	lister := &stubAllPaneLister{rows: tokenRows(liveSeedA)}
 
 	t.Run("it still returns an error for a save failure", func(t *testing.T) {
-		store, _ := saveDeniedStore(t, "write-denied")
+		store, _ := newStagedHooksStore(t, hooksStoreStaging{
+			dir:          filepath.Join(t.TempDir(), "write-denied"),
+			seed:         staleHookSeed,
+			writesDenied: true,
+		})
 		sink := installHooksSink(t)
 
 		var skipped []string
@@ -244,7 +221,11 @@ func TestHookSweepDiscriminatesLockTimeoutFromFailure(t *testing.T) {
 	// The directory name puts the sentinel's own words into the save failure's
 	// message, so a substring check would mistake it for a lock timeout.
 	t.Run("it never matches on error text", func(t *testing.T) {
-		store, _ := saveDeniedStore(t, hooks.ErrLockHeld.Error())
+		store, _ := newStagedHooksStore(t, hooksStoreStaging{
+			dir:          filepath.Join(t.TempDir(), hooks.ErrLockHeld.Error()),
+			seed:         staleHookSeed,
+			writesDenied: true,
+		})
 		sink := installHooksSink(t)
 
 		var skipped []string
@@ -277,9 +258,7 @@ func TestDoctorFixReportsLockedHookPrune(t *testing.T) {
 		outBuf, _, _ := runDoctorFixCmd(t, deps)
 
 		assertSkippedPruneLine(t, outBuf.String(), "Skipped stale hook prune: hooks.json is locked")
-		if after := readFileBytes(t, hooksPath); !bytes.Equal(before, after) {
-			t.Errorf("hooks.json rewritten on a lock stand-down\nbefore: %s\nafter:  %s", before, after)
-		}
+		assertHooksFileUnchanged(t, hooksPath, before, "rewritten on a lock stand-down")
 	})
 
 	// The read side degrades where the write side stands down, so the un-pruned

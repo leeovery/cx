@@ -2,16 +2,11 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"log/slog"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/leeovery/portal/cmd/bootstrap"
-	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/tmux"
-	"github.com/leeovery/portal/internal/transienttest"
 )
 
 var _ bootstrap.LatchWriter = (*tmux.Client)(nil)
@@ -99,35 +94,6 @@ func (r *recordingLogger) Handle(_ context.Context, rec slog.Record) error {
 var _ slog.Handler = (*recordingLogger)(nil)
 
 var _ AllPaneLister = (*tmux.Client)(nil)
-
-func newTempHooksStore(t *testing.T, seed string) (*hooks.Store, string) {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "hooks.json")
-	if seed != "" {
-		if err := os.WriteFile(path, []byte(seed), 0o644); err != nil {
-			t.Fatalf("write seed hooks.json: %v", err)
-		}
-	}
-	// The sidecar stands in for the one a writer establishes on a real install,
-	// so a read under this fixture takes its shared lock rather than degrading
-	// and emitting a load-unlocked breadcrumb the fixture never meant to model.
-	transienttest.CreateHooksSidecar(t, path)
-	return hooks.NewStore(path), path
-}
-
-// readFileBytes returns nil on ENOENT, so callers can distinguish "file absent"
-// from "file empty".
-func readFileBytes(t *testing.T, path string) []byte {
-	t.Helper()
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil
-		}
-		t.Fatalf("read %s: %v", path, err)
-	}
-	return data
-}
 
 func countMatching(entries []recordedLog, level, component, message string) int {
 	n := 0

@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bytes"
 	"errors"
 	"log/slog"
 	"os"
@@ -14,23 +13,6 @@ import (
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/transienttest"
 )
-
-// lockBound is the lowered acquisition bound every test here drives the timeout
-// through, so no case waits out the production figure.
-const lockBound = 60 * time.Millisecond
-
-// runHookSetCapturing drives `hook set --on-resume command` with both streams
-// captured, so a test can prove no usage dump reached them.
-func runHookSetCapturing(t *testing.T, command string) (string, error) {
-	t.Helper()
-	buf := new(bytes.Buffer)
-	resetRootCmd()
-	rootCmd.SetOut(buf)
-	rootCmd.SetErr(buf)
-	rootCmd.SetArgs([]string{"hook", "set", "--on-resume", command})
-	err := rootCmd.Execute()
-	return buf.String(), err
-}
 
 // assertLockFailureReachesStderr pins the route a lock failure takes to the
 // user: a plain error cobra neither silences nor dresses as a usage problem, so
@@ -99,7 +81,7 @@ func TestHookSetLockTimeout(t *testing.T) {
 		t.Cleanup(func() { hooksDeps = nil })
 
 		sink := installHooksSink(t)
-		out, err := runHookSetCapturing(t, "claude --resume abc")
+		out, err := runHookSet(t, "claude --resume abc")
 		assertLockFailureReachesStderr(t, out, err)
 		assertOneLockWarn(t, sink, "set", "tok123")
 		assertHooksFileUnchanged(t, hooksFile, before)
@@ -114,7 +96,7 @@ func TestHookSetLockTimeout(t *testing.T) {
 		hooksDeps = &HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}}
 		t.Cleanup(func() { hooksDeps = nil })
 
-		if _, err := runHookSetCapturing(t, "claude --resume abc"); err == nil {
+		if _, err := runHookSet(t, "claude --resume abc"); err == nil {
 			t.Fatal("expected a non-zero exit under a held lock, got nil")
 		}
 		if _, statErr := os.Stat(hooksFile); !errors.Is(statErr, os.ErrNotExist) {
@@ -133,7 +115,7 @@ func TestHookSetLockTimeout(t *testing.T) {
 		hooksDeps = &HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}}
 		t.Cleanup(func() { hooksDeps = nil })
 
-		if _, err := runHookSetCapturing(t, "claude --resume abc"); err == nil {
+		if _, err := runHookSet(t, "claude --resume abc"); err == nil {
 			t.Fatal("expected a non-zero exit under a held lock, got nil")
 		}
 		if saveRequestedExists(t, stateDir) {
@@ -156,7 +138,7 @@ func TestHookSetLockTimeout(t *testing.T) {
 		}
 		t.Cleanup(func() { hooksDeps = nil })
 
-		if _, err := runHookSetCapturing(t, "claude --resume abc"); err == nil {
+		if _, err := runHookSet(t, "claude --resume abc"); err == nil {
 			t.Fatal("expected a non-zero exit under a held lock, got nil")
 		}
 
@@ -175,7 +157,7 @@ func TestHookSetLockTimeout(t *testing.T) {
 		// The retry reads the token back and reuses it: no second mint, no second
 		// stamp, and one entry under the token the failed attempt stamped.
 		release()
-		if _, err := runHookSetCapturing(t, "claude --resume abc"); err != nil {
+		if _, err := runHookSet(t, "claude --resume abc"); err != nil {
 			t.Fatalf("retry after the lock freed: %v", err)
 		}
 
@@ -205,7 +187,7 @@ func TestHookSetLockTimeout(t *testing.T) {
 		t.Cleanup(func() { hooksDeps = nil })
 
 		start := time.Now()
-		_, err := runHookSetCapturing(t, "claude --resume abc")
+		_, err := runHookSet(t, "claude --resume abc")
 		elapsed := time.Since(start)
 
 		if err == nil {

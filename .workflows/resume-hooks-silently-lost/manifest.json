@@ -188,7 +188,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 5,
-          "current_task": "resume-hooks-silently-lost-5-7",
+          "current_task": "resume-hooks-silently-lost-5-8",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -582,6 +582,25 @@
               "files": [
                 "CLAUDE.md"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-5-8",
+              "summary": "The deny-writes fixture cannot detect its own trap",
+              "detail": "With the sidecar staging removed from the writesDenied path, both subtests of TestHookSweepDiscriminatesLockTimeoutFromFailure (cmd/hook_sweep_lock_timeout_test.go:194, :223) still pass — the 5-8 reviewer ran exactly this control. The first only asserts !errors.Is(err, hooks.ErrLockHeld), which a lock-open EACCES also satisfies; the second self-guard checks the error text carries the sentinel, which the directory name supplies on either path. The fixture subject (error_class=write-failed-temp-create) is asserted nowhere at this level. A guard — asserting errors.Is(err, fileutil.ErrWriteTempCreate), or that the sink carries the WARN clean-stale with error_class=write-failed-temp-create — would pin it. This fixture has now silently stopped testing its own subject once (caught at 5-1) and been shown undetectable twice.",
+              "files": [
+                "cmd/hook_sweep_lock_timeout_test.go",
+                "cmd/testhelpers_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-5-8",
+              "summary": "seedHooksJSON tail still duplicates the staging helper, but delegating is a modelling decision not a helper move",
+              "detail": "cmd/doctor_test.go:811-826 re-implements write-then-hooks.NewStore over its own t.TempDir(). Delegating is mechanically clean and verdict-neutral today (measured: 1577 verdicts identical, all green), but it turns ~30 doctor fixtures from a sidecar-less fresh install into a written-to install and falsifies cmd/hooks_read_lock_test.go:29-31. The consolidation needs that modelling decision made deliberately, not folded into a helper move. The two are not the same shape — seedHooksJSON takes keys and builds JSON; only its last six lines duplicate.",
+              "files": [
+                "cmd/doctor_test.go",
+                "cmd/testhelpers_test.go",
+                "cmd/hooks_read_lock_test.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -632,7 +651,8 @@
             "resume-hooks-silently-lost-5-4",
             "resume-hooks-silently-lost-5-5",
             "resume-hooks-silently-lost-5-6",
-            "resume-hooks-silently-lost-5-7"
+            "resume-hooks-silently-lost-5-7",
+            "resume-hooks-silently-lost-5-8"
           ],
           "staging": {
             "p1": {

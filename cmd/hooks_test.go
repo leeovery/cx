@@ -476,7 +476,7 @@ func TestHooksSetCommand(t *testing.T) {
 		hooksDeps = &HooksDeps{KeyResolver: resolver, PaneStamper: &recordingPaneStamper{}}
 		t.Cleanup(func() { hooksDeps = nil })
 
-		err := runHookSet(t, "some-cmd")
+		_, err := runHookSet(t, "some-cmd")
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
@@ -961,7 +961,8 @@ func runHookSetForKey(t *testing.T, key, command string) error {
 	hooksDeps = &HooksDeps{KeyResolver: &mockKeyResolver{key: key}}
 	t.Cleanup(func() { hooksDeps = nil })
 
-	return runHookSet(t, command)
+	_, err := runHookSet(t, command)
+	return err
 }
 
 func saveRequestedExists(t *testing.T, stateDir string) bool {

@@ -20,7 +20,7 @@ func TestHooksSetStampsPaneToken(t *testing.T) {
 		hooksDeps = &HooksDeps{KeyResolver: &mockKeyResolver{key: ""}, PaneStamper: stamper}
 		t.Cleanup(func() { hooksDeps = nil })
 
-		if err := runHookSet(t, "claude --resume abc123"); err != nil {
+		if _, err := runHookSet(t, "claude --resume abc123"); err != nil {
 			t.Fatalf("hook set: %v", err)
 		}
 
@@ -55,7 +55,7 @@ func TestHooksSetStampsPaneToken(t *testing.T) {
 		hooksDeps = &HooksDeps{KeyResolver: &mockKeyResolver{key: "tok999"}, PaneStamper: stamper}
 		t.Cleanup(func() { hooksDeps = nil })
 
-		if err := runHookSet(t, "some-cmd"); err != nil {
+		if _, err := runHookSet(t, "some-cmd"); err != nil {
 			t.Fatalf("hook set: %v", err)
 		}
 
@@ -76,7 +76,7 @@ func TestHooksSetStampsPaneToken(t *testing.T) {
 		hooksDeps = &HooksDeps{KeyResolver: &mockKeyResolver{key: ""}, PaneStamper: stamper}
 		t.Cleanup(func() { hooksDeps = nil })
 
-		err := runHookSet(t, "some-cmd")
+		_, err := runHookSet(t, "some-cmd")
 		if err == nil {
 			t.Fatal("expected an error from a failed stamp, got nil")
 		}
@@ -101,7 +101,7 @@ func TestHooksSetStampsPaneToken(t *testing.T) {
 		hooksDeps = &HooksDeps{KeyResolver: &mockKeyResolver{key: ""}, PaneStamper: stamper}
 		t.Cleanup(func() { hooksDeps = nil })
 
-		if err := runHookSet(t, "some-cmd"); err != nil {
+		if _, err := runHookSet(t, "some-cmd"); err != nil {
 			t.Fatalf("hook set: %v", err)
 		}
 		if len(stamper.calls) != 1 {
@@ -124,7 +124,7 @@ func TestHooksSetStampsPaneToken(t *testing.T) {
 		hooksDeps = &HooksDeps{KeyResolver: &mockKeyResolver{key: ""}, PaneStamper: stamper}
 		t.Cleanup(func() { hooksDeps = nil })
 
-		if err := runHookSet(t, "some-cmd"); err == nil {
+		if _, err := runHookSet(t, "some-cmd"); err == nil {
 			t.Fatal("expected an error from an unwritable hooks path, got nil")
 		}
 
@@ -148,7 +148,7 @@ func TestHooksSetStampsPaneToken(t *testing.T) {
 		}
 		t.Cleanup(func() { hooksDeps = nil })
 
-		err := runHookSet(t, "some-cmd")
+		_, err := runHookSet(t, "some-cmd")
 		if err == nil {
 			t.Fatal("expected an error from a failed mint, got nil")
 		}
@@ -207,7 +207,7 @@ func TestHooksSetRefusesAnUnresolvablePane(t *testing.T) {
 		}
 		t.Cleanup(func() { hooksDeps = nil })
 
-		if err := runHookSet(t, "some-cmd"); err == nil {
+		if _, err := runHookSet(t, "some-cmd"); err == nil {
 			t.Fatal("expected an error from an unresolvable pane, got nil")
 		}
 		if minted != 0 {
