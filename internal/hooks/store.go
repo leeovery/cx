@@ -39,6 +39,13 @@ func NewStore(path string) *Store {
 // Load reads hooks from the JSON file, returning an empty map when the file is
 // missing or holds malformed JSON.
 func (s *Store) Load() (hooksFile, error) {
+	return s.load()
+}
+
+// load is the non-locking read the mutations use from inside their own hold: a
+// second acquisition from the same process is not re-entrant and would block
+// against that hold until the bound.
+func (s *Store) load() (hooksFile, error) {
 	data, err := os.ReadFile(s.path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -55,9 +62,9 @@ func (s *Store) Load() (hooksFile, error) {
 	return h, nil
 }
 
-// Save atomically writes hooks to the JSON file, creating the parent directory
-// if it does not exist.
-func (s *Store) Save(h hooksFile) error {
+// save atomically writes hooks to the JSON file, creating the parent directory
+// if it does not exist. Non-locking, like load: it is called from inside a hold.
+func (s *Store) save(h hooksFile) error {
 	data, err := json.MarshalIndent(h, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal hooks: %w", err)
@@ -66,25 +73,17 @@ func (s *Store) Save(h hooksFile) error {
 	return fileutil.AtomicWrite(s.path, data)
 }
 
-// SaveAudited persists h and emits the audit breadcrumb for it. Bulk rewrites
-// have no single affected key, so the breadcrumb carries entries=N rather than a
-// hook_key.
-func (s *Store) SaveAudited(h hooksFile, op string, entries int, via string) error {
-	if err := s.Save(h); err != nil {
-		logger.Warn(op, "op", op, "entries", entries, "via", via,
-			"error", err, "error_class", fileutil.ClassifyWriteError(err))
-		return err
-	}
-
-	logger.Info(op, "op", op, "entries", entries, "via", via)
-	return nil
-}
-
 // Set adds or overwrites the hook for key and event. Writing the same command
 // again is a no-op: the file is left untouched. via records the mutation origin
 // for the audit breadcrumb: cli, internal or migrate.
 func (s *Store) Set(key, event, command, via string) error {
-	h, err := s.Load()
+	lock, err := s.acquireMutationLock()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = lock.Close() }()
+
+	h, err := s.load()
 	if err != nil {
 		return fmt.Errorf("failed to load hooks: %w", err)
 	}
@@ -100,7 +99,7 @@ func (s *Store) Set(key, event, command, via string) error {
 	}
 	h[key][event] = command
 
-	if err := s.Save(h); err != nil {
+	if err := s.save(h); err != nil {
 		logger.Warn(op, "op", op, "hook_key", key, "value", command, "via", via,
 			"error", err, "error_class", fileutil.ClassifyWriteError(err))
 		return err
@@ -131,7 +130,13 @@ func classifySet(h hooksFile, key, event, command string) string {
 // emits no breadcrumb, and a failed save reports no removal. The answer comes
 // from the map this call loaded and mutated, never from a separate read.
 func (s *Store) Remove(key, event, via string) (bool, error) {
-	h, err := s.Load()
+	lock, err := s.acquireMutationLock()
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = lock.Close() }()
+
+	h, err := s.load()
 	if err != nil {
 		return false, fmt.Errorf("failed to load hooks: %w", err)
 	}
@@ -149,7 +154,7 @@ func (s *Store) Remove(key, event, via string) (bool, error) {
 		delete(h, key)
 	}
 
-	if err := s.Save(h); err != nil {
+	if err := s.save(h); err != nil {
 		logger.Warn("rm", "op", "rm", "hook_key", key, "via", via,
 			"error", err, "error_class", fileutil.ClassifyWriteError(err))
 		return false, err
@@ -223,7 +228,13 @@ func StaleKeys(persisted map[string]map[string]string, live []string) []string {
 func (s *Store) CleanStale(liveKeys []string) ([]string, error) {
 	start := time.Now()
 
-	h, err := s.Load()
+	lock, err := s.acquireMutationLock()
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = lock.Close() }()
+
+	h, err := s.load()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load hooks: %w", err)
 	}
@@ -244,7 +255,7 @@ func (s *Store) CleanStale(liveKeys []string) ([]string, error) {
 			"value", h[key]["on-resume"], "via", "internal")
 	}
 
-	if err := s.Save(kept); err != nil {
+	if err := s.save(kept); err != nil {
 		storelog.EmitCleanStaleSummary(logger, len(removed), start, err)
 		return nil, fmt.Errorf("failed to save after cleaning stale hooks: %w", err)
 	}

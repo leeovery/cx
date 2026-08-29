@@ -28,16 +28,33 @@ func installCapture(t *testing.T) *logtest.Sink {
 }
 
 // readOnlyDirPath returns a path under a 0500 directory, so a write to it fails
-// at the temp-create phase.
+// at the temp-create phase. The sidecar lock file is created while the
+// directory is still writable: a 0500 directory still permits opening an
+// existing file, so without it the mutation would fail at the sidecar instead
+// of at the write the fixture exists to fail.
 func readOnlyDirPath(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
 	roDir := filepath.Join(dir, "ro")
-	if err := os.Mkdir(roDir, 0o500); err != nil {
+	if err := os.Mkdir(roDir, 0o700); err != nil {
 		t.Fatalf("failed to create read-only dir: %v", err)
 	}
+	path := filepath.Join(roDir, "hooks.json")
+	createSidecar(t, path)
+	if err := os.Chmod(roDir, 0o500); err != nil {
+		t.Fatalf("failed to deny writes to dir: %v", err)
+	}
 	t.Cleanup(func() { _ = os.Chmod(roDir, 0o700) })
-	return filepath.Join(roDir, "hooks.json")
+	return path
+}
+
+// createSidecar pre-creates the lock file a mutation opens, so a fixture that
+// denies writes to the directory still fails where it means to.
+func createSidecar(t *testing.T, hooksPath string) {
+	t.Helper()
+	if err := os.WriteFile(hooksPath+".lock", nil, 0o600); err != nil {
+		t.Fatalf("failed to create sidecar lock: %v", err)
+	}
 }
 
 // readFileBytes returns the file's exact bytes, so a test can assert a no-op
@@ -73,6 +90,7 @@ func seedThenDenyWrites(t *testing.T, body []byte) (*hooks.Store, string) {
 	if err := os.WriteFile(path, body, 0o600); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
+	createSidecar(t, path)
 	if err := os.Chmod(dir, 0o500); err != nil {
 		t.Fatalf("chmod parent dir: %v", err)
 	}
@@ -142,18 +160,14 @@ func TestLoad(t *testing.T) {
 	})
 }
 
-func TestSave(t *testing.T) {
+func TestPersistence(t *testing.T) {
 	t.Run("creates parent directory if missing", func(t *testing.T) {
 		dir := t.TempDir()
 		nested := filepath.Join(dir, "portal", "sub")
 		filePath := filepath.Join(nested, "hooks.json")
 		store := hooks.NewStore(filePath)
 
-		h := map[string]map[string]string{
-			"my-session:0.0": {"on-resume": "claude --resume abc123"},
-		}
-
-		if err := store.Save(h); err != nil {
+		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", "cli"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
@@ -171,12 +185,10 @@ func TestSave(t *testing.T) {
 		filePath := filepath.Join(dir, "hooks.json")
 		store := hooks.NewStore(filePath)
 
-		h := map[string]map[string]string{
-			"my-session:0.0": {"on-resume": "claude --resume abc123"},
-			"my-session:0.1": {"on-resume": "claude --resume def456"},
+		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", "cli"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
 		}
-
-		if err := store.Save(h); err != nil {
+		if err := store.Set("my-session:0.1", "on-resume", "claude --resume def456", "cli"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
@@ -196,16 +208,12 @@ func TestSave(t *testing.T) {
 		}
 	})
 
-	t.Run("uses atomic write (file exists after save even if interrupted)", func(t *testing.T) {
+	t.Run("uses atomic write (no temp file survives beside hooks.json and its lock)", func(t *testing.T) {
 		dir := t.TempDir()
 		filePath := filepath.Join(dir, "hooks.json")
 		store := hooks.NewStore(filePath)
 
-		h := map[string]map[string]string{
-			"my-session:0.0": {"on-resume": "claude --resume abc123"},
-		}
-
-		if err := store.Save(h); err != nil {
+		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", "cli"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
@@ -215,7 +223,7 @@ func TestSave(t *testing.T) {
 		}
 
 		for _, entry := range entries {
-			if entry.Name() != "hooks.json" {
+			if entry.Name() != "hooks.json" && entry.Name() != "hooks.json.lock" {
 				t.Errorf("unexpected file in directory: %s", entry.Name())
 			}
 		}
@@ -1296,103 +1304,6 @@ func TestCleanStaleLogging(t *testing.T) {
 	})
 }
 
-func TestSaveAuditedLogging(t *testing.T) {
-	t.Run("emits one INFO with op, entries=N and via on success", func(t *testing.T) {
-		dir := t.TempDir()
-		filePath := filepath.Join(dir, "hooks.json")
-		store := hooks.NewStore(filePath)
-
-		h, err := store.Load()
-		if err != nil {
-			t.Fatalf("failed to load: %v", err)
-		}
-		h["a:0.0"] = map[string]string{"on-resume": "x"}
-		h["b:0.0"] = map[string]string{"on-resume": "y"}
-
-		sink := installCapture(t)
-		if err := store.SaveAudited(h, "modify", 2, "internal"); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		rec := sink.OnlyRecord(t)
-		if rec.Level != slog.LevelInfo {
-			t.Errorf("level = %v, want INFO", rec.Level)
-		}
-		if rec.Msg != "modify" {
-			t.Errorf("msg = %q, want %q", rec.Msg, "modify")
-		}
-		if got := rec.AttrString(t, "op"); got != "modify" {
-			t.Errorf("op = %q, want %q", got, "modify")
-		}
-		if got := rec.AttrString(t, "component"); got != "hooks" {
-			t.Errorf("component = %q, want %q", got, "hooks")
-		}
-		if got := rec.AttrString(t, "entries"); got != "2" {
-			t.Errorf("entries = %q, want %q", got, "2")
-		}
-		if got := rec.AttrString(t, "via"); got != "internal" {
-			t.Errorf("via = %q, want %q", got, "internal")
-		}
-
-		loaded, err := store.Load()
-		if err != nil {
-			t.Fatalf("failed to reload: %v", err)
-		}
-		if len(loaded) != 2 {
-			t.Errorf("got %d persisted keys, want 2", len(loaded))
-		}
-	})
-
-	t.Run("emits one WARN with write-failed-* error_class on Save failure", func(t *testing.T) {
-		path := readOnlyDirPath(t)
-		store := hooks.NewStore(path)
-		sink := installCapture(t)
-
-		h := map[string]map[string]string{"a:0.0": {"on-resume": "x"}}
-		err := store.SaveAudited(h, "modify", 1, "internal")
-		if err == nil {
-			t.Fatal("expected error from SaveAudited on read-only dir, got nil")
-		}
-		if !errors.Is(err, fileutil.ErrWriteTempCreate) {
-			t.Errorf("returned error not classified as temp-create: %v", err)
-		}
-
-		rec := sink.OnlyRecord(t)
-		if rec.Level != slog.LevelWarn {
-			t.Errorf("level = %v, want WARN", rec.Level)
-		}
-		if rec.Msg != "modify" {
-			t.Errorf("msg = %q, want %q", rec.Msg, "modify")
-		}
-		if got := rec.AttrString(t, "op"); got != "modify" {
-			t.Errorf("op = %q, want %q", got, "modify")
-		}
-		if got := rec.AttrString(t, "component"); got != "hooks" {
-			t.Errorf("component = %q, want %q", got, "hooks")
-		}
-		if got := rec.AttrString(t, "entries"); got != "1" {
-			t.Errorf("entries = %q, want %q", got, "1")
-		}
-		if got := rec.AttrString(t, "via"); got != "internal" {
-			t.Errorf("via = %q, want %q", got, "internal")
-		}
-		if got := rec.AttrString(t, "error_class"); got != "write-failed-temp-create" {
-			t.Errorf("error_class = %q, want %q", got, "write-failed-temp-create")
-		}
-		errVal, ok := rec.Attrs["error"]
-		if !ok {
-			t.Fatalf("WARN record missing error attr: %+v", rec.Attrs)
-		}
-		loggedErr, ok := errVal.Any().(error)
-		if !ok {
-			t.Fatalf("error attr is not an error value: %T", errVal.Any())
-		}
-		if !errors.Is(loggedErr, fileutil.ErrWriteTempCreate) {
-			t.Errorf("logged error attr does not wrap the temp-create sentinel: %v", loggedErr)
-		}
-	})
-}
-
 func TestSetLogging(t *testing.T) {
 	t.Run("emits INFO op=set with value and via=cli for a new hook key", func(t *testing.T) {
 		dir := t.TempDir()
@@ -1554,28 +1465,6 @@ func TestSetLogging(t *testing.T) {
 		}
 		if !errors.Is(loggedErr, fileutil.ErrWriteTempCreate) {
 			t.Errorf("logged error attr does not wrap the temp-create sentinel: %v", loggedErr)
-		}
-	})
-
-	t.Run("does not log inside Save (set-noop proves Save is not the emitter)", func(t *testing.T) {
-		dir := t.TempDir()
-		store := hooks.NewStore(filepath.Join(dir, "hooks.json"))
-
-		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", "cli"); err != nil {
-			t.Fatalf("unexpected error on first set: %v", err)
-		}
-
-		sink := installCapture(t)
-		h, err := store.Load()
-		if err != nil {
-			t.Fatalf("failed to load: %v", err)
-		}
-		if err := store.Save(h); err != nil {
-			t.Fatalf("unexpected error on save: %v", err)
-		}
-
-		if recs := sink.Records(); len(recs) != 0 {
-			t.Errorf("Save emitted %d log records, want 0: %+v", len(recs), recs)
 		}
 	})
 }

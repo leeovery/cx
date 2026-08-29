@@ -386,7 +386,7 @@ Portal resolves its config directory using XDG: `$XDG_CONFIG_HOME/portal/` if se
 |---|---|---|
 | `aliases` | Path aliases (key=value, one per line) | `PORTAL_ALIASES_FILE` |
 | `projects.json` | Remembered project directories | `PORTAL_PROJECTS_FILE` |
-| `hooks.json` | Per-pane resume hooks (pane → event → command) | `PORTAL_HOOKS_FILE` |
+| `hooks.json` | Per-pane resume hooks (pane → event → command). Portal creates an empty `hooks.json.lock` beside it on the first change, which it locks to keep concurrent writers from overwriting each other, and never removes. | `PORTAL_HOOKS_FILE` |
 | `prefs.json` | UI preferences: last-used session-list grouping mode and the theme setting — `theme` for a pinned theme, or the `theme_light` / `theme_dark` pair | `PORTAL_PREFS_FILE` |
 | `terminals.json` | Host-terminal window recipes for [multi-select](#multi-select-mode) / multi-target `x` on custom terminals (Ghostty is built in). User-authored, read-only. | `PORTAL_TERMINALS_FILE` |
 | `themes/` | Drop-in theme files (`<slug>.theme`); see [docs/theming.md](docs/theming.md). Portal never creates it — no directory simply means no drop-ins. | `PORTAL_THEMES_DIR` |

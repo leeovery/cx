@@ -183,8 +183,8 @@
             ".claude/skills/golang-spf13-cobra",
             ".claude/skills/golang-dependency-management"
           ],
-          "current_phase": 4,
-          "current_task": "resume-hooks-silently-lost-4-8",
+          "current_phase": 5,
+          "current_task": "resume-hooks-silently-lost-5-1",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -568,6 +568,24 @@
                 "cmd/run_hook_stale_cleanup_test.go",
                 "cmd/testhelpers_test.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-5-1",
+              "summary": "internal/restore multipane-legacy hook-fire assertions read their marker file once, unpolled, so they flake under full-lane load",
+              "detail": "assertMarkerFiredOnce / assertMarkerAbsent (internal/restore/multipane_legacy_integration_test.go:213, :224) do a bare os.ReadFile right after WaitForSkeletonMarkersCleared returns — the hooked shell redirect may not have flushed yet. Every caller in the file inherits it, which is why the already-banked TestMultiPaneLegacy_UnstampedNoHookLandsOnBareShell and a TestMultiPaneLegacy_PerPaneHookRouting blip share one root cause. The fix is a bounded poll in the shared helper, matching WaitForSkeletonMarkersCleared own shape, and it touches a suite outside task 5-1.",
+              "files": [
+                "internal/restore/multipane_legacy_integration_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-5-1",
+              "summary": "internal/project carries the identical unlocked read-modify-write window task 5-1 just closed for hooks",
+              "detail": "internal/project/store.go:74 (Upsert), :159 (CleanStale), :189 (Rename), :213 (Remove) and internal/project/tags.go:38,65 (AddTag/RemoveTag) are all Load() -> mutate -> AtomicWrite, with no locking anywhere in the package. The concurrent writers are real and already wired: the daemon throttled stale-projects.json prune (cmd/state_daemon.go:227), portal doctor --fix (cmd/doctor.go:229), and the TUI edit modal immediate-persist path (internal/tui/model.go:1391,1432). Same lost-update class, same 10s daemon cadence, and internal/hooks/lock.go is now a drop-in pattern for it. Out of this work unit scope entirely. NOTE: this is the same store already banked for the unconditional-write Remove defect — one store, two distinct defects.",
+              "files": [
+                "internal/project/store.go",
+                "internal/project/tags.go",
+                "internal/hooks/lock.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -611,7 +629,8 @@
             "resume-hooks-silently-lost-4-5",
             "resume-hooks-silently-lost-4-6",
             "resume-hooks-silently-lost-4-7",
-            "resume-hooks-silently-lost-4-8"
+            "resume-hooks-silently-lost-4-8",
+            "resume-hooks-silently-lost-5-1"
           ],
           "staging": {
             "p1": {
