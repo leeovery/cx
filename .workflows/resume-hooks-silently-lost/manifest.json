@@ -184,7 +184,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 4,
-          "current_task": "resume-hooks-silently-lost-4-4",
+          "current_task": "resume-hooks-silently-lost-4-5",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -549,6 +549,25 @@
               "files": [
                 "cmd/hooks.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-4-5",
+              "summary": "The package one file reader lives in a suite file, and the shared staging home now depends on it across the boundary",
+              "detail": "readFileBytes sits at cmd/bootstrap_production_test.go:130, beside bootstrap-specific fixtures (newTempHooksStore at :117, stubAllPaneLister). Task 4-5 correctly reused it rather than moving it — the Do-list said re-point, not relocate — but the result is that cmd/testhelpers_test.go:94 and :99 reach out of the staging home for the reader, while bootstrap_production_test.go carries no header claiming that role and run_hook_stale_cleanup_test.go consumes it 16 times. Moving readFileBytes into testhelpers_test.go finishes the consolidation 4-5 started. Related to but distinct from the 2-8 entry covering stubAllPaneLister siting in the same file.",
+              "files": [
+                "cmd/bootstrap_production_test.go",
+                "cmd/testhelpers_test.go",
+                "cmd/run_hook_stale_cleanup_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-4-5",
+              "summary": "The hooks.json-unchanged assertion 4-5 consolidated is written nine more times, in three forms, one file over",
+              "detail": "cmd/run_hook_stale_cleanup_test.go asserts the same property inline at :43, :76, :110 (reflect.DeepEqual), :331 (bytes.Equal over a hand-rolled os.ReadFile pair at :309/:327) and :397, :419, :595, :624, :740 (bytes.Equal over readFileBytes). assertHooksFileUnchanged now names exactly this. TWO CAVEATS: each site carries a bespoke failure message (rewritten during a restore, rewritten on a failed marker read, ...) that a fixed-message helper would flatten, so the helper likely needs a message or context parameter; and the three reflect.DeepEqual sites are NOT equivalent to the six bytes.Equal ones — reflect.DeepEqual(nil, []byte{}) is false where bytes.Equal is true, so re-pointing them is a semantic change on the absent-vs-empty edge, not a mechanical swap.",
+              "files": [
+                "cmd/run_hook_stale_cleanup_test.go",
+                "cmd/testhelpers_test.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -588,7 +607,8 @@
             "resume-hooks-silently-lost-4-1",
             "resume-hooks-silently-lost-4-2",
             "resume-hooks-silently-lost-4-3",
-            "resume-hooks-silently-lost-4-4"
+            "resume-hooks-silently-lost-4-4",
+            "resume-hooks-silently-lost-4-5"
           ],
           "staging": {
             "p1": {

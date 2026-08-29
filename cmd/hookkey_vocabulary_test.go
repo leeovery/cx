@@ -1,6 +1,7 @@
 // The hook-key subject vocabulary shared across the cmd test suites: the seed
 // keys, the enumeration rows they arrive in, and the seam fakes that answer
-// with them.
+// with them. Staging — how a test is set up and driven — lives in
+// testhelpers_test.go.
 package cmd
 
 import (

@@ -1,6 +1,7 @@
 // Staging helpers shared across the cmd test suites: how a test is set up and
 // driven. Subject vocabulary — the domain values a suite asserts on and the
-// fakes that answer with them — lives in a file named for its subject instead.
+// fakes that answer with them — lives in a file named for its subject instead;
+// the hook-key half lives in hookkey_vocabulary_test.go.
 package cmd
 
 import (
@@ -33,6 +34,34 @@ func runHookSet(t *testing.T, command string) error {
 	return rootCmd.Execute()
 }
 
+// runHookRm drives `hook rm --on-resume [extra…]` with both streams captured,
+// returning what the command wrote alongside its own error.
+func runHookRm(t *testing.T, extra ...string) (string, error) {
+	t.Helper()
+	buf := new(bytes.Buffer)
+	resetRootCmd()
+	rootCmd.SetOut(buf)
+	rootCmd.SetErr(buf)
+	rootCmd.SetArgs(append([]string{"hook", "rm", "--on-resume"}, extra...))
+	err := rootCmd.Execute()
+	return buf.String(), err
+}
+
+// runHookList drives `hook list`, failing the test on a non-zero exit and
+// returning what the command wrote to stdout.
+func runHookList(t *testing.T) string {
+	t.Helper()
+	buf := new(bytes.Buffer)
+	resetRootCmd()
+	rootCmd.SetOut(buf)
+	rootCmd.SetErr(new(bytes.Buffer))
+	rootCmd.SetArgs([]string{"hook", "list"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	return buf.String()
+}
+
 func writeHooksJSON(t *testing.T, path string, data map[string]map[string]string) {
 	t.Helper()
 	b, err := json.MarshalIndent(data, "", "  ")
@@ -57,17 +86,18 @@ func readHooksJSON(t *testing.T, path string) map[string]map[string]string {
 	return data
 }
 
-// runHookList drives `hook list`, failing the test on a non-zero exit and
-// returning what the command wrote to stdout.
-func runHookList(t *testing.T) string {
+// seedHooksFile writes data and returns the bytes on disk, so a caller can prove
+// a failing route left the file untouched byte for byte.
+func seedHooksFile(t *testing.T, path string, data map[string]map[string]string) []byte {
 	t.Helper()
-	buf := new(bytes.Buffer)
-	resetRootCmd()
-	rootCmd.SetOut(buf)
-	rootCmd.SetErr(new(bytes.Buffer))
-	rootCmd.SetArgs([]string{"hook", "list"})
-	if err := rootCmd.Execute(); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	writeHooksJSON(t, path, data)
+	return readFileBytes(t, path)
+}
+
+func assertHooksFileUnchanged(t *testing.T, path string, before []byte) {
+	t.Helper()
+	after := readFileBytes(t, path)
+	if !bytes.Equal(before, after) {
+		t.Errorf("hooks.json changed on a failing route:\nbefore %s\nafter  %s", before, after)
 	}
-	return buf.String()
 }

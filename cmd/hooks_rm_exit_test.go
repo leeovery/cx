@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -10,42 +9,6 @@ import (
 
 	"github.com/leeovery/portal/internal/tmux"
 )
-
-// runHookRm drives `hook rm --on-resume [extra…]` with both streams captured,
-// returning what the command wrote alongside its own error.
-func runHookRm(t *testing.T, extra ...string) (string, error) {
-	t.Helper()
-	buf := new(bytes.Buffer)
-	resetRootCmd()
-	rootCmd.SetOut(buf)
-	rootCmd.SetErr(buf)
-	rootCmd.SetArgs(append([]string{"hook", "rm", "--on-resume"}, extra...))
-	err := rootCmd.Execute()
-	return buf.String(), err
-}
-
-// seedHooksFile writes data and returns the bytes on disk, so a caller can prove
-// a failing route left the file untouched byte for byte.
-func seedHooksFile(t *testing.T, path string, data map[string]map[string]string) []byte {
-	t.Helper()
-	writeHooksJSON(t, path, data)
-	before, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read seeded hooks file: %v", err)
-	}
-	return before
-}
-
-func assertHooksFileUnchanged(t *testing.T, path string, before []byte) {
-	t.Helper()
-	after, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read hooks file: %v", err)
-	}
-	if !bytes.Equal(before, after) {
-		t.Errorf("hooks.json changed on a failing route:\nbefore %s\nafter  %s", before, after)
-	}
-}
 
 func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 	t.Run("it exits non-zero for a pane no live pane answers to", func(t *testing.T) {
