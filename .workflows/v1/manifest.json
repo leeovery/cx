@@ -278,14 +278,6 @@
         "tmux-session-managers-analysis": {
           "status": "completed"
         }
-      },
-      "analysis_cache": {
-        "checksum": "8b8fdafef66613f3efb476658ca13608",
-        "generated": "2026-06-06T09:03:10.526Z",
-        "files": [
-          "cc-tool-plan.md",
-          "tmux-session-managers-analysis.md"
-        ]
       }
     },
     "discovery": {
