@@ -176,8 +176,8 @@
       "items": {
         "resume-hooks-silently-lost": {
           "status": "in-progress",
-          "task_gate_mode": "gated",
-          "fix_gate_mode": "gated",
+          "task_gate_mode": "auto",
+          "fix_gate_mode": "auto",
           "analysis_gate_mode": "auto",
           "consolidation_gate_mode": "gated",
           "fix_attempts": 0,
@@ -213,8 +213,8 @@
             ".claude/skills/golang-spf13-cobra",
             ".claude/skills/golang-dependency-management"
           ],
-          "current_phase": 5,
-          "current_task": "resume-hooks-silently-lost-5-9",
+          "current_phase": 6,
+          "current_task": "resume-hooks-silently-lost-6-2",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -627,6 +627,52 @@
                 "cmd/testhelpers_test.go",
                 "cmd/hooks_read_lock_test.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-1",
+              "source": "executor",
+              "summary": "The project-staleness pair still carries the shape this task removed from the hook pair.",
+              "detail": "maybeRunProjectCleanup (cmd/state_daemon.go:219) and pruneDoctorStaleProjects (cmd/doctor.go:243) call ProjectStore.CleanStale() from two sites with no shared outcome value: the daemon reports failure through its own logger, doctor prints removals to stdout and logs failure separately, and neither can report a declined cycle at all. Same consolidation as the hook sweep, but it spans the daemon, doctor and internal/project.",
+              "files": [
+                "cmd/state_daemon.go",
+                "cmd/doctor.go",
+                "internal/project/store.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-1",
+              "source": "executor",
+              "summary": "Three near-identical fakes of one seam across the cmd test surface.",
+              "detail": "stubAllPaneLister and recordingHookKeyLister (cmd/hookkey_vocabulary_test.go:92,111) and fakeHookLister (cmd/doctor_test.go:798) all implement staleSweepReader with the same rows/err/restoring/restoringErr fields; only the call-count recording and the during hook differ. One fake with optional recording would collapse all three, but the edit reaches every hook/doctor test file.",
+              "files": [
+                "cmd/hookkey_vocabulary_test.go",
+                "cmd/doctor_test.go",
+                "cmd/run_hook_stale_cleanup_test.go",
+                "cmd/hook_sweep_lock_timeout_test.go",
+                "cmd/hook_sweep_snapshot_order_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-1",
+              "source": "reviewer",
+              "summary": "The hooks store entry shape travels as a raw nested map through the new seam; a named exported type would name it once.",
+              "detail": "map[string]map[string]string now appears three fresh times in cmd — cmd/run_hook_stale_cleanup.go:80 (stalenessView.Persisted), :96 (loadPersisted signature), :167 and cmd/doctor.go:339 (the two closures). internal/hooks/store.go:29 already has type hooksFile = map[string]map[string]string, but it is an unexported alias so cmd cannot name it. Exporting it (or a defined type) and threading it through Store.Load / Store.LoadSnapshot / hooks.StaleKeys (internal/hooks/store.go:279) would remove the untyped container from the cmd surface. The fix reaches every consumer of the store read methods, outside this task boundary.",
+              "files": [
+                "internal/hooks/store.go",
+                "cmd/run_hook_stale_cleanup.go",
+                "cmd/doctor.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-1",
+              "source": "reviewer",
+              "summary": "internal/hooks keeps its file shape unexported, forcing every cmd-side signature to spell the raw nested map.",
+              "detail": "hooksFile (internal/hooks/store.go) is an unexported named map[string]map[string]string, so cmd cannot name the concept and writes the raw type at cmd/run_hook_stale_cleanup.go:79 (stalenessView.Persisted), :96 (the loadPersisted parameter), :167 and cmd/doctor.go:339 (the two closures) — four spellings of an untyped nested map for what is one domain type. Exporting it (e.g. hooks.Entries) would let all four name it, and touches a package outside this task.",
+              "files": [
+                "internal/hooks/store.go",
+                "cmd/run_hook_stale_cleanup.go",
+                "cmd/doctor.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -679,7 +725,8 @@
             "resume-hooks-silently-lost-5-6",
             "resume-hooks-silently-lost-5-7",
             "resume-hooks-silently-lost-5-8",
-            "resume-hooks-silently-lost-5-9"
+            "resume-hooks-silently-lost-5-9",
+            "resume-hooks-silently-lost-6-1"
           ],
           "staging": {
             "p1": {
