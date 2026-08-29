@@ -252,7 +252,7 @@ func TestMutationLockTimeoutLogging(t *testing.T) {
 		holdSidecar(t, path)
 
 		sink := installCapture(t)
-		removed, err := hooks.NewStore(path).CleanStale(nil)
+		removed, err := hooks.NewStore(path).CleanStale(nil, []string{"tok123"})
 		if !errors.Is(err, hooks.ErrLockHeld) {
 			t.Fatalf("CleanStale error = %v, want errors.Is ErrLockHeld", err)
 		}

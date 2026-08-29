@@ -257,6 +257,21 @@ func staleKeys(persisted hooksFile, live []string) []string {
 	return stale
 }
 
+// narrowToSnapshot drops every candidate the snapshot does not hold.
+func narrowToSnapshot(candidates, snapshotKeys []string) []string {
+	snapshot := make(map[string]struct{}, len(snapshotKeys))
+	for _, key := range snapshotKeys {
+		snapshot[key] = struct{}{}
+	}
+	var narrowed []string
+	for _, key := range candidates {
+		if _, ok := snapshot[key]; ok {
+			narrowed = append(narrowed, key)
+		}
+	}
+	return narrowed
+}
+
 // StaleKeys returns the persisted hook keys absent from live whose shape the
 // staleness rule can judge; a key it cannot judge is retained. It carries no
 // mass-deletion guard: an empty live set makes every judgeable persisted key
@@ -266,10 +281,18 @@ func StaleKeys(persisted map[string]map[string]string, live []string) []string {
 }
 
 // CleanStale removes and returns the hook entries whose key is absent from
-// liveKeys and whose shape the staleness rule can judge; a key it cannot judge
-// is retained untouched. A clean that removes nothing writes no file and emits
-// no summary.
-func (s *Store) CleanStale(liveKeys []string) ([]string, error) {
+// liveTokens, whose shape the staleness rule can judge, and which snapshotKeys
+// holds; a key it cannot judge is retained untouched. A clean that removes
+// nothing writes no file and emits no summary.
+//
+// The delete set is derived here, from the file this call loaded under its own
+// exclusive hold, so a deletion is decided on the file as it stands rather than
+// on the older view snapshotKeys describes. snapshotKeys is the key set the
+// caller read before whatever live enumeration produced liveTokens, and it may
+// only narrow the delete set, never widen it: a key it does not hold was
+// written after that enumeration and so was never offered to it for protection,
+// which makes it unjudgeable by this liveTokens however stale its shape looks.
+func (s *Store) CleanStale(liveTokens, snapshotKeys []string) ([]string, error) {
 	start := time.Now()
 
 	lock, err := s.acquireMutationLock()
@@ -283,7 +306,7 @@ func (s *Store) CleanStale(liveKeys []string) ([]string, error) {
 		return nil, fmt.Errorf("failed to load hooks: %w", err)
 	}
 
-	removed := staleKeys(h, liveKeys)
+	removed := narrowToSnapshot(staleKeys(h, liveTokens), snapshotKeys)
 
 	if len(removed) == 0 {
 		return removed, nil

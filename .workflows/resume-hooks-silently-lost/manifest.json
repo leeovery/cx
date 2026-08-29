@@ -184,7 +184,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 5,
-          "current_task": "resume-hooks-silently-lost-5-3",
+          "current_task": "resume-hooks-silently-lost-5-4",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -625,6 +625,15 @@
                 "cmd/hooks_write_lock_test.go",
                 "cmd/hookkey_vocabulary_test.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-5-4",
+              "summary": "Two near-identical AllPaneLister fakes in package cmd that should be one",
+              "detail": "sideEffectPaneLister (cmd/hook_sweep_snapshot_order_test.go:21-35) and stubAllPaneLister (cmd/bootstrap_production_test.go:100-113) implement the same two-method seam and differ only by a during func() hook versus err/restoring/restoringErr fields. Adding during func() to stubAllPaneLister (invoked at the top of its ListAllPaneHookKeys) subsumes the new fake entirely and lets the new file delete it. The consolidation touches a fixture several sibling tasks in this phase drive.",
+              "files": [
+                "cmd/hook_sweep_snapshot_order_test.go",
+                "cmd/bootstrap_production_test.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -671,7 +680,8 @@
             "resume-hooks-silently-lost-4-8",
             "resume-hooks-silently-lost-5-1",
             "resume-hooks-silently-lost-5-2",
-            "resume-hooks-silently-lost-5-3"
+            "resume-hooks-silently-lost-5-3",
+            "resume-hooks-silently-lost-5-4"
           ],
           "staging": {
             "p1": {

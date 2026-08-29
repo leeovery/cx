@@ -35,7 +35,7 @@ func TestCleanStaleShapeAwareness(t *testing.T) {
 			t.Fatalf("read seeded file: %v", err)
 		}
 
-		removed, err := store.CleanStale([]string{liveKey})
+		removed, err := store.CleanStale([]string{liveKey}, snapshotAll(t, path))
 		if err != nil {
 			t.Fatalf("CleanStale: %v", err)
 		}
@@ -62,9 +62,9 @@ func TestCleanStaleShapeAwareness(t *testing.T) {
 	})
 
 	t.Run("it deletes a token-shaped key absent from the live set", func(t *testing.T) {
-		store, _ := seedHooksFile(t, fmt.Sprintf(`{%q:{"on-resume":"live"},%q:{"on-resume":"gone"}}`, liveKey, staleKey))
+		store, path := seedHooksFile(t, fmt.Sprintf(`{%q:{"on-resume":"live"},%q:{"on-resume":"gone"}}`, liveKey, staleKey))
 
-		removed, err := store.CleanStale([]string{liveKey})
+		removed, err := store.CleanStale([]string{liveKey}, snapshotAll(t, path))
 		if err != nil {
 			t.Fatalf("CleanStale: %v", err)
 		}
@@ -85,9 +85,9 @@ func TestCleanStaleShapeAwareness(t *testing.T) {
 	})
 
 	t.Run("it deletes an empty key", func(t *testing.T) {
-		store, _ := seedHooksFile(t, fmt.Sprintf(`{"":{"on-resume":"malformed"},%q:{"on-resume":"live"}}`, liveKey))
+		store, path := seedHooksFile(t, fmt.Sprintf(`{"":{"on-resume":"malformed"},%q:{"on-resume":"live"}}`, liveKey))
 
-		removed, err := store.CleanStale([]string{liveKey})
+		removed, err := store.CleanStale([]string{liveKey}, snapshotAll(t, path))
 		if err != nil {
 			t.Fatalf("CleanStale: %v", err)
 		}
@@ -113,7 +113,7 @@ func TestCleanStaleShapeAwareness(t *testing.T) {
 		}
 
 		sink := installCapture(t)
-		removed, err := store.CleanStale(nil)
+		removed, err := store.CleanStale(nil, snapshotAll(t, path))
 		if err != nil {
 			t.Fatalf("CleanStale: %v", err)
 		}

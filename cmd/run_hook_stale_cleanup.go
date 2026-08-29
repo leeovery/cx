@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"log/slog"
+	"maps"
+	"slices"
 
 	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/state"
@@ -88,19 +90,24 @@ func runHookStaleCleanup(
 		return nil
 	}
 
-	rows, err := lister.ListAllPaneHookKeys()
-	if err != nil {
-		logger.Warn("stale-hook cleanup: list-panes failed", "error", err)
-		return nil
-	}
-
-	// The advisory pre-read takes the short bound: this cycle takes the sidecar
-	// again inside CleanStale, and at the full bound a wedged writer would park
-	// the daemon's tick for two of them.
+	// The advisory pre-read comes first, and its shared hold is released when it
+	// returns, so the enumeration below runs with no lock held. Order is
+	// load-bearing: the enumeration is older than any mutation that lands after
+	// it, so a registration written in that window is absent from this snapshot
+	// and CleanStale retains it rather than reaping it on shape alone. The read
+	// takes the short bound because this cycle takes the sidecar again inside
+	// CleanStale, and at the full bound a wedged writer would park the daemon's
+	// tick for two of them.
 	persisted, err := store.LoadSnapshot("internal")
 	if err != nil {
 		logger.Warn("stale-hook cleanup: hookStore.Load failed", "error", err)
 		return err
+	}
+
+	rows, err := lister.ListAllPaneHookKeys()
+	if err != nil {
+		logger.Warn("stale-hook cleanup: list-panes failed", "error", err)
+		return nil
 	}
 
 	logger.Debug("stale-hook cleanup counts", "panes", len(rows), "entries", len(persisted))
@@ -118,7 +125,18 @@ func runHookStaleCleanup(
 		return nil
 	}
 
-	removed, err := store.CleanStale(liveTokensFrom(rows))
+	tokens := liveTokensFrom(rows)
+
+	// Nothing persisted is nothing to sweep, and reaching CleanStale is not
+	// free: it creates the config directory, creates the sidecar and takes an
+	// exclusive hold. An install that has never registered a hook would
+	// otherwise pay all three on every cycle, in every `hook set`'s way.
+	snapshot := slices.Collect(maps.Keys(persisted))
+	if len(snapshot) == 0 {
+		return nil
+	}
+
+	removed, err := store.CleanStale(tokens, snapshot)
 	if err != nil {
 		return err
 	}
