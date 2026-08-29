@@ -219,6 +219,12 @@ var hooksRmCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
+			// A live pane carrying no token, in Portal's own words: the probe in
+			// resolveCurrentPaneKey has already separated this from a gone pane.
+			// Deciding it here keeps an empty key out of the mutation entirely.
+			if hookKey == "" {
+				return fmt.Errorf("no resume hook registered for this pane")
+			}
 		}
 
 		store, err := loadHookStore()
@@ -226,8 +232,17 @@ var hooksRmCmd = &cobra.Command{
 			return err
 		}
 
-		_, err = store.Remove(hookKey, "on-resume", "cli")
-		return err
+		// The removal itself reports whether an entry went: a read taken before it
+		// would answer from a snapshot the mutation never saw.
+		removed, err := store.Remove(hookKey, "on-resume", "cli")
+		if err != nil {
+			return err
+		}
+		if !removed {
+			return fmt.Errorf("no resume hook registered for %s", hookKey)
+		}
+
+		return nil
 	},
 }
 
@@ -237,7 +252,7 @@ func init() {
 
 	hooksRmCmd.Flags().Bool("on-resume", false, "Remove the on-resume hook")
 	_ = hooksRmCmd.MarkFlagRequired("on-resume")
-	hooksRmCmd.Flags().String("pane-key", "", "Structural key of the pane whose hook should be removed (defaults to the current pane)")
+	hooksRmCmd.Flags().String("pane-key", "", "Pane token of the pane whose hook should be removed (defaults to the current pane)")
 
 	hookCmd.AddCommand(hooksListCmd)
 	hookCmd.AddCommand(hooksSetCmd)

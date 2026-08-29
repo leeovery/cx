@@ -179,7 +179,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 4,
-          "current_task": "resume-hooks-silently-lost-4-1",
+          "current_task": "resume-hooks-silently-lost-4-2",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -566,6 +566,20 @@
               "files": [
                 "internal/hooks/store_test.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-4-2",
+              "summary": "Byte-identity file assertions are hand-rolled at eight-plus sites across the cmd test suite, and 4-2 adds a ninth",
+              "detail": "assertHooksFileUnchanged (cmd/hooks_rm_exit_test.go:39-48) and assertPrefsUnchanged (cmd/prefs_translation_persist_test.go:492) are the same function under two names, and raw bytes.Equal(before, after) comparisons appear at cmd/doctor_test.go:1293,1482,1750, cmd/run_hook_stale_cleanup_test.go:331,397,419,595,624 and cmd/cleanstale_transient_listpanes_shared_test.go:72. A shared readFileBytes already exists at cmd/bootstrap_production_test.go:130 and the new helper re-rolls the read rather than using it. One assertFileUnchanged(t, path, before) in cmd/testhelpers_test.go — whose header already declares itself the home for shared staging helpers, and which already holds runHookSet, runHookRm direct counterpart — would collapse all of them.",
+              "files": [
+                "cmd/testhelpers_test.go",
+                "cmd/hooks_rm_exit_test.go",
+                "cmd/prefs_translation_persist_test.go",
+                "cmd/doctor_test.go",
+                "cmd/run_hook_stale_cleanup_test.go",
+                "cmd/cleanstale_transient_listpanes_shared_test.go",
+                "cmd/bootstrap_production_test.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -602,7 +616,8 @@
             "resume-hooks-silently-lost-3-8",
             "resume-hooks-silently-lost-3-9",
             "resume-hooks-silently-lost-3-10",
-            "resume-hooks-silently-lost-4-1"
+            "resume-hooks-silently-lost-4-1",
+            "resume-hooks-silently-lost-4-2"
           ],
           "staging": {
             "p1": {

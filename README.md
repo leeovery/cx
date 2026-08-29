@@ -188,7 +188,7 @@ xctl alias list                      # list all aliases
 
 ### `xctl hook`
 
-Register per-pane commands that re-execute automatically when a session is attached after a reboot. `hook set` must be run from inside a tmux pane; `hook rm` defaults to the current pane but accepts `--pane-key` to remove a hook for any pane (including ones that no longer exist).
+Register per-pane commands that re-execute automatically when a session is attached after a reboot. `hook set` must be run from inside a tmux pane; `hook rm` defaults to the current pane but accepts `--pane-key` to remove a hook for any pane token (including panes that no longer exist). `hook rm` exits non-zero when it removes nothing — a missing entry, a pane with no hook of its own, or a pane that is already gone — so a scripted caller can tell a real removal from a no-op.
 
 The verb is **`hook`** (singular); **`hooks`** is kept as a permanent silent alias, so existing `xctl hooks …` scripts keep working unchanged.
 
@@ -197,7 +197,7 @@ Hooks stay attached to a session even if you rename it, whether from the picker'
 ```bash
 xctl hook set --on-resume "npm start"            # register a resume hook
 xctl hook rm --on-resume                         # remove the current pane's hook
-xctl hook rm --on-resume --pane-key 'sess:0.1'   # remove a specific entry (works outside tmux)
+xctl hook rm --on-resume --pane-key 'k3Xp7Q'     # remove a specific entry (works outside tmux)
 xctl hook list                                   # list all hooks
 ```
 

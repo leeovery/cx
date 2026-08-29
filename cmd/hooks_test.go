@@ -129,11 +129,13 @@ func TestHooksListCommand(t *testing.T) {
 }
 
 type mockKeyResolver struct {
-	key string
-	err error
+	key   string
+	err   error
+	calls int
 }
 
 func (m *mockKeyResolver) ResolveHookKey(_ string) (string, error) {
+	m.calls++
 	return m.key, m.err
 }
 
@@ -464,7 +466,7 @@ func TestHooksRmCommand(t *testing.T) {
 		}
 	})
 
-	t.Run("silent no-op when no hook exists for pane", func(t *testing.T) {
+	t.Run("it exits non-zero when no hook exists for pane", func(t *testing.T) {
 		_, hooksFile := hooksFileInTempDir(t)
 		t.Setenv("TMUX_PANE", "%99")
 
@@ -477,10 +479,14 @@ func TestHooksRmCommand(t *testing.T) {
 		buf := new(bytes.Buffer)
 		resetRootCmd()
 		rootCmd.SetOut(buf)
+		rootCmd.SetErr(buf)
 		rootCmd.SetArgs([]string{"hooks", "rm", "--on-resume"})
 		err := rootCmd.Execute()
-		if err != nil {
-			t.Fatalf("expected no error for non-existent hook, got: %v", err)
+		if err == nil {
+			t.Fatal("expected an error when nothing was removed, got nil")
+		}
+		if err.Error() != "no resume hook registered for ccc333" {
+			t.Errorf("error = %q, want %q", err.Error(), "no resume hook registered for ccc333")
 		}
 
 		if buf.String() != "" {
