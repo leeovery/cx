@@ -61,7 +61,7 @@ type DoctorDeps struct {
 	ServerRunning func() bool
 	SaverPresent  func() (present bool, err error)
 	HookCounts    func() (map[string]int, error)
-	HookLister    AllPaneLister
+	HookLister    staleSweepReader
 	HookStore     *hooks.Store
 	ProjectStore  *project.Store
 	PrefsStore    *prefs.Store
@@ -191,31 +191,38 @@ func runDoctorFix(cmd *cobra.Command, deps *DoctorDeps) {
 	sweepDoctorLogs(deps)
 }
 
-// runHookStaleCleanup's own mass-deletion hazard guard is the down-server
-// protection here — do not add a second guard.
+// The sweep's own mass-deletion hazard guard is the down-server protection
+// here — do not add a second guard. Both halves of the outcome are rendered, so
+// a cycle that declined says so instead of looking like one that found nothing.
 func pruneDoctorStaleHooks(w io.Writer, deps *DoctorDeps) {
 	if deps.HookStore == nil {
 		return
 	}
-	_ = runHookStaleCleanup(deps.HookLister, deps.HookStore, bootstrapLogger, func(key string) {
+	outcome, err := runHookStaleCleanup(deps.HookLister, deps.HookStore, bootstrapLogger)
+	if err != nil {
+		bootstrapLogger.Warn("doctor --fix: stale-hook prune failed", "error", err)
+	}
+	for _, key := range outcome.Removed {
 		_, _ = fmt.Fprintf(w, "Pruned stale hook: %s\n", key)
-	}, func(reason string) {
-		_, _ = fmt.Fprintf(w, "Skipped stale hook prune: %s\n", skippedPrunePhrase(reason))
-	})
+	}
+	if outcome.DeclineReason != "" {
+		_, _ = fmt.Fprintf(w, "Skipped stale hook prune: %s\n", skippedPrunePhrase(outcome.DeclineReason))
+	}
 }
 
-const restoreStandDownPhrase = "restore may be in progress"
+const restoreStandDownPhrase = "restore in progress"
 
 var skippedPrunePhrases = map[string]string{
-	skipReasonRestoring:     restoreStandDownPhrase,
-	skipReasonEmptyPaneRead: "could not read live panes",
-	skipReasonLockTimeout:   "hooks.json is locked",
+	skipReasonRestoring:       restoreStandDownPhrase,
+	skipReasonStoreReadFailed: "could not read hooks.json",
+	skipReasonPaneReadFailed:  "could not read live panes",
+	skipReasonEmptyPaneRead:   "live pane list came back empty",
+	skipReasonLockTimeout:     "hooks.json is locked",
 }
 
 // skippedPrunePhrase renders a stand-down reason for a user who asked for a
 // repair. An unmapped reason falls through to its raw value, so no stand-down
-// can print nothing. "may be" is deliberate: a failed marker read counts as a
-// set marker, and on a machine with no tmux server the read fails.
+// can print nothing.
 func skippedPrunePhrase(reason string) string {
 	if phrase, ok := skippedPrunePhrases[reason]; ok {
 		return phrase
@@ -295,12 +302,31 @@ func checkHostTerminal(detector TerminalDetector, resolve spawn.AdapterResolver)
 	return checkResult{name: name, status: checkInfo, detail: fmt.Sprintf("%s (supported)", id.Name)}
 }
 
-// The guards below must precede the stale count: an unreadable pane list, or a
-// server with no panes at all, would otherwise report every judgeable entry
-// stale and mislead a --fix into mass-deleting user-authored on-resume
-// commands. A live pane carrying no token is not that case — under lazy
-// stamping it is the ordinary one, and the count proceeds.
-func checkStaleHooks(lister AllPaneLister, store *hooks.Store) checkResult {
+// notEvaluableDetails renders a stand-down reason as the reason the count cannot
+// be taken, so the diagnostic reports exactly what the reaper declined to judge.
+// An unmapped reason falls through to its raw value.
+var notEvaluableDetails = map[string]string{
+	skipReasonRestoring:       restoreStandDownPhrase + " (not evaluable)",
+	skipReasonStoreReadFailed: "could not read hooks.json",
+	skipReasonPaneReadFailed:  "could not enumerate live panes",
+	skipReasonEmptyPaneRead:   "zero live panes with hooks present (not evaluable)",
+}
+
+func notEvaluableDetail(reason string) string {
+	if detail, ok := notEvaluableDetails[reason]; ok {
+		return detail
+	}
+	return reason
+}
+
+// The check reads its store first and hands the result to the shared ladder,
+// so an unreadable hooks.json is reported as itself rather than as whatever the
+// tmux reads make of it. Past the ladder every judgeable entry is counted: an
+// unreadable pane list, or a server with no panes at all, would otherwise
+// report the lot stale and mislead a --fix into mass-deleting user-authored
+// on-resume commands. A live pane carrying no token is not that case — under
+// lazy stamping it is the ordinary one, and the count proceeds.
+func checkStaleHooks(reader staleSweepReader, store *hooks.Store) checkResult {
 	const name = "stale hooks"
 	if store == nil {
 		return checkResult{name: name, status: checkNotEvaluable, detail: "could not read hooks.json"}
@@ -309,20 +335,17 @@ func checkStaleHooks(lister AllPaneLister, store *hooks.Store) checkResult {
 	if err != nil {
 		return checkResult{name: name, status: checkNotEvaluable, detail: "could not read hooks.json"}
 	}
-	if active, _ := restoreWindowActive(lister); active {
-		return checkResult{name: name, status: checkNotEvaluable, detail: restoreStandDownPhrase + " (not evaluable)"}
+
+	view, _ := evaluateHookStaleness(reader, func() (map[string]map[string]string, error) {
+		return persisted, nil
+	})
+	if view.Decline.declined() {
+		return checkResult{name: name, status: checkNotEvaluable, detail: notEvaluableDetail(view.Decline.reason)}
 	}
-	rows, err := lister.ListAllPaneHookKeys()
-	if err != nil {
-		return checkResult{name: name, status: checkNotEvaluable, detail: "could not enumerate live panes"}
+	if view.PaneRows == 0 && len(persisted) == 0 {
+		return checkResult{name: name, status: checkPass, detail: "no hooks"}
 	}
-	if len(rows) == 0 {
-		if len(persisted) == 0 {
-			return checkResult{name: name, status: checkPass, detail: "no hooks"}
-		}
-		return checkResult{name: name, status: checkNotEvaluable, detail: "zero live panes with hooks present (not evaluable)"}
-	}
-	stale := len(hooks.StaleKeys(persisted, liveTokensFrom(rows)))
+	stale := len(hooks.StaleKeys(persisted, view.LiveTokens))
 	if stale > 0 {
 		return checkResult{name: name, status: checkFail, detail: pluralCount(stale, "stale hook entry", "stale hook entries")}
 	}

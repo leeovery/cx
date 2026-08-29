@@ -25,7 +25,7 @@ func TestHookSweepSnapshotPrecedesEnumeration(t *testing.T) {
 			}
 		}}
 
-		if err := runHookStaleCleanup(lister, store, nil, nil, nil); err != nil {
+		if err := sweepErr(lister, store, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
@@ -61,7 +61,7 @@ func TestHookSweepSnapshotPrecedesEnumeration(t *testing.T) {
 			_ = unix.Flock(int(f.Fd()), unix.LOCK_UN)
 		}}
 
-		if err := runHookStaleCleanup(lister, store, nil, nil, nil); err != nil {
+		if err := sweepErr(lister, store, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 		if !probed {
@@ -69,7 +69,7 @@ func TestHookSweepSnapshotPrecedesEnumeration(t *testing.T) {
 		}
 	})
 
-	t.Run("it feeds onRemoved exactly what was deleted", func(t *testing.T) {
+	t.Run("it reports exactly what was deleted", func(t *testing.T) {
 		seed := fmt.Sprintf(`{
   %q: {"on-resume": "cmd-live"},
   %q: {"on-resume": "cmd-b"},
@@ -92,15 +92,16 @@ func TestHookSweepSnapshotPrecedesEnumeration(t *testing.T) {
 			}
 		}}
 
-		var reported []string
-		if err := runHookStaleCleanup(lister, store, nil, func(key string) { reported = append(reported, key) }, nil); err != nil {
+		outcome, err := runHookStaleCleanup(lister, store, nil)
+		if err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
+		reported := slices.Clone(outcome.Removed)
 		slices.Sort(reported)
 
 		want := []string{reapableSeedB}
 		if !slices.Equal(reported, want) {
-			t.Errorf("onRemoved reported %v, want only %v — the callback names this sweep's deletions, not a prediction over the file (file holds %s)",
+			t.Errorf("Removed reported %v, want only %v — the outcome names this sweep's deletions, not a prediction over the file (file holds %s)",
 				reported, want, readFileBytes(t, path))
 		}
 	})
@@ -115,7 +116,7 @@ func TestHookSweepTakesNoLockWithNothingPersisted(t *testing.T) {
 	hooksPath := filepath.Join(configDir, "hooks.json")
 
 	lister := &stubAllPaneLister{rows: tokenRows(liveSeedA)}
-	if err := runHookStaleCleanup(lister, hooks.NewStore(hooksPath), nil, nil, nil); err != nil {
+	if err := sweepErr(lister, hooks.NewStore(hooksPath), nil); err != nil {
 		t.Fatalf("runHookStaleCleanup: %v", err)
 	}
 

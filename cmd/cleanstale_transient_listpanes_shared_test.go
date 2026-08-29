@@ -84,30 +84,34 @@ func runTransientCleanStaleModeSubtest(t *testing.T, spec transientModeSpec) {
 		spec.extraAssert(t, output, seededKeys)
 	}
 
-	lines := staleHookCleanupLogLines(portaltest.ReadPortalLogSafe(stateDir))
-	if len(lines) == 0 {
-		t.Fatalf("no `stale-hook cleanup:` lines found in portal.log under %s; want at least one\n"+
-			"  full log:\n%s",
-			spec.name, portaltest.ReadPortalLogSafe(stateDir))
-	}
+	fullLog := portaltest.ReadPortalLogSafe(stateDir)
+	lines := staleHookCleanupLogLines(fullLog)
 
 	switch spec.mode {
 	case transienttest.FailExitNonZero:
-		// The entry-point Debug must be absent: the err-from-ListAllPanes
-		// branch returns before it is emitted.
-		if !containsLineMatching(lines, "stale-hook cleanup:", "list-panes failed", "simulated transient") {
-			t.Fatalf("missing mode (a) propagated-error Warn line under %s; want a `stale-hook cleanup:` line containing `list-panes failed` and `simulated transient`\n"+
-				"  matched stale-hook lines:\n%s",
-				spec.name, strings.Join(lines, "\n"))
+		// A failed read is a stand-down like any other, so it rides the shared
+		// `clean-stale-skipped` shape rather than the sweep's prose lines.
+		standDown := logLinesContaining(fullLog, "clean-stale-skipped")
+		if !containsLineMatching(standDown, "WARN hooks:", "reason=pane-read-failed", "simulated transient") {
+			t.Fatalf("missing mode (a) stand-down Warn under %s; want a `WARN hooks:` line containing `reason=pane-read-failed` and `simulated transient`\n"+
+				"  matched stand-down lines:\n%s",
+				spec.name, strings.Join(standDown, "\n"))
 		}
+		// The entry-point Debug must be absent: the failed enumeration declines
+		// before there is any count to report.
 		for _, line := range lines {
 			if strings.Contains(line, "stale-hook cleanup counts") {
-				t.Fatalf("mode (a) emitted entry-point Debug (`stale-hook cleanup counts ...`) under %s; must be absent — the err-from-ListAllPanes branch returns before the Debug emission\n"+
+				t.Fatalf("mode (a) emitted entry-point Debug (`stale-hook cleanup counts ...`) under %s; must be absent — a failed enumeration has no counts to report\n"+
 					"  offending line: %s",
 					spec.name, line)
 			}
 		}
 	case transienttest.FailEmptyStdout:
+		if len(lines) == 0 {
+			t.Fatalf("no `stale-hook cleanup:` lines found in portal.log under %s; want at least one\n"+
+				"  full log:\n%s",
+				spec.name, fullLog)
+		}
 		if !containsLineMatching(lines, "stale-hook cleanup counts", "panes=0", "entries=3") {
 			t.Fatalf("missing mode (b) entry-point Debug under %s; want a `stale-hook cleanup counts` line containing `panes=0` and `entries=3`\n"+
 				"  matched stale-hook lines:\n%s",
@@ -115,7 +119,6 @@ func runTransientCleanStaleModeSubtest(t *testing.T, spec transientModeSpec) {
 		}
 		// The guard's own WARN rides the shared stand-down shape, so it is
 		// keyed off `clean-stale-skipped` rather than the sweep's prose lines.
-		fullLog := portaltest.ReadPortalLogSafe(stateDir)
 		standDown := logLinesContaining(fullLog, "clean-stale-skipped")
 		if !containsLineMatching(standDown, "WARN hooks:", "reason=empty-pane-read", "entries=3") {
 			t.Fatalf("missing mode (b) hazard-guard Warn under %s; want a `WARN hooks:` stand-down line containing `reason=empty-pane-read` and `entries=3`\n"+

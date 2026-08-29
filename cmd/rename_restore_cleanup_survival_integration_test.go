@@ -67,7 +67,7 @@ func TestRenameRestoreCleanupSurvival_KeepsRestoredTokenKeyedHook(t *testing.T) 
 		t.Fatalf("pre-cleanup seed missing stale key %q; keys=%v", staleKey, keysOf(preRun))
 	}
 
-	if err := runHookStaleCleanup(client, store, nil, nil, nil); err != nil {
+	if err := sweepErr(client, store, nil); err != nil {
 		t.Fatalf("runHookStaleCleanup: %v", err)
 	}
 
@@ -87,7 +87,7 @@ func TestRenameRestoreCleanupSurvival_KeepsRestoredTokenKeyedHook(t *testing.T) 
 	}
 }
 
-func assertLiveTokenPresent(t *testing.T, lister AllPaneLister, want string) {
+func assertLiveTokenPresent(t *testing.T, lister staleSweepReader, want string) {
 	t.Helper()
 	rows, err := lister.ListAllPaneHookKeys()
 	if err != nil {

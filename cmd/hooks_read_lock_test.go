@@ -134,7 +134,7 @@ func TestSweepPreReadBound(t *testing.T) {
 		sink := installHooksSink(t)
 
 		start := time.Now()
-		err := runHookStaleCleanup(lister, store, bootstrapLogger, nil, nil)
+		err := sweepErr(lister, store, bootstrapLogger)
 		elapsed := time.Since(start)
 
 		if err != nil {

@@ -21,8 +21,6 @@ import (
 func TestRunHookStaleCleanup(t *testing.T) {
 	const entryDebugFmt = "stale-hook cleanup counts"
 	const completionDebugFmt = "stale-hook cleanup removed"
-	const listPanesWarnFmt = "stale-hook cleanup: list-panes failed"
-	const loadWarnFmt = "stale-hook cleanup: hookStore.LoadSnapshot failed"
 
 	t.Run("hazard guard fires on empty live + non-empty persisted", func(t *testing.T) {
 		seed := fmt.Sprintf(`{
@@ -35,7 +33,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		logger := &recordingLogger{}
 		lister := &stubAllPaneLister{rows: tokenRows(), err: nil}
 
-		if err := runHookStaleCleanup(lister, store, logger.Logger().With("component", "bootstrap"), nil, nil); err != nil {
+		if err := sweepErr(lister, store, logger.Logger().With("component", "bootstrap")); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
@@ -68,7 +66,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		logger := &recordingLogger{}
 		lister := &stubAllPaneLister{rows: tokenRows(), err: nil}
 
-		if err := runHookStaleCleanup(lister, store, logger.Logger().With("component", "bootstrap"), nil, nil); err != nil {
+		if err := sweepErr(lister, store, logger.Logger().With("component", "bootstrap")); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
@@ -92,7 +90,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		}
 	})
 
-	t.Run("ListAllPanes error logs Warn and returns nil", func(t *testing.T) {
+	t.Run("ListAllPanes error stands the cycle down and returns nil", func(t *testing.T) {
 		seed := fmt.Sprintf(`{%q: {"on-resume": "cmd-a"}}`, reapableSeedA)
 		store, path := newTempHooksStore(t, seed)
 		before := readFileBytes(t, path)
@@ -101,9 +99,12 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		logger := &recordingLogger{}
 		lister := &stubAllPaneLister{rows: nil, err: sentinel}
 
-		err := runHookStaleCleanup(lister, store, logger.Logger().With("component", "bootstrap"), nil, nil)
+		outcome, err := runHookStaleCleanup(lister, store, logger.Logger().With("component", "bootstrap"))
 		if err != nil {
 			t.Fatalf("runHookStaleCleanup on ListAllPanes error: want nil, got %v", err)
+		}
+		if outcome.DeclineReason != skipReasonPaneReadFailed {
+			t.Errorf("DeclineReason = %q, want %q", outcome.DeclineReason, skipReasonPaneReadFailed)
 		}
 
 		after := readFileBytes(t, path)
@@ -111,14 +112,9 @@ func TestRunHookStaleCleanup(t *testing.T) {
 			t.Errorf("hooks.json modified on ListAllPanes-error path: before=%q after=%q", before, after)
 		}
 
-		if got := countMatching(logger.entries, "warn", "bootstrap", listPanesWarnFmt); got != 1 {
-			t.Errorf("list-panes Warn count = %d, want 1; entries=%+v", got, logger.entries)
-		}
-
 		if got := countMatching(logger.entries, "debug", "bootstrap", entryDebugFmt); got != 0 {
 			t.Errorf("entry-point Debug count = %d, want 0 (must NOT fire on ListAllPanes-error branch); entries=%+v", got, logger.entries)
 		}
-
 	})
 
 	t.Run("hookStore.Load error returns err with Warn", func(t *testing.T) {
@@ -134,13 +130,25 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		logger := &recordingLogger{}
 		lister := &stubAllPaneLister{rows: tokenRows(liveSeedA), err: nil}
 
-		err := runHookStaleCleanup(lister, store, logger.Logger().With("component", "bootstrap"), nil, nil)
+		sink := installHooksSink(t)
+
+		outcome, err := runHookStaleCleanup(lister, store, logger.Logger().With("component", "bootstrap"))
 		if err == nil {
 			t.Fatalf("runHookStaleCleanup: want Load error, got nil")
 		}
+		if outcome.DeclineReason != skipReasonStoreReadFailed {
+			t.Errorf("DeclineReason = %q, want %q", outcome.DeclineReason, skipReasonStoreReadFailed)
+		}
 
-		if got := countMatching(logger.entries, "warn", "bootstrap", loadWarnFmt); got != 1 {
-			t.Errorf("hookStore.Load Warn count = %d, want 1; entries=%+v", got, logger.entries)
+		// The store's own degraded-read breadcrumb shares the sink, so the
+		// stand-down is taken at WARN rather than over every record.
+		warns := sink.RecordsAtLevel(slog.LevelWarn)
+		if len(warns) != 1 {
+			t.Fatalf("WARN record count = %d, want exactly 1: %+v", len(warns), warns)
+		}
+		assertHooksRecord(t, warns[0], standDownWant(slog.LevelWarn))
+		if got := warns[0].AttrString(t, "reason"); got != skipReasonStoreReadFailed {
+			t.Errorf("reason = %q, want %q", got, skipReasonStoreReadFailed)
 		}
 
 		if got := countMatching(logger.entries, "debug", "bootstrap", entryDebugFmt); got != 0 {
@@ -148,7 +156,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		}
 	})
 
-	t.Run("onRemoved invoked once per removed entry", func(t *testing.T) {
+	t.Run("the outcome names every removed entry", func(t *testing.T) {
 		seed := fmt.Sprintf(`{
   %q: {"on-resume": "cmd-a"},
   %q: {"on-resume": "cmd-b"},
@@ -160,43 +168,21 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		logger := &recordingLogger{}
 		lister := &stubAllPaneLister{rows: tokenRows(liveSeedA), err: nil}
 
-		var removedSeen []string
-		onRemoved := func(name string) {
-			removedSeen = append(removedSeen, name)
-		}
-
-		if err := runHookStaleCleanup(lister, store, logger.Logger().With("component", "bootstrap"), onRemoved, nil); err != nil {
+		outcome, err := runHookStaleCleanup(lister, store, logger.Logger().With("component", "bootstrap"))
+		if err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
+		removedSeen := outcome.Removed
 
 		// CleanStale iterates a map, so removal order varies — assert set equality.
 		want := map[string]struct{}{reapableSeedB: {}, reapableSeedC: {}, reapableSeedD: {}}
 		if len(removedSeen) != len(want) {
-			t.Errorf("onRemoved invocations = %d (%v), want %d (%v)", len(removedSeen), removedSeen, len(want), want)
+			t.Errorf("Removed = %d (%v), want %d (%v)", len(removedSeen), removedSeen, len(want), want)
 		}
 		for _, k := range removedSeen {
 			if _, ok := want[k]; !ok {
-				t.Errorf("onRemoved invoked with unexpected key %q; want one of %v", k, want)
+				t.Errorf("Removed carries unexpected key %q; want one of %v", k, want)
 			}
-		}
-	})
-
-	t.Run("nil onRemoved is safe under normal removal", func(t *testing.T) {
-		seed := fmt.Sprintf(`{
-  %q: {"on-resume": "cmd-a"},
-  %q: {"on-resume": "cmd-b"}
-}`, liveSeedA, reapableSeedB)
-		store, _ := newTempHooksStore(t, seed)
-
-		logger := &recordingLogger{}
-		lister := &stubAllPaneLister{rows: tokenRows(liveSeedA), err: nil}
-
-		if err := runHookStaleCleanup(lister, store, logger.Logger().With("component", "bootstrap"), nil, nil); err != nil {
-			t.Fatalf("runHookStaleCleanup: %v", err)
-		}
-
-		if got := countMatching(logger.entries, "debug", "bootstrap", completionDebugFmt); got != 1 {
-			t.Errorf("completion Debug count = %d, want 1; entries=%+v", got, logger.entries)
 		}
 	})
 
@@ -212,7 +198,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		logger := &recordingLogger{}
 		lister := &stubAllPaneLister{rows: tokenRows(liveSeedA, liveSeedB, liveSeedC), err: nil}
 
-		if err := runHookStaleCleanup(lister, store, logger.Logger().With("component", "bootstrap"), nil, nil); err != nil {
+		if err := sweepErr(lister, store, logger.Logger().With("component", "bootstrap")); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
@@ -248,7 +234,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		store, _ := newTempHooksStore(t, seed)
 		lister := &stubAllPaneLister{rows: tokenRows(liveSeedA), err: nil}
 
-		if err := runHookStaleCleanup(lister, store, nil, nil, nil); err != nil {
+		if err := sweepErr(lister, store, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup with nil logger: %v", err)
 		}
 	})
@@ -260,7 +246,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		logger := &recordingLogger{}
 		rec := &recordingHookKeyLister{recordingPaneHookLister: recordingPaneHookLister{rows: tokenRows(liveSeedA)}}
 
-		if err := runHookStaleCleanup(rec, store, logger.Logger().With("component", "bootstrap"), nil, nil); err != nil {
+		if err := sweepErr(rec, store, logger.Logger().With("component", "bootstrap")); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
@@ -279,7 +265,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		logger := &recordingLogger{}
 		lister := &stubAllPaneLister{rows: tokenRows(liveSeedA), err: nil}
 
-		if err := runHookStaleCleanup(lister, store, logger.Logger().With("component", "bootstrap"), nil, nil); err != nil {
+		if err := sweepErr(lister, store, logger.Logger().With("component", "bootstrap")); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
@@ -312,7 +298,7 @@ func TestUnjudgeableHookKeyRetention(t *testing.T) {
 		}
 
 		lister := &stubAllPaneLister{rows: tokenRows(liveSeedA)}
-		if err := runHookStaleCleanup(lister, store, nil, nil, nil); err != nil {
+		if err := sweepErr(lister, store, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
@@ -384,7 +370,7 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 
 		lister := &recordingHookKeyLister{recordingPaneHookLister: recordingPaneHookLister{rows: tokenRows(liveSeedA)}, restoring: true}
 
-		if err := runHookStaleCleanup(lister, store, nil, nil, nil); err != nil {
+		if err := sweepErr(lister, store, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
@@ -406,7 +392,7 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 		sink := &logtest.Sink{}
 		log.SetTestHandler(t, sink)
 
-		if err := runHookStaleCleanup(lister, store, nil, nil, nil); err != nil {
+		if err := sweepErr(lister, store, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
@@ -434,17 +420,15 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 
 		lister := &recordingHookKeyLister{recordingPaneHookLister: recordingPaneHookLister{rows: tokenRows(liveSeedA)}, restoring: true}
 
-		var removed []string
-		onRemoved := func(key string) { removed = append(removed, key) }
-
-		if err := runHookStaleCleanup(lister, store, nil, onRemoved, nil); err != nil {
+		outcome, err := runHookStaleCleanup(lister, store, nil)
+		if err != nil {
 			t.Fatalf("runHookStaleCleanup: want nil (store untouched), got %v", err)
 		}
 		if lister.calls != 0 {
 			t.Errorf("ListAllPaneHookKeys call count = %d, want 0", lister.calls)
 		}
-		if len(removed) != 0 {
-			t.Errorf("onRemoved invoked with %v, want no invocations", removed)
+		if len(outcome.Removed) != 0 {
+			t.Errorf("Removed = %v, want none", outcome.Removed)
 		}
 	})
 
@@ -455,7 +439,7 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 		sink := &logtest.Sink{}
 		log.SetTestHandler(t, sink)
 
-		if err := runHookStaleCleanup(lister, store, nil, nil, nil); err != nil {
+		if err := sweepErr(lister, store, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
@@ -469,7 +453,7 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 		store, _ := newTempHooksStore(t, staleHookSeed)
 		lister := &recordingHookKeyLister{recordingPaneHookLister: recordingPaneHookLister{rows: tokenRows(liveSeedA)}}
 
-		if err := runHookStaleCleanup(lister, store, nil, nil, nil); err != nil {
+		if err := sweepErr(lister, store, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
@@ -565,20 +549,16 @@ func TestHookSweepReportsStandDown(t *testing.T) {
 		before := readFileBytes(t, path)
 		lister := &recordingHookKeyLister{recordingPaneHookLister: recordingPaneHookLister{rows: tokenRows(liveSeedA)}, restoring: true}
 
-		var skipped, removed []string
-		err := runHookStaleCleanup(lister, store, nil,
-			func(key string) { removed = append(removed, key) },
-			func(reason string) { skipped = append(skipped, reason) },
-		)
+		outcome, err := runHookStaleCleanup(lister, store, nil)
 		if err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
-		if len(skipped) != 1 || skipped[0] != "restoring" {
-			t.Errorf("onSkipped invocations = %v, want [restoring]", skipped)
+		if outcome.DeclineReason != "restoring" {
+			t.Errorf("DeclineReason = %q, want %q", outcome.DeclineReason, "restoring")
 		}
-		if len(removed) != 0 {
-			t.Errorf("onRemoved invoked with %v, want no invocations", removed)
+		if len(outcome.Removed) != 0 {
+			t.Errorf("Removed = %v, want none", outcome.Removed)
 		}
 		if after := readFileBytes(t, path); !bytes.Equal(before, after) {
 			t.Errorf("hooks.json rewritten on the restore stand-down\nbefore: %s\nafter:  %s", before, after)
@@ -594,20 +574,16 @@ func TestHookSweepReportsStandDown(t *testing.T) {
 		log.SetTestHandler(t, sink)
 
 		injected := &recordingLogger{}
-		var skipped, removed []string
-		err := runHookStaleCleanup(lister, store, injected.Logger().With("component", "bootstrap"),
-			func(key string) { removed = append(removed, key) },
-			func(reason string) { skipped = append(skipped, reason) },
-		)
+		outcome, err := runHookStaleCleanup(lister, store, injected.Logger().With("component", "bootstrap"))
 		if err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
-		if len(skipped) != 1 || skipped[0] != "empty-pane-read" {
-			t.Errorf("onSkipped invocations = %v, want [empty-pane-read]", skipped)
+		if outcome.DeclineReason != "empty-pane-read" {
+			t.Errorf("DeclineReason = %q, want %q", outcome.DeclineReason, "empty-pane-read")
 		}
-		if len(removed) != 0 {
-			t.Errorf("onRemoved invoked with %v, want no invocations", removed)
+		if len(outcome.Removed) != 0 {
+			t.Errorf("Removed = %v, want none", outcome.Removed)
 		}
 		if after := readFileBytes(t, path); !bytes.Equal(before, after) {
 			t.Errorf("hooks.json rewritten on the empty-pane-read stand-down\nbefore: %s\nafter:  %s", before, after)
@@ -623,20 +599,6 @@ func TestHookSweepReportsStandDown(t *testing.T) {
 		}
 	})
 
-	t.Run("it survives a nil onSkipped on both stand-down branches", func(t *testing.T) {
-		restoringStore, _ := newTempHooksStore(t, staleHookSeed)
-		restoringLister := &recordingHookKeyLister{recordingPaneHookLister: recordingPaneHookLister{rows: tokenRows(liveSeedA)}, restoring: true}
-		if err := runHookStaleCleanup(restoringLister, restoringStore, nil, nil, nil); err != nil {
-			t.Fatalf("runHookStaleCleanup on the restore branch: %v", err)
-		}
-
-		emptyStore, _ := newTempHooksStore(t, staleHookSeed)
-		emptyLister := &stubAllPaneLister{rows: tokenRows()}
-		if err := runHookStaleCleanup(emptyLister, emptyStore, nil, nil, nil); err != nil {
-			t.Fatalf("runHookStaleCleanup on the empty-pane-read branch: %v", err)
-		}
-	})
-
 	t.Run("it reports nothing when the live set is empty and no entries are persisted", func(t *testing.T) {
 		store, _ := newTempHooksStore(t, "")
 		lister := &stubAllPaneLister{rows: tokenRows()}
@@ -645,46 +607,48 @@ func TestHookSweepReportsStandDown(t *testing.T) {
 		log.SetTestHandler(t, sink)
 
 		injected := &recordingLogger{}
-		var skipped []string
-		err := runHookStaleCleanup(lister, store, injected.Logger().With("component", "bootstrap"), nil,
-			func(reason string) { skipped = append(skipped, reason) },
-		)
+		outcome, err := runHookStaleCleanup(lister, store, injected.Logger().With("component", "bootstrap"))
 		if err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
-		if len(skipped) != 0 {
-			t.Errorf("onSkipped invocations = %v, want none with nothing to protect", skipped)
+		if outcome.DeclineReason != "" {
+			t.Errorf("DeclineReason = %q, want none with nothing to protect", outcome.DeclineReason)
 		}
 		if recs := sink.Records(); len(recs) != 0 {
 			t.Errorf("hooks-component records = %+v, want none", recs)
 		}
 	})
 
-	t.Run("it emits no skipped line when the enumeration errors", func(t *testing.T) {
+	t.Run("it reports the failed enumeration as a stand-down on the hooks component", func(t *testing.T) {
 		store, _ := newTempHooksStore(t, staleHookSeed)
-		lister := &stubAllPaneLister{err: errors.New("tmux dead")}
+		sentinel := errors.New("tmux dead")
+		lister := &stubAllPaneLister{err: sentinel}
 
 		sink := &logtest.Sink{}
 		log.SetTestHandler(t, sink)
 
 		injected := &recordingLogger{}
-		var skipped []string
-		err := runHookStaleCleanup(lister, store, injected.Logger().With("component", "bootstrap"), nil,
-			func(reason string) { skipped = append(skipped, reason) },
-		)
+		outcome, err := runHookStaleCleanup(lister, store, injected.Logger().With("component", "bootstrap"))
 		if err != nil {
 			t.Fatalf("runHookStaleCleanup on an enumeration error: want nil, got %v", err)
 		}
 
-		if len(skipped) != 0 {
-			t.Errorf("onSkipped invocations = %v, want none on a hard read error", skipped)
+		if outcome.DeclineReason != skipReasonPaneReadFailed {
+			t.Errorf("DeclineReason = %q, want %q", outcome.DeclineReason, skipReasonPaneReadFailed)
 		}
-		if recs := sink.Records(); len(recs) != 0 {
-			t.Errorf("hooks-component records = %+v, want none on a hard read error", recs)
+		rec := sink.OnlyRecord(t)
+		assertHooksRecord(t, rec, standDownWant(slog.LevelWarn))
+		if got := rec.AttrString(t, "reason"); got != skipReasonPaneReadFailed {
+			t.Errorf("reason = %q, want %q", got, skipReasonPaneReadFailed)
 		}
-		if got := countMatching(injected.entries, "warn", "bootstrap", "stale-hook cleanup: list-panes failed"); got != 1 {
-			t.Errorf("list-panes Warn count = %d, want 1; entries=%+v", got, injected.entries)
+		if got := rec.AttrString(t, "error"); got != sentinel.Error() {
+			t.Errorf("error attr = %q, want %q", got, sentinel.Error())
+		}
+		for _, e := range injected.entries {
+			if e.level == "warn" {
+				t.Errorf("stand-down emitted on the injected logger as well as the hooks component: %+v", e)
+			}
 		}
 	})
 }
@@ -705,17 +669,14 @@ func TestHookSweepGuardCountsPaneRowsNotTokens(t *testing.T) {
 		log.SetTestHandler(t, sink)
 
 		injected := &recordingLogger{}
-		var skipped []string
-		err := runHookStaleCleanup(&stubAllPaneLister{rows: unstampedRows(3)}, store,
-			injected.Logger().With("component", "bootstrap"), nil,
-			func(reason string) { skipped = append(skipped, reason) },
-		)
+		outcome, err := runHookStaleCleanup(&stubAllPaneLister{rows: unstampedRows(3)}, store,
+			injected.Logger().With("component", "bootstrap"))
 		if err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
-		if len(skipped) != 0 {
-			t.Errorf("onSkipped invocations = %v, want none (rows present means the read succeeded)", skipped)
+		if outcome.DeclineReason != "" {
+			t.Errorf("DeclineReason = %q, want none (rows present means the read succeeded)", outcome.DeclineReason)
 		}
 		if recs := sink.Records(); len(recs) != 0 {
 			t.Errorf("hooks-component records = %+v, want none (no hazard exists at zero stamped panes)", recs)
@@ -735,7 +696,7 @@ func TestHookSweepGuardCountsPaneRowsNotTokens(t *testing.T) {
 		store, _ := newTempHooksStore(t, seed)
 
 		lister := &stubAllPaneLister{rows: append(tokenRows(reapableSeedB), unstampedRows(1)...)}
-		if err := runHookStaleCleanup(lister, store, nil, nil, nil); err != nil {
+		if err := sweepErr(lister, store, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
@@ -752,16 +713,13 @@ func TestHookSweepGuardCountsPaneRowsNotTokens(t *testing.T) {
 		seed := fmt.Sprintf(`{%q: {"on-resume": "cmd-gone"}}`, reapableSeedA)
 		store, _ := newTempHooksStore(t, seed)
 
-		var skipped []string
-		err := runHookStaleCleanup(&stubAllPaneLister{rows: nil}, store, nil, nil,
-			func(reason string) { skipped = append(skipped, reason) },
-		)
+		outcome, err := runHookStaleCleanup(&stubAllPaneLister{rows: nil}, store, nil)
 		if err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
-		if len(skipped) != 1 || skipped[0] != skipReasonEmptyPaneRead {
-			t.Errorf("onSkipped invocations = %v, want [%s]", skipped, skipReasonEmptyPaneRead)
+		if outcome.DeclineReason != skipReasonEmptyPaneRead {
+			t.Errorf("DeclineReason = %q, want %q", outcome.DeclineReason, skipReasonEmptyPaneRead)
 		}
 		postRun, err := store.Load("internal")
 		if err != nil {
@@ -777,7 +735,7 @@ func TestHookSweepGuardCountsPaneRowsNotTokens(t *testing.T) {
 
 		logger := &recordingLogger{}
 		lister := &stubAllPaneLister{rows: unstampedRows(4)}
-		if err := runHookStaleCleanup(lister, store, logger.Logger().With("component", "bootstrap"), nil, nil); err != nil {
+		if err := sweepErr(lister, store, logger.Logger().With("component", "bootstrap")); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
@@ -795,7 +753,7 @@ func TestHookSweepGuardCountsPaneRowsNotTokens(t *testing.T) {
 		store, _ := newTempHooksStore(t, seed)
 
 		lister := &stubAllPaneLister{rows: unstampedRows(2)}
-		if err := runHookStaleCleanup(lister, store, nil, nil, nil); err != nil {
+		if err := sweepErr(lister, store, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
@@ -813,4 +771,11 @@ func TestHookSweepGuardCountsPaneRowsNotTokens(t *testing.T) {
 			t.Errorf("unjudgeable entry was swept; got %v", keysOf(postRun))
 		}
 	})
+}
+
+// sweepErr drives the sweep and keeps only its error, for the cases that assert
+// on hooks.json or on the log rather than on what the cycle reported.
+func sweepErr(reader staleSweepReader, store *hooks.Store, logger *slog.Logger) error {
+	_, err := runHookStaleCleanup(reader, store, logger)
+	return err
 }

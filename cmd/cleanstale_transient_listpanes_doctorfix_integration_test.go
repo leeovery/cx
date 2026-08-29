@@ -14,7 +14,7 @@ import (
 	"github.com/leeovery/portal/internal/transienttest"
 )
 
-func runDoctorFixHookPrune(t *testing.T, lister AllPaneLister) (string, error) {
+func runDoctorFixHookPrune(t *testing.T, lister staleSweepReader) (string, error) {
 	t.Helper()
 	hookStore, err := loadHookStore()
 	if err != nil {

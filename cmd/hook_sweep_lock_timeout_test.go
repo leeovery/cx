@@ -48,7 +48,7 @@ func TestHookSweepStandsDownOnLockTimeout(t *testing.T) {
 		store, path, _ := lockedSweepFixture(t, lockBound)
 		before := readFileBytes(t, path)
 
-		if err := runHookStaleCleanup(lister, store, nil, nil, nil); err != nil {
+		if err := sweepErr(lister, store, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: want nil on a lock timeout, got %v", err)
 		}
 
@@ -59,7 +59,7 @@ func TestHookSweepStandsDownOnLockTimeout(t *testing.T) {
 		store, _, _ := lockedSweepFixture(t, lockBound)
 		sink := installHooksSink(t)
 
-		if err := runHookStaleCleanup(lister, store, nil, nil, nil); err != nil {
+		if err := sweepErr(lister, store, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
@@ -76,7 +76,7 @@ func TestHookSweepStandsDownOnLockTimeout(t *testing.T) {
 		sink := installHooksSink(t)
 		injected := &recordingLogger{}
 
-		if err := runHookStaleCleanup(lister, store, injected.Logger().With("component", "daemon"), nil, nil); err != nil {
+		if err := sweepErr(lister, store, injected.Logger().With("component", "daemon")); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
@@ -91,28 +91,16 @@ func TestHookSweepStandsDownOnLockTimeout(t *testing.T) {
 	t.Run("it reports the lock stand-down to the caller", func(t *testing.T) {
 		store, _, _ := lockedSweepFixture(t, lockBound)
 
-		var skipped, removed []string
-		err := runHookStaleCleanup(lister, store, nil,
-			func(key string) { removed = append(removed, key) },
-			func(reason string) { skipped = append(skipped, reason) },
-		)
+		outcome, err := runHookStaleCleanup(lister, store, nil)
 		if err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
-		if len(skipped) != 1 || skipped[0] != "lock-timeout" {
-			t.Errorf("onSkipped invocations = %v, want [lock-timeout]", skipped)
+		if outcome.DeclineReason != "lock-timeout" {
+			t.Errorf("DeclineReason = %q, want %q", outcome.DeclineReason, "lock-timeout")
 		}
-		if len(removed) != 0 {
-			t.Errorf("onRemoved invoked with %v, want no invocations", removed)
-		}
-	})
-
-	t.Run("it survives a nil onSkipped on the lock branch", func(t *testing.T) {
-		store, _, _ := lockedSweepFixture(t, lockBound)
-
-		if err := runHookStaleCleanup(lister, store, nil, nil, nil); err != nil {
-			t.Fatalf("runHookStaleCleanup with a nil onSkipped: %v", err)
+		if len(outcome.Removed) != 0 {
+			t.Errorf("Removed = %v, want none", outcome.Removed)
 		}
 	})
 
@@ -124,7 +112,7 @@ func TestHookSweepStandsDownOnLockTimeout(t *testing.T) {
 		store, _, _ := lockedSweepFixture(t, bound)
 
 		start := time.Now()
-		if err := runHookStaleCleanup(lister, store, nil, nil, nil); err != nil {
+		if err := sweepErr(lister, store, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 		elapsed := time.Since(start)
@@ -140,19 +128,18 @@ func TestHookSweepStandsDownOnLockTimeout(t *testing.T) {
 	t.Run("it retries on the next cadence", func(t *testing.T) {
 		store, _, release := lockedSweepFixture(t, lockBound)
 
-		if err := runHookStaleCleanup(lister, store, nil, nil, nil); err != nil {
+		if err := sweepErr(lister, store, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup under the lock: %v", err)
 		}
 		release()
 
-		var removed []string
-		err := runHookStaleCleanup(lister, store, nil, func(key string) { removed = append(removed, key) }, nil)
+		outcome, err := runHookStaleCleanup(lister, store, nil)
 		if err != nil {
 			t.Fatalf("runHookStaleCleanup after release: %v", err)
 		}
 
-		if len(removed) != 1 || removed[0] != reapableSeedA {
-			t.Errorf("onRemoved invocations = %v, want [%s]", removed, reapableSeedA)
+		if len(outcome.Removed) != 1 || outcome.Removed[0] != reapableSeedA {
+			t.Errorf("Removed = %v, want [%s]", outcome.Removed, reapableSeedA)
 		}
 		postRun, err := store.Load("internal")
 		if err != nil {
@@ -166,8 +153,8 @@ func TestHookSweepStandsDownOnLockTimeout(t *testing.T) {
 		}
 	})
 
-	// The daemon's call shape: a nil onSkipped, its own logger, and no second
-	// WARN of its own over the one the sweep already emitted.
+	// The daemon's call shape: its own logger, and no second WARN of its own
+	// over the one the sweep already emitted.
 	t.Run("it stands the daemon's throttled sweep down without a second WARN", func(t *testing.T) {
 		store, path, _ := lockedSweepFixture(t, lockBound)
 		before := readFileBytes(t, path)
@@ -199,17 +186,15 @@ func TestHookSweepDiscriminatesLockTimeoutFromFailure(t *testing.T) {
 		})
 		sink := installHooksSink(t)
 
-		var skipped []string
-		err := runHookStaleCleanup(lister, store, nil, nil,
-			func(reason string) { skipped = append(skipped, reason) })
+		outcome, err := runHookStaleCleanup(lister, store, nil)
 		if err == nil {
 			t.Fatal("runHookStaleCleanup: want an error on a save failure, got nil")
 		}
 		if errors.Is(err, hooks.ErrLockHeld) {
 			t.Errorf("save failure %v reported as a lock timeout", err)
 		}
-		if len(skipped) != 0 {
-			t.Errorf("onSkipped invocations = %v, want none on a save failure", skipped)
+		if outcome.DeclineReason != "" {
+			t.Errorf("DeclineReason = %q, want none on a save failure", outcome.DeclineReason)
 		}
 		for _, rec := range sink.Records() {
 			if rec.Msg == standDownMsg {
@@ -228,17 +213,15 @@ func TestHookSweepDiscriminatesLockTimeoutFromFailure(t *testing.T) {
 		})
 		sink := installHooksSink(t)
 
-		var skipped []string
-		err := runHookStaleCleanup(lister, store, nil, nil,
-			func(reason string) { skipped = append(skipped, reason) })
+		outcome, err := runHookStaleCleanup(lister, store, nil)
 		if err == nil {
 			t.Fatal("runHookStaleCleanup: want an error, got nil")
 		}
 		if !strings.Contains(err.Error(), hooks.ErrLockHeld.Error()) {
 			t.Fatalf("fixture error %q does not carry the sentinel's text; the case measures nothing", err)
 		}
-		if len(skipped) != 0 {
-			t.Errorf("onSkipped invocations = %v, want none for a non-sentinel error", skipped)
+		if outcome.DeclineReason != "" {
+			t.Errorf("DeclineReason = %q, want none for a non-sentinel error", outcome.DeclineReason)
 		}
 		for _, rec := range sink.Records() {
 			if rec.Msg == standDownMsg {

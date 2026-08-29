@@ -93,7 +93,7 @@ func (r *recordingLogger) Handle(_ context.Context, rec slog.Record) error {
 
 var _ slog.Handler = (*recordingLogger)(nil)
 
-var _ AllPaneLister = (*tmux.Client)(nil)
+var _ staleSweepReader = (*tmux.Client)(nil)
 
 func countMatching(entries []recordedLog, level, component, message string) int {
 	n := 0

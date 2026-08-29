@@ -845,7 +845,7 @@ func seedProjectsJSON(t *testing.T, paths ...string) (*project.Store, string) {
 	return project.NewStore(file), file
 }
 
-func staleDeps(dir string, lister AllPaneLister, hookStore *hooks.Store, projectStore *project.Store) *DoctorDeps {
+func staleDeps(dir string, lister staleSweepReader, hookStore *hooks.Store, projectStore *project.Store) *DoctorDeps {
 	return withHealthyRuntime(&DoctorDeps{
 		StateDir:     dir,
 		HookLister:   lister,
@@ -1183,7 +1183,7 @@ func TestDoctorStaleHooksCheck(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Execute err = %v; want nil (not-evaluable never drives the exit code)\n%s", err, outBuf.String())
 		}
-		if want := "· stale hooks: restore may be in progress (not evaluable)"; !strings.Contains(outBuf.String(), want) {
+		if want := "· stale hooks: restore in progress (not evaluable)"; !strings.Contains(outBuf.String(), want) {
 			t.Errorf("report missing %q:\n%s", want, outBuf.String())
 		}
 	})
@@ -1191,7 +1191,7 @@ func TestDoctorStaleHooksCheck(t *testing.T) {
 
 // staleHooksCheckResult runs the read-only diagnosis and returns its stale-hooks
 // line.
-func staleHooksCheckResult(t *testing.T, dir string, lister AllPaneLister, hookStore *hooks.Store) checkResult {
+func staleHooksCheckResult(t *testing.T, dir string, lister staleSweepReader, hookStore *hooks.Store) checkResult {
 	t.Helper()
 	results, err := runDoctorDiagnosis(staleDeps(dir, lister, hookStore, nil))
 	if err != nil {
@@ -1205,8 +1205,8 @@ func assertRestoreWindowResult(t *testing.T, got checkResult) {
 	if got.status != checkNotEvaluable {
 		t.Errorf("status = %v; want checkNotEvaluable in a restore window", got.status)
 	}
-	if got.detail != "restore may be in progress (not evaluable)" {
-		t.Errorf("detail = %q; want %q", got.detail, "restore may be in progress (not evaluable)")
+	if got.detail != "restore in progress (not evaluable)" {
+		t.Errorf("detail = %q; want %q", got.detail, "restore in progress (not evaluable)")
 	}
 }
 
@@ -1678,20 +1678,20 @@ func TestDoctorFixPrunedHookOutput(t *testing.T) {
 func TestDoctorFixReportsSkippedHookPrune(t *testing.T) {
 	t.Run("it prints the skipped-prune line for a restore window in doctor --fix", func(t *testing.T) {
 		out := runDoctorFixWithLister(t, restoringHookLister())
-		assertSkippedPruneLine(t, out, "Skipped stale hook prune: restore may be in progress")
+		assertSkippedPruneLine(t, out, "Skipped stale hook prune: restore in progress")
 	})
 
 	t.Run("it prints the skipped-prune line for an empty live read in doctor --fix", func(t *testing.T) {
 		out := runDoctorFixWithLister(t, fakeHookLister{rows: tokenRows()})
-		assertSkippedPruneLine(t, out, "Skipped stale hook prune: could not read live panes")
+		assertSkippedPruneLine(t, out, "Skipped stale hook prune: live pane list came back empty")
 	})
 
 	// The repair and the diagnosis must tell one story: a prune that stood down
 	// cannot be followed by a count of what it deliberately did not judge.
 	t.Run("it reports not evaluable in the post-repair diagnosis after a stand-down", func(t *testing.T) {
 		out := runDoctorFixWithLister(t, restoringHookLister())
-		assertSkippedPruneLine(t, out, "Skipped stale hook prune: restore may be in progress")
-		if want := "· stale hooks: restore may be in progress (not evaluable)"; !strings.Contains(out, want) {
+		assertSkippedPruneLine(t, out, "Skipped stale hook prune: restore in progress")
+		if want := "· stale hooks: restore in progress (not evaluable)"; !strings.Contains(out, want) {
 			t.Errorf("post-repair report missing %q:\n%s", want, out)
 		}
 		if strings.Contains(out, "stale hook entr") {
@@ -1786,9 +1786,13 @@ func assertSkippedPruneLine(t *testing.T, out, want string) {
 
 func TestSkippedPrunePhrase(t *testing.T) {
 	cases := map[string]string{
-		skipReasonRestoring:     "restore may be in progress",
-		skipReasonEmptyPaneRead: "could not read live panes",
-		skipReasonLockTimeout:   "hooks.json is locked",
+		skipReasonRestoring: "restore in progress",
+		// The failed read is the one that could not be read; the successful read
+		// that answered nothing gets its own words.
+		skipReasonPaneReadFailed:  "could not read live panes",
+		skipReasonEmptyPaneRead:   "live pane list came back empty",
+		skipReasonStoreReadFailed: "could not read hooks.json",
+		skipReasonLockTimeout:     "hooks.json is locked",
 		// An unmapped reason must still print something: a stand-down that
 		// renders as an empty line is the silence this reporting removes.
 		"unmapped-reason": "unmapped-reason",

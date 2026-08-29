@@ -18,9 +18,9 @@ type HookKeyResolver interface {
 }
 
 // PaneHookLister returns one row per live pane: the pane's hook token, empty
-// for an unstamped pane, alongside its display-only location. It is narrower
-// than the stale sweep's AllPaneLister, which also carries a restore-marker
-// read the listing has no use for.
+// for an unstamped pane, alongside its display-only location. The row count
+// answers whether the tmux read succeeded and the non-empty tokens answer which
+// panes are protected — two questions no consumer may conflate.
 type PaneHookLister interface {
 	ListAllPaneHookKeys() ([]tmux.PaneHookRow, error)
 }

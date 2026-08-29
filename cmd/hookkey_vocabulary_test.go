@@ -100,7 +100,7 @@ func (r *recordingHookKeyLister) TryGetServerOption(string) (string, bool, error
 	return restoringOption(r.restoring, r.restoringErr)
 }
 
-var _ AllPaneLister = (*recordingHookKeyLister)(nil)
+var _ staleSweepReader = (*recordingHookKeyLister)(nil)
 
 // stubAllPaneLister answers the sweep's two seams with fixed values: a fixed
 // row set (or failure) for the pane-token enumeration, and a fixed
@@ -127,7 +127,7 @@ func (s *stubAllPaneLister) TryGetServerOption(string) (string, bool, error) {
 	return restoringOption(s.restoring, s.restoringErr)
 }
 
-var _ AllPaneLister = (*stubAllPaneLister)(nil)
+var _ staleSweepReader = (*stubAllPaneLister)(nil)
 
 // mockKeyResolver answers the registration read with one fixed key (or one
 // fixed failure) however many times it is asked, and counts the asks. The fixed
