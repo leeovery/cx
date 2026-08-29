@@ -184,7 +184,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 5,
-          "current_task": "resume-hooks-silently-lost-5-4",
+          "current_task": "resume-hooks-silently-lost-5-5",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -634,6 +634,32 @@
                 "cmd/hook_sweep_snapshot_order_test.go",
                 "cmd/bootstrap_production_test.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-5-5",
+              "summary": "CleanStale emits its per-key clean-stale INFO lines before the save, so a failed save leaves INFO lines naming deletions that did not happen",
+              "detail": "internal/hooks/store.go:321 logs one INFO per key in removed, then :325 attempts the save and :326 emits the WARN summary carrying the error. At the production default level an operator greps hooks: and reads N deleted-X-command-was-Y lines followed by one WARN. Recoverable by reading the next line, but the per-key lines assert a deletion that did not occur — the same class of falsehood this work unit exists to remove. Task 5-5 made the failure classification explicit, which is what surfaces it; the fix reaches into a sibling task output.",
+              "files": [
+                "internal/hooks/store.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-5-5",
+              "summary": "A third temp hooks-store seeder in package cmd, duplicating the existing one body",
+              "detail": "cmd/hook_sweep_lock_timeout_test.go:211-231 (saveDeniedStore) repeats newTempHooksStore write-seed / create-sidecar / NewStore sequence (cmd/bootstrap_production_test.go:117-133) with only a caller-chosen directory and a chmod added. A newTempHooksStoreIn(dir, seed) would subsume both. Extends the existing bank entry Two temp hooks-store seeders in package cmd.",
+              "files": [
+                "cmd/hook_sweep_lock_timeout_test.go",
+                "cmd/bootstrap_production_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-5-5",
+              "summary": "The two-entry stale seed is now declared three times byte-identically, across two cmd test files",
+              "detail": "cmd/hook_sweep_lock_timeout_test.go:19-23 (lockedStaleSeed), cmd/run_hook_stale_cleanup_test.go:382-385 and :570-574 are the same {reapableSeedA: cmd-gone, liveSeedA: cmd-live} literal. Extends the existing 1-9 bank entry, which recorded two.",
+              "files": [
+                "cmd/hook_sweep_lock_timeout_test.go",
+                "cmd/run_hook_stale_cleanup_test.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -681,7 +707,8 @@
             "resume-hooks-silently-lost-5-1",
             "resume-hooks-silently-lost-5-2",
             "resume-hooks-silently-lost-5-3",
-            "resume-hooks-silently-lost-5-4"
+            "resume-hooks-silently-lost-5-4",
+            "resume-hooks-silently-lost-5-5"
           ],
           "staging": {
             "p1": {

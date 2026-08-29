@@ -1788,9 +1788,10 @@ func TestSkippedPrunePhrase(t *testing.T) {
 	cases := map[string]string{
 		skipReasonRestoring:     "restore may be in progress",
 		skipReasonEmptyPaneRead: "could not read live panes",
+		skipReasonLockTimeout:   "hooks.json is locked",
 		// An unmapped reason must still print something: a stand-down that
 		// renders as an empty line is the silence this reporting removes.
-		"lock-timeout": "lock-timeout",
+		"unmapped-reason": "unmapped-reason",
 	}
 	for reason, want := range cases {
 		if got := skippedPrunePhrase(reason); got != want {

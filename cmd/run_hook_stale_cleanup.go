@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"log/slog"
 	"maps"
 	"slices"
@@ -15,6 +16,7 @@ import (
 const (
 	skipReasonRestoring     = "restoring"
 	skipReasonEmptyPaneRead = "empty-pane-read"
+	skipReasonLockTimeout   = "lock-timeout"
 )
 
 // standDownMsg and standDownAttrs give every stand-down one line shape, so a
@@ -138,6 +140,17 @@ func runHookStaleCleanup(
 
 	removed, err := store.CleanStale(tokens, snapshot)
 	if err != nil {
+		// Another writer held the sidecar past the bound: nothing was written
+		// and nothing is wrong, so the cycle stands down on the shared line
+		// rather than reporting a defect, and the next cadence retries. The
+		// level is WARN because a lock that will not yield is an anomaly, and
+		// the nil return keeps the caller from adding a second line for the
+		// same event. Every other failure stays a failure.
+		if errors.Is(err, hooks.ErrLockHeld) {
+			hooksLogger.Warn(standDownMsg, standDownAttrs(skipReasonLockTimeout, "error", err)...)
+			reportSkip(skipReasonLockTimeout)
+			return nil
+		}
 		return err
 	}
 	logger.Debug("stale-hook cleanup removed", "reaped", len(removed))

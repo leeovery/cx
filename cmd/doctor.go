@@ -209,6 +209,7 @@ const restoreStandDownPhrase = "restore may be in progress"
 var skippedPrunePhrases = map[string]string{
 	skipReasonRestoring:     restoreStandDownPhrase,
 	skipReasonEmptyPaneRead: "could not read live panes",
+	skipReasonLockTimeout:   "hooks.json is locked",
 }
 
 // skippedPrunePhrase renders a stand-down reason for a user who asked for a
