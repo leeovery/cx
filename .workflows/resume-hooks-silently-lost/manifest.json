@@ -188,7 +188,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 5,
-          "current_task": "resume-hooks-silently-lost-5-5",
+          "current_task": "resume-hooks-silently-lost-5-6",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -558,6 +558,30 @@
               "files": [
                 "internal/hooks/store.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-5-6",
+              "summary": "Eight byte-identical copies of the four-line logtest.Sink install helper live under seven names across six packages",
+              "detail": "func install...(t *testing.T) *logtest.Sink { t.Helper(); sink := &logtest.Sink{}; log.SetTestHandler(t, sink); return sink } is duplicated verbatim at cmd/hooks_read_lock_test.go:17 (installHooksSink), cmd/config_migrate_logging_test.go:13 (installMigrateCapture), cmd/state_commit_now_test.go:19 (installCommitNowLogCapture), internal/hooks/store_test.go:23, internal/alias/store_logging_test.go:14, internal/project/store_logging_test.go:16, internal/storelog/clean_stale_test.go:15 (all installCapture) and internal/spawn/terminalsconfig_test.go:14 (installSpawnCapture). Same class of duplication phase 5 consolidated for the lock fixture, one level up. internal/logtest is the natural home (it already owns Sink); the edge logtest -> internal/log is feasible with no cycle, since internal/log never imports logtest and its own tests are almost all package log. Fix reaches six packages well outside phase 5 surface.",
+              "files": [
+                "internal/logtest",
+                "cmd/hooks_read_lock_test.go",
+                "cmd/config_migrate_logging_test.go",
+                "cmd/state_commit_now_test.go",
+                "internal/hooks/store_test.go",
+                "internal/alias/store_logging_test.go",
+                "internal/project/store_logging_test.go",
+                "internal/storelog/clean_stale_test.go",
+                "internal/spawn/terminalsconfig_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-5-6",
+              "summary": "CLAUDE.md transienttest row now omits a whole file of the package surface",
+              "detail": "CLAUDE.md transienttest table row still describes only the list-panes -a scaffolding and the hook seeders, so it omits internal/transienttest/hooks_lock.go entirely (CreateHooksSidecar, HoldHooksSidecar, HoldHooksSidecarShared, UnlockedRecords, AssertDegradedRead). Task 5-6 scoped documentation to doc.go, which was widened correctly, so this is not a gap in the task — it belongs to the feature sign-off doc sweep, alongside the banked 3-4 gap (CLAUDE.md never describes the shape-aware reaper or session.IsTokenShaped).",
+              "files": [
+                "CLAUDE.md"
+              ]
             }
           ],
           "completed_tasks": [
@@ -606,7 +630,8 @@
             "resume-hooks-silently-lost-5-2",
             "resume-hooks-silently-lost-5-3",
             "resume-hooks-silently-lost-5-4",
-            "resume-hooks-silently-lost-5-5"
+            "resume-hooks-silently-lost-5-5",
+            "resume-hooks-silently-lost-5-6"
           ],
           "staging": {
             "p1": {

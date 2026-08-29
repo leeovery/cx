@@ -12,6 +12,7 @@ import (
 	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/state"
+	"github.com/leeovery/portal/internal/transienttest"
 )
 
 // lockBound is the lowered acquisition bound every test here drives the timeout
@@ -107,7 +108,7 @@ func TestHookSetLockTimeout(t *testing.T) {
 		before := seedHooksFile(t, hooksFile, map[string]map[string]string{
 			"tok999": {"on-resume": "npm start"},
 		})
-		holdHooksSidecar(t, hooksFile)
+		transienttest.HoldHooksSidecar(t, hooksFile)
 
 		hooksDeps = &HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}}
 		t.Cleanup(func() { hooksDeps = nil })
@@ -123,7 +124,7 @@ func TestHookSetLockTimeout(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, lockBound)
 		_, hooksFile := hooksFileInTempDir(t)
 		t.Setenv("TMUX_PANE", "%3")
-		holdHooksSidecar(t, hooksFile)
+		transienttest.HoldHooksSidecar(t, hooksFile)
 
 		hooksDeps = &HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}}
 		t.Cleanup(func() { hooksDeps = nil })
@@ -142,7 +143,7 @@ func TestHookSetLockTimeout(t *testing.T) {
 		stateDir := t.TempDir()
 		t.Setenv("PORTAL_STATE_DIR", stateDir)
 		t.Setenv("TMUX_PANE", "%3")
-		holdHooksSidecar(t, hooksFile)
+		transienttest.HoldHooksSidecar(t, hooksFile)
 
 		hooksDeps = &HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}}
 		t.Cleanup(func() { hooksDeps = nil })
@@ -159,7 +160,7 @@ func TestHookSetLockTimeout(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, lockBound)
 		_, hooksFile := hooksFileInTempDir(t)
 		t.Setenv("TMUX_PANE", "%7")
-		release := holdHooksSidecar(t, hooksFile)
+		release := transienttest.HoldHooksSidecar(t, hooksFile)
 
 		pane := &stampedPane{}
 		minted := 0
@@ -213,7 +214,7 @@ func TestHookSetLockTimeout(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, lockBound)
 		_, hooksFile := hooksFileInTempDir(t)
 		t.Setenv("TMUX_PANE", "%3")
-		holdHooksSidecar(t, hooksFile)
+		transienttest.HoldHooksSidecar(t, hooksFile)
 
 		hooksDeps = &HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}}
 		t.Cleanup(func() { hooksDeps = nil })
@@ -244,7 +245,7 @@ func TestHookRmLockTimeout(t *testing.T) {
 		before := seedHooksFile(t, hooksFile, map[string]map[string]string{
 			"tok123": {"on-resume": "claude --resume abc"},
 		})
-		holdHooksSidecar(t, hooksFile)
+		transienttest.HoldHooksSidecar(t, hooksFile)
 
 		hooksDeps = &HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}}
 		t.Cleanup(func() { hooksDeps = nil })
@@ -263,7 +264,7 @@ func TestHookRmLockTimeout(t *testing.T) {
 		before := seedHooksFile(t, hooksFile, map[string]map[string]string{
 			"tok123": {"on-resume": "claude --resume abc"},
 		})
-		holdHooksSidecar(t, hooksFile)
+		transienttest.HoldHooksSidecar(t, hooksFile)
 
 		resolver := &mockKeyResolver{err: errors.New("the resolver must not be called on the --pane-key path")}
 		stamper := &recordingPaneStamper{err: errors.New("the stamper must not be called on the --pane-key path")}
@@ -288,7 +289,7 @@ func TestHookRmLockTimeout(t *testing.T) {
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{
 			"tok123": {"on-resume": "claude --resume abc"},
 		})
-		holdHooksSidecar(t, hooksFile)
+		transienttest.HoldHooksSidecar(t, hooksFile)
 
 		hooksDeps = &HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}}
 		t.Cleanup(func() { hooksDeps = nil })

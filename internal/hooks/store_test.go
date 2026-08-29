@@ -40,21 +40,12 @@ func readOnlyDirPath(t *testing.T) string {
 		t.Fatalf("failed to create read-only dir: %v", err)
 	}
 	path := filepath.Join(roDir, "hooks.json")
-	createSidecar(t, path)
+	transienttest.CreateHooksSidecar(t, path)
 	if err := os.Chmod(roDir, 0o500); err != nil {
 		t.Fatalf("failed to deny writes to dir: %v", err)
 	}
 	t.Cleanup(func() { _ = os.Chmod(roDir, 0o700) })
 	return path
-}
-
-// createSidecar pre-creates the lock file a mutation opens, so a fixture that
-// denies writes to the directory still fails where it means to.
-func createSidecar(t *testing.T, hooksPath string) {
-	t.Helper()
-	if err := os.WriteFile(hooksPath+".lock", nil, 0o600); err != nil {
-		t.Fatalf("failed to create sidecar lock: %v", err)
-	}
 }
 
 // readFileBytes returns the file's exact bytes, so a test can assert a no-op
@@ -90,7 +81,7 @@ func seedThenDenyWrites(t *testing.T, body []byte) (*hooks.Store, string) {
 	if err := os.WriteFile(path, body, 0o600); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
-	createSidecar(t, path)
+	transienttest.CreateHooksSidecar(t, path)
 	if err := os.Chmod(dir, 0o500); err != nil {
 		t.Fatalf("chmod parent dir: %v", err)
 	}

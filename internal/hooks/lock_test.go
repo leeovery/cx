@@ -15,6 +15,7 @@ import (
 
 	"github.com/leeovery/portal/internal/fileutil"
 	"github.com/leeovery/portal/internal/hooks"
+	"github.com/leeovery/portal/internal/transienttest"
 )
 
 // inodeOf identifies the file behind a path, so a test can tell an in-place
@@ -30,28 +31,6 @@ func inodeOf(t *testing.T, path string) uint64 {
 		t.Fatalf("stat of %s is not a *syscall.Stat_t: %T", path, info.Sys())
 	}
 	return uint64(st.Ino)
-}
-
-// holdSidecar takes the sidecar exclusively from an independent open file
-// description, modelling a writer in another process, and returns the release.
-func holdSidecar(t *testing.T, hooksPath string) func() {
-	t.Helper()
-	f, err := os.OpenFile(hooksPath+".lock", os.O_RDWR|os.O_CREATE, 0o600)
-	if err != nil {
-		t.Fatalf("open sidecar: %v", err)
-	}
-	if err := unix.Flock(int(f.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
-		t.Fatalf("flock sidecar: %v", err)
-	}
-	var once sync.Once
-	release := func() {
-		once.Do(func() {
-			_ = unix.Flock(int(f.Fd()), unix.LOCK_UN)
-			_ = f.Close()
-		})
-	}
-	t.Cleanup(release)
-	return release
 }
 
 // assertSidecarFree proves the previous operation released its hold: an
@@ -204,7 +183,7 @@ func TestMutationLockExclusion(t *testing.T) {
 
 	t.Run("it loads only after a held lock is released", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "hooks.json")
-		release := holdSidecar(t, path)
+		release := transienttest.HoldHooksSidecar(t, path)
 
 		done := make(chan error, 1)
 		go func() {
@@ -316,7 +295,7 @@ func TestMutationLockBound(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, 50*time.Millisecond)
 
 		path := filepath.Join(t.TempDir(), "hooks.json")
-		holdSidecar(t, path)
+		transienttest.HoldHooksSidecar(t, path)
 
 		err := hooks.NewStore(path).Set("k0", "on-resume", "cmd0", "cli")
 		if !errors.Is(err, hooks.ErrLockHeld) {

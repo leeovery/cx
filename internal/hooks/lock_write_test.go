@@ -10,6 +10,7 @@ import (
 
 	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/logtest"
+	"github.com/leeovery/portal/internal/transienttest"
 )
 
 // assertLockWarn pins the single record a mutation that could not take the lock
@@ -56,7 +57,7 @@ func TestMutationLockTimeoutWritesNothing(t *testing.T) {
 
 		t.Run("an absent hooks.json stays absent", func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "hooks.json")
-			holdSidecar(t, path)
+			transienttest.HoldHooksSidecar(t, path)
 
 			err := hooks.NewStore(path).Set("tok123", "on-resume", "npm start", "cli")
 			if err == nil {
@@ -73,7 +74,7 @@ func TestMutationLockTimeoutWritesNothing(t *testing.T) {
 				t.Fatalf("seed: %v", err)
 			}
 			before := readFileBytes(t, path)
-			holdSidecar(t, path)
+			transienttest.HoldHooksSidecar(t, path)
 
 			if err := hooks.NewStore(path).Set("tok123", "on-resume", "npm start", "cli"); err == nil {
 				t.Fatal("expected an error when the lock will not yield, got nil")
@@ -93,7 +94,7 @@ func TestMutationLockTimeoutWritesNothing(t *testing.T) {
 			t.Fatalf("seed: %v", err)
 		}
 		before := readFileBytes(t, path)
-		holdSidecar(t, path)
+		transienttest.HoldHooksSidecar(t, path)
 
 		removed, err := hooks.NewStore(path).Remove("tok123", "on-resume", "cli")
 		if err == nil {
@@ -111,7 +112,7 @@ func TestMutationLockTimeoutWritesNothing(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, 40*time.Millisecond)
 
 		path := filepath.Join(t.TempDir(), "hooks.json")
-		holdSidecar(t, path)
+		transienttest.HoldHooksSidecar(t, path)
 		store := hooks.NewStore(path)
 
 		setErr := store.Set("tok123", "on-resume", "npm start", "cli")
@@ -130,7 +131,7 @@ func TestMutationLockTimeoutLogging(t *testing.T) {
 	t.Run("it emits one WARN under op=set for a timed-out registration", func(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, 40*time.Millisecond)
 		path := filepath.Join(t.TempDir(), "hooks.json")
-		holdSidecar(t, path)
+		transienttest.HoldHooksSidecar(t, path)
 
 		sink := installCapture(t)
 		if err := hooks.NewStore(path).Set("tok123", "on-resume", "npm start", "cli"); err == nil {
@@ -149,7 +150,7 @@ func TestMutationLockTimeoutLogging(t *testing.T) {
 		if err := os.WriteFile(path, []byte(`{"tok123":{"on-resume":"cmd-a"}}`), 0o600); err != nil {
 			t.Fatalf("seed: %v", err)
 		}
-		holdSidecar(t, path)
+		transienttest.HoldHooksSidecar(t, path)
 
 		sink := installCapture(t)
 		if err := hooks.NewStore(path).Set("tok123", "on-resume", "npm start", "cli"); err == nil {
@@ -165,7 +166,7 @@ func TestMutationLockTimeoutLogging(t *testing.T) {
 		if err := os.WriteFile(path, []byte(`{"tok123":{"on-resume":"cmd-a"}}`), 0o600); err != nil {
 			t.Fatalf("seed: %v", err)
 		}
-		holdSidecar(t, path)
+		transienttest.HoldHooksSidecar(t, path)
 
 		sink := installCapture(t)
 		removed, err := hooks.NewStore(path).Remove("tok123", "on-resume", "internal")
@@ -184,7 +185,7 @@ func TestMutationLockTimeoutLogging(t *testing.T) {
 
 		t.Run("set", func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "hooks.json")
-			holdSidecar(t, path)
+			transienttest.HoldHooksSidecar(t, path)
 
 			sink := installCapture(t)
 			if err := hooks.NewStore(path).Set("tok123", "on-resume", "npm start", "cli"); err == nil {
@@ -202,7 +203,7 @@ func TestMutationLockTimeoutLogging(t *testing.T) {
 
 		t.Run("rm", func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "hooks.json")
-			holdSidecar(t, path)
+			transienttest.HoldHooksSidecar(t, path)
 
 			sink := installCapture(t)
 			if _, err := hooks.NewStore(path).Remove("tok123", "on-resume", "cli"); err == nil {
@@ -249,7 +250,7 @@ func TestMutationLockTimeoutLogging(t *testing.T) {
 		if err := os.WriteFile(path, []byte(`{"tok123":{"on-resume":"cmd-a"}}`), 0o600); err != nil {
 			t.Fatalf("seed: %v", err)
 		}
-		holdSidecar(t, path)
+		transienttest.HoldHooksSidecar(t, path)
 
 		sink := installCapture(t)
 		removed, err := hooks.NewStore(path).CleanStale(nil, []string{"tok123"})

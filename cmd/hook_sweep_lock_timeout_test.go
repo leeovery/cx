@@ -13,6 +13,7 @@ import (
 
 	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/logtest"
+	"github.com/leeovery/portal/internal/transienttest"
 )
 
 // lockedStaleSeed is one genuinely stale token-shaped entry beside one live
@@ -31,7 +32,7 @@ func lockedSweepFixture(t *testing.T, bound time.Duration) (*hooks.Store, string
 	t.Helper()
 	hooks.SetLockTimeoutForTest(t, bound)
 	store, path := newTempHooksStore(t, lockedStaleSeed)
-	return store, path, holdHooksSidecar(t, path)
+	return store, path, transienttest.HoldHooksSidecar(t, path)
 }
 
 // lockStandDownRecord asserts the sweep left exactly one WARN and returns it.
@@ -215,9 +216,7 @@ func saveDeniedStore(t *testing.T, dirName string) (*hooks.Store, string) {
 	if err := os.WriteFile(path, []byte(lockedStaleSeed), 0o644); err != nil {
 		t.Fatalf("write seed hooks.json: %v", err)
 	}
-	if err := os.WriteFile(path+".lock", nil, 0o600); err != nil {
-		t.Fatalf("create sidecar: %v", err)
-	}
+	transienttest.CreateHooksSidecar(t, path)
 	if err := os.Chmod(dir, 0o500); err != nil {
 		t.Fatalf("chmod fixture dir: %v", err)
 	}
@@ -281,7 +280,7 @@ func TestDoctorFixReportsLockedHookPrune(t *testing.T) {
 	t.Run("it prints the skipped-prune line for a locked file in doctor --fix", func(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, lockBound)
 		deps, hooksPath, _, _, _ := seedStalePruneFixture(t, t.TempDir(), staleHookLister())
-		holdHooksSidecar(t, hooksPath)
+		transienttest.HoldHooksSidecar(t, hooksPath)
 		before := readFileBytes(t, hooksPath)
 
 		outBuf, _, _ := runDoctorFixCmd(t, deps)
@@ -297,7 +296,7 @@ func TestDoctorFixReportsLockedHookPrune(t *testing.T) {
 	t.Run("it reports the un-pruned entry as stale in the same window", func(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, lockBound)
 		store, path := newTempHooksStore(t, lockedStaleSeed)
-		holdHooksSidecar(t, path)
+		transienttest.HoldHooksSidecar(t, path)
 
 		got := checkStaleHooks(&stubAllPaneLister{rows: tokenRows(liveSeedA)}, store)
 		if got.status != checkFail {
@@ -316,7 +315,7 @@ func TestDoctorFixReportsLockedHookPrune(t *testing.T) {
 		dir := t.TempDir()
 		seedHealthyStateDir(t, dir)
 		hookStore, hooksPath := seedHooksJSON(t, liveSeedA)
-		holdHooksSidecar(t, hooksPath)
+		transienttest.HoldHooksSidecar(t, hooksPath)
 		projectStore, _ := seedProjectsJSON(t, t.TempDir())
 		deps := staleDeps(dir, fakeHookLister{rows: tokenRows(liveSeedA)}, hookStore, projectStore)
 
@@ -332,7 +331,7 @@ func TestDoctorFixReportsLockedHookPrune(t *testing.T) {
 		failingDir := t.TempDir()
 		seedHealthyStateDir(t, failingDir)
 		failingHooks, failingPath := seedHooksJSON(t, liveSeedA)
-		holdHooksSidecar(t, failingPath)
+		transienttest.HoldHooksSidecar(t, failingPath)
 		failingProjects, _ := seedProjectsJSON(t, t.TempDir())
 		failingDeps := staleDeps(failingDir, fakeHookLister{rows: tokenRows(liveSeedA)}, failingHooks, failingProjects)
 		failingDeps.SaverPresent = func() (bool, error) { return false, nil }

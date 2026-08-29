@@ -11,6 +11,7 @@ import (
 	"github.com/leeovery/portal/cmd/bootstrap"
 	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/tmux"
+	"github.com/leeovery/portal/internal/transienttest"
 )
 
 var _ bootstrap.LatchWriter = (*tmux.Client)(nil)
@@ -125,9 +126,7 @@ func newTempHooksStore(t *testing.T, seed string) (*hooks.Store, string) {
 	// The sidecar stands in for the one a writer establishes on a real install,
 	// so a read under this fixture takes its shared lock rather than degrading
 	// and emitting a load-unlocked breadcrumb the fixture never meant to model.
-	if err := os.WriteFile(path+".lock", nil, 0o600); err != nil {
-		t.Fatalf("create sidecar: %v", err)
-	}
+	transienttest.CreateHooksSidecar(t, path)
 	return hooks.NewStore(path), path
 }
 

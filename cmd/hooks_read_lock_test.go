@@ -1,79 +1,24 @@
 package cmd
 
 import (
-	"log/slog"
 	"os"
 	"path/filepath"
 	"reflect"
-	"sync"
 	"testing"
 	"time"
-
-	"golang.org/x/sys/unix"
 
 	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/tmux"
+	"github.com/leeovery/portal/internal/transienttest"
 )
-
-// holdHooksSidecar takes the sidecar exclusively from an independent open file
-// description, modelling a writer in another process: every read taken while it
-// is held must degrade rather than fail, and every mutation must time out at the
-// bound and write nothing. The returned release lets a caller free the lock
-// mid-test and retry the operation that could not take it.
-func holdHooksSidecar(t *testing.T, hooksPath string) func() {
-	t.Helper()
-	f, err := os.OpenFile(hooksPath+".lock", os.O_RDWR|os.O_CREATE, 0o600)
-	if err != nil {
-		t.Fatalf("open sidecar: %v", err)
-	}
-	if err := unix.Flock(int(f.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
-		t.Fatalf("flock sidecar: %v", err)
-	}
-	var once sync.Once
-	release := func() {
-		once.Do(func() {
-			_ = unix.Flock(int(f.Fd()), unix.LOCK_UN)
-			_ = f.Close()
-		})
-	}
-	t.Cleanup(release)
-	return release
-}
 
 func installHooksSink(t *testing.T) *logtest.Sink {
 	t.Helper()
 	sink := &logtest.Sink{}
 	log.SetTestHandler(t, sink)
 	return sink
-}
-
-// assertDegradedReadVia pins the single breadcrumb a degraded read leaves and
-// the caller it names.
-func assertDegradedReadVia(t *testing.T, sink *logtest.Sink, wantVia string) {
-	t.Helper()
-	var got []logtest.Record
-	for _, r := range sink.Records() {
-		if r.Msg == "load-unlocked" {
-			got = append(got, r)
-		}
-	}
-	if len(got) != 1 {
-		t.Fatalf("got %d load-unlocked records, want exactly 1: %+v", len(got), got)
-	}
-	if got[0].Level != slog.LevelDebug {
-		t.Errorf("level = %v, want DEBUG", got[0].Level)
-	}
-	if op := got[0].AttrString(t, "op"); op != "load-unlocked" {
-		t.Errorf("op = %q, want load-unlocked", op)
-	}
-	if via := got[0].AttrString(t, "via"); via != wantVia {
-		t.Errorf("via = %q, want %q", via, wantVia)
-	}
-	if got[0].AttrString(t, "error") == "" {
-		t.Error("error attr is empty — the lock failure must be carried")
-	}
 }
 
 func TestDoctorStaleHooksDegradedRead(t *testing.T) {
@@ -85,9 +30,7 @@ func TestDoctorStaleHooksDegradedRead(t *testing.T) {
 		// sidecar, so without this the baseline would itself degrade on ENOENT and
 		// the comparison below would be degraded-against-degraded.
 		unlockedStore, unlockedPath := seedHooksJSON(t, liveSeedA)
-		if err := os.WriteFile(unlockedPath+".lock", nil, 0o600); err != nil {
-			t.Fatalf("create sidecar: %v", err)
-		}
+		transienttest.CreateHooksSidecar(t, unlockedPath)
 		baseline, err := runDoctorDiagnosis(staleDeps(t.TempDir(), lister, unlockedStore, nil))
 		if err != nil {
 			t.Fatalf("runDoctorDiagnosis: %v", err)
@@ -96,7 +39,7 @@ func TestDoctorStaleHooksDegradedRead(t *testing.T) {
 		wantUnhealthy := doctorUnhealthy(baseline)
 
 		heldStore, heldPath := seedHooksJSON(t, liveSeedA)
-		holdHooksSidecar(t, heldPath)
+		transienttest.HoldHooksSidecar(t, heldPath)
 
 		sink := installHooksSink(t)
 		degraded, err := runDoctorDiagnosis(staleDeps(t.TempDir(), lister, heldStore, nil))
@@ -114,7 +57,7 @@ func TestDoctorStaleHooksDegradedRead(t *testing.T) {
 		if doctorUnhealthy(degraded) != wantUnhealthy {
 			t.Errorf("doctorUnhealthy = %v under a degraded read, want %v", doctorUnhealthy(degraded), wantUnhealthy)
 		}
-		assertDegradedReadVia(t, sink, "doctor")
+		transienttest.AssertDegradedRead(t, sink, "doctor")
 	})
 
 	t.Run("it leaves the config directory untouched across portal doctor", func(t *testing.T) {
@@ -149,14 +92,14 @@ func TestHookListDegradedRead(t *testing.T) {
 
 		want := runHookList(t)
 
-		holdHooksSidecar(t, hooksFile)
+		transienttest.HoldHooksSidecar(t, hooksFile)
 		sink := installHooksSink(t)
 		got := runHookList(t)
 
 		if got != want {
 			t.Errorf("output under a degraded read = %q, want %q", got, want)
 		}
-		assertDegradedReadVia(t, sink, "cli")
+		transienttest.AssertDegradedRead(t, sink, "cli")
 	})
 
 	t.Run("it takes no tmux read and creates nothing on a fresh install", func(t *testing.T) {
@@ -182,7 +125,7 @@ func TestSweepPreReadBound(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, 5*time.Second)
 
 		store, path := newTempHooksStore(t, `{"`+reapableSeedA+`": {"on-resume": "cmd-a"}}`)
-		holdHooksSidecar(t, path)
+		transienttest.HoldHooksSidecar(t, path)
 
 		// An empty live set stands the cycle down after the pre-read, so the
 		// elapsed time measures that read alone rather than CleanStale's own
@@ -203,7 +146,7 @@ func TestSweepPreReadBound(t *testing.T) {
 		if elapsed < short {
 			t.Errorf("the sweep returned after %v — the pre-read did not wait out the %v short bound", elapsed, short)
 		}
-		assertDegradedReadVia(t, sink, "internal")
+		transienttest.AssertDegradedRead(t, sink, "internal")
 	})
 }
 
