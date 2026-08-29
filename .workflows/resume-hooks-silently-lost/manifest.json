@@ -214,7 +214,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 6,
-          "current_task": "resume-hooks-silently-lost-6-5",
+          "current_task": "resume-hooks-silently-lost-6-6",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -706,6 +706,50 @@
                 "internal/hooks/store.go",
                 "internal/storelog"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-5",
+              "source": "executor",
+              "summary": "internal/project store carries the same untyped via string the hooks store just shed.",
+              "detail": "project.Store.Remove(path, via string) and its siblings take a bare string, called as m.projectStore.Remove(path, \"cli\") at internal/tui/model.go:1429 and as literals throughout internal/project/store_test.go / store_logging_test.go. It writes into the same closed via log vocabulary as the hooks store, so a typo there is the identical silent-log failure — but the fix reaches internal/project, internal/tui and a leaf-import question (Via currently lives in internal/hooks; sharing it means a new leaf package or a duplicate declaration), all outside this task surface.",
+              "files": [
+                "internal/project/store.go",
+                "internal/project/tags.go",
+                "internal/tui/model.go",
+                "internal/hooks/via.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-5",
+              "source": "executor",
+              "summary": "internal/tui/help_modal_test.go is not gofmt-clean on the clean tree.",
+              "detail": "gofmt -l . reports it (map literal alignment at ~line 291). One-line fix, but the file is untouched by this phase tasks, so it belongs to a sweep rather than to this change. Task 6-25 already scopes the repo-wide lint and format sweep.",
+              "files": [
+                "internal/tui/help_modal_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-5",
+              "source": "reviewer",
+              "summary": "internal/alias carries the same untyped via string into the same closed log vocabulary as project.",
+              "detail": "internal/alias/store.go:125,137,142,156,161 and internal/project/store.go:106,111,174,199,203,233,238 plus internal/project/tags.go:94,98 emit via from a bare string parameter or literal. The executor already banked the project half; alias is the same shape and was not named. A shared Via type would need to leave internal/hooks (a new leaf package, or duplicate declarations), which is why it cannot be done inside any single task.",
+              "files": [
+                "internal/alias/store.go",
+                "internal/project/store.go",
+                "internal/project/tags.go",
+                "internal/hooks/via.go",
+                "internal/tui/model.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-5",
+              "source": "reviewer",
+              "summary": "The hooks component clean-stale summary still emits via as a literal from the shared storelog leaf.",
+              "detail": "internal/storelog/clean_stale.go:20,25 hardcodes \"via\", \"internal\" for the hooks: clean-stale entries=N summary — an emission on this store own path that the typed vocabulary does not reach. storelog cannot import hooks (hooks->storelog already), so typing it needs the same shared-type move the two existing bank entries for internal/project and internal/alias describe. Third site of the same pattern.",
+              "files": [
+                "internal/storelog/clean_stale.go",
+                "internal/hooks/via.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -762,7 +806,8 @@
             "resume-hooks-silently-lost-6-1",
             "resume-hooks-silently-lost-6-2",
             "resume-hooks-silently-lost-6-3",
-            "resume-hooks-silently-lost-6-4"
+            "resume-hooks-silently-lost-6-4",
+            "resume-hooks-silently-lost-6-5"
           ],
           "staging": {
             "p1": {
