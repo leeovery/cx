@@ -506,7 +506,7 @@ func TestSessionRestorer_FIFOUsesLivePaneKeyFromListPanesReQuery(t *testing.T) {
 		t.Fatalf("expected new-session; calls: %v", mock.Calls)
 	}
 	for _, a := range mock.Calls[nsIdx] {
-		if strings.Contains(a, "portal state hydrate") {
+		if strings.Contains(a, "state hydrate") {
 			t.Errorf("new-session must not carry hydrate command; got args %v", mock.Calls[nsIdx])
 		}
 	}
@@ -650,7 +650,11 @@ func TestSessionRestorer_HydrateCommandFormat(t *testing.T) {
 	mock := &mockCommander{RunFunc: restoreRunFunc("0:0")}
 	client := tmux.NewClient(mock)
 	dir := t.TempDir()
-	r := &restore.SessionRestorer{Client: client, StateDir: dir}
+	r := &restore.SessionRestorer{
+		Client:   client,
+		StateDir: dir,
+		Exe:      func() (string, error) { return "/opt/pkg/bin/portal", nil },
+	}
 
 	sess := newSession("work", nil,
 		newWindow(0, "main", newPaneWithToken(0, "/work", "scrollback/work__0.0.bin", "tok123")),
@@ -666,7 +670,7 @@ func TestSessionRestorer_HydrateCommandFormat(t *testing.T) {
 	wantFIFO := state.FIFOPath(dir, liveKey)
 	wantFile := filepath.Join(dir, "scrollback/work__0.0.bin")
 	wantCmd := fmt.Sprintf(
-		"portal state hydrate --fifo '%s' --file '%s' --hook-key '%s'",
+		"'/opt/pkg/bin/portal' state hydrate --fifo '%s' --file '%s' --hook-key '%s'",
 		wantFIFO, wantFile, "tok123",
 	)
 	if hydrate != wantCmd {

@@ -62,7 +62,7 @@ func TestRenameRebootHook_DurableAcrossRepeatedReboots(t *testing.T) {
 
 	captureAndPersist(t, client, stateDir, renameNewName, renamePaneToken)
 
-	if err := rebootAndHydrate(t, ts, client, stateDir); err != nil {
+	if err := rebootAndHydrate(t, ts, client, stateDir, binDir); err != nil {
 		t.Fatalf("cycle 1 rebootAndHydrate: %v", err)
 	}
 	assertHookFireCount(t, hookFireFile, 1)
@@ -88,7 +88,7 @@ func TestRenameRebootHook_DurableAcrossRepeatedReboots(t *testing.T) {
 	persistIndex(t, nextIdx, stateDir)
 	restoretest.SeedScrollback(t, stateDir, renameNewName, 0, 0, []byte(rebootScrollback))
 
-	if err := rebootAndHydrate(t, ts, client, stateDir); err != nil {
+	if err := rebootAndHydrate(t, ts, client, stateDir, binDir); err != nil {
 		t.Fatalf("cycle 2 rebootAndHydrate: %v", err)
 	}
 
@@ -120,7 +120,7 @@ func captureAndPersist(t *testing.T, client *tmux.Client, stateDir, name, wantPa
 	persistIndex(t, idx, stateDir)
 }
 
-func rebootAndHydrate(t *testing.T, ts *tmuxtest.Socket, client *tmux.Client, stateDir string) error {
+func rebootAndHydrate(t *testing.T, ts *tmuxtest.Socket, client *tmux.Client, stateDir, binDir string) error {
 	t.Helper()
 
 	ts.KillServer()
@@ -136,6 +136,7 @@ func rebootAndHydrate(t *testing.T, ts *tmuxtest.Socket, client *tmux.Client, st
 		Client:   client,
 		StateDir: stateDir,
 		Logger:   logger,
+		Exe:      restoretest.StagedHydrateExe(t, binDir),
 	}
 	if err := restoretest.RestoreWithMarker(t, client, o); err != nil {
 		return err

@@ -117,6 +117,7 @@ func TestPhase3Integration_FullRoundTrip(t *testing.T) {
 		Client:   client,
 		StateDir: stateDir,
 		Logger:   logger,
+		Exe:      restoretest.StagedHydrateExe(t, binDir),
 	}
 	if err := restoretest.RestoreWithMarker(t, client, o); err != nil {
 		t.Fatalf("restoreWithMarker: %v", err)

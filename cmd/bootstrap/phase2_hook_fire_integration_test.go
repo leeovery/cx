@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leeovery/portal/internal/bootstrapadapter"
 	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/restoretest"
 	"github.com/leeovery/portal/internal/tmuxtest"
@@ -22,8 +21,9 @@ func TestPhase2_HookFiresOnNonAttachedSession_AC2(t *testing.T) {
 	}
 	tmuxtest.SkipIfNoTmux(t)
 
-	// Restored panes respawn into `portal state hydrate`, so the binary must be
-	// on PATH or the helper never reaches the on-resume hook waited on below.
+	// Restored panes respawn into this binary's `state hydrate`, pinned through
+	// restoreAdapterFor, so the helper that fires the on-resume hook waited on
+	// below is the build under test rather than whatever release is installed.
 	binDir := restoretest.BuildPortalBinaryDir(t)
 	restoretest.PrependPATH(t, binDir)
 
@@ -63,7 +63,7 @@ func TestPhase2_HookFiresOnNonAttachedSession_AC2(t *testing.T) {
 	logger := restoretest.OpenTestLogger(t, stateDir)
 
 	o := buildIntegrationOrchestrator(t, client, orchestratorOpts{
-		Restore: bootstrapadapter.NewRestoreAdapter(client, stateDir, logger),
+		Restore: restoreAdapterFor(t, client, stateDir, logger, binDir),
 		Logger:  logger,
 	})
 

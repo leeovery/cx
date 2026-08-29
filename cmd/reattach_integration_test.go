@@ -1,13 +1,14 @@
 //go:build integration
 
-// The portal binary must be staged on PATH: restored panes respawn into
-// `portal state hydrate`, and without the binary the helper exits, the pane
-// closes and its session dies before the assertions run. A real orchestrator
-// (not a stub) is wired so restore step 6 genuinely creates the skeleton.
+// The portal binary must be staged: restored panes respawn into `portal state
+// hydrate`, and without the binary the helper exits, the pane closes and its
+// session dies before the assertions run. A real orchestrator (not a stub) is
+// wired so restore step 6 genuinely creates the skeleton.
 
 package cmd
 
 import (
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
@@ -42,6 +43,23 @@ func ensurePortalOnPATH(t *testing.T) {
 	t.Setenv("PATH", reattachBinDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 }
 
+// stagedRestoreAdapter points the restore's pane-arming at the staged binary.
+// Production resolves it from os.Executable, which under `go test` is the test
+// binary — which would re-run its own suite inside the pane and exit, taking the
+// restored session with it.
+//
+// It stages the binary itself rather than requiring a caller to run
+// ensurePortalOnPATH first: reattachBinDir is empty until that once-Do
+// populates it, and StagedHydrateExe rejects an empty dir. Both calls are
+// idempotent.
+func stagedRestoreAdapter(t *testing.T, client *tmux.Client, stateDir string, logger *slog.Logger) *bootstrapadapter.RestoreAdapter {
+	t.Helper()
+	ensurePortalOnPATH(t)
+	a := bootstrapadapter.NewRestoreAdapter(client, stateDir, logger)
+	a.Inner.Exe = restoretest.StagedHydrateExe(t, reattachBinDir)
+	return a
+}
+
 func buildReattachOrchestrator(t *testing.T, client *tmux.Client, stateDir string) *bootstrap.Orchestrator {
 	t.Helper()
 	logger := restoretest.OpenTestLogger(t, stateDir)
@@ -50,7 +68,7 @@ func buildReattachOrchestrator(t *testing.T, client *tmux.Client, stateDir strin
 		stateDir,
 		logger,
 		&bootstrapadapter.RestoringMarker{Client: client},
-		bootstrap.WithRestore(bootstrapadapter.NewRestoreAdapter(client, stateDir, logger)),
+		bootstrap.WithRestore(stagedRestoreAdapter(t, client, stateDir, logger)),
 	)
 }
 

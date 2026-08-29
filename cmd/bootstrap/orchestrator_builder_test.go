@@ -57,13 +57,3 @@ func buildIntegrationOrchestrator(t *testing.T, client *tmux.Client, opts orches
 		withOpts...,
 	)
 }
-
-func newIntegrationStateDir(t *testing.T) string {
-	t.Helper()
-	stateDir := t.TempDir()
-	t.Setenv("PORTAL_STATE_DIR", stateDir)
-	if _, err := state.EnsureDir(); err != nil {
-		t.Fatalf("EnsureDir: %v", err)
-	}
-	return stateDir
-}

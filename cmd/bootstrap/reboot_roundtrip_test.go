@@ -57,8 +57,9 @@ func TestPhase5RebootRoundTripBaseIndexDrift(t *testing.T) {
 func runRebootRoundTrip(t *testing.T, cfg roundTripCfg) {
 	t.Helper()
 
-	// Restored panes respawn into `portal state hydrate`, so the binary must be
-	// on PATH or the pane dies before the assertions run.
+	// Restored panes respawn into this binary's `state hydrate`, pinned through
+	// restoreAdapterFor, so the pane survives to the assertions on the build
+	// under test rather than on whatever release is installed.
 	binDir := restoretest.BuildPortalBinaryDir(t)
 	restoretest.PrependPATH(t, binDir)
 
@@ -129,7 +130,7 @@ func runRebootRoundTrip(t *testing.T, cfg roundTripCfg) {
 	logger := restoretest.OpenTestLogger(t, stateDir)
 
 	o := buildIntegrationOrchestrator(t, client, orchestratorOpts{
-		Restore: bootstrapadapter.NewRestoreAdapter(client, stateDir, logger),
+		Restore: restoreAdapterFor(t, client, stateDir, logger, binDir),
 		Sweeper: &bootstrapadapter.FIFOSweeper{
 			Client:   client,
 			StateDir: stateDir,
@@ -491,7 +492,7 @@ func TestPhase5RebootRoundTripBothSessionsHydrateViaSignalHydrateBinary(t *testi
 	logger := restoretest.OpenTestLogger(t, stateDir)
 
 	o := buildIntegrationOrchestrator(t, client, orchestratorOpts{
-		Restore: bootstrapadapter.NewRestoreAdapter(client, stateDir, logger),
+		Restore: restoreAdapterFor(t, client, stateDir, logger, binDir),
 		Sweeper: &bootstrapadapter.FIFOSweeper{
 			Client:   client,
 			StateDir: stateDir,
@@ -641,7 +642,7 @@ func TestRebootRoundTrip_LeadingDashSessionName(t *testing.T) {
 
 	o := buildIntegrationOrchestrator(t, client, orchestratorOpts{
 		Hooks:   &bootstrapadapter.HookRegistrar{Client: client, Logger: logger},
-		Restore: bootstrapadapter.NewRestoreAdapter(client, stateDir, logger),
+		Restore: restoreAdapterFor(t, client, stateDir, logger, binDir),
 		Sweeper: &bootstrapadapter.FIFOSweeper{
 			Client:   client,
 			StateDir: stateDir,

@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/leeovery/portal/cmd/bootstrap"
-	"github.com/leeovery/portal/internal/bootstrapadapter"
 	"github.com/leeovery/portal/internal/restoretest"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
@@ -24,8 +23,9 @@ func TestPhase1Integration_EagerSignalHydrate_MultiSessionMarkersClearedWithin2s
 	}
 	tmuxtest.SkipIfNoTmux(t)
 
-	// Restored panes respawn into `portal state hydrate`, so the binary must be
-	// on PATH or the helper never reaches the marker unset polled for below.
+	// Restored panes respawn into this binary's `state hydrate`, pinned through
+	// restoreAdapterFor, so the helper that unsets the markers polled for below
+	// is the build under test rather than whatever release is installed.
 	binDir := restoretest.BuildPortalBinaryDir(t)
 
 	cases := []struct {
@@ -67,7 +67,7 @@ func runEagerSignalMultiSessionAC1(t *testing.T, binDir string, sessions []strin
 	logger := restoretest.OpenTestLogger(t, stateDir)
 
 	o := buildIntegrationOrchestrator(t, client, orchestratorOpts{
-		Restore: bootstrapadapter.NewRestoreAdapter(client, stateDir, logger),
+		Restore: restoreAdapterFor(t, client, stateDir, logger, binDir),
 		Logger:  logger,
 	})
 
@@ -129,7 +129,7 @@ func TestPhase1Integration_DaemonResumesCaptureAfterEagerSignal_AC4(t *testing.T
 	logger := restoretest.OpenTestLogger(t, stateDir)
 
 	o := buildIntegrationOrchestrator(t, client, orchestratorOpts{
-		Restore: bootstrapadapter.NewRestoreAdapter(client, stateDir, logger),
+		Restore: restoreAdapterFor(t, client, stateDir, logger, binDir),
 		Logger:  logger,
 	})
 
@@ -203,7 +203,7 @@ func TestPhase1Integration_DaemonSkipsCaptureWithoutEagerSignal_AC4NegativeContr
 	logger := restoretest.OpenTestLogger(t, stateDir)
 
 	o := buildIntegrationOrchestrator(t, client, orchestratorOpts{
-		Restore:       bootstrapadapter.NewRestoreAdapter(client, stateDir, logger),
+		Restore:       restoreAdapterFor(t, client, stateDir, logger, binDir),
 		EagerSignaler: bootstrap.NoOpEagerHydrateSignaler{},
 		Logger:        logger,
 	})

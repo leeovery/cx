@@ -22,6 +22,9 @@ type Orchestrator struct {
 	// Progress is optional; m is the saved-session count, and it fires on every
 	// loop iteration, skips included, so a caller's counter always reaches m/m.
 	Progress func(n, m int)
+
+	// Exe is optional; nil resolves through os.Executable.
+	Exe ExecutableResolver
 }
 
 // Restore returns (false, nil) on the happy path and after isolating a
@@ -42,11 +45,7 @@ func (o *Orchestrator) Restore() (bool, error) {
 		return false, nil
 	}
 
-	sr := &SessionRestorer{
-		Client:   o.Client,
-		StateDir: o.StateDir,
-		Logger:   o.Logger,
-	}
+	sr := o.newSessionRestorer()
 
 	start := time.Now()
 	m := len(idx.Sessions)
@@ -72,6 +71,15 @@ func (o *Orchestrator) Restore() (bool, error) {
 		log.Took(start),
 	)
 	return false, nil
+}
+
+func (o *Orchestrator) newSessionRestorer() *SessionRestorer {
+	return &SessionRestorer{
+		Client:   o.Client,
+		StateDir: o.StateDir,
+		Logger:   o.Logger,
+		Exe:      o.Exe,
+	}
 }
 
 // The final branch is defensive: ReadIndex is contracted to wrap every non-nil

@@ -142,6 +142,7 @@ func runRenameRebootFire(t *testing.T, rename func(t *testing.T, ts *tmuxtest.So
 		Client:   client,
 		StateDir: stateDir,
 		Logger:   logger,
+		Exe:      restoretest.StagedHydrateExe(t, binDir),
 	}
 	if err := restoretest.RestoreWithMarker(t, client, o); err != nil {
 		t.Fatalf("restoreWithMarker: %v", err)

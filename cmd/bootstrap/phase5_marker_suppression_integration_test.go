@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leeovery/portal/internal/bootstrapadapter"
 	"github.com/leeovery/portal/internal/restoretest"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmuxtest"
@@ -21,6 +20,8 @@ func TestPhase5_RestoringMarkerSuppressesCaptures_NonVacuous(t *testing.T) {
 		t.Skip("integration test; -short")
 	}
 	tmuxtest.SkipIfNoTmux(t)
+
+	binDir := restoretest.BuildPortalBinaryDir(t)
 
 	ts := tmuxtest.New(t, "ptl-p5-")
 	stateDir := newIntegrationStateDir(t)
@@ -46,7 +47,7 @@ func TestPhase5_RestoringMarkerSuppressesCaptures_NonVacuous(t *testing.T) {
 	logger := restoretest.OpenTestLogger(t, stateDir)
 
 	o := buildIntegrationOrchestrator(t, client, orchestratorOpts{
-		Restore: bootstrapadapter.NewRestoreAdapter(client, stateDir, logger),
+		Restore: restoreAdapterFor(t, client, stateDir, logger, binDir),
 	})
 
 	if _, _, err := o.Run(context.Background()); err != nil {

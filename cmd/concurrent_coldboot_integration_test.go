@@ -120,7 +120,7 @@ func buildConcurrentColdBootOrchestrator(t *testing.T, client *tmux.Client, stat
 		&bootstrapadapter.RestoringMarker{Client: client},
 		bootstrap.WithOrphanSweeper(bootstrapadapter.NewOrphanSweeper(client, logger)),
 		bootstrap.WithSaver(&saverAdapter{client: client, stateDir: stateDir}),
-		bootstrap.WithRestore(bootstrapadapter.NewRestoreAdapter(client, stateDir, logger)),
+		bootstrap.WithRestore(stagedRestoreAdapter(t, client, stateDir, logger)),
 	)
 }
 
@@ -309,7 +309,7 @@ func TestConcurrentColdBoot_RestoringWindowSetBeforeRestore(t *testing.T) {
 
 	var restoringWhenRestoreRan bool
 	var probeErr error
-	inner := bootstrapadapter.NewRestoreAdapter(client, stateDir, logger)
+	inner := stagedRestoreAdapter(t, client, stateDir, logger)
 	wrapped := &restoreWindowProbe{
 		inner:  inner,
 		client: client,

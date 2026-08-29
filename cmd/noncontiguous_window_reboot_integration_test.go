@@ -51,6 +51,7 @@ type divergentRebootFixture struct {
 	ts            *tmuxtest.Socket
 	client        *tmux.Client
 	stateDir      string
+	binDir        string
 	sideEffectDir string
 	store         *hooks.Store
 
@@ -238,6 +239,7 @@ func newDivergentRebootFixture(t *testing.T) *divergentRebootFixture {
 	sideEffectDir := t.TempDir()
 	fx := &divergentRebootFixture{
 		stateDir:      stateDir,
+		binDir:        binDir,
 		sideEffectDir: sideEffectDir,
 		store:         hooks.NewStore(hooksPath),
 		staleKey:      transienttest.ReapableHookKey(0),
@@ -374,6 +376,7 @@ func (fx *divergentRebootFixture) reboot(t *testing.T) {
 		Client:   fx.client,
 		StateDir: fx.stateDir,
 		Logger:   restoretest.OpenTestLogger(t, fx.stateDir),
+		Exe:      restoretest.StagedHydrateExe(t, fx.binDir),
 	}
 	if err := restoretest.RestoreWithMarker(t, fx.client, o); err != nil {
 		t.Fatalf("restore: %v", err)

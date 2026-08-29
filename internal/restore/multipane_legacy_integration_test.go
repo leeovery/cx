@@ -117,7 +117,12 @@ func TestMultiPaneLegacy_PerPaneHookRouting(t *testing.T) {
 	}
 
 	logger := restoretest.OpenTestLogger(t, stateDir)
-	o := &restore.Orchestrator{Client: client, StateDir: stateDir, Logger: logger}
+	o := &restore.Orchestrator{
+		Client:   client,
+		StateDir: stateDir,
+		Logger:   logger,
+		Exe:      restoretest.StagedHydrateExe(t, binDir),
+	}
 	if err := restoretest.RestoreWithMarker(t, client, o); err != nil {
 		t.Fatalf("restoreWithMarker: %v", err)
 	}
@@ -185,7 +190,12 @@ func TestMultiPaneLegacy_UnstampedNoHookLandsOnBareShell(t *testing.T) {
 	}
 
 	logger := restoretest.OpenTestLogger(t, stateDir)
-	o := &restore.Orchestrator{Client: client, StateDir: stateDir, Logger: logger}
+	o := &restore.Orchestrator{
+		Client:   client,
+		StateDir: stateDir,
+		Logger:   logger,
+		Exe:      restoretest.StagedHydrateExe(t, binDir),
+	}
 	if err := restoretest.RestoreWithMarker(t, client, o); err != nil {
 		t.Fatalf("restoreWithMarker (no-hook clean miss): %v", err)
 	}

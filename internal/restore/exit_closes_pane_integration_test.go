@@ -75,7 +75,7 @@ func TestNoParkedShWrapperPostRestore(t *testing.T) {
 	time.Sleep(exitClosesPaneBudget)
 
 	paneSuffix := state.SanitizePaneKey(sessionName, 0, 0)
-	pattern := "sh -c.*portal state hydrate.*" + paneSuffix
+	pattern := "sh -c.*state hydrate.*" + paneSuffix
 
 	cmd := exec.Command("pgrep", "-fl", pattern)
 	out, err := cmd.CombinedOutput()
@@ -165,6 +165,7 @@ func setupExitClosesPane(t *testing.T, hookCmd string) (string, *tmuxtest.Socket
 		Client:   client,
 		StateDir: stateDir,
 		Logger:   logger,
+		Exe:      restoretest.StagedHydrateExe(t, binDir),
 	}
 	if err := restoretest.RestoreWithMarker(t, client, o); err != nil {
 		t.Fatalf("restoreWithMarker: %v", err)

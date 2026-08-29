@@ -14,13 +14,15 @@ import (
 	"time"
 
 	"github.com/leeovery/portal/internal/portalbintest"
+	"github.com/leeovery/portal/internal/restore"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// BuildPortalBinaryDir compiles `portal` into a fresh t.TempDir. Callers follow
-// with PrependPATH: a restored pane respawns into `portal state hydrate`, and
-// without the binary on PATH the pane dies before any assertion runs.
+// BuildPortalBinaryDir compiles `portal` into a fresh t.TempDir. A restored pane
+// respawns into `portal state hydrate`, so a test driving a real restore must
+// reach that binary — via StagedHydrateExe, or via PrependPATH where something
+// other than the restore invokes `portal` by name.
 func BuildPortalBinaryDir(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -44,6 +46,31 @@ func BuildPortalBinaryStable() (string, error) {
 		return "", err
 	}
 	return dir, nil
+}
+
+// StagedHydrateExe points a restore's pane-arming at the freshly-built binary in
+// binDir, standing in for the os.Executable() a production restore resolves.
+// Any test driving a real restore needs it: without it the panes respawn into
+// the test binary, which stops flag parsing at the leading `state` positional,
+// re-runs its own suite inside the pane and exits — taking the session with it.
+//
+// An empty binDir is fatal, not tolerated: filepath.Join would fold it to the
+// bare name and silently restore the PATH lookup this exists to replace, so a
+// caller that has not staged a binary yet would pass against whatever release is
+// installed on the machine.
+func StagedHydrateExe(t *testing.T, binDir string) restore.ExecutableResolver {
+	t.Helper()
+	return stagedHydrateExe(t, binDir)
+}
+
+func stagedHydrateExe(t fataller, binDir string) restore.ExecutableResolver {
+	t.Helper()
+	if binDir == "" {
+		t.Fatalf("StagedHydrateExe: empty binDir; stage one with BuildPortalBinaryDir first")
+		return nil
+	}
+	path := filepath.Join(binDir, "portal")
+	return func() (string, error) { return path, nil }
 }
 
 // PrependPATH goes through t.Setenv, so subprocesses — notably tmux server

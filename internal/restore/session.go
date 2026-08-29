@@ -11,6 +11,7 @@ package restore
 import (
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -25,7 +26,14 @@ type SessionRestorer struct {
 	Client   *tmux.Client
 	StateDir string
 	Logger   *slog.Logger
+
+	// Exe is optional; nil resolves through os.Executable.
+	Exe ExecutableResolver
 }
+
+// ExecutableResolver resolves the running binary's own path; production callers
+// leave it nil and get os.Executable.
+type ExecutableResolver func() (string, error)
 
 // savedPaneArmInfo's paneToken is the pane's durable identity token as read
 // from saved state — one value serving as both the re-stamped pane option and
@@ -120,6 +128,7 @@ func (r *SessionRestorer) armPanes(sess state.Session, armInfos []savedPaneArmIn
 	}
 
 	pairCount := min(len(livePanes), len(armInfos))
+	exe := r.hydrateExe()
 
 	for i := range pairCount {
 		live := livePanes[i]
@@ -134,7 +143,7 @@ func (r *SessionRestorer) armPanes(sess state.Session, armInfos []savedPaneArmIn
 
 		r.stampPaneToken(sess.Name, liveKey, liveTarget, info.paneToken)
 
-		hydrateCmd := buildHydrateCommand(fifo, info.scrollAbs, info.paneToken)
+		hydrateCmd := buildHydrateCommand(exe, fifo, info.scrollAbs, info.paneToken)
 		if err := r.Client.RespawnPane(liveTarget, hydrateCmd); err != nil {
 			return nil, fmt.Errorf("session %q: arm pane %s: %w", sess.Name, liveTarget, err)
 		}
@@ -301,16 +310,44 @@ func (r *SessionRestorer) applyEnvironment(sess state.Session) {
 	}
 }
 
+// hydrateFallbackExe is a PATH lookup, so it can find a different build than the
+// one restoring. It is the degraded branch, never the intended one.
+const (
+	hydrateFallbackExe    = "portal"
+	hydrateExeFallbackMsg = "executable path unresolved; arming panes via PATH lookup"
+)
+
+// hydrateExe pins the armed pane to the binary that is performing the restore
+// rather than to whatever `portal` a PATH lookup finds in the tmux server's
+// environment. An unresolvable path degrades to the bare name: a reboot recovery
+// must not abort over it.
+func (r *SessionRestorer) hydrateExe() string {
+	resolve := r.Exe
+	if resolve == nil {
+		resolve = os.Executable
+	}
+	path, err := resolve()
+	if err != nil {
+		r.logger().Warn(hydrateExeFallbackMsg, "error", err)
+		return hydrateFallbackExe
+	}
+	if path == "" {
+		r.logger().Warn(hydrateExeFallbackMsg)
+		return hydrateFallbackExe
+	}
+	return path
+}
+
 // buildHydrateCommand takes no `exec` prefix: respawn already replaces the
 // pane's process rather than stacking one. Every interpolated value is
 // single-quoted so any bytes reach the helper's flag parser as one token.
 //
 // A pane with no saved token gets no --hook-key flag at all rather than an
 // empty one: an empty key must never reach a hooks.json lookup.
-func buildHydrateCommand(fifo, file, hookKey string) string {
+func buildHydrateCommand(exe, fifo, file, hookKey string) string {
 	cmd := fmt.Sprintf(
-		"portal state hydrate --fifo %s --file %s",
-		shellQuoteSingle(fifo), shellQuoteSingle(file),
+		"%s state hydrate --fifo %s --file %s",
+		shellQuoteSingle(exe), shellQuoteSingle(fifo), shellQuoteSingle(file),
 	)
 	if hookKey == "" {
 		return cmd
