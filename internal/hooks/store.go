@@ -345,14 +345,16 @@ func (s *Store) deleteStale(live []string, snapshot Snapshot) ([]string, error) 
 		delete(kept, key)
 	}
 
-	for _, key := range removed {
-		logger.Info("clean-stale", "op", "clean-stale", "hook_key", key,
-			"value", h[key]["on-resume"], "via", "internal")
-	}
-
 	if err := s.save(kept); err != nil {
 		storelog.EmitCleanStaleSummary(logger, len(removed), start, err)
 		return nil, fmt.Errorf("failed to save after cleaning stale hooks: %w", err)
+	}
+
+	// After the write, so a line exists only for a key the file no longer holds.
+	// The commands come from h, the pre-delete map.
+	for _, key := range removed {
+		logger.Info("clean-stale", "op", "clean-stale", "hook_key", key,
+			"value", h[key]["on-resume"], "via", "internal")
 	}
 
 	storelog.EmitCleanStaleSummary(logger, len(removed), start, nil)

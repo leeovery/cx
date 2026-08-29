@@ -1136,7 +1136,7 @@ func TestCleanStaleLogging(t *testing.T) {
 		}
 	})
 
-	t.Run("it keeps the per-key lines and warns in the summary when the save fails", func(t *testing.T) {
+	t.Run("it emits no per-key lines and warns in the summary when the save fails", func(t *testing.T) {
 		body := fmt.Appendf(nil, `{%q:{"on-resume":"cmdA"}}`, reapableSeedA)
 		store, seeded := seedThenDenyWrites(t, body)
 		sink := installCapture(t)
@@ -1146,17 +1146,8 @@ func TestCleanStaleLogging(t *testing.T) {
 		}
 
 		perKey, summaries := partitionCleanStaleRecords(t, sink.Records())
-		if len(perKey) != 1 {
-			t.Fatalf("got %d per-key records, want 1: %+v", len(perKey), perKey)
-		}
-		if perKey[0].Level != slog.LevelInfo {
-			t.Errorf("per-key level = %v, want INFO", perKey[0].Level)
-		}
-		if got := perKey[0].AttrString(t, "hook_key"); got != reapableSeedA {
-			t.Errorf("hook_key = %q, want %q", got, reapableSeedA)
-		}
-		if got := perKey[0].AttrString(t, "value"); got != "cmdA" {
-			t.Errorf("value = %q, want %q", got, "cmdA")
+		if len(perKey) != 0 {
+			t.Errorf("got %d per-key records, want 0 — no key was removed from the file: %+v", len(perKey), perKey)
 		}
 
 		if len(summaries) != 1 {
