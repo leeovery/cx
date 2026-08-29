@@ -39,7 +39,7 @@ func (s *Store) lockPath() string {
 func acquireLock(path string, openFlags, flockMode int, bound time.Duration) (*os.File, error) {
 	f, err := os.OpenFile(path, openFlags, 0o600)
 	if err != nil {
-		return nil, fmt.Errorf("open hooks lock %s: %w", path, err)
+		return nil, fmt.Errorf("open hooks lock: %w", err)
 	}
 
 	deadline := time.Now().Add(bound)

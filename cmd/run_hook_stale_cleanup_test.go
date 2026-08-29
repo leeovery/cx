@@ -22,7 +22,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 	const entryDebugFmt = "stale-hook cleanup counts"
 	const completionDebugFmt = "stale-hook cleanup removed"
 	const listPanesWarnFmt = "stale-hook cleanup: list-panes failed"
-	const loadWarnFmt = "stale-hook cleanup: hookStore.Load failed"
+	const loadWarnFmt = "stale-hook cleanup: hookStore.LoadSnapshot failed"
 
 	t.Run("hazard guard fires on empty live + non-empty persisted", func(t *testing.T) {
 		seed := fmt.Sprintf(`{

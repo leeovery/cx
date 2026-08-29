@@ -102,7 +102,7 @@ func runHookStaleCleanup(
 	// tick for two of them.
 	persisted, err := store.LoadSnapshot("internal")
 	if err != nil {
-		logger.Warn("stale-hook cleanup: hookStore.Load failed", "error", err)
+		logger.Warn("stale-hook cleanup: hookStore.LoadSnapshot failed", "error", err)
 		return err
 	}
 
