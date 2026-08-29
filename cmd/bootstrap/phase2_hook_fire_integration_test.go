@@ -44,7 +44,7 @@ func TestPhase2_HookFiresOnNonAttachedSession_AC2(t *testing.T) {
 
 	hookCmd := fmt.Sprintf("touch %s", sentinelFile)
 	store := hooks.NewStore(hooksPath)
-	if err := store.Set(betaHookKey, "on-resume", hookCmd, "cli"); err != nil {
+	if err := store.Set(betaHookKey, "on-resume", hookCmd, hooks.ViaCLI); err != nil {
 		t.Fatalf("hooks.Set: %v", err)
 	}
 

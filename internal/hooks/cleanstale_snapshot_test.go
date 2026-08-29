@@ -41,7 +41,7 @@ func TestCleanStaleSnapshotNarrowing(t *testing.T) {
 			t.Fatalf("CleanStale removed %v, want [%s]", removed, staleKey)
 		}
 
-		h, err := store.Load("internal")
+		h, err := store.Load(hooks.ViaInternal)
 		if err != nil {
 			t.Fatalf("load: %v", err)
 		}
@@ -59,7 +59,7 @@ func TestCleanStaleSnapshotNarrowing(t *testing.T) {
 		// The registration that lands while the enumeration runs: token-shaped,
 		// absent from the live set, and therefore reapable on shape alone.
 		removed, err := store.CleanStale(func(hooks.Snapshot) ([]string, error) {
-			if err := store.Set(lateKey, "on-resume", "fresh", "cli"); err != nil {
+			if err := store.Set(lateKey, "on-resume", "fresh", hooks.ViaCLI); err != nil {
 				return nil, fmt.Errorf("seed the late registration: %w", err)
 			}
 			return nil, nil
@@ -71,7 +71,7 @@ func TestCleanStaleSnapshotNarrowing(t *testing.T) {
 			t.Fatalf("CleanStale removed %v, want [%s]", removed, staleKey)
 		}
 
-		h, err := store.Load("internal")
+		h, err := store.Load(hooks.ViaInternal)
 		if err != nil {
 			t.Fatalf("load: %v", err)
 		}
@@ -85,7 +85,7 @@ func TestCleanStaleSnapshotNarrowing(t *testing.T) {
 
 		var seen []string
 		if _, err := store.CleanStale(func(snapshot hooks.Snapshot) ([]string, error) {
-			if err := store.Set(lateKey, "on-resume", "fresh", "cli"); err != nil {
+			if err := store.Set(lateKey, "on-resume", "fresh", hooks.ViaCLI); err != nil {
 				return nil, fmt.Errorf("seed the late registration: %w", err)
 			}
 			seen = keysOf(snapshot)
@@ -102,7 +102,7 @@ func TestCleanStaleSnapshotNarrowing(t *testing.T) {
 	t.Run("it holds no lock while the enumeration runs", func(t *testing.T) {
 		store, path := seedHooksFile(t, fmt.Sprintf(`{%q:{"on-resume":"gone"}}`, staleKey))
 		// A mutation stages the sidecar, which no read creates.
-		if err := store.Set(liveKey, "on-resume", "live", "cli"); err != nil {
+		if err := store.Set(liveKey, "on-resume", "live", hooks.ViaCLI); err != nil {
 			t.Fatalf("stage the sidecar: %v", err)
 		}
 
@@ -130,7 +130,7 @@ func TestCleanStaleSnapshotNarrowing(t *testing.T) {
 		store, path := seedHooksFile(t, fmt.Sprintf(`{%q:{"on-resume":"gone"}}`, staleKey))
 		// A mutation stages the sidecar, so the clean's own pre-read has a lock
 		// to take and nothing it says can be mistaken for the deletion's lines.
-		if err := store.Set(liveKey, "on-resume", "live", "cli"); err != nil {
+		if err := store.Set(liveKey, "on-resume", "live", hooks.ViaCLI); err != nil {
 			t.Fatalf("stage the sidecar: %v", err)
 		}
 		before := string(readFileBytes(t, path))
@@ -159,7 +159,7 @@ func TestCleanStaleSnapshotNarrowing(t *testing.T) {
 		// Another writer removes a key the snapshot holds and the clean would
 		// otherwise have reaped, so it must not be named as removed.
 		removed, err := store.CleanStale(func(hooks.Snapshot) ([]string, error) {
-			if _, err := store.Remove(lateKey, "on-resume", "cli"); err != nil {
+			if _, err := store.Remove(lateKey, "on-resume", hooks.ViaCLI); err != nil {
 				return nil, fmt.Errorf("remove during the enumeration: %w", err)
 			}
 			return nil, nil
@@ -171,7 +171,7 @@ func TestCleanStaleSnapshotNarrowing(t *testing.T) {
 			t.Fatalf("CleanStale removed %v, want only [%s] — a key no longer in the file was reported as removed", removed, staleKey)
 		}
 
-		h, err := store.Load("internal")
+		h, err := store.Load(hooks.ViaInternal)
 		if err != nil {
 			t.Fatalf("load: %v", err)
 		}
@@ -207,7 +207,7 @@ func TestCleanStaleSnapshotNarrowing(t *testing.T) {
 			t.Fatalf("CleanStale removed %v, want the empty key", removed)
 		}
 
-		h, err := store.Load("internal")
+		h, err := store.Load(hooks.ViaInternal)
 		if err != nil {
 			t.Fatalf("load: %v", err)
 		}

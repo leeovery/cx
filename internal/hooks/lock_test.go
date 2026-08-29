@@ -53,7 +53,7 @@ func TestMutationLockSidecar(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "hooks.json")
 		store := hooks.NewStore(path)
 
-		if err := store.Set("k0", "on-resume", "cmd0", "cli"); err != nil {
+		if err := store.Set("k0", "on-resume", "cmd0", hooks.ViaCLI); err != nil {
 			t.Fatalf("Set: %v", err)
 		}
 
@@ -69,7 +69,7 @@ func TestMutationLockSidecar(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "elsewhere", "custom-hooks.json")
 		store := hooks.NewStore(path)
 
-		if err := store.Set("k0", "on-resume", "cmd0", "cli"); err != nil {
+		if err := store.Set("k0", "on-resume", "cmd0", hooks.ViaCLI); err != nil {
 			t.Fatalf("Set: %v", err)
 		}
 
@@ -82,14 +82,14 @@ func TestMutationLockSidecar(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "hooks.json")
 		store := hooks.NewStore(path)
 
-		if err := store.Set("k0", "on-resume", "cmd0", "cli"); err != nil {
+		if err := store.Set("k0", "on-resume", "cmd0", hooks.ViaCLI); err != nil {
 			t.Fatalf("Set: %v", err)
 		}
 		sidecarInode := inodeOf(t, path+".lock")
 		targetInode := inodeOf(t, path)
 
 		for i := 1; i <= 3; i++ {
-			if err := store.Set(fmt.Sprintf("k%d", i), "on-resume", "cmd", "cli"); err != nil {
+			if err := store.Set(fmt.Sprintf("k%d", i), "on-resume", "cmd", hooks.ViaCLI); err != nil {
 				t.Fatalf("Set %d: %v", i, err)
 			}
 			next := inodeOf(t, path)
@@ -107,14 +107,14 @@ func TestMutationLockSidecar(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "hooks.json")
 		store := hooks.NewStore(path)
 
-		if err := store.Set("k0", "on-resume", "cmd0", "cli"); err != nil {
+		if err := store.Set("k0", "on-resume", "cmd0", hooks.ViaCLI); err != nil {
 			t.Fatalf("Set: %v", err)
 		}
 		if _, err := os.Stat(path + ".lock"); err != nil {
 			t.Fatalf("sidecar gone after a mutation: %v", err)
 		}
 
-		if err := store.Set("k0", "on-resume", "cmd0", "cli"); err != nil {
+		if err := store.Set("k0", "on-resume", "cmd0", hooks.ViaCLI); err != nil {
 			t.Fatalf("no-op Set: %v", err)
 		}
 		if _, err := os.Stat(path + ".lock"); err != nil {
@@ -122,7 +122,7 @@ func TestMutationLockSidecar(t *testing.T) {
 		}
 
 		failingPath := readOnlyDirPath(t)
-		if err := hooks.NewStore(failingPath).Set("k1", "on-resume", "cmd1", "cli"); err == nil {
+		if err := hooks.NewStore(failingPath).Set("k1", "on-resume", "cmd1", hooks.ViaCLI); err == nil {
 			t.Fatal("expected the read-only fixture to fail the save")
 		}
 		if _, err := os.Stat(failingPath + ".lock"); err != nil {
@@ -134,7 +134,7 @@ func TestMutationLockSidecar(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "absent", "nested", "hooks.json")
 		store := hooks.NewStore(path)
 
-		if err := store.Set("k0", "on-resume", "cmd0", "cli"); err != nil {
+		if err := store.Set("k0", "on-resume", "cmd0", hooks.ViaCLI); err != nil {
 			t.Fatalf("Set on a fresh config directory: %v", err)
 		}
 
@@ -156,7 +156,7 @@ func TestMutationLockExclusion(t *testing.T) {
 		var wg sync.WaitGroup
 		for i := range writers {
 			wg.Go(func() {
-				errs[i] = hooks.NewStore(path).Set(fmt.Sprintf("k%02d", i), "on-resume", "cmd", "cli")
+				errs[i] = hooks.NewStore(path).Set(fmt.Sprintf("k%02d", i), "on-resume", "cmd", hooks.ViaCLI)
 			})
 		}
 		wg.Wait()
@@ -167,7 +167,7 @@ func TestMutationLockExclusion(t *testing.T) {
 			}
 		}
 
-		loaded, err := hooks.NewStore(path).Load("internal")
+		loaded, err := hooks.NewStore(path).Load(hooks.ViaInternal)
 		if err != nil {
 			t.Fatalf("Load: %v", err)
 		}
@@ -187,7 +187,7 @@ func TestMutationLockExclusion(t *testing.T) {
 
 		done := make(chan error, 1)
 		go func() {
-			done <- hooks.NewStore(path).Set("k2", "on-resume", "cmd2", "cli")
+			done <- hooks.NewStore(path).Set("k2", "on-resume", "cmd2", hooks.ViaCLI)
 		}()
 
 		time.Sleep(100 * time.Millisecond)
@@ -200,7 +200,7 @@ func TestMutationLockExclusion(t *testing.T) {
 			t.Fatalf("Set blocked on the sidecar: %v", err)
 		}
 
-		loaded, err := hooks.NewStore(path).Load("internal")
+		loaded, err := hooks.NewStore(path).Load(hooks.ViaInternal)
 		if err != nil {
 			t.Fatalf("Load: %v", err)
 		}
@@ -218,15 +218,15 @@ func TestMutationLockRelease(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "hooks.json")
 		store := hooks.NewStore(path)
 
-		if err := store.Set("k0", "on-resume", "cmd0", "cli"); err != nil {
+		if err := store.Set("k0", "on-resume", "cmd0", hooks.ViaCLI); err != nil {
 			t.Fatalf("Set: %v", err)
 		}
-		if err := store.Set("k0", "on-resume", "cmd0", "cli"); err != nil {
+		if err := store.Set("k0", "on-resume", "cmd0", hooks.ViaCLI); err != nil {
 			t.Fatalf("no-op Set: %v", err)
 		}
 		assertSidecarFree(t, path)
 
-		if err := store.Set("k1", "on-resume", "cmd1", "cli"); err != nil {
+		if err := store.Set("k1", "on-resume", "cmd1", hooks.ViaCLI); err != nil {
 			t.Fatalf("following mutation: %v", err)
 		}
 	})
@@ -235,10 +235,10 @@ func TestMutationLockRelease(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "hooks.json")
 		store := hooks.NewStore(path)
 
-		if err := store.Set("k0", "on-resume", "cmd0", "cli"); err != nil {
+		if err := store.Set("k0", "on-resume", "cmd0", hooks.ViaCLI); err != nil {
 			t.Fatalf("Set: %v", err)
 		}
-		removed, err := store.Remove("absent", "on-resume", "cli")
+		removed, err := store.Remove("absent", "on-resume", hooks.ViaCLI)
 		if err != nil {
 			t.Fatalf("Remove: %v", err)
 		}
@@ -247,7 +247,7 @@ func TestMutationLockRelease(t *testing.T) {
 		}
 		assertSidecarFree(t, path)
 
-		if err := store.Set("k1", "on-resume", "cmd1", "cli"); err != nil {
+		if err := store.Set("k1", "on-resume", "cmd1", hooks.ViaCLI); err != nil {
 			t.Fatalf("following mutation: %v", err)
 		}
 	})
@@ -256,13 +256,13 @@ func TestMutationLockRelease(t *testing.T) {
 		failingPath := readOnlyDirPath(t)
 		failing := hooks.NewStore(failingPath)
 
-		if err := failing.Set("k0", "on-resume", "cmd0", "cli"); err == nil {
+		if err := failing.Set("k0", "on-resume", "cmd0", hooks.ViaCLI); err == nil {
 			t.Fatal("expected the read-only fixture to fail the save")
 		}
 		assertSidecarFree(t, failingPath)
 
 		writable := filepath.Join(t.TempDir(), "hooks.json")
-		if err := hooks.NewStore(writable).Set("k0", "on-resume", "cmd0", "cli"); err != nil {
+		if err := hooks.NewStore(writable).Set("k0", "on-resume", "cmd0", hooks.ViaCLI); err != nil {
 			t.Fatalf("mutation on a writable path after a failed one: %v", err)
 		}
 	})
@@ -283,7 +283,7 @@ func TestMutationLockBound(t *testing.T) {
 		store := hooks.NewStore(path)
 
 		start := time.Now()
-		if err := store.Set("k0", "on-resume", "cmd0", "cli"); err != nil {
+		if err := store.Set("k0", "on-resume", "cmd0", hooks.ViaCLI); err != nil {
 			t.Fatalf("Set: %v", err)
 		}
 		if elapsed := time.Since(start); elapsed >= bound/2 {
@@ -297,7 +297,7 @@ func TestMutationLockBound(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "hooks.json")
 		transienttest.HoldHooksSidecar(t, path)
 
-		err := hooks.NewStore(path).Set("k0", "on-resume", "cmd0", "cli")
+		err := hooks.NewStore(path).Set("k0", "on-resume", "cmd0", hooks.ViaCLI)
 		if !errors.Is(err, hooks.ErrLockHeld) {
 			t.Fatalf("Set error = %v, want ErrLockHeld", err)
 		}
@@ -314,7 +314,7 @@ func TestMutationLockBound(t *testing.T) {
 		t.Cleanup(func() { _ = os.Chmod(parent, 0o700) })
 		path := filepath.Join(parent, "portal", "hooks.json")
 
-		err := hooks.NewStore(path).Set("k0", "on-resume", "cmd0", "cli")
+		err := hooks.NewStore(path).Set("k0", "on-resume", "cmd0", hooks.ViaCLI)
 		if err == nil {
 			t.Fatal("Set succeeded under an uncreatable config directory")
 		}

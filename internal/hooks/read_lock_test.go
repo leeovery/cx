@@ -39,7 +39,7 @@ func TestReadSharedLock(t *testing.T) {
 
 		sink := installCapture(t)
 		start := time.Now()
-		h, err := store.Load("cli")
+		h, err := store.Load(hooks.ViaCLI)
 		elapsed := time.Since(start)
 
 		if err != nil {
@@ -63,15 +63,12 @@ func TestReadSharedLock(t *testing.T) {
 		store, path := seedReadFixture(t, 1)
 
 		for range 3 {
-			if _, err := store.Load("cli"); err != nil {
+			if _, err := store.Load(hooks.ViaCLI); err != nil {
 				t.Fatalf("Load: %v", err)
 			}
 		}
-		if _, err := store.List("cli"); err != nil {
+		if _, err := store.List(hooks.ViaCLI); err != nil {
 			t.Fatalf("List: %v", err)
-		}
-		if _, err := store.Get("k00", "cli"); err != nil {
-			t.Fatalf("Get: %v", err)
 		}
 		if _, err := store.CleanStale(abortingEnumeration(nil)); !errors.Is(err, errAbortEnumeration) {
 			t.Fatalf("CleanStale snapshot read: %v", err)
@@ -84,7 +81,7 @@ func TestReadSharedLock(t *testing.T) {
 
 		// A mutation follows without contending with a read that already
 		// returned — the sweep's pre-read must not make its own CleanStale wait.
-		if err := store.Set("k99", "on-resume", "cmd99", "cli"); err != nil {
+		if err := store.Set("k99", "on-resume", "cmd99", hooks.ViaCLI); err != nil {
 			t.Fatalf("mutation after reads: %v", err)
 		}
 	})
@@ -106,7 +103,7 @@ func TestReadSharedLock(t *testing.T) {
 		for i := range 2 {
 			wg.Go(func() {
 				began := time.Now()
-				h, err := store.Load("cli")
+				h, err := store.Load(hooks.ViaCLI)
 				elapsed[i] = time.Since(began)
 				errs[i] = err
 				counts[i] = len(h)
@@ -142,7 +139,7 @@ func TestReadSharedLock(t *testing.T) {
 
 		sink := installCapture(t)
 		start := time.Now()
-		h, err := store.Load("cli")
+		h, err := store.Load(hooks.ViaCLI)
 		elapsed := time.Since(start)
 
 		if err != nil {
@@ -163,7 +160,7 @@ func TestReadSharedLock(t *testing.T) {
 		transienttest.HoldHooksSidecar(t, path)
 
 		sink := installCapture(t)
-		h, err := store.Load("cli")
+		h, err := store.Load(hooks.ViaCLI)
 		if err != nil {
 			t.Fatalf("Load: %v", err)
 		}
@@ -182,7 +179,7 @@ func TestReadSharedLock(t *testing.T) {
 		store := hooks.NewStore(path)
 
 		sink := installCapture(t)
-		h, err := store.Load("cli")
+		h, err := store.Load(hooks.ViaCLI)
 		if err != nil {
 			t.Fatalf("Load: %v", err)
 		}
@@ -200,7 +197,7 @@ func TestReadSharedLock(t *testing.T) {
 		dir := filepath.Join(t.TempDir(), "absent")
 		path := filepath.Join(dir, "hooks.json")
 
-		h, err := hooks.NewStore(path).Load("cli")
+		h, err := hooks.NewStore(path).Load(hooks.ViaCLI)
 		if err != nil {
 			t.Fatalf("Load: %v", err)
 		}
@@ -220,7 +217,7 @@ func TestReadSharedLock(t *testing.T) {
 		store := hooks.NewStore(path)
 
 		sink := installCapture(t)
-		if err := store.Set("k0", "on-resume", "cmd0", "cli"); err != nil {
+		if err := store.Set("k0", "on-resume", "cmd0", hooks.ViaCLI); err != nil {
 			t.Fatalf("Set: %v", err)
 		}
 		if got := transienttest.UnlockedRecords(t, sink); len(got) != 0 {
@@ -273,7 +270,7 @@ func TestReadSharedLockBoundSelection(t *testing.T) {
 		transienttest.HoldHooksSidecar(t, path)
 
 		start := time.Now()
-		if _, err := store.Load("internal"); err != nil {
+		if _, err := store.Load(hooks.ViaInternal); err != nil {
 			t.Fatalf("Load: %v", err)
 		}
 		if elapsed := time.Since(start); elapsed < bound {
@@ -289,9 +286,8 @@ func TestReadSharedLockBoundSelection(t *testing.T) {
 		transienttest.HoldHooksSidecar(t, path)
 
 		reads := map[string]func() error{
-			"Load": func() error { _, err := store.Load("cli"); return err },
-			"List": func() error { _, err := store.List("cli"); return err },
-			"Get":  func() error { _, err := store.Get("k00", "cli"); return err },
+			"Load": func() error { _, err := store.Load(hooks.ViaCLI); return err },
+			"List": func() error { _, err := store.List(hooks.ViaCLI); return err },
 			"LookupOnResume": func() error {
 				_, _, err := hooks.LookupOnResume(store, "k00")
 				return err
@@ -316,19 +312,18 @@ func TestReadSharedLockVia(t *testing.T) {
 	// in-package hydrate read names itself without a caller-supplied value.
 	cases := []struct {
 		name string
-		via  string
+		via  hooks.Via
 		read func(*hooks.Store) error
 	}{
-		{"Load", "cli", func(s *hooks.Store) error { _, err := s.Load("cli"); return err }},
-		{"List", "doctor", func(s *hooks.Store) error { _, err := s.List("doctor"); return err }},
-		{"Get", "internal", func(s *hooks.Store) error { _, err := s.Get("k00", "internal"); return err }},
-		{"CleanStale snapshot", "internal", func(s *hooks.Store) error {
+		{"Load", hooks.ViaCLI, func(s *hooks.Store) error { _, err := s.Load(hooks.ViaCLI); return err }},
+		{"List", hooks.ViaDoctor, func(s *hooks.Store) error { _, err := s.List(hooks.ViaDoctor); return err }},
+		{"CleanStale snapshot", hooks.ViaInternal, func(s *hooks.Store) error {
 			if _, err := s.CleanStale(abortingEnumeration(nil)); !errors.Is(err, errAbortEnumeration) {
 				return err
 			}
 			return nil
 		}},
-		{"LookupOnResume", "hydrate", func(s *hooks.Store) error {
+		{"LookupOnResume", hooks.ViaHydrate, func(s *hooks.Store) error {
 			_, _, err := hooks.LookupOnResume(s, "k00")
 			return err
 		}},
@@ -344,7 +339,7 @@ func TestReadSharedLockVia(t *testing.T) {
 			if err := tc.read(store); err != nil {
 				t.Fatalf("%s: %v", tc.name, err)
 			}
-			transienttest.AssertDegradedRead(t, sink, tc.via)
+			transienttest.AssertDegradedRead(t, sink, tc.via.String())
 		})
 	}
 }

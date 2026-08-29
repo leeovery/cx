@@ -55,10 +55,10 @@ func TestMultiPaneLegacy_PerPaneHookRouting(t *testing.T) {
 		pane1Key = "mpPaneToken1"
 	)
 	store := hooks.NewStore(hooksPath)
-	if err := store.Set(pane0Key, "on-resume", pane0Cmd, "cli"); err != nil {
+	if err := store.Set(pane0Key, "on-resume", pane0Cmd, hooks.ViaCLI); err != nil {
 		t.Fatalf("hooks.Set pane 0: %v", err)
 	}
-	if err := store.Set(pane1Key, "on-resume", pane1Cmd, "cli"); err != nil {
+	if err := store.Set(pane1Key, "on-resume", pane1Cmd, hooks.ViaCLI); err != nil {
 		t.Fatalf("hooks.Set pane 1: %v", err)
 	}
 	verifyHookKeyed(t, hooksPath, pane0Key)

@@ -42,7 +42,7 @@ func TestRenameRebootHook_DurableAcrossRepeatedReboots(t *testing.T) {
 
 	const stableKey = renamePaneToken
 	store := hooks.NewStore(hooksPath)
-	if err := store.Set(stableKey, "on-resume", hookCmd, "cli"); err != nil {
+	if err := store.Set(stableKey, "on-resume", hookCmd, hooks.ViaCLI); err != nil {
 		t.Fatalf("hooks.Set: %v", err)
 	}
 

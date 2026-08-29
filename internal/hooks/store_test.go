@@ -94,7 +94,7 @@ func TestLoad(t *testing.T) {
 		dir := t.TempDir()
 		store := hooks.NewStore(filepath.Join(dir, "nonexistent", "hooks.json"))
 
-		h, err := store.Load("internal")
+		h, err := store.Load(hooks.ViaInternal)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -113,7 +113,7 @@ func TestLoad(t *testing.T) {
 		}
 
 		store := hooks.NewStore(filePath)
-		h, err := store.Load("internal")
+		h, err := store.Load(hooks.ViaInternal)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -133,7 +133,7 @@ func TestLoad(t *testing.T) {
 		}
 
 		store := hooks.NewStore(filePath)
-		h, err := store.Load("internal")
+		h, err := store.Load(hooks.ViaInternal)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -158,7 +158,7 @@ func TestPersistence(t *testing.T) {
 		filePath := filepath.Join(nested, "hooks.json")
 		store := hooks.NewStore(filePath)
 
-		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", "cli"); err != nil {
+		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
@@ -176,14 +176,14 @@ func TestPersistence(t *testing.T) {
 		filePath := filepath.Join(dir, "hooks.json")
 		store := hooks.NewStore(filePath)
 
-		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", "cli"); err != nil {
+		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if err := store.Set("my-session:0.1", "on-resume", "claude --resume def456", "cli"); err != nil {
+		if err := store.Set("my-session:0.1", "on-resume", "claude --resume def456", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		loaded, err := store.Load("internal")
+		loaded, err := store.Load(hooks.ViaInternal)
 		if err != nil {
 			t.Fatalf("failed to load saved file: %v", err)
 		}
@@ -204,7 +204,7 @@ func TestPersistence(t *testing.T) {
 		filePath := filepath.Join(dir, "hooks.json")
 		store := hooks.NewStore(filePath)
 
-		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", "cli"); err != nil {
+		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
@@ -235,11 +235,11 @@ func TestSet(t *testing.T) {
 		filePath := filepath.Join(dir, "hooks.json")
 		store := hooks.NewStore(filePath)
 
-		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", "cli"); err != nil {
+		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		h, err := store.Load("internal")
+		h, err := store.Load(hooks.ViaInternal)
 		if err != nil {
 			t.Fatalf("failed to load: %v", err)
 		}
@@ -257,14 +257,14 @@ func TestSet(t *testing.T) {
 		filePath := filepath.Join(dir, "hooks.json")
 		store := hooks.NewStore(filePath)
 
-		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", "cli"); err != nil {
+		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error on first set: %v", err)
 		}
-		if err := store.Set("my-session:0.0", "on-start", "echo hello", "cli"); err != nil {
+		if err := store.Set("my-session:0.0", "on-start", "echo hello", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error on second set: %v", err)
 		}
 
-		h, err := store.Load("internal")
+		h, err := store.Load(hooks.ViaInternal)
 		if err != nil {
 			t.Fatalf("failed to load: %v", err)
 		}
@@ -288,14 +288,14 @@ func TestSet(t *testing.T) {
 		filePath := filepath.Join(dir, "hooks.json")
 		store := hooks.NewStore(filePath)
 
-		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", "cli"); err != nil {
+		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error on first set: %v", err)
 		}
-		if err := store.Set("my-session:0.0", "on-resume", "claude --resume xyz789", "cli"); err != nil {
+		if err := store.Set("my-session:0.0", "on-resume", "claude --resume xyz789", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error on second set: %v", err)
 		}
 
-		h, err := store.Load("internal")
+		h, err := store.Load(hooks.ViaInternal)
 		if err != nil {
 			t.Fatalf("failed to load: %v", err)
 		}
@@ -318,14 +318,14 @@ func TestRemove(t *testing.T) {
 		filePath := filepath.Join(dir, "hooks.json")
 		store := hooks.NewStore(filePath)
 
-		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", "cli"); err != nil {
+		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
-		if err := store.Set("my-session:0.1", "on-resume", "claude --resume def456", "cli"); err != nil {
+		if err := store.Set("my-session:0.1", "on-resume", "claude --resume def456", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
 
-		removed, err := store.Remove("my-session:0.0", "on-resume", "cli")
+		removed, err := store.Remove("my-session:0.0", "on-resume", hooks.ViaCLI)
 		if err != nil {
 			t.Fatalf("unexpected error on remove: %v", err)
 		}
@@ -333,7 +333,7 @@ func TestRemove(t *testing.T) {
 			t.Error("removed = false, want true for a seeded entry")
 		}
 
-		h, err := store.Load("internal")
+		h, err := store.Load(hooks.ViaInternal)
 		if err != nil {
 			t.Fatalf("failed to load: %v", err)
 		}
@@ -354,11 +354,11 @@ func TestRemove(t *testing.T) {
 		filePath := filepath.Join(dir, "hooks.json")
 		store := hooks.NewStore(filePath)
 
-		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", "cli"); err != nil {
+		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
 
-		removed, err := store.Remove("my-session:0.0", "on-resume", "cli")
+		removed, err := store.Remove("my-session:0.0", "on-resume", hooks.ViaCLI)
 		if err != nil {
 			t.Fatalf("unexpected error on remove: %v", err)
 		}
@@ -366,7 +366,7 @@ func TestRemove(t *testing.T) {
 			t.Error("removed = false, want true for a seeded entry")
 		}
 
-		h, err := store.Load("internal")
+		h, err := store.Load(hooks.ViaInternal)
 		if err != nil {
 			t.Fatalf("failed to load: %v", err)
 		}
@@ -384,14 +384,14 @@ func TestRemove(t *testing.T) {
 		filePath := filepath.Join(dir, "hooks.json")
 		store := hooks.NewStore(filePath)
 
-		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", "cli"); err != nil {
+		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
-		if err := store.Set("my-session:0.0", "on-start", "echo hello", "cli"); err != nil {
+		if err := store.Set("my-session:0.0", "on-start", "echo hello", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
 
-		removed, err := store.Remove("my-session:0.0", "on-resume", "cli")
+		removed, err := store.Remove("my-session:0.0", "on-resume", hooks.ViaCLI)
 		if err != nil {
 			t.Fatalf("unexpected error on remove: %v", err)
 		}
@@ -399,7 +399,7 @@ func TestRemove(t *testing.T) {
 			t.Error("removed = false, want true for a seeded entry")
 		}
 
-		h, err := store.Load("internal")
+		h, err := store.Load(hooks.ViaInternal)
 		if err != nil {
 			t.Fatalf("failed to load: %v", err)
 		}
@@ -421,13 +421,13 @@ func TestRemove(t *testing.T) {
 		filePath := filepath.Join(dir, "hooks.json")
 		store := hooks.NewStore(filePath)
 
-		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", "cli"); err != nil {
+		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
 		before := readFileBytes(t, filePath)
 		beforeMod := modTime(t, filePath)
 
-		removed, err := store.Remove("nonexistent:9.9", "on-resume", "cli")
+		removed, err := store.Remove("nonexistent:9.9", "on-resume", hooks.ViaCLI)
 		if err != nil {
 			t.Fatalf("unexpected error on remove: %v", err)
 		}
@@ -442,7 +442,7 @@ func TestRemove(t *testing.T) {
 			t.Error("file was written on a no-op removal (Save should be skipped)")
 		}
 
-		h, err := store.Load("internal")
+		h, err := store.Load(hooks.ViaInternal)
 		if err != nil {
 			t.Fatalf("failed to load: %v", err)
 		}
@@ -456,13 +456,13 @@ func TestRemove(t *testing.T) {
 		filePath := filepath.Join(dir, "hooks.json")
 		store := hooks.NewStore(filePath)
 
-		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", "cli"); err != nil {
+		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
 		before := readFileBytes(t, filePath)
 		beforeMod := modTime(t, filePath)
 
-		removed, err := store.Remove("my-session:0.0", "on-start", "cli")
+		removed, err := store.Remove("my-session:0.0", "on-start", hooks.ViaCLI)
 		if err != nil {
 			t.Fatalf("unexpected error on remove: %v", err)
 		}
@@ -477,7 +477,7 @@ func TestRemove(t *testing.T) {
 			t.Error("file was written on a no-op removal (Save should be skipped)")
 		}
 
-		h, err := store.Load("internal")
+		h, err := store.Load(hooks.ViaInternal)
 		if err != nil {
 			t.Fatalf("failed to load: %v", err)
 		}
@@ -494,7 +494,7 @@ func TestRemove(t *testing.T) {
 		filePath := filepath.Join(dir, "hooks.json")
 		store := hooks.NewStore(filePath)
 
-		removed, err := store.Remove("my-session:0.0", "on-resume", "cli")
+		removed, err := store.Remove("my-session:0.0", "on-resume", hooks.ViaCLI)
 		if err != nil {
 			t.Fatalf("unexpected error on remove: %v", err)
 		}
@@ -516,7 +516,7 @@ func TestRemove(t *testing.T) {
 		}
 		store := hooks.NewStore(filePath)
 
-		removed, err := store.Remove("my-session:0.0", "on-resume", "cli")
+		removed, err := store.Remove("my-session:0.0", "on-resume", hooks.ViaCLI)
 		if err != nil {
 			t.Fatalf("unexpected error on remove: %v", err)
 		}
@@ -538,7 +538,7 @@ func TestRemove(t *testing.T) {
 		}
 		store := hooks.NewStore(filePath)
 
-		removed, err := store.Remove("abc123", "on-resume", "cli")
+		removed, err := store.Remove("abc123", "on-resume", hooks.ViaCLI)
 		if err != nil {
 			t.Fatalf("unexpected error on remove: %v", err)
 		}
@@ -554,7 +554,7 @@ func TestRemove(t *testing.T) {
 	t.Run("it reports no removal when the save fails", func(t *testing.T) {
 		store, _ := seedThenDenyWrites(t, []byte(`{"my-session:0.0":{"on-resume":"claude --resume abc123"}}`))
 
-		removed, err := store.Remove("my-session:0.0", "on-resume", "cli")
+		removed, err := store.Remove("my-session:0.0", "on-resume", hooks.ViaCLI)
 		if err == nil {
 			t.Fatal("expected error from Remove on read-only dir, got nil")
 		}
@@ -572,7 +572,7 @@ func TestList(t *testing.T) {
 		dir := t.TempDir()
 		store := hooks.NewStore(filepath.Join(dir, "hooks.json"))
 
-		list, err := store.List("cli")
+		list, err := store.List(hooks.ViaCLI)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -592,7 +592,7 @@ func TestList(t *testing.T) {
 		}
 
 		store := hooks.NewStore(filePath)
-		list, err := store.List("cli")
+		list, err := store.List(hooks.ViaCLI)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -619,45 +619,6 @@ func TestList(t *testing.T) {
 	})
 }
 
-func TestGet(t *testing.T) {
-	t.Run("returns event map for registered key", func(t *testing.T) {
-		dir := t.TempDir()
-		filePath := filepath.Join(dir, "hooks.json")
-		store := hooks.NewStore(filePath)
-
-		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", "cli"); err != nil {
-			t.Fatalf("unexpected error on set: %v", err)
-		}
-
-		events, err := store.Get("my-session:0.0", "internal")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		if len(events) != 1 {
-			t.Fatalf("got %d events, want 1", len(events))
-		}
-		if events["on-resume"] != "claude --resume abc123" {
-			t.Errorf("on-resume = %q, want %q", events["on-resume"], "claude --resume abc123")
-		}
-	})
-
-	t.Run("returns empty map for unregistered key", func(t *testing.T) {
-		dir := t.TempDir()
-		filePath := filepath.Join(dir, "hooks.json")
-		store := hooks.NewStore(filePath)
-
-		events, err := store.Get("nonexistent:9.9", "internal")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		if len(events) != 0 {
-			t.Errorf("got %d events, want 0", len(events))
-		}
-	})
-}
-
 // The hook-key seed vocabulary: a reapable key is one the staleness rule can
 // judge, so it is swept once absent from the live set.
 var (
@@ -673,10 +634,10 @@ func TestCleanStale(t *testing.T) {
 		filePath := filepath.Join(dir, "hooks.json")
 		store := hooks.NewStore(filePath)
 
-		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", "cli"); err != nil {
+		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
-		if err := store.Set(reapableSeedA, "on-resume", "claude --resume def456", "cli"); err != nil {
+		if err := store.Set(reapableSeedA, "on-resume", "claude --resume def456", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
 
@@ -692,7 +653,7 @@ func TestCleanStale(t *testing.T) {
 			t.Errorf("removed[0] = %q, want %q", removed[0], reapableSeedA)
 		}
 
-		h, err := store.Load("internal")
+		h, err := store.Load(hooks.ViaInternal)
 		if err != nil {
 			t.Fatalf("failed to load: %v", err)
 		}
@@ -726,10 +687,10 @@ func TestCleanStale(t *testing.T) {
 		filePath := filepath.Join(dir, "hooks.json")
 		store := hooks.NewStore(filePath)
 
-		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", "cli"); err != nil {
+		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
-		if err := store.Set("my-session:0.1", "on-resume", "claude --resume def456", "cli"); err != nil {
+		if err := store.Set("my-session:0.1", "on-resume", "claude --resume def456", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
 
@@ -748,10 +709,10 @@ func TestCleanStale(t *testing.T) {
 		filePath := filepath.Join(dir, "hooks.json")
 		store := hooks.NewStore(filePath)
 
-		if err := store.Set(reapableSeedA, "on-resume", "claude --resume abc123", "cli"); err != nil {
+		if err := store.Set(reapableSeedA, "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
-		if err := store.Set(reapableSeedB, "on-resume", "claude --resume def456", "cli"); err != nil {
+		if err := store.Set(reapableSeedB, "on-resume", "claude --resume def456", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
 
@@ -764,7 +725,7 @@ func TestCleanStale(t *testing.T) {
 			t.Fatalf("got %d removed, want 2", len(removed))
 		}
 
-		h, err := store.Load("internal")
+		h, err := store.Load(hooks.ViaInternal)
 		if err != nil {
 			t.Fatalf("failed to load: %v", err)
 		}
@@ -778,7 +739,7 @@ func TestCleanStale(t *testing.T) {
 		filePath := filepath.Join(dir, "hooks.json")
 		store := hooks.NewStore(filePath)
 
-		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", "cli"); err != nil {
+		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
 
@@ -833,7 +794,7 @@ func TestCleanStale(t *testing.T) {
 			t.Errorf("removed[1] = %q, want %q", removed[1], reapableSeedB)
 		}
 
-		h, err := store.Load("internal")
+		h, err := store.Load(hooks.ViaInternal)
 		if err != nil {
 			t.Fatalf("failed to load: %v", err)
 		}
@@ -856,16 +817,16 @@ func TestCleanStale(t *testing.T) {
 		filePath := filepath.Join(dir, "hooks.json")
 		store := hooks.NewStore(filePath)
 
-		if err := store.Set("my-session:0.0", "on-resume", "cmd0", "cli"); err != nil {
+		if err := store.Set("my-session:0.0", "on-resume", "cmd0", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
-		if err := store.Set(reapableSeedB, "on-resume", "cmd-other0", "cli"); err != nil {
+		if err := store.Set(reapableSeedB, "on-resume", "cmd-other0", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
-		if err := store.Set(reapableSeedA, "on-resume", "cmd1", "cli"); err != nil {
+		if err := store.Set(reapableSeedA, "on-resume", "cmd1", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
-		if err := store.Set("other-session:0.1", "on-resume", "cmd-other1", "cli"); err != nil {
+		if err := store.Set("other-session:0.1", "on-resume", "cmd-other1", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
 
@@ -886,7 +847,7 @@ func TestCleanStale(t *testing.T) {
 			t.Errorf("removed[1] = %q, want %q", removed[1], reapableSeedB)
 		}
 
-		h, err := store.Load("internal")
+		h, err := store.Load(hooks.ViaInternal)
 		if err != nil {
 			t.Fatalf("failed to load: %v", err)
 		}
@@ -960,14 +921,14 @@ func TestCleanStaleRemovesExactlyStaleKeys(t *testing.T) {
 	dir := t.TempDir()
 	store := hooks.NewStore(filepath.Join(dir, "hooks.json"))
 	for _, k := range []string{reapableSeedA, reapableSeedB, reapableSeedC, reapableSeedD} {
-		if err := store.Set(k, "on-resume", "cmd", "cli"); err != nil {
+		if err := store.Set(k, "on-resume", "cmd", hooks.ViaCLI); err != nil {
 			t.Fatalf("seed set %q: %v", k, err)
 		}
 	}
 
 	live := []string{reapableSeedA, reapableSeedC}
 
-	persisted, err := store.Load("internal")
+	persisted, err := store.Load(hooks.ViaInternal)
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
@@ -1032,13 +993,13 @@ func TestCleanStaleLogging(t *testing.T) {
 		dir := t.TempDir()
 		store := hooks.NewStore(filepath.Join(dir, "hooks.json"))
 
-		if err := store.Set("my-session:0.0", "on-resume", "cmd0", "cli"); err != nil {
+		if err := store.Set("my-session:0.0", "on-resume", "cmd0", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
-		if err := store.Set(reapableSeedA, "on-resume", "cmd1", "cli"); err != nil {
+		if err := store.Set(reapableSeedA, "on-resume", "cmd1", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
-		if err := store.Set(reapableSeedB, "on-resume", "cmd2", "cli"); err != nil {
+		if err := store.Set(reapableSeedB, "on-resume", "cmd2", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
 
@@ -1173,10 +1134,10 @@ func TestCleanStaleLogging(t *testing.T) {
 		dir := t.TempDir()
 		store := hooks.NewStore(filepath.Join(dir, "hooks.json"))
 
-		if err := store.Set("my-session:0.0", "on-resume", "cmd0", "cli"); err != nil {
+		if err := store.Set("my-session:0.0", "on-resume", "cmd0", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
-		if err := store.Set(reapableSeedA, "on-resume", "cmd1", "cli"); err != nil {
+		if err := store.Set(reapableSeedA, "on-resume", "cmd1", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
 
@@ -1260,7 +1221,7 @@ func TestCleanStaleLogging(t *testing.T) {
 		filePath := filepath.Join(dir, "hooks.json")
 		store := hooks.NewStore(filePath)
 
-		if err := store.Set("my-session:0.0", "on-resume", "cmd0", "cli"); err != nil {
+		if err := store.Set("my-session:0.0", "on-resume", "cmd0", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
 
@@ -1298,7 +1259,7 @@ func TestSetLogging(t *testing.T) {
 		store := hooks.NewStore(filepath.Join(dir, "hooks.json"))
 		sink := installCapture(t)
 
-		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", "cli"); err != nil {
+		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
@@ -1330,12 +1291,12 @@ func TestSetLogging(t *testing.T) {
 		dir := t.TempDir()
 		store := hooks.NewStore(filepath.Join(dir, "hooks.json"))
 
-		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", "cli"); err != nil {
+		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error on first set: %v", err)
 		}
 
 		sink := installCapture(t)
-		if err := store.Set("my-session:0.0", "on-resume", "claude --resume xyz789", "cli"); err != nil {
+		if err := store.Set("my-session:0.0", "on-resume", "claude --resume xyz789", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error on second set: %v", err)
 		}
 
@@ -1368,7 +1329,7 @@ func TestSetLogging(t *testing.T) {
 		filePath := filepath.Join(dir, "hooks.json")
 		store := hooks.NewStore(filePath)
 
-		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", "cli"); err != nil {
+		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error on first set: %v", err)
 		}
 
@@ -1378,7 +1339,7 @@ func TestSetLogging(t *testing.T) {
 		}
 
 		sink := installCapture(t)
-		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", "cli"); err != nil {
+		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error on noop set: %v", err)
 		}
 
@@ -1419,7 +1380,7 @@ func TestSetLogging(t *testing.T) {
 		store := hooks.NewStore(path)
 		sink := installCapture(t)
 
-		err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", "cli")
+		err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI)
 		if err == nil {
 			t.Fatal("expected error from Set on read-only dir, got nil")
 		}
@@ -1463,7 +1424,7 @@ func TestSetEmitsOpAsJSONField(t *testing.T) {
 
 	dir := t.TempDir()
 	store := hooks.NewStore(filepath.Join(dir, "hooks.json"))
-	if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", "cli"); err != nil {
+	if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -1484,12 +1445,12 @@ func TestRemoveLogging(t *testing.T) {
 		dir := t.TempDir()
 		store := hooks.NewStore(filepath.Join(dir, "hooks.json"))
 
-		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", "cli"); err != nil {
+		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
 
 		sink := installCapture(t)
-		removed, err := store.Remove("my-session:0.0", "on-resume", "cli")
+		removed, err := store.Remove("my-session:0.0", "on-resume", hooks.ViaCLI)
 		if err != nil {
 			t.Fatalf("unexpected error on remove: %v", err)
 		}
@@ -1554,14 +1515,14 @@ func TestRemoveLogging(t *testing.T) {
 				store := hooks.NewStore(filepath.Join(dir, "hooks.json"))
 				for key, events := range tc.seed {
 					for event, command := range events {
-						if err := store.Set(key, event, command, "cli"); err != nil {
+						if err := store.Set(key, event, command, hooks.ViaCLI); err != nil {
 							t.Fatalf("unexpected error on set: %v", err)
 						}
 					}
 				}
 
 				sink := installCapture(t)
-				removed, err := store.Remove(tc.key, tc.ev, "cli")
+				removed, err := store.Remove(tc.key, tc.ev, hooks.ViaCLI)
 				if err != nil {
 					t.Fatalf("unexpected error on remove: %v", err)
 				}
@@ -1580,7 +1541,7 @@ func TestRemoveLogging(t *testing.T) {
 		store, _ := seedThenDenyWrites(t, []byte(`{"my-session:0.0":{"on-resume":"claude --resume abc123"}}`))
 		sink := installCapture(t)
 
-		removed, err := store.Remove("my-session:0.0", "on-resume", "cli")
+		removed, err := store.Remove("my-session:0.0", "on-resume", hooks.ViaCLI)
 		if err == nil {
 			t.Fatal("expected error from Remove on read-only dir, got nil")
 		}

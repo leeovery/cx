@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/tmuxtest"
 	"github.com/leeovery/portal/internal/transienttest"
 )
@@ -56,7 +57,7 @@ func TestRenameRestoreCleanupSurvival_KeepsRestoredTokenKeyedHook(t *testing.T) 
 }`
 	store, path := newTempHooksStore(t, seed)
 
-	preRun, err := store.Load("internal")
+	preRun, err := store.Load(hooks.ViaInternal)
 	if err != nil {
 		t.Fatalf("pre-cleanup store.Load: %v", err)
 	}
@@ -71,7 +72,7 @@ func TestRenameRestoreCleanupSurvival_KeepsRestoredTokenKeyedHook(t *testing.T) 
 		t.Fatalf("runHookStaleCleanup: %v", err)
 	}
 
-	postRun, err := store.Load("internal")
+	postRun, err := store.Load(hooks.ViaInternal)
 	if err != nil {
 		t.Fatalf("post-cleanup store.Load: %v", err)
 	}

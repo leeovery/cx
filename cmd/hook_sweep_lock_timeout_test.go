@@ -141,7 +141,7 @@ func TestHookSweepStandsDownOnLockTimeout(t *testing.T) {
 		if len(outcome.Removed) != 1 || outcome.Removed[0] != reapableSeedA {
 			t.Errorf("Removed = %v, want [%s]", outcome.Removed, reapableSeedA)
 		}
-		postRun, err := store.Load("internal")
+		postRun, err := store.Load(hooks.ViaInternal)
 		if err != nil {
 			t.Fatalf("store.Load post-run: %v", err)
 		}

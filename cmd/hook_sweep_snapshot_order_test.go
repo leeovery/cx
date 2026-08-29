@@ -20,7 +20,7 @@ func TestHookSweepSnapshotPrecedesEnumeration(t *testing.T) {
 		store, path := newTempHooksStore(t, fmt.Sprintf(`{%q: {"on-resume": "cmd-live"}}`, liveSeedA))
 
 		lister := &stubAllPaneLister{rows: tokenRows(liveSeedA), during: func() {
-			if err := store.Set(reapableSeedA, "on-resume", "cmd-fresh", "cli"); err != nil {
+			if err := store.Set(reapableSeedA, "on-resume", "cmd-fresh", hooks.ViaCLI); err != nil {
 				t.Errorf("register a hook during the enumeration: %v", err)
 			}
 		}}
@@ -29,7 +29,7 @@ func TestHookSweepSnapshotPrecedesEnumeration(t *testing.T) {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
-		postRun, err := store.Load("internal")
+		postRun, err := store.Load(hooks.ViaInternal)
 		if err != nil {
 			t.Fatalf("store.Load post-run: %v", err)
 		}
@@ -84,10 +84,10 @@ func TestHookSweepSnapshotPrecedesEnumeration(t *testing.T) {
 		// registration lands for seed D. C leaves the file by someone else's
 		// hand and D never enters the snapshot, so neither may be named.
 		lister := &stubAllPaneLister{rows: tokenRows(liveSeedA), during: func() {
-			if _, err := store.Remove(reapableSeedC, "on-resume", "cli"); err != nil {
+			if _, err := store.Remove(reapableSeedC, "on-resume", hooks.ViaCLI); err != nil {
 				t.Errorf("remove a hook during the enumeration: %v", err)
 			}
-			if err := store.Set(reapableSeedD, "on-resume", "cmd-fresh", "cli"); err != nil {
+			if err := store.Set(reapableSeedD, "on-resume", "cmd-fresh", hooks.ViaCLI); err != nil {
 				t.Errorf("register a hook during the enumeration: %v", err)
 			}
 		}}

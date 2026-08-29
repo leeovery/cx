@@ -35,10 +35,11 @@ func persistIndex(t *testing.T, idx state.Index, stateDir string) {
 
 func verifyHookKeyed(t *testing.T, hooksPath, wantKey string) {
 	t.Helper()
-	events, err := hooks.NewStore(hooksPath).Get(wantKey, "internal")
+	persisted, err := hooks.NewStore(hooksPath).Load(hooks.ViaInternal)
 	if err != nil {
-		t.Fatalf("hooks.Get(%q): %v", wantKey, err)
+		t.Fatalf("hooks.Load: %v", err)
 	}
+	events := persisted[wantKey]
 	if _, ok := events["on-resume"]; !ok {
 		t.Fatalf("hooks.json missing on-resume entry under stable key %q; got events=%v", wantKey, events)
 	}

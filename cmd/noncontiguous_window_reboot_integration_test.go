@@ -196,7 +196,7 @@ func TestNonContiguousWindowReboot_KeepsTokenKeyedHooks(t *testing.T) {
 	if err := sweepErr(fx.client, fx.store, nil); err != nil {
 		t.Fatalf("runHookStaleCleanup: %v", err)
 	}
-	swept, err := fx.store.Load("internal")
+	swept, err := fx.store.Load(hooks.ViaInternal)
 	if err != nil {
 		t.Fatalf("post-sweep store.Load: %v", err)
 	}
@@ -345,11 +345,11 @@ func (fx *divergentRebootFixture) saveIndex(t *testing.T) {
 		// from the pane's environment. Recording it is what makes a hook firing
 		// in the wrong pane fail rather than pass.
 		cmd := "echo " + p.markerText + " $TMUX_PANE >> " + p.markerFile
-		if err := fx.store.Set(p.token, "on-resume", cmd, "cli"); err != nil {
+		if err := fx.store.Set(p.token, "on-resume", cmd, hooks.ViaCLI); err != nil {
 			t.Fatalf("hooks.Set %s: %v", p.role, err)
 		}
 	}
-	if err := fx.store.Set(fx.staleKey, "on-resume", "echo stale", "cli"); err != nil {
+	if err := fx.store.Set(fx.staleKey, "on-resume", "echo stale", hooks.ViaCLI); err != nil {
 		t.Fatalf("hooks.Set stale: %v", err)
 	}
 

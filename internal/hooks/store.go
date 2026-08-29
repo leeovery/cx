@@ -39,21 +39,20 @@ func NewStore(path string) *Store {
 // Load reads hooks from the JSON file, returning an empty map when the file is
 // missing or holds malformed JSON. via names the calling surface for the
 // degradation breadcrumb.
-func (s *Store) Load(via string) (hooksFile, error) {
+func (s *Store) Load(via Via) (hooksFile, error) {
 	return s.loadShared(via)
 }
 
-// loadSnapshot is the clean's advisory pre-read, and the only read taken at
-// snapshotLockTimeout rather than lockTimeout: one clean takes the sidecar
-// twice — shared here, exclusive in deleteStale — so at the full bound a wedged
-// writer would park the daemon's 1s tick for two full bounds every cycle, which
-// is the outcome the bound exists to prevent.
+// loadSnapshot is the clean's advisory pre-read. It reads at the sweep's short
+// bound, so a clean — which takes the sidecar twice, shared here and exclusive
+// in deleteStale — never spends two full lockTimeouts waiting on a wedged
+// writer.
 func (s *Store) loadSnapshot() (hooksFile, error) {
-	return s.loadSharedBounded("internal", snapshotLockTimeout)
+	return s.loadSharedBounded(ViaInternal, snapshotLockTimeout)
 }
 
 // loadShared reads under the shared hold every ordinary read takes.
-func (s *Store) loadShared(via string) (hooksFile, error) {
+func (s *Store) loadShared(via Via) (hooksFile, error) {
 	return s.loadSharedBounded(via, lockTimeout)
 }
 
@@ -65,10 +64,10 @@ func (s *Store) loadShared(via string) (hooksFile, error) {
 // a reader sees the pre-state or the post-state, never a torn one), and failing
 // a read would forfeit a hook for nothing. The bound is a parameter and is
 // never derived from via, which is a log attr.
-func (s *Store) loadSharedBounded(via string, bound time.Duration) (hooksFile, error) {
+func (s *Store) loadSharedBounded(via Via, bound time.Duration) (hooksFile, error) {
 	f, err := s.acquireSharedLock(bound)
 	if err != nil {
-		logger.Debug("load-unlocked", "op", "load-unlocked", "via", via, "error", err)
+		logger.Debug("load-unlocked", "op", "load-unlocked", "via", via.String(), "error", err)
 		return s.load()
 	}
 	defer func() { _ = f.Close() }()
@@ -109,15 +108,15 @@ func (s *Store) save(h hooksFile) error {
 
 // Set adds or overwrites the hook for key and event. Writing the same command
 // again is a no-op: the file is left untouched. via records the mutation origin
-// for the audit breadcrumb: cli, internal or migrate.
-func (s *Store) Set(key, event, command, via string) error {
+// for the audit breadcrumb.
+func (s *Store) Set(key, event, command string, via Via) error {
 	lock, err := s.acquireMutationLock()
 	if err != nil {
 		// Under the method's own op, not classifySet's verdict: that verdict reads
 		// the loaded file, and the acquire is what prevented the load. No
 		// error_class — nothing reached the write phases it classifies — and no
 		// value, which names what a write carried.
-		logger.Warn("set", "op", "set", "hook_key", key, "via", via, "error", err)
+		logger.Warn("set", "op", "set", "hook_key", key, "via", via.String(), "error", err)
 		return err
 	}
 	defer func() { _ = lock.Close() }()
@@ -129,7 +128,7 @@ func (s *Store) Set(key, event, command, via string) error {
 
 	op := classifySet(h, key, event, command)
 	if op == "set-noop" {
-		logger.Debug("set-noop", "op", "set-noop", "hook_key", key, "via", via)
+		logger.Debug("set-noop", "op", "set-noop", "hook_key", key, "via", via.String())
 		return nil
 	}
 
@@ -139,12 +138,12 @@ func (s *Store) Set(key, event, command, via string) error {
 	h[key][event] = command
 
 	if err := s.save(h); err != nil {
-		logger.Warn(op, "op", op, "hook_key", key, "value", command, "via", via,
+		logger.Warn(op, "op", op, "hook_key", key, "value", command, "via", via.String(),
 			"error", err, "error_class", fileutil.ClassifyWriteError(err))
 		return err
 	}
 
-	logger.Info(op, "op", op, "hook_key", key, "value", command, "via", via)
+	logger.Info(op, "op", op, "hook_key", key, "value", command, "via", via.String())
 	return nil
 }
 
@@ -168,12 +167,12 @@ func classifySet(h hooksFile, key, event, command string) string {
 // nothing — an absent key, an absent event, an absent file — writes no file and
 // emits no breadcrumb, and a failed save reports no removal. The answer comes
 // from the map this call loaded and mutated, never from a separate read.
-func (s *Store) Remove(key, event, via string) (bool, error) {
+func (s *Store) Remove(key, event string, via Via) (bool, error) {
 	lock, err := s.acquireMutationLock()
 	if err != nil {
 		// A failed operation, not the silent no-removal below: that one changed
 		// nothing because there was nothing to change, and this one could not look.
-		logger.Warn("rm", "op", "rm", "hook_key", key, "via", via, "error", err)
+		logger.Warn("rm", "op", "rm", "hook_key", key, "via", via.String(), "error", err)
 		return false, err
 	}
 	defer func() { _ = lock.Close() }()
@@ -197,17 +196,17 @@ func (s *Store) Remove(key, event, via string) (bool, error) {
 	}
 
 	if err := s.save(h); err != nil {
-		logger.Warn("rm", "op", "rm", "hook_key", key, "via", via,
+		logger.Warn("rm", "op", "rm", "hook_key", key, "via", via.String(),
 			"error", err, "error_class", fileutil.ClassifyWriteError(err))
 		return false, err
 	}
 
-	logger.Info("rm", "op", "rm", "hook_key", key, "via", via)
+	logger.Info("rm", "op", "rm", "hook_key", key, "via", via.String())
 	return true, nil
 }
 
 // List returns the hooks sorted by key then event.
-func (s *Store) List(via string) ([]Hook, error) {
+func (s *Store) List(via Via) ([]Hook, error) {
 	h, err := s.loadShared(via)
 	if err != nil {
 		return nil, err
@@ -234,10 +233,11 @@ func (s *Store) List(via string) ([]Hook, error) {
 	return list, nil
 }
 
-// staleKeys is the single implementation of the staleness rule: a persisted key
-// is stale iff it is absent from live and its shape is one the rule can judge —
-// token-shaped, or empty. A key of any other shape cannot be told apart from an
-// entry that has not been converted to a pane token yet, so it is retained.
+// staleKeys applies the staleness rule; every reader of staleness must route
+// through here rather than restate it. A persisted key is stale iff it is
+// absent from live and its shape is one the rule can judge — token-shaped, or
+// empty. A key of any other shape cannot be told apart from an entry that has
+// not been converted to a pane token yet, so it is retained.
 func staleKeys(persisted hooksFile, live []string) []string {
 	liveSet := make(map[string]struct{}, len(live))
 	for _, k := range live {
@@ -354,25 +354,10 @@ func (s *Store) deleteStale(live []string, snapshot Snapshot) ([]string, error) 
 	// The commands come from h, the pre-delete map.
 	for _, key := range removed {
 		logger.Info("clean-stale", "op", "clean-stale", "hook_key", key,
-			"value", h[key]["on-resume"], "via", "internal")
+			"value", h[key]["on-resume"], "via", ViaInternal.String())
 	}
 
 	storelog.EmitCleanStaleSummary(logger, len(removed), start, nil)
 
 	return removed, nil
-}
-
-// Get returns the event map for key, or an empty map when the key has no hooks.
-func (s *Store) Get(key, via string) (map[string]string, error) {
-	h, err := s.loadShared(via)
-	if err != nil {
-		return nil, err
-	}
-
-	events, ok := h[key]
-	if !ok {
-		return map[string]string{}, nil
-	}
-
-	return events, nil
 }

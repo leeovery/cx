@@ -134,7 +134,7 @@ var hooksListCmd = &cobra.Command{
 			return err
 		}
 
-		list, err := store.List("cli")
+		list, err := store.List(hooks.ViaCLI)
 		if err != nil {
 			return err
 		}
@@ -211,7 +211,7 @@ var hooksSetCmd = &cobra.Command{
 			return err
 		}
 
-		if err := store.Set(hookKey, "on-resume", command, "cli"); err != nil {
+		if err := store.Set(hookKey, "on-resume", command, hooks.ViaCLI); err != nil {
 			return err
 		}
 
@@ -235,7 +235,7 @@ func touchSaveRequestedForHook(hookKey string) {
 	}
 	if err != nil {
 		hooksLogger.Warn("touch-save-requested", "op", "touch-save-requested",
-			"hook_key", hookKey, "via", "cli", "error", err)
+			"hook_key", hookKey, "via", hooks.ViaCLI.String(), "error", err)
 	}
 }
 
@@ -285,7 +285,7 @@ var hooksRmCmd = &cobra.Command{
 
 		// The removal itself reports whether an entry went: a read taken before it
 		// would answer from a snapshot the mutation never saw.
-		removed, err := store.Remove(hookKey, "on-resume", "cli")
+		removed, err := store.Remove(hookKey, "on-resume", hooks.ViaCLI)
 		if err != nil {
 			return err
 		}

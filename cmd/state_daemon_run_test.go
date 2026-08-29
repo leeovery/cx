@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/state"
@@ -542,7 +543,7 @@ func TestDaemonTick_RunsHookCleanupOnIdleTick(t *testing.T) {
 
 	tick(t.Context(), deps)
 
-	postRun, err := store.Load("internal")
+	postRun, err := store.Load(hooks.ViaInternal)
 	if err != nil {
 		t.Fatalf("store.Load: %v", err)
 	}
@@ -578,7 +579,7 @@ func TestDaemonTick_SkipsHookCleanupWhenRestoring(t *testing.T) {
 
 	tick(t.Context(), deps)
 
-	postRun, err := store.Load("internal")
+	postRun, err := store.Load(hooks.ViaInternal)
 	if err != nil {
 		t.Fatalf("store.Load: %v", err)
 	}
@@ -613,7 +614,7 @@ func TestDaemonTick_SkipsHookCleanupOnDirtyCaptureTick(t *testing.T) {
 	if got := fc.callsContaining("list-sessions"); len(got) == 0 {
 		t.Errorf("list-sessions not invoked; capture must run on a dirty tick")
 	}
-	postRun, err := store.Load("internal")
+	postRun, err := store.Load(hooks.ViaInternal)
 	if err != nil {
 		t.Fatalf("store.Load: %v", err)
 	}
@@ -644,7 +645,7 @@ func TestDaemonTick_SkipsHookCleanupOnMaxGapCaptureTick(t *testing.T) {
 	if got := fc.callsContaining("list-sessions"); len(got) == 0 {
 		t.Errorf("list-sessions not invoked; capture must run on a max-gap tick")
 	}
-	postRun, err := store.Load("internal")
+	postRun, err := store.Load(hooks.ViaInternal)
 	if err != nil {
 		t.Fatalf("store.Load: %v", err)
 	}

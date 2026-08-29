@@ -25,7 +25,7 @@ const (
 const standDownMsg = "clean-stale-skipped"
 
 func standDownAttrs(reason string, extra ...any) []any {
-	return append([]any{"op", standDownMsg, "via", "internal", "reason", reason}, extra...)
+	return append([]any{"op", standDownMsg, "via", hooks.ViaInternal.String(), "reason", reason}, extra...)
 }
 
 // staleSweepReader is the whole tmux surface hook-staleness work reads: the

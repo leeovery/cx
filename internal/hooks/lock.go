@@ -20,8 +20,14 @@ var ErrLockHeld = errors.New("hooks lock held by another process")
 // inside the sweep's own cadence.
 var lockTimeout = 2 * time.Second
 
-// snapshotLockTimeout bounds the sweep's advisory pre-read alone, so one sweep
-// cycle can never spend two full lockTimeouts waiting.
+// snapshotLockTimeout bounds the clean's advisory pre-read alone. A clean takes
+// the sidecar twice — shared for that pre-read, exclusive for the deletion — so
+// at lockTimeout a writer that is alive but stuck would park the daemon's 1s
+// tick for 4s every cycle, which is the stall the bound exists to prevent. The
+// pre-read is advisory: it may degrade to an unlocked read at no cost to
+// correctness, so it is bounded at the cheapest figure that still grants an
+// uncontended lock — 20ms, four poll intervals above the sub-millisecond
+// critical section.
 var snapshotLockTimeout = 20 * time.Millisecond
 
 var lockPollInterval = 5 * time.Millisecond

@@ -14,7 +14,7 @@ func LookupOnResume(store *Store, hookKey string) (string, bool, error) {
 	if hookKey == "" {
 		return "", false, nil
 	}
-	h, err := store.loadShared("hydrate")
+	h, err := store.loadShared(ViaHydrate)
 	if err != nil {
 		return "", false, fmt.Errorf("load hooks: %w", err)
 	}
