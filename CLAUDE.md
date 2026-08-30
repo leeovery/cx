@@ -121,6 +121,22 @@ For daemon-spawning tests, prefer `portaltest.SpawnIsolatedDaemon` (which pins b
 
    **The sandbox crosses the process boundary via a registry file.** A test-spawned `portal` binary runs its bootstrap orphan sweep in its own process, where in-process registrations don't exist — and the sweep runs at step 4, *before* `EnsureSaver`, so its legitimate set is empty and an unfiltered enumeration would SIGKILL the real daemon (verified with a pgrep-shim canary harness during the fix). Two pieces close it: `portalbintest` builds every test-staged binary with **`-tags integration`** (compiling the sandbox in; the shipped release binary never carries it), and `IsolateStateForTest` sets **`state.SandboxRegistryEnv`** (`PORTAL_TEST_SANDBOX_REGISTRY`) — the path of a file listing test-owned state dirs, re-read on every enumeration (`SpawnIsolatedDaemon` appends each orphan's dir). Env set + file unreadable ⇒ enabled with zero owned dirs (subprocess sweeps kill nothing). `TestPgrepSandbox_RegistryEnvActivatesCrossProcess` pins the contract. Never hand-roll `go build` for the portal binary in a test — route through `portalbintest` so the tag is never dropped.
 
+#### Cleaning up after a test run
+
+Test runs leak. A `tmuxtest` socket whose server outlives its test keeps running (measured: 113 leaked `ptl-*` servers accumulated over ~18 hours of runs, alongside a live `portal state daemon` each), and an agent that spawns synthetic CPU load (`yes`, busy-loop subshells) to probe a flake orphans it to PID 1 when `kill %1 %2 …` silently fails in a shell with no job control — twice observed in one session, 14 processes each time. The cost is not tidiness: a saturated machine makes timing-sensitive suites fail on budgets that pass when idle, so leaked load **manufactures flakes and misattributes them to the code under test**. Sweep at the end of a session that ran the integration lane, and treat a load average far above core count as a reason to sweep before trusting any timing result.
+
+**The developer's live tmux server must never be touched, and identifying it is not optional.** It hosts their real work (~47 sessions at the time of writing) and Portal's own `_portal-saver`. Before signalling anything:
+
+1. **Read `$TMUX`** — its format is `<socket>,<server-pid>,<session-id>`. The middle field is the live server's PID and the first is its socket (`/private/tmp/tmux-501/default` on this machine). Both are protected values.
+2. **Match targets on an explicit test socket in argv**, never on the process name: every disposable server carries `-L ptl-<something>` or `-S <tmpdir>/ptl-*/s`. The developer's server carries **no socket flag at all** (`tmux new-session -d -s _portal-bootstrap`), so a pattern keyed on `ptl-` cannot select it. Do not match on `tmux`, on `_portal-bootstrap`, or on session names — `_portal-bootstrap` and `_portal-saver` exist on both the real server and the test ones.
+3. **Exclude the protected PID explicitly**, as a guard independent of the pattern, and assert it is absent from the kill list before sending a single signal.
+4. **Re-verify each PID's argv immediately before signalling it** — a PID enumerated seconds ago may have exited and been reused. Confirm it still matches the test-socket pattern at signal time.
+5. **SIGTERM first, SIGKILL only stragglers**, and afterwards assert the developer's server is still alive with its session count unchanged and their `portal state daemon` still running.
+
+For orphaned load generators, match the exact command (`ps -eo ppid,command | awk '$1==1 && $2=="yes"'`) rather than a substring — `pkill -f yes` would match any command line containing those three letters. Better still, do not create them: prefer running a suite under a real integration lane than simulating load, and if load is genuinely needed, spawn it with a bounded lifetime (`timeout 60 yes`) so a failed cleanup cannot outlive the experiment.
+
+This sweep is a **human-invoked maintenance action, not something a test may do**. The ABSOLUTE INVARIANT above still holds without exception: no test, helper or fixture may enumerate or signal a process it did not spawn.
+
 ### Server bootstrap
 
 `PersistentPreRunE` runs a ten-step `bootstrap.Orchestrator` (in `cmd/bootstrap/`) for commands needing tmux (all except the bootstrap-exempt `skipTmuxCheck` set: `version`, `init`, `help`, `alias`, `hook`, `doctor`, `theme`, `uninstall`, `state`, and the internal `__complete` completion verb). Step ordering is load-bearing; "Return" is the post-step boundary, not a numbered step:
