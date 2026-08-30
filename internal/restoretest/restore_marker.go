@@ -26,6 +26,24 @@ func RestoreWithMarker(t *testing.T, client *tmux.Client, o *restore.Orchestrato
 			t.Logf("UnsetServerOption(%s): %v", state.RestoringMarkerName, err)
 		}
 	}()
+	assertRestoringSet(t, client)
 	_, err := o.Restore()
 	return err
+}
+
+// assertRestoringSet reads the marker back from the server before the restore
+// runs, so the bracket's set half is observed for every caller at once: without
+// it a restore driven with no marker set would be indistinguishable from one
+// driven with it, and the daemon stand-down window this fixture exists to open
+// would never be exercised.
+func assertRestoringSet(t *testing.T, client *tmux.Client) {
+	t.Helper()
+	set, err := state.IsRestoringSet(client)
+	if err != nil {
+		t.Fatalf("IsRestoringSet: %v", err)
+	}
+	if !set {
+		t.Fatalf("%s is not set entering the restore; the capture stand-down window never opened",
+			state.RestoringMarkerName)
+	}
 }

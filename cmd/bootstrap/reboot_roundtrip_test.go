@@ -108,13 +108,8 @@ func runRebootRoundTrip(t *testing.T, cfg roundTripCfg) {
 
 	idx := runDaemonTick(t, client, stateDir, withoutSkipGuard(), withEmptyScrollback())
 
-	ansiFixture := []byte("\x1b[31mred\x1b[0m\nbefore reboot\n")
-	hookPaneKey := state.SanitizePaneKey("alpha",
-		cfg.saveBase+0, cfg.savePaneBase+0)
-	hookScrollbackPath := state.ScrollbackFile(stateDir, hookPaneKey)
-	if err := os.WriteFile(hookScrollbackPath, ansiFixture, 0o600); err != nil {
-		t.Fatalf("write fixture scrollback: %v", err)
-	}
+	restoretest.SeedScrollback(t, stateDir, "alpha", cfg.saveBase+0, cfg.savePaneBase+0,
+		[]byte(restoretest.ANSIScrollback))
 
 	verifyCapturedIndex(t, idx, cfg)
 
@@ -622,12 +617,8 @@ func TestRebootRoundTrip_LeadingDashSessionName(t *testing.T) {
 		t.Fatalf("captured session name = %q; want %q", idx.Sessions[0].Name, sessionName)
 	}
 
-	ansiFixture := []byte("\x1b[31mred\x1b[0m\nbefore reboot\n")
-	paneKey := state.SanitizePaneKey(sessionName, saveBase+0, savePaneBase+0)
-	scrollbackPath := state.ScrollbackFile(stateDir, paneKey)
-	if err := os.WriteFile(scrollbackPath, ansiFixture, 0o600); err != nil {
-		t.Fatalf("write fixture scrollback: %v", err)
-	}
+	restoretest.SeedScrollback(t, stateDir, sessionName, saveBase+0, savePaneBase+0,
+		[]byte(restoretest.ANSIScrollback))
 
 	ts.KillServer()
 	if _, err := ts.TryRun("list-sessions"); err == nil {

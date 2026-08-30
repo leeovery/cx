@@ -103,10 +103,10 @@ func TestMultiPaneLegacy_PerPaneHookRouting(t *testing.T) {
 	verifyHookKeyed(t, hooksPath, pane0Key)
 	verifyHookKeyed(t, hooksPath, pane1Key)
 
-	restoretest.SeedScrollback(t, stateDir, renameNewName, 0, 0, []byte(rebootScrollback))
-	restoretest.SeedScrollback(t, stateDir, renameNewName, 0, 1, []byte(rebootScrollback))
+	restoretest.SeedScrollback(t, stateDir, renameNewName, 0, 0, []byte(restoretest.ANSIScrollback))
+	restoretest.SeedScrollback(t, stateDir, renameNewName, 0, 1, []byte(restoretest.ANSIScrollback))
 
-	persistIndex(t, idx, stateDir)
+	restoretest.WriteIndex(t, stateDir, idx)
 
 	ts.KillServer()
 	if _, err := ts.TryRun("list-sessions"); err == nil {
@@ -178,8 +178,8 @@ func TestMultiPaneLegacy_UnstampedNoHookLandsOnBareShell(t *testing.T) {
 		t.Fatalf("captured un-stamped session %q pane token = %q; want \"\"", legacyName, got)
 	}
 
-	restoretest.SeedScrollback(t, stateDir, legacyName, 0, 0, []byte(rebootScrollback))
-	persistIndex(t, idx, stateDir)
+	restoretest.SeedScrollback(t, stateDir, legacyName, 0, 0, []byte(restoretest.ANSIScrollback))
+	restoretest.WriteIndex(t, stateDir, idx)
 
 	ts.KillServer()
 	if _, err := ts.TryRun("list-sessions"); err == nil {

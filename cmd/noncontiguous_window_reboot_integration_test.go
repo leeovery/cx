@@ -13,7 +13,6 @@ import (
 
 	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/portaltest"
-	"github.com/leeovery/portal/internal/restore"
 	"github.com/leeovery/portal/internal/restoretest"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
@@ -362,22 +361,10 @@ func (fx *divergentRebootFixture) saveIndex(t *testing.T) {
 func (fx *divergentRebootFixture) reboot(t *testing.T) {
 	t.Helper()
 
-	fx.ts.KillServer()
-	if _, err := fx.ts.TryRun("list-sessions"); err == nil {
-		t.Fatal("list-sessions succeeded after kill-server; the reboot gap was never opened")
-	}
-	if _, err := fx.client.EnsureServer(); err != nil {
-		t.Fatalf("EnsureServer: %v", err)
-	}
+	restoretest.RebootServer(t, fx.ts, fx.client)
 	fx.disableRenumberWindows(t)
 
-	o := &restore.Orchestrator{
-		Client:   fx.client,
-		StateDir: fx.stateDir,
-		Logger:   restoretest.OpenTestLogger(t, fx.stateDir),
-		Exe:      restoretest.StagedHydrateExe(t, fx.binDir),
-	}
-	if err := restoretest.RestoreWithMarker(t, fx.client, o); err != nil {
+	if err := restoretest.RestoreFromState(t, fx.client, fx.stateDir, fx.binDir); err != nil {
 		t.Fatalf("restore: %v", err)
 	}
 
