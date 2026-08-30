@@ -223,14 +223,6 @@ func (c *Client) CurrentSessionName() (string, error) {
 	return output, nil
 }
 
-func (c *Client) ResolveStructuralKey(paneID string) (string, error) {
-	output, err := c.cmd.Run("display-message", "-p", "-t", paneID, StructuralKeyFormat)
-	if err != nil {
-		return "", fmt.Errorf("failed to resolve structural key for pane %q: %w", paneID, err)
-	}
-	return output, nil
-}
-
 // ResolveHookKey resolves a pane target to its hook key — its durable pane
 // token — in two live reads. The first asks only whether any pane answers to
 // the target, and a target none answers to fails here with tmux's own words;
@@ -611,18 +603,6 @@ const StructuralKeyFormat = "#{session_name}:#{window_index}.#{pane_index}"
 // else. It carries no session component and no coordinates, so no tmux operation
 // that moves a pane can recompute it. An un-stamped pane yields an empty key.
 const HookKeyFormat = "#{" + state.PortalPaneIDOption + "}"
-
-// ListAllPanes returns the structural key of every live pane on the server — for
-// structural enumeration, not hook-key lookup (see ListAllPaneHookKeys). A tmux
-// failure returns (nil, err), never an empty slice: a caller reading a failure as
-// "no live panes" would delete every entry keyed off the live set.
-func (c *Client) ListAllPanes() ([]string, error) {
-	raw, err := c.ListAllPanesWithFormat(StructuralKeyFormat)
-	if err != nil {
-		return nil, err
-	}
-	return parsePaneOutput(raw), nil
-}
 
 // PaneHookRow describes one live pane for the hook machinery. Token is the
 // pane's @portal-pane-id, empty for a pane that carries no stamp. Location is
