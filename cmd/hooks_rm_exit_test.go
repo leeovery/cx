@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -100,10 +99,7 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 			"tok999": {"on-resume": "npm start"},
 		})
 
-		// Both seams return an error if consulted, so an accidental tmux call on
-		// this path cannot pass silently.
-		resolver := &mockKeyResolver{err: fmt.Errorf("the resolver must not be called on the --pane-key path")}
-		stamper := &recordingPaneStamper{err: fmt.Errorf("the stamper must not be called on the --pane-key path")}
+		resolver, stamper := paneKeyPathSeams()
 		withHooksDeps(t, HooksDeps{KeyResolver: resolver, PaneStamper: stamper})
 
 		_, err := runHookRm(t, "--pane-key", "sess:0.1")
@@ -113,12 +109,7 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 		if err.Error() != "no resume hook registered for sess:0.1" {
 			t.Errorf("error = %q, want %q", err.Error(), "no resume hook registered for sess:0.1")
 		}
-		if resolver.calls != 0 {
-			t.Errorf("resolver call count = %d, want 0 on the --pane-key path", resolver.calls)
-		}
-		if len(stamper.calls) != 0 {
-			t.Errorf("set-option call count = %d, want 0 on the --pane-key path", len(stamper.calls))
-		}
+		assertNoPaneTmuxCalls(t, resolver, stamper)
 		assertHooksFileUnchanged(t, hooksFile, before)
 	})
 
@@ -153,8 +144,8 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 			"tok999":   {"on-resume": "npm start"},
 		})
 
-		resolver := &mockKeyResolver{err: fmt.Errorf("the resolver must not be called on the --pane-key path")}
-		withHooksDeps(t, HooksDeps{KeyResolver: resolver})
+		resolver, stamper := paneKeyPathSeams()
+		withHooksDeps(t, HooksDeps{KeyResolver: resolver, PaneStamper: stamper})
 
 		// An old-format key: the pass-through validates nothing, so removing one
 		// by hand keeps working and keeps exiting 0.
@@ -166,9 +157,7 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 		if _, ok := data["sess:0.1"]; ok {
 			t.Error("expected the verbatim key's entry to be removed")
 		}
-		if resolver.calls != 0 {
-			t.Errorf("resolver call count = %d, want 0 on the --pane-key path", resolver.calls)
-		}
+		assertNoPaneTmuxCalls(t, resolver, stamper)
 	})
 
 	t.Run("it leaves hooks.json byte-identical on every failing route", func(t *testing.T) {
@@ -176,11 +165,16 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 			"tok999": {"on-resume": "npm start"},
 		}
 
+		paneKeyResolver, paneKeyStamper := paneKeyPathSeams()
+
 		tests := []struct {
 			name     string
 			paneID   string
 			resolver *mockKeyResolver
-			extra    []string
+			// A row whose subject includes reaching tmux for nothing sets stamper to
+			// the poisoned pair; the loop supplies a plain one for any row that does not.
+			stamper *recordingPaneStamper
+			extra   []string
 		}{
 			{
 				name:     "gone pane",
@@ -205,7 +199,8 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 			{
 				name:     "--pane-key naming no entry",
 				paneID:   "%3",
-				resolver: &mockKeyResolver{err: fmt.Errorf("the resolver must not be called on the --pane-key path")},
+				resolver: paneKeyResolver,
+				stamper:  paneKeyStamper,
 				extra:    []string{"--pane-key", "sess:0.1"},
 			},
 		}
@@ -216,10 +211,17 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 				t.Setenv("TMUX_PANE", tt.paneID)
 				before := seedHooksFile(t, hooksFile, seeded)
 
-				withHooksDeps(t, HooksDeps{KeyResolver: tt.resolver})
+				stamper := tt.stamper
+				if stamper == nil {
+					stamper = &recordingPaneStamper{}
+				}
+				withHooksDeps(t, HooksDeps{KeyResolver: tt.resolver, PaneStamper: stamper})
 
 				if _, err := runHookRm(t, tt.extra...); err == nil {
 					t.Fatal("expected a non-zero exit, got nil")
+				}
+				if tt.stamper != nil {
+					assertNoPaneTmuxCalls(t, tt.resolver, tt.stamper)
 				}
 				assertHooksFileUnchanged(t, hooksFile, before)
 			})
@@ -227,13 +229,18 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 	})
 
 	t.Run("it mints and stamps nothing on either path", func(t *testing.T) {
+		paneKeyResolver, paneKeyStamper := paneKeyPathSeams()
+
 		tests := []struct {
 			name     string
 			paneID   string
 			resolver *mockKeyResolver
-			seeded   map[string]map[string]string
-			extra    []string
-			wantErr  bool
+			// A row that must additionally guard the resolver sets stamper to the
+			// poisoned pair; the loop supplies a plain one for any row that does not.
+			stamper *recordingPaneStamper
+			seeded  map[string]map[string]string
+			extra   []string
+			wantErr bool
 		}{
 			{
 				name:     "successful resolved-token removal",
@@ -251,7 +258,8 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 			{
 				name:     "--pane-key",
 				paneID:   "",
-				resolver: &mockKeyResolver{err: fmt.Errorf("the resolver must not be called on the --pane-key path")},
+				resolver: paneKeyResolver,
+				stamper:  paneKeyStamper,
 				seeded:   map[string]map[string]string{"tok123": {"on-resume": "npm start"}},
 				extra:    []string{"--pane-key", "tok123"},
 			},
@@ -263,7 +271,10 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 				t.Setenv("TMUX_PANE", tt.paneID)
 				writeHooksJSON(t, hooksFile, tt.seeded)
 
-				stamper := &recordingPaneStamper{}
+				stamper := tt.stamper
+				if stamper == nil {
+					stamper = &recordingPaneStamper{}
+				}
 				minted := 0
 				withHooksDeps(t, HooksDeps{
 					KeyResolver: tt.resolver,
@@ -281,6 +292,9 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 
 				if minted != 0 {
 					t.Errorf("mint count = %d, want 0: hook rm mints nothing", minted)
+				}
+				if tt.stamper != nil {
+					assertNoPaneTmuxCalls(t, tt.resolver, tt.stamper)
 				}
 				if len(stamper.calls) != 0 {
 					t.Errorf("set-option call count = %d, want 0: hook rm neither stamps nor unstamps: %+v",

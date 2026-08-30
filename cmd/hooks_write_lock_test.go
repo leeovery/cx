@@ -227,18 +227,12 @@ func TestHookRmLockTimeout(t *testing.T) {
 		})
 		transienttest.HoldHooksSidecar(t, hooksFile)
 
-		resolver := &mockKeyResolver{err: errors.New("the resolver must not be called on the --pane-key path")}
-		stamper := &recordingPaneStamper{err: errors.New("the stamper must not be called on the --pane-key path")}
+		resolver, stamper := paneKeyPathSeams()
 		withHooksDeps(t, HooksDeps{KeyResolver: resolver, PaneStamper: stamper})
 
 		out, err := runHookRm(t, "--pane-key", "tok123")
 		assertLockFailureReachesStderr(t, out, err)
-		if resolver.calls != 0 {
-			t.Errorf("resolver call count = %d, want 0 on the --pane-key path", resolver.calls)
-		}
-		if len(stamper.calls) != 0 {
-			t.Errorf("set-option call count = %d, want 0 on the --pane-key path", len(stamper.calls))
-		}
+		assertNoPaneTmuxCalls(t, resolver, stamper)
 		assertHooksFileUnchanged(t, hooksFile, before)
 	})
 

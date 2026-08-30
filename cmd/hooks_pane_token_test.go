@@ -161,11 +161,8 @@ func TestHooksSetStampsPaneToken(t *testing.T) {
 			"tok999": {"on-resume": "claude --resume xyz"},
 		})
 
-		stamper := &recordingPaneStamper{err: fmt.Errorf("the stamper must not be called on the --pane-key path")}
-		withHooksDeps(t, HooksDeps{
-			KeyResolver: &mockKeyResolver{err: fmt.Errorf("the resolver must not be called on the --pane-key path")},
-			PaneStamper: stamper,
-		})
+		resolver, stamper := paneKeyPathSeams()
+		withHooksDeps(t, HooksDeps{KeyResolver: resolver, PaneStamper: stamper})
 
 		resetRootCmd()
 		rootCmd.SetOut(new(bytes.Buffer))
@@ -175,9 +172,7 @@ func TestHooksSetStampsPaneToken(t *testing.T) {
 			t.Fatalf("hook rm --pane-key: %v", err)
 		}
 
-		if len(stamper.calls) != 0 {
-			t.Errorf("set-option call count = %d, want 0", len(stamper.calls))
-		}
+		assertNoPaneTmuxCalls(t, resolver, stamper)
 		if data := readHooksJSON(t, hooksFile); len(data) != 0 {
 			t.Errorf("hooks.json = %v, want the seeded entry removed", data)
 		}

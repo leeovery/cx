@@ -733,10 +733,8 @@ func TestHooksRmCommand(t *testing.T) {
 			"other-proj:0.0": {"on-resume": "npm start"},
 		})
 
-		// A resolver that fails loudly if consulted, so an accidental fallback on
-		// the flag-set branch cannot pass silently.
-		resolver := &mockKeyResolver{err: fmt.Errorf("resolver must not be called when --pane-key is set")}
-		withHooksDeps(t, HooksDeps{KeyResolver: resolver})
+		resolver, stamper := paneKeyPathSeams()
+		withHooksDeps(t, HooksDeps{KeyResolver: resolver, PaneStamper: stamper})
 
 		resetRootCmd()
 		rootCmd.SetOut(new(bytes.Buffer))
@@ -754,6 +752,7 @@ func TestHooksRmCommand(t *testing.T) {
 		if data["other-proj:0.0"]["on-resume"] != "npm start" {
 			t.Errorf("other-proj:0.0 on-resume = %q, want %q", data["other-proj:0.0"]["on-resume"], "npm start")
 		}
+		assertNoPaneTmuxCalls(t, resolver, stamper)
 	})
 
 	t.Run("--pane-key unset falls back to resolveCurrentPaneKey", func(t *testing.T) {
@@ -790,10 +789,8 @@ func TestHooksRmCommand(t *testing.T) {
 			"other-proj:0.0": {"on-resume": "npm start"},
 		})
 
-		// A resolver that fails loudly if consulted, so an accidental fallback on
-		// the --pane-key branch cannot pass silently.
-		resolver := &mockKeyResolver{err: fmt.Errorf("resolver must not be called when --pane-key is set")}
-		withHooksDeps(t, HooksDeps{KeyResolver: resolver})
+		resolver, stamper := paneKeyPathSeams()
+		withHooksDeps(t, HooksDeps{KeyResolver: resolver, PaneStamper: stamper})
 
 		resetRootCmd()
 		rootCmd.SetOut(new(bytes.Buffer))
@@ -810,6 +807,7 @@ func TestHooksRmCommand(t *testing.T) {
 		if data["other-proj:0.0"]["on-resume"] != "npm start" {
 			t.Errorf("other-proj:0.0 on-resume = %q, want %q", data["other-proj:0.0"]["on-resume"], "npm start")
 		}
+		assertNoPaneTmuxCalls(t, resolver, stamper)
 	})
 
 	t.Run("it errors when TMUX_PANE is unset for the rm fallback", func(t *testing.T) {

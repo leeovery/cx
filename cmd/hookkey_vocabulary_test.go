@@ -6,8 +6,10 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"strings"
+	"testing"
 
 	"github.com/leeovery/portal/internal/tmux"
 	"github.com/leeovery/portal/internal/transienttest"
@@ -188,4 +190,29 @@ func (p *stampedPane) SetPaneOption(target, name, value string) error {
 	p.stamps = append(p.stamps, paneStampCall{target: target, name: name, value: value})
 	p.token = value
 	return nil
+}
+
+// The --pane-key path removes a verbatim key and reaches tmux for nothing, so
+// both pane seams are armed with an error naming the violation: a call that
+// should never happen fails loudly rather than passing silently.
+var (
+	errPaneKeyResolverCalled = errors.New("the resolver must not be called on the --pane-key path")
+	errPaneKeyStamperCalled  = errors.New("the stamper must not be called on the --pane-key path")
+)
+
+// paneKeyPathSeams returns the poisoned pair to inject on a --pane-key case,
+// and assertNoPaneTmuxCalls is its other half: poisoning one seam proves
+// nothing about the other, so every such case guards both.
+func paneKeyPathSeams() (*mockKeyResolver, *recordingPaneStamper) {
+	return &mockKeyResolver{err: errPaneKeyResolverCalled}, &recordingPaneStamper{err: errPaneKeyStamperCalled}
+}
+
+func assertNoPaneTmuxCalls(t *testing.T, resolver *mockKeyResolver, stamper *recordingPaneStamper) {
+	t.Helper()
+	if resolver.calls != 0 {
+		t.Errorf("resolver call count = %d, want 0 on the --pane-key path", resolver.calls)
+	}
+	if len(stamper.calls) != 0 {
+		t.Errorf("set-option call count = %d, want 0 on the --pane-key path: %+v", len(stamper.calls), stamper.calls)
+	}
 }
