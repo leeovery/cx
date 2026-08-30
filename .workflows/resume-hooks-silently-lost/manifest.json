@@ -214,7 +214,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 6,
-          "current_task": "resume-hooks-silently-lost-6-13",
+          "current_task": "resume-hooks-silently-lost-6-14",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -1107,6 +1107,39 @@
                 "cmd/config.go",
                 "internal/hooks/lock.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-13",
+              "source": "executor",
+              "summary": "The standing lint/format baseline forces every executor to stash-and-compare to prove it added no noise — task 6-25 scopes the sweep.",
+              "detail": "gofmt -l . lists internal/tui/help_modal_test.go on a clean checkout, so the configured linter command never returns clean and each task must learn to ignore it. Separately golangci-lint run ./cmd/... reports 13 pre-existing modernize/errorsastype issues (cmd/root.go:199, cmd/init_test.go:335, cmd/hooks_rm_exit_test.go:33, cmd/uninstall_test.go:21 and others), so every executor re-derives the baseline by stashing to distinguish its own findings. Task 6-25 already scopes the repo-wide sweep; this records the ongoing cost until it lands.",
+              "files": [
+                "internal/tui/help_modal_test.go",
+                "cmd/root.go",
+                "cmd/init_test.go",
+                "cmd/hooks_rm_exit_test.go",
+                "cmd/hooks_write_lock_test.go",
+                "cmd/state_hydrate_test.go",
+                "cmd/uninstall_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-13",
+              "source": "reviewer",
+              "summary": "The install-and-restore pairing is solved for hooksDeps alone; eight sibling *Deps seams carry the identical unguarded pattern across ~166 sites.",
+              "detail": "cmd declares nine package-level seams (cmd/doctor.go:72, cmd/hooks.go:39, cmd/kill.go:9, cmd/list.go:11, cmd/open_burst_run.go:13, cmd/root.go:36, cmd/open.go:36, cmd/state_commit_now.go:30, cmd/uninstall.go:21). Bare X = &XDeps{...} + t.Cleanup pairs remain at 108 sites across 22 files for bootstrapDeps, 54 across 7 for openDeps, 4 for doctorDeps. Same leak vector, same remedy, now with a proven helper+guard pattern to generalise (a single generic withDeps is not possible without changing the seam representation, so the realistic form is one helper per seam plus one guard parameterised over the identifier list).",
+              "files": [
+                "cmd/testhelpers_test.go",
+                "cmd/hooks_deps_guard_test.go",
+                "cmd/root.go",
+                "cmd/open.go",
+                "cmd/doctor.go",
+                "cmd/kill.go",
+                "cmd/list.go",
+                "cmd/open_burst_run.go",
+                "cmd/state_commit_now.go",
+                "cmd/uninstall.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -1171,7 +1204,8 @@
             "resume-hooks-silently-lost-6-9",
             "resume-hooks-silently-lost-6-10",
             "resume-hooks-silently-lost-6-11",
-            "resume-hooks-silently-lost-6-12"
+            "resume-hooks-silently-lost-6-12",
+            "resume-hooks-silently-lost-6-13"
           ],
           "staging": {
             "p1": {
