@@ -646,8 +646,7 @@ func TestExecute_EmitsFatalUserMessageToStderr(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected Execute to return error, got nil")
 	}
-	var fatal *bootstrap.FatalError
-	if !errors.As(err, &fatal) {
+	if _, ok := errors.AsType[*bootstrap.FatalError](err); !ok {
 		t.Fatalf("expected *bootstrap.FatalError, got %T (%v)", err, err)
 	}
 
@@ -681,8 +680,7 @@ func TestExecute_NonFatalErrorWritesNothingToFatalStream(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
-	var fatal *bootstrap.FatalError
-	if errors.As(err, &fatal) {
+	if _, ok := errors.AsType[*bootstrap.FatalError](err); ok {
 		t.Fatalf("non-fatal error must not be *FatalError; got %v", err)
 	}
 	if stderr.Len() != 0 {

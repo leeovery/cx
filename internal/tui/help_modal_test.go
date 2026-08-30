@@ -291,7 +291,7 @@ func TestHelpModalColourRoles(t *testing.T) {
 		body := helpModalBody(sessionsKeymap(), th, false)
 
 		wantTokens := map[string]theme.Token{
-			"accent.key (key glyphs)":    th.AccentKey,
+			"accent.key (key glyphs)":        th.AccentKey,
 			"text.secondary (action labels)": th.TextSecondary,
 		}
 		for label, tok := range wantTokens {

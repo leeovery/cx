@@ -28,8 +28,7 @@ func TestCombinedOutputWithContext_EmbedsArgvAndTrimmedStderrOnNonZeroExit(t *te
 		t.Errorf("error %q does not contain argv (cmd.Args[1:])", msg)
 	}
 
-	var exitErr *exec.ExitError
-	if !errors.As(err, &exitErr) {
+	if _, ok := errors.AsType[*exec.ExitError](err); !ok {
 		t.Errorf("errors.As did not recover *exec.ExitError through the wrap: %v", err)
 	}
 }
@@ -66,8 +65,7 @@ func TestCombinedOutputWithContext_EmptyStderrRendersCleanly(t *testing.T) {
 		t.Fatalf("expected error on non-zero exit, got nil")
 	}
 
-	var exitErr *exec.ExitError
-	if !errors.As(err, &exitErr) {
+	if _, ok := errors.AsType[*exec.ExitError](err); !ok {
 		t.Errorf("errors.As did not recover *exec.ExitError through the wrap: %v", err)
 	}
 }
@@ -80,8 +78,7 @@ func TestCombinedOutputWithContext_PathLookupErrorWrapsCleanly(t *testing.T) {
 		t.Fatalf("expected error for missing binary, got nil")
 	}
 
-	var execErr *exec.Error
-	if !errors.As(err, &execErr) {
+	if _, ok := errors.AsType[*exec.Error](err); !ok {
 		t.Errorf("errors.As did not recover *exec.Error through the wrap: %v", err)
 	}
 }

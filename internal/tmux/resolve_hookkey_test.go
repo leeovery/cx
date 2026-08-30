@@ -82,8 +82,7 @@ func TestResolveHookKey_ProbeOrdering(t *testing.T) {
 		if got != "" {
 			t.Errorf("hook key on a failed read = %q, want \"\"", got)
 		}
-		var cmdErr *tmux.CommandError
-		if !errors.As(err, &cmdErr) {
+		if _, ok := errors.AsType[*tmux.CommandError](err); !ok {
 			t.Fatalf("error %v is not a recoverable *tmux.CommandError (errors.As failed)", err)
 		}
 		if !strings.Contains(err.Error(), stderr) {

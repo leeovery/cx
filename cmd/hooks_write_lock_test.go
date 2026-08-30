@@ -28,8 +28,7 @@ func assertLockFailureReachesStderr(t *testing.T, out string, err error) {
 	if !strings.Contains(err.Error(), hooks.ErrLockHeld.Error()) {
 		t.Errorf("error = %q, want it to carry the reason %q", err.Error(), hooks.ErrLockHeld.Error())
 	}
-	var usageErr *UsageError
-	if errors.As(err, &usageErr) {
+	if _, ok := errors.AsType[*UsageError](err); ok {
 		t.Errorf("error %v is a *UsageError; a lock timeout is not a usage error", err)
 	}
 	if IsSilentExitError(err) {

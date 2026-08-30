@@ -87,8 +87,7 @@ func TestOpenCommand_MultiTarget_MixedSetTwoMisses_ReportsBothAtomically(t *test
 	if got, want := err.Error(), "nothing resolved for: 'gone1', 'gone2'"; got != want {
 		t.Errorf("error = %q, want %q", got, want)
 	}
-	var usage *UsageError
-	if errors.As(err, &usage) {
+	if _, ok := errors.AsType[*UsageError](err); ok {
 		t.Error("aggregated miss must be a plain error (exit 1), not a UsageError")
 	}
 	if bc.burstCalled {

@@ -28,8 +28,7 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 		if !strings.Contains(err.Error(), stderr) {
 			t.Errorf("error = %q, want it to carry tmux's own words %q", err.Error(), stderr)
 		}
-		var cmdErr *tmux.CommandError
-		if !errors.As(err, &cmdErr) {
+		if _, ok := errors.AsType[*tmux.CommandError](err); !ok {
 			t.Errorf("error %v is not a recoverable *tmux.CommandError (errors.As failed)", err)
 		}
 		assertHooksFileUnchanged(t, hooksFile, before)
@@ -351,8 +350,7 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 
 		// main's classify prints a non-silent, non-usage error to stderr and exits
 		// 1; cobra's own SilenceUsage/SilenceErrors keep the streams clean.
-		var usageErr *UsageError
-		if errors.As(err, &usageErr) {
+		if _, ok := errors.AsType[*UsageError](err); ok {
 			t.Errorf("error %v is a *UsageError; removing nothing is not a usage error", err)
 		}
 		if IsSilentExitError(err) {

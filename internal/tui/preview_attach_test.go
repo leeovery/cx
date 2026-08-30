@@ -261,8 +261,7 @@ func makeExitError(t *testing.T) error {
 	if err == nil {
 		t.Fatalf("expected non-zero exit from sh -c 'exit 1'")
 	}
-	var ee *exec.ExitError
-	if !errors.As(err, &ee) {
+	if _, ok := errors.AsType[*exec.ExitError](err); !ok {
 		t.Fatalf("expected *exec.ExitError, got %T", err)
 	}
 	return err

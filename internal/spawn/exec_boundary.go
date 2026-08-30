@@ -16,8 +16,7 @@ func runArgvCombined(argv []string) (out string, exitCode int, err error) {
 		return string(combined), 0, nil
 	}
 
-	var exitErr *exec.ExitError
-	if errors.As(runErr, &exitErr) {
+	if exitErr, ok := errors.AsType[*exec.ExitError](runErr); ok {
 		return combineOutput(combined, runErr), exitErr.ExitCode(), nil
 	}
 	return string(combined), 0, runErr

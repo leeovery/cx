@@ -463,8 +463,7 @@ func TestHooksSetCommand(t *testing.T) {
 		if err.Error() != stderr {
 			t.Errorf("error = %q, want tmux's own words %q unaltered", err.Error(), stderr)
 		}
-		var cmdErr *tmux.CommandError
-		if !errors.As(err, &cmdErr) {
+		if _, ok := errors.AsType[*tmux.CommandError](err); !ok {
 			t.Errorf("error %v is not a recoverable *tmux.CommandError (errors.As failed)", err)
 		}
 

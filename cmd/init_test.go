@@ -331,8 +331,7 @@ func TestInitUnsupportedShell_IsUsageError(t *testing.T) {
 		t.Fatal("expected error for unsupported shell, got nil")
 	}
 
-	var usageErr *UsageError
-	if !errors.As(err, &usageErr) {
+	if _, ok := errors.AsType[*UsageError](err); !ok {
 		t.Errorf("expected UsageError, got %T: %v", err, err)
 	}
 }

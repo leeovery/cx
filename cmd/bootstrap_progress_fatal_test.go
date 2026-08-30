@@ -56,8 +56,7 @@ func TestBootstrapProgressPipe_FatalMapsToFatalMsg(t *testing.T) {
 	if !errors.Is(fatalMsg.Err, cause) {
 		t.Errorf("BootstrapFatalMsg.Err did not carry the fatal cause; got %v", fatalMsg.Err)
 	}
-	var asFatal *bootstrap.FatalError
-	if !errors.As(fatalMsg.Err, &asFatal) {
+	if _, ok := errors.AsType[*bootstrap.FatalError](fatalMsg.Err); !ok {
 		t.Error("BootstrapFatalMsg.Err is not a *bootstrap.FatalError (exit classification would miss it)")
 	}
 }

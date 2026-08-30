@@ -1014,8 +1014,7 @@ func TestQueryResolver_ResolveAliasPin(t *testing.T) {
 		if want := "Directory not found: /gone/dir"; err.Error() != want {
 			t.Errorf("error = %q, want %q", err.Error(), want)
 		}
-		var dirErr *resolver.DirNotFoundError
-		if !errors.As(err, &dirErr) {
+		if _, ok := errors.AsType[*resolver.DirNotFoundError](err); !ok {
 			t.Errorf("expected *DirNotFoundError, got %T", err)
 		}
 	})
@@ -1096,8 +1095,7 @@ func TestQueryResolver_ResolveZoxidePin(t *testing.T) {
 		if want := "Directory not found: /gone/dir"; err.Error() != want {
 			t.Errorf("error = %q, want %q", err.Error(), want)
 		}
-		var dirErr *resolver.DirNotFoundError
-		if !errors.As(err, &dirErr) {
+		if _, ok := errors.AsType[*resolver.DirNotFoundError](err); !ok {
 			t.Errorf("expected *DirNotFoundError, got %T", err)
 		}
 	})
@@ -1121,8 +1119,7 @@ func TestQueryResolver_Resolve_NonExistentResolvedDirectory(t *testing.T) {
 			t.Errorf("error = %q, want %q", err.Error(), want)
 		}
 
-		var dirErr *resolver.DirNotFoundError
-		if !errors.As(err, &dirErr) {
+		if _, ok := errors.AsType[*resolver.DirNotFoundError](err); !ok {
 			t.Errorf("expected DirNotFoundError, got %T", err)
 		}
 	})

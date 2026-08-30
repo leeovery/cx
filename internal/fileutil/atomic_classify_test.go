@@ -44,9 +44,8 @@ func TestAtomicWriteSentinels(t *testing.T) {
 		if err == nil {
 			t.Fatalf("expected error; got nil")
 		}
-		var pathErr *os.PathError
-		if !errors.As(err, &pathErr) {
-			t.Errorf("errors.As(err, &pathErr) = false; underlying *os.PathError not preserved; err = %v", err)
+		if _, ok := errors.AsType[*os.PathError](err); !ok {
+			t.Errorf("errors.AsType[*os.PathError](err) = false; underlying *os.PathError not preserved; err = %v", err)
 		}
 	})
 
@@ -67,9 +66,8 @@ func TestAtomicWriteSentinels(t *testing.T) {
 		}
 		// The wrap must preserve the concrete *os.LinkError, so a caller keeps
 		// both paths and the errno.
-		var linkErr *os.LinkError
-		if !errors.As(err, &linkErr) {
-			t.Errorf("errors.As(err, &linkErr) = false; underlying *os.LinkError not preserved; err = %v", err)
+		if _, ok := errors.AsType[*os.LinkError](err); !ok {
+			t.Errorf("errors.AsType[*os.LinkError](err) = false; underlying *os.LinkError not preserved; err = %v", err)
 		}
 		if got := fileutil.ClassifyWriteError(err); got != "write-failed-rename" {
 			t.Errorf("ClassifyWriteError = %q, want %q", got, "write-failed-rename")

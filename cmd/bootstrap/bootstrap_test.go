@@ -408,8 +408,7 @@ func TestOrchestratorRun_continuesPastEagerSignalHydrateFailure(t *testing.T) {
 		t.Fatalf("EagerSignalHydrate failure must not propagate; got %v", err)
 	}
 
-	var fatal *FatalError
-	if errors.As(err, &fatal) {
+	if _, ok := errors.AsType[*FatalError](err); ok {
 		t.Errorf("Run unexpectedly returned *FatalError on soft EagerSignalHydrate failure: %v", err)
 	}
 	if len(logger.warnings) == 0 {
@@ -597,8 +596,7 @@ func TestOrchestratorRun_ensureSaverFailureDoesNotProduceFatalError(t *testing.T
 		t.Fatalf("Run must not surface saver failures; got %v", err)
 	}
 
-	var fatal *FatalError
-	if errors.As(err, &fatal) {
+	if _, ok := errors.AsType[*FatalError](err); ok {
 		t.Errorf("Run unexpectedly returned *FatalError on soft saver failure: %v", err)
 	}
 	if len(warnings) != 1 {
@@ -781,8 +779,7 @@ func TestOrchestratorRun_continuesPastSweepFailure(t *testing.T) {
 		t.Fatalf("Sweep failure must not propagate; got %v", err)
 	}
 
-	var fatal *FatalError
-	if errors.As(err, &fatal) {
+	if _, ok := errors.AsType[*FatalError](err); ok {
 		t.Errorf("Run unexpectedly returned *FatalError on soft sweep failure: %v", err)
 	}
 	if len(logger.warnings) == 0 {
@@ -844,8 +841,7 @@ func TestOrchestratorRun_continuesPastCleanStaleMarkersFailure(t *testing.T) {
 		t.Fatalf("CleanStaleMarkers failure must not propagate; got %v", err)
 	}
 
-	var fatal *FatalError
-	if errors.As(err, &fatal) {
+	if _, ok := errors.AsType[*FatalError](err); ok {
 		t.Errorf("Run unexpectedly returned *FatalError on soft CleanStaleMarkers failure: %v", err)
 	}
 	if len(logger.warnings) == 0 {
@@ -1234,8 +1230,7 @@ func TestOrchestratorRun_continuesPastSweepOrphanDaemonsFailure(t *testing.T) {
 		t.Fatalf("SweepOrphanDaemons failure must not propagate; got %v", err)
 	}
 
-	var fatal *FatalError
-	if errors.As(err, &fatal) {
+	if _, ok := errors.AsType[*FatalError](err); ok {
 		t.Errorf("Run unexpectedly returned *FatalError on soft SweepOrphanDaemons failure: %v", err)
 	}
 	if len(logger.warnings) == 0 {

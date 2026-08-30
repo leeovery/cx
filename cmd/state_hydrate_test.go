@@ -1813,8 +1813,7 @@ func TestHydrate_FileMissing_PassesRawCauseVerbatim(t *testing.T) {
 	if !errors.Is(captured, fs.ErrNotExist) {
 		t.Fatalf("Cause does not traverse to fs.ErrNotExist (pre-wrapped?): %v", captured)
 	}
-	var pathErr *os.PathError
-	if !errors.As(captured, &pathErr) {
+	if _, ok := errors.AsType[*os.PathError](captured); !ok {
 		t.Fatalf("Cause does not carry an *os.PathError verbatim: %v", captured)
 	}
 }

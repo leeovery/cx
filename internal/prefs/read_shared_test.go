@@ -109,8 +109,7 @@ func TestDecodePaths_ShareTheReadAndSplitOnTheDecode(t *testing.T) {
 		}
 
 		_, strictOK, strictErr := store.readFileStrict()
-		var syntaxErr *json.SyntaxError
-		if !errors.As(strictErr, &syntaxErr) {
+		if _, ok := errors.AsType[*json.SyntaxError](strictErr); !ok {
 			t.Errorf("the strict decode returned %v (%T) for a corrupt file, want the decoder's *json.SyntaxError — a writer must abort rather than merge", strictErr, strictErr)
 		}
 		if strictOK {

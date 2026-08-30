@@ -60,8 +60,7 @@ func run() (code int, panicked bool) {
 // classify maps an Execute error to a process exit code, printing it to stderr
 // unless the error is one whose message has already been surfaced elsewhere.
 func classify(err error) int {
-	var fatal *bootstrap.FatalError
-	if errors.As(err, &fatal) {
+	if _, ok := errors.AsType[*bootstrap.FatalError](err); ok {
 		// Execute already wrote the user-facing message.
 		return 1
 	}
@@ -71,8 +70,7 @@ func classify(err error) int {
 		_, _ = fmt.Fprintln(errOut, err)
 	}
 
-	var usageErr *cmd.UsageError
-	if errors.As(err, &usageErr) {
+	if _, ok := errors.AsType[*cmd.UsageError](err); ok {
 		return 2
 	}
 	return 1

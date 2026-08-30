@@ -495,8 +495,7 @@ func TestStaleMarkerCleanup_SoftWarningPosture(t *testing.T) {
 		if len(unsetter.calls) != 2 {
 			t.Errorf("expected both unset calls attempted, got %d (%v)", len(unsetter.calls), unsetter.calls)
 		}
-		var fatal *FatalError
-		if errors.As(err, &fatal) {
+		if fatal, ok := errors.AsType[*FatalError](err); ok {
 			t.Errorf("expected non-fatal error; got *FatalError = %v", fatal)
 		}
 	})
@@ -633,8 +632,7 @@ func TestStaleMarkerCleanup_SoftWarningPosture(t *testing.T) {
 		if err == nil {
 			t.Fatalf("expected non-nil error from per-unset failures; got nil")
 		}
-		var fatal *FatalError
-		if errors.As(err, &fatal) {
+		if fatal, ok := errors.AsType[*FatalError](err); ok {
 			t.Errorf("CleanStaleMarkers returned *FatalError = %v; soft-warning posture forbids fatal escalation", fatal)
 		}
 	})

@@ -600,15 +600,13 @@ func requireOrdinaryError(t *testing.T, err error) {
 		t.Fatal("theme export returned nil, want a refusal")
 	}
 
-	var fatal *bootstrap.FatalError
-	if errors.As(err, &fatal) {
+	if _, ok := errors.AsType[*bootstrap.FatalError](err); ok {
 		t.Errorf("refusal %q is a *bootstrap.FatalError — classify would suppress its message", err)
 	}
 	if IsSilentExitError(err) {
 		t.Errorf("refusal %q is a silent-exit sentinel — classify would print nothing, and the reason string is the whole answer", err)
 	}
-	var usage *UsageError
-	if errors.As(err, &usage) {
+	if _, ok := errors.AsType[*UsageError](err); ok {
 		t.Errorf("refusal %q is a *UsageError — classify would exit 2, and every failure class here must exit 1", err)
 	}
 }

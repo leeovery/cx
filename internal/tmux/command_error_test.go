@@ -38,8 +38,7 @@ func TestWrapCommandError(t *testing.T) {
 		if cmdErr.Stderr == "" {
 			t.Errorf("CommandError.Stderr is empty; want bytes containing %q", marker)
 		}
-		var exitErr *exec.ExitError
-		if !errors.As(cmdErr.Err, &exitErr) {
+		if _, ok := errors.AsType[*exec.ExitError](cmdErr.Err); !ok {
 			t.Errorf("cmdErr.Err = %v (%T); expected to unwrap to *exec.ExitError", cmdErr.Err, cmdErr.Err)
 		}
 	})
@@ -131,8 +130,7 @@ func TestCommandError_ErrorRendering_WithArgs(t *testing.T) {
 		if runErr == nil {
 			t.Fatal("expected non-nil error invoking nonexistent binary")
 		}
-		var exitErr *exec.ExitError
-		if errors.As(runErr, &exitErr) {
+		if _, ok := errors.AsType[*exec.ExitError](runErr); ok {
 			t.Fatalf("expected non-ExitError failure, got *exec.ExitError")
 		}
 		wrapped := WrapCommandError(runErr, "list-sessions")

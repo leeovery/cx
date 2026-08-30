@@ -40,8 +40,7 @@ func TestRealCommandRunner_Run_EmbedsArgvAndStderrOnNonZeroExit(t *testing.T) {
 		t.Errorf("error %q does not contain argv", msg)
 	}
 
-	var exitErr *exec.ExitError
-	if !errors.As(err, &exitErr) {
+	if _, ok := errors.AsType[*exec.ExitError](err); !ok {
 		t.Errorf("errors.As did not recover *exec.ExitError through the wrap: %v", err)
 	}
 }
@@ -54,8 +53,7 @@ func TestRealCommandRunner_Run_PathLookupErrorWrapsCleanly(t *testing.T) {
 		t.Fatalf("expected error for missing binary, got nil")
 	}
 
-	var execErr *exec.Error
-	if !errors.As(err, &execErr) {
+	if _, ok := errors.AsType[*exec.Error](err); !ok {
 		t.Errorf("errors.As did not recover *exec.Error through the wrap: %v", err)
 	}
 }

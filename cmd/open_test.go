@@ -332,8 +332,7 @@ func TestOpenCommand_BareSessionAttach_WithCommand_UsageError(t *testing.T) {
 	if err.Error() != want {
 		t.Errorf("error = %q, want %q", err.Error(), want)
 	}
-	var usageErr *UsageError
-	if !errors.As(err, &usageErr) {
+	if _, ok := errors.AsType[*UsageError](err); !ok {
 		t.Errorf("expected *UsageError (exit 2), got %T", err)
 	}
 	if sessionCalled {
@@ -372,8 +371,7 @@ func TestOpenCommand_BareSessionAttach_WithDashDashCommand_UsageError(t *testing
 	if err.Error() != want {
 		t.Errorf("error = %q, want %q", err.Error(), want)
 	}
-	var usageErr *UsageError
-	if !errors.As(err, &usageErr) {
+	if _, ok := errors.AsType[*UsageError](err); !ok {
 		t.Errorf("expected *UsageError (exit 2), got %T", err)
 	}
 	if sessionCalled {
@@ -412,8 +410,7 @@ func TestOpenCommand_SessionPin_WithCommand_UsageError(t *testing.T) {
 	if err.Error() != want {
 		t.Errorf("error = %q, want %q", err.Error(), want)
 	}
-	var usageErr *UsageError
-	if !errors.As(err, &usageErr) {
+	if _, ok := errors.AsType[*UsageError](err); !ok {
 		t.Errorf("expected *UsageError (exit 2), got %T", err)
 	}
 	if sessionCalled {
@@ -505,8 +502,7 @@ func TestOpenCommand_SessionPin_Miss_HardFailsNoPicker(t *testing.T) {
 	if pathCalled {
 		t.Error("openPathFunc must not be called on a -s miss")
 	}
-	var usageErr *UsageError
-	if errors.As(err, &usageErr) {
+	if _, ok := errors.AsType[*UsageError](err); ok {
 		t.Error("-s miss error must be a plain error, not a *UsageError")
 	}
 }
@@ -680,8 +676,7 @@ func TestOpenCommand_PathPin_Miss_HardFailsNoPicker(t *testing.T) {
 	if pathCalled {
 		t.Error("openPathFunc must not be called on a -p miss (never mints)")
 	}
-	var usageErr *UsageError
-	if errors.As(err, &usageErr) {
+	if _, ok := errors.AsType[*UsageError](err); ok {
 		t.Error("-p miss error must be a plain error, not a *UsageError")
 	}
 }
@@ -857,8 +852,7 @@ func TestOpenCommand_AliasPin_UnknownKey_HardFailsNoPicker(t *testing.T) {
 	if pathCalled {
 		t.Error("openPathFunc must not be called on a -a unknown-key miss")
 	}
-	var usageErr *UsageError
-	if errors.As(err, &usageErr) {
+	if _, ok := errors.AsType[*UsageError](err); ok {
 		t.Error("-a unknown-key error must be a plain error, not a *UsageError")
 	}
 }
@@ -1080,8 +1074,7 @@ func TestOpenCommand_ZoxidePin_NoMatch_HardFailsNoPicker(t *testing.T) {
 	if pathCalled {
 		t.Error("openPathFunc must not be called on a -z no-match")
 	}
-	var usageErr *UsageError
-	if errors.As(err, &usageErr) {
+	if _, ok := errors.AsType[*UsageError](err); ok {
 		t.Error("-z no-match error must be a plain error, not a *UsageError")
 	}
 }
@@ -1637,8 +1630,7 @@ func TestParseCommandArgs(t *testing.T) {
 					if checkErr == nil {
 						checkErr = err
 					}
-					var usageErr *UsageError
-					if !errors.As(checkErr, &usageErr) {
+					if _, ok := errors.AsType[*UsageError](checkErr); !ok {
 						t.Errorf("expected UsageError for exit code 2, got %T", checkErr)
 					}
 				}
@@ -2019,8 +2011,7 @@ func TestOpenCommand_TotalMiss_HardFails(t *testing.T) {
 	if tuiCalled {
 		t.Error("openTUIFunc must not be called on a total miss")
 	}
-	var usageErr *UsageError
-	if errors.As(err, &usageErr) {
+	if _, ok := errors.AsType[*UsageError](err); ok {
 		t.Error("miss error must be a plain error, not a *UsageError")
 	}
 }
@@ -2434,8 +2425,7 @@ func TestOpenCommand_Filter_WithPositionalTarget_UsageError(t *testing.T) {
 	if err.Error() != want {
 		t.Errorf("error = %q, want %q", err.Error(), want)
 	}
-	var usageErr *UsageError
-	if !errors.As(err, &usageErr) {
+	if _, ok := errors.AsType[*UsageError](err); !ok {
 		t.Errorf("expected *UsageError (exit 2), got %T", err)
 	}
 	if tuiCalled {
@@ -2506,8 +2496,7 @@ func TestOpenCommand_Filter_WithPin_UsageError(t *testing.T) {
 			if err.Error() != want {
 				t.Errorf("error = %q, want %q", err.Error(), want)
 			}
-			var usageErr *UsageError
-			if !errors.As(err, &usageErr) {
+			if _, ok := errors.AsType[*UsageError](err); !ok {
 				t.Errorf("expected *UsageError (exit 2), got %T", err)
 			}
 			if tuiCalled {
@@ -2555,8 +2544,7 @@ func TestOpenCommand_Filter_WithMultiplePins_UsageError(t *testing.T) {
 	if err.Error() != want {
 		t.Errorf("error = %q, want %q", err.Error(), want)
 	}
-	var usageErr *UsageError
-	if !errors.As(err, &usageErr) {
+	if _, ok := errors.AsType[*UsageError](err); !ok {
 		t.Errorf("expected *UsageError (exit 2), got %T", err)
 	}
 	if tuiCalled {
@@ -2590,8 +2578,7 @@ func TestOpenCommand_Filter_EmptyValue_UsageError(t *testing.T) {
 	if err.Error() != want {
 		t.Errorf("error = %q, want %q", err.Error(), want)
 	}
-	var usageErr *UsageError
-	if !errors.As(err, &usageErr) {
+	if _, ok := errors.AsType[*UsageError](err); !ok {
 		t.Errorf("expected *UsageError (exit 2), got %T", err)
 	}
 	if tuiCalled {
@@ -3349,8 +3336,7 @@ func TestOpenCommand_Ack_MalformedValue_UsageErrorBeforeTmux(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected a UsageError for a malformed --ack value, got nil")
 	}
-	var usageErr *UsageError
-	if !errors.As(err, &usageErr) {
+	if _, ok := errors.AsType[*UsageError](err); !ok {
 		t.Errorf("error %v (%T) does not match *cmd.UsageError", err, err)
 	}
 	want := "open: --ack must be <batch>:<token>"
@@ -3561,8 +3547,7 @@ func TestOpenCommand_Ack_CommandAttachGuardFiresBeforeWrite(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected a UsageError for a command targeting an attach session, got nil")
 	}
-	var usageErr *UsageError
-	if !errors.As(err, &usageErr) {
+	if _, ok := errors.AsType[*UsageError](err); !ok {
 		t.Errorf("error %v (%T) does not match *cmd.UsageError", err, err)
 	}
 	if len(ackWriter.calls) != 0 {

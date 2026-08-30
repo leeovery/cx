@@ -49,7 +49,7 @@ func TestProjectsHeader_RightAlignedFilterHint(t *testing.T) {
 func TestProjectsHeader_AlignsWithWordmark(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		const w = projectsHeaderWidth
-		wordmarkLine := strings.SplitN(renderHeaderBlock(w, th, false), "\n", 2)[0]
+		wordmarkLine, _, _ := strings.Cut(renderHeaderBlock(w, th, false), "\n")
 		wordmarkCol := leadingPrintableCol(wordmarkLine)
 		if wordmarkCol != 0 {
 			t.Fatalf("[%v] PORTAL wordmark leading column = %d, want 0", themeLabel(th), wordmarkCol)

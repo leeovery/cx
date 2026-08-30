@@ -98,8 +98,7 @@ func (c *Client) HasSessionProbe(name string) (bool, error) {
 	if err == nil {
 		return true, nil
 	}
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) {
+	if _, ok := errors.AsType[*exec.ExitError](err); ok {
 		return false, err
 	}
 	return true, err
@@ -334,8 +333,7 @@ func (c *Client) GetServerOption(name string) (string, error) {
 	if err == nil {
 		return strings.TrimSpace(output), nil
 	}
-	var cmdErr *CommandError
-	if errors.As(err, &cmdErr) {
+	if cmdErr, ok := errors.AsType[*CommandError](err); ok {
 		for _, pat := range optionAbsentStderrPatterns {
 			if strings.Contains(cmdErr.Stderr, pat) {
 				return "", ErrOptionNotFound

@@ -195,8 +195,7 @@ func Execute() error {
 	if err == nil {
 		return nil
 	}
-	var fatal *bootstrap.FatalError
-	if errors.As(err, &fatal) {
+	if fatal, ok := errors.AsType[*bootstrap.FatalError](err); ok {
 		_, _ = fmt.Fprintln(fatalErrorStderr, fatal.UserMessage)
 	}
 	return err

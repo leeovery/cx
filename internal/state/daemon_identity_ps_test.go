@@ -30,8 +30,7 @@ func TestDefaultIdentifyPS_ErrorEmbedsPSArgv(t *testing.T) {
 		t.Errorf("error %q does not contain ps argv", msg)
 	}
 
-	var exitErr *exec.ExitError
-	if !errors.As(err, &exitErr) {
+	if _, ok := errors.AsType[*exec.ExitError](err); !ok {
 		t.Errorf("errors.As did not recover *exec.ExitError through the wrap: %v", err)
 	}
 }

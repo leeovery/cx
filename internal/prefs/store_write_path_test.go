@@ -120,8 +120,7 @@ func (c undecodableCase) assertErr(t *testing.T, err error) {
 
 	switch c.errClass {
 	case classSyntax:
-		var syntaxErr *json.SyntaxError
-		if !errors.As(err, &syntaxErr) {
+		if _, ok := errors.AsType[*json.SyntaxError](err); !ok {
 			t.Errorf("error = %v (%T), want the decoder's *json.SyntaxError", err, err)
 		}
 	case classTopLevelTypeMismatch:

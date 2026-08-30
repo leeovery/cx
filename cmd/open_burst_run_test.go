@@ -359,8 +359,7 @@ func TestRunOpenBurst_AllAttachWithCommand_UsageError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected a usage error for an all-attach set carrying a command, got nil")
 	}
-	var usageErr *UsageError
-	if !errors.As(err, &usageErr) {
+	if _, ok := errors.AsType[*UsageError](err); !ok {
 		t.Fatalf("error = %T (%v), want *UsageError (exit 2)", err, err)
 	}
 	if want := "a command (-e/--) can only run in a newly-created session, not an existing one"; err.Error() != want {

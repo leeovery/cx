@@ -46,8 +46,7 @@ func TestListAllPaneHookKeys_ListPanesFailurePropagates(t *testing.T) {
 		t.Errorf("rows on read failure = %+v, want nil (MUST NOT treat a tmux failure as an empty live set)", rows)
 	}
 
-	var cmdErr *tmux.CommandError
-	if !errors.As(err, &cmdErr) {
+	if _, ok := errors.AsType[*tmux.CommandError](err); !ok {
 		t.Errorf("error %v is not a recoverable *tmux.CommandError (errors.As failed)", err)
 	}
 }

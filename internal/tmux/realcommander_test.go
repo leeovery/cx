@@ -55,8 +55,7 @@ func TestRealCommander_RunWrapsExitError(t *testing.T) {
 					t.Errorf("Error() = %q, want it to contain %q", rendered, want)
 				}
 			}
-			var exitErr *exec.ExitError
-			if !errors.As(cmdErr.Err, &exitErr) {
+			if _, ok := errors.AsType[*exec.ExitError](cmdErr.Err); !ok {
 				t.Errorf("cmdErr.Err = %v (%T); expected to unwrap to *exec.ExitError", cmdErr.Err, cmdErr.Err)
 			}
 		})
@@ -150,8 +149,7 @@ func TestRealCommander_RunWrapsNonExitError(t *testing.T) {
 			if cmdErr.Err == nil {
 				t.Fatal("CommandError.Err is nil; want underlying error preserved")
 			}
-			var exitErr *exec.ExitError
-			if errors.As(cmdErr.Err, &exitErr) {
+			if _, ok := errors.AsType[*exec.ExitError](cmdErr.Err); ok {
 				t.Errorf("cmdErr.Err unexpectedly unwraps to *exec.ExitError; want non-exit error type")
 			}
 		})

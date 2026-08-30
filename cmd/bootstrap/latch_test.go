@@ -85,8 +85,7 @@ func TestOrchestratorRun_doesNotStampLatchOnFatalAbort(t *testing.T) {
 
 	_, _, err := o.Run(context.Background())
 
-	var fatal *FatalError
-	if !errors.As(err, &fatal) {
+	if _, ok := errors.AsType[*FatalError](err); !ok {
 		t.Fatalf("expected *FatalError from a fatal-step abort, got %T (%v)", err, err)
 	}
 	if len(latch.calls) != 0 {

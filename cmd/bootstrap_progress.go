@@ -129,8 +129,7 @@ func (p *bootstrapProgressPipe) receiver() tea.Cmd {
 // defensive: the orchestrator always wraps fatals.
 func fatalMsgFromEvent(ev bootstrapProgress) tui.BootstrapFatalMsg {
 	message := ev.Fatal.Error()
-	var fatal *bootstrap.FatalError
-	if errors.As(ev.Fatal, &fatal) {
+	if fatal, ok := errors.AsType[*bootstrap.FatalError](ev.Fatal); ok {
 		message = fatal.UserMessage
 	}
 	return tui.BootstrapFatalMsg{

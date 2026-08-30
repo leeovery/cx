@@ -217,7 +217,7 @@ func storedTokens(t *testing.T, built Theme) map[string]string {
 	fields := reflect.ValueOf(built)
 	stored := make(map[string]string, fields.NumField())
 	for i := range fields.NumField() {
-		tok, ok := fields.Field(i).Interface().(Token)
+		tok, ok := reflect.TypeAssert[Token](fields.Field(i))
 		if !ok {
 			t.Fatalf("Theme field %d is %s, want a Token", i, fields.Field(i).Type())
 		}

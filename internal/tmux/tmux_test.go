@@ -484,14 +484,12 @@ func TestHasSessionProbe(t *testing.T) {
 			t.Fatal("err = nil, want non-nil")
 		}
 
-		var cmdErr *tmux.CommandError
-		if !errors.As(err, &cmdErr) {
-			t.Errorf("errors.As(err, &cmdErr) = false; want *CommandError shape preserved")
+		if _, ok := errors.AsType[*tmux.CommandError](err); !ok {
+			t.Errorf("errors.AsType[*tmux.CommandError](err) = false; want *CommandError shape preserved")
 		}
 
-		var asExit *exec.ExitError
-		if !errors.As(err, &asExit) {
-			t.Errorf("errors.As(err, &exitErr) = false; want underlying *exec.ExitError")
+		if _, ok := errors.AsType[*exec.ExitError](err); !ok {
+			t.Errorf("errors.AsType[*exec.ExitError](err) = false; want underlying *exec.ExitError")
 		}
 	})
 
@@ -509,9 +507,8 @@ func TestHasSessionProbe(t *testing.T) {
 			t.Fatal("err = nil, want non-nil")
 		}
 
-		var asExit *exec.ExitError
-		if errors.As(err, &asExit) {
-			t.Errorf("errors.As(err, &exitErr) = true; want false for non-ExitError cause")
+		if _, ok := errors.AsType[*exec.ExitError](err); ok {
+			t.Errorf("errors.AsType[*exec.ExitError](err) = true; want false for non-ExitError cause")
 		}
 	})
 }
@@ -2979,8 +2976,7 @@ func TestActivePaneCurrentPath(t *testing.T) {
 		if !errors.Is(err, tmux.ErrNoSuchSession) {
 			t.Errorf("error %v is not classified as ErrNoSuchSession", err)
 		}
-		var recovered *tmux.CommandError
-		if !errors.As(err, &recovered) {
+		if _, ok := errors.AsType[*tmux.CommandError](err); !ok {
 			t.Errorf("underlying *CommandError not recoverable from %v", err)
 		}
 	})

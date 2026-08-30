@@ -203,7 +203,7 @@ func TestSectionHeader_AlignsWithHeaderWordmark(t *testing.T) {
 	forEachBuiltinTheme(t, func(t *testing.T, th theme.Theme) {
 		const w = sectionHeaderWidth
 
-		headerFirstLine := strings.SplitN(renderHeaderBlock(w, th, false), "\n", 2)[0]
+		headerFirstLine, _, _ := strings.Cut(renderHeaderBlock(w, th, false), "\n")
 		wordmarkCol := leadingPrintableCol(headerFirstLine)
 		if wordmarkCol != 0 {
 			t.Fatalf("PORTAL wordmark leading column = %d, want 0 (flush at the content edge)", wordmarkCol)

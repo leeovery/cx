@@ -42,8 +42,7 @@ func (e *CommandError) renderWithArgs(trimmedStderr string) string {
 	var b strings.Builder
 	b.WriteString("tmux ")
 	b.WriteString(strings.Join(e.Args, " "))
-	var exitErr *exec.ExitError
-	if errors.As(e.Err, &exitErr) {
+	if exitErr, ok := errors.AsType[*exec.ExitError](e.Err); ok {
 		b.WriteString(": exit ")
 		b.WriteString(strconv.Itoa(exitErr.ExitCode()))
 	}
@@ -70,8 +69,7 @@ func WrapCommandError(err error, args ...string) error {
 		return nil
 	}
 	var stderr string
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) {
+	if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
 		stderr = string(exitErr.Stderr)
 	}
 	return &CommandError{Stderr: stderr, Err: err, Args: args}

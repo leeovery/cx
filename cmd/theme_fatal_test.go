@@ -34,15 +34,13 @@ func TestThemeFatal_TravelsExecuteUnaltered(t *testing.T) {
 		t.Errorf("Execute() = %v, want the injected error itself — the fatal travels the ordinary path and is never re-wrapped", err)
 	}
 
-	var asFatal *bootstrap.FatalError
-	if errors.As(err, &asFatal) {
+	if _, ok := errors.AsType[*bootstrap.FatalError](err); ok {
 		t.Error("the theme fatal classifies as a *bootstrap.FatalError — main suppresses stderr for those, so the failure line would never be printed")
 	}
 	if IsSilentExitError(err) {
 		t.Error("the theme fatal classifies as a silent-exit error — the user would get a bare non-zero exit with nothing to read")
 	}
-	var asUsage *UsageError
-	if errors.As(err, &asUsage) {
+	if _, ok := errors.AsType[*UsageError](err); ok {
 		t.Error("the theme fatal classifies as a *UsageError — exit code 2 and a usage framing, for something the user did not do")
 	}
 	if fatalStream.Len() != 0 {
