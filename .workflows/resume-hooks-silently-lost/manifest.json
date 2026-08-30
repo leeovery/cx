@@ -177,7 +177,7 @@
         "resume-hooks-silently-lost": {
           "status": "in-progress",
           "task_gate_mode": "auto",
-          "fix_gate_mode": "gated",
+          "fix_gate_mode": "auto",
           "analysis_gate_mode": "gated",
           "consolidation_gate_mode": "gated",
           "fix_attempts": 0,
@@ -214,7 +214,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 6,
-          "current_task": "resume-hooks-silently-lost-6-19",
+          "current_task": "resume-hooks-silently-lost-6-20",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -1316,6 +1316,75 @@
                 "internal/hookstest/hooks.go",
                 "cmd/config.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-19",
+              "source": "executor",
+              "summary": "~50 inline sink installs across the repo still hand-roll the two-line install instead of logtest.Install(t).",
+              "detail": "The bank item enumerated only the seven named helpers, which are now gone, but the same two-line install is written inline in ~25 files — e.g. cmd/hooks_test.go:984, cmd/theme_test.go:387, internal/theme/events_test.go:21, internal/tui/theme_panel_commit_load_test.go:596, internal/prefs/translation_saver_test.go:398. Mechanical, but it spans packages this task does not otherwise touch. A few sites wrap the sink in a local struct (internal/tmux/portal_saver_lifecycle_events_test.go:43, internal/restore/logging_capture_test.go:32) and would need the wrapper unpicked first.",
+              "files": [
+                "cmd/hooks_test.go",
+                "cmd/theme_test.go",
+                "cmd/state_daemon_test.go",
+                "internal/theme/events_test.go",
+                "internal/tui/theme_panel_commit_load_test.go",
+                "internal/prefs/translation_saver_test.go",
+                "internal/tmux/portal_saver_lifecycle_events_test.go",
+                "internal/restore/logging_capture_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-19",
+              "source": "executor",
+              "summary": "CLAUDE.md's logtest row enumerates the package's accessors and is now out of date.",
+              "detail": "The architecture table lists Sink plus typed accessors AttrString / IntAttr / RequireDuration / HasAttr / OnlyRecord and describes consumption via thin embedded-field wrappers across cmd / state / restore / tui / store test surfaces — the wrappers in cmd/bootstrap, cmd and internal/state are gone, and the package now also owns Install, RecordWant/AssertRecord, and the Records filter chain.",
+              "files": [
+                "CLAUDE.md"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-19",
+              "source": "reviewer",
+              "summary": "A fifth family the task did not enumerate: message-only record filters, which logtest cannot yet subsume (Records.With requires a component).",
+              "detail": "internal/tui/theme_panel_commit_load_test.go:110 themeEventRecords, internal/theme/events_test.go:761 recordsNamed, internal/restore/logging_capture_test.go:20 captureSink.recordsWithMessage (plus its capturedRecord projection and newCaptureLogger wrapper) are the same r.Msg == msg filter three times. A Records.WithMessage(msg) / Sink.RecordsWithMessage(msg) sibling subsumes all three and lets restore drop its wrapper type entirely.",
+              "files": [
+                "internal/tui/theme_panel_commit_load_test.go",
+                "internal/theme/events_test.go",
+                "internal/restore/logging_capture_test.go",
+                "internal/logtest/capture.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-19",
+              "source": "reviewer",
+              "summary": "A second, parallel capture mechanism exists alongside logtest.Sink, with its own re-authored level filters.",
+              "detail": "internal/tmux/hooks_register_warn_test.go:13 showHooksWarnRecords and internal/tmux/hooks_register_test.go:708/718/728 (infos/infoReaped/warns on recordingMigrationLogger) filter raw slog.Records captured by a hand-rolled recordingSlogHandler; cmd's recordingLogger is the same idea again. They cannot use the new accessors without first migrating onto logtest.Sink — a conversion that spans two packages and several suites.",
+              "files": [
+                "internal/tmux/hooks_register_warn_test.go",
+                "internal/tmux/hooks_register_test.go",
+                "cmd/run_hook_stale_cleanup_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-19",
+              "source": "reviewer",
+              "summary": "CLAUDE.md's logtest row is now out of date (confirming the executor's bank item).",
+              "detail": "The row lists the old accessor set and says consumption is via thin embedded-field wrappers across cmd / state / restore / tui / store test surfaces; the cmd, cmd/bootstrap and internal/state wrappers are gone, and the package now also owns Install, RecordWant/AssertRecord and the Records filter chain.",
+              "files": [
+                "CLAUDE.md"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-19",
+              "source": "reviewer",
+              "summary": "logtest.Install could subsume the sink-install duplication that remains outside the task's enumerated eight.",
+              "detail": "43 test sites still open-code sink := &logtest.Sink{} + log.SetTestHandler(t, sink) inline (76 SetTestHandler call sites total), and three declared fixtures still open-code the same two lines inside a broader helper: cmd/state_hydrate_exec_failure_test.go:16 (newSharedExecFailureCapture), cmd/state_daemon_self_eject_log_test.go:20 (newSharedSelfEjectCapture), internal/theme/resolve_test.go:21 (resolveLoader). Each is a one-line change, but the set spans cmd, tmux, theme, tui, restore, prefs and capturetool. Also internal/restore/logging_capture_test.go:10 still declares an embedded-Sink wrapper with a message-only filter, which logtest has no equivalent for.",
+              "files": [
+                "cmd/state_hydrate_exec_failure_test.go",
+                "cmd/state_daemon_self_eject_log_test.go",
+                "internal/theme/resolve_test.go",
+                "internal/restore/logging_capture_test.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -1386,7 +1455,8 @@
             "resume-hooks-silently-lost-6-15",
             "resume-hooks-silently-lost-6-16",
             "resume-hooks-silently-lost-6-17",
-            "resume-hooks-silently-lost-6-18"
+            "resume-hooks-silently-lost-6-18",
+            "resume-hooks-silently-lost-6-19"
           ],
           "staging": {
             "p1": {
