@@ -177,8 +177,8 @@
         "resume-hooks-silently-lost": {
           "status": "in-progress",
           "task_gate_mode": "auto",
-          "fix_gate_mode": "auto",
-          "analysis_gate_mode": "auto",
+          "fix_gate_mode": "gated",
+          "analysis_gate_mode": "gated",
           "consolidation_gate_mode": "gated",
           "fix_attempts": 0,
           "analysis_cycle_total": 1,
@@ -214,7 +214,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 6,
-          "current_task": "resume-hooks-silently-lost-6-18",
+          "current_task": "resume-hooks-silently-lost-6-19",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -1306,6 +1306,16 @@
                 "internal/tmux/portal_saver_integration_test.go",
                 "internal/tmux/portal_saver_endstate_integration_test.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-18",
+              "source": "executor",
+              "summary": "hookstest.ResolveHooksFilePathFromEnv re-implements cmd/config.go's hooks-path resolution chain.",
+              "detail": "The helper walks an env slice for PORTAL_HOOKS_FILE then XDG_CONFIG_HOME, duplicating the precedence configFilePath owns — a third env layer or an ordering change in production silently leaves the seeder resolving the old path, and every destructive suite then seeds into a file the code under test never reads. Fix is cross-scope (it reaches into cmd/config.go to expose an env-slice-taking resolver both can share). internal/hookstest/hooks.go:29-42",
+              "files": [
+                "internal/hookstest/hooks.go",
+                "cmd/config.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -1375,7 +1385,8 @@
             "resume-hooks-silently-lost-6-14",
             "resume-hooks-silently-lost-6-15",
             "resume-hooks-silently-lost-6-16",
-            "resume-hooks-silently-lost-6-17"
+            "resume-hooks-silently-lost-6-17",
+            "resume-hooks-silently-lost-6-18"
           ],
           "staging": {
             "p1": {
