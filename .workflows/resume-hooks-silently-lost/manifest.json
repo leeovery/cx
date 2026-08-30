@@ -214,7 +214,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 6,
-          "current_task": "resume-hooks-silently-lost-6-10",
+          "current_task": "resume-hooks-silently-lost-6-11",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -1002,6 +1002,30 @@
               "files": [
                 "cmd/bootstrap"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-10",
+              "source": "reviewer",
+              "summary": "Seven bespoke Commander fakes now live across the cmd test files, one more with this task.",
+              "detail": "fakeCommander (cmd/state_daemon_test.go:271), membershipFakeCommander (:735), envFailingCommander (cmd/state_daemon_capture_logging_test.go:283), daemonFakeCommander (cmd/state_daemon_run_test.go:66), recordingCommander (cmd/uninstall_test.go:47), stubCommander (cmd/open_test.go:1743), and now gonePaneCommander (cmd/hooks_seams_test.go:93) — alongside transienttest.Commander. One scripted fake (argv -> canned result) would serve most of them. Sits naturally beside the already-queued 6-11 / 6-12 test-scaffolding consolidation.",
+              "files": [
+                "cmd/state_daemon_test.go",
+                "cmd/state_daemon_run_test.go",
+                "cmd/state_daemon_capture_logging_test.go",
+                "cmd/uninstall_test.go",
+                "cmd/open_test.go",
+                "cmd/hooks_seams_test.go",
+                "internal/transienttest"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-10",
+              "source": "reviewer",
+              "summary": "The gone-pane assertion in hook rm exit suite is still a substring where the output is now deterministic.",
+              "detail": "cmd/hooks_rm_exit_test.go:30 asserts strings.Contains(err.Error(), \"no such pane: %999\"). With the outer wrap gone the full string is fixed, and code-quality lists substring assertions on deterministic output as an anti-pattern. Task 6-10 own new test already pins the exact string for both verbs, so the tightening is mechanical.",
+              "files": [
+                "cmd/hooks_rm_exit_test.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -1063,7 +1087,8 @@
             "resume-hooks-silently-lost-6-6",
             "resume-hooks-silently-lost-6-7",
             "resume-hooks-silently-lost-6-8",
-            "resume-hooks-silently-lost-6-9"
+            "resume-hooks-silently-lost-6-9",
+            "resume-hooks-silently-lost-6-10"
           ],
           "staging": {
             "p1": {
