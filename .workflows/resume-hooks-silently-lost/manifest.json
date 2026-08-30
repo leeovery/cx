@@ -214,7 +214,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 6,
-          "current_task": "resume-hooks-silently-lost-6-15",
+          "current_task": "resume-hooks-silently-lost-6-16",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -1170,6 +1170,28 @@
                 "cmd/hookkey_vocabulary_test.go",
                 "cmd/testhelpers_test.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-15",
+              "source": "reviewer",
+              "summary": "Two more copies of the reboot sequence and four more hand-built Orchestrators sit unconverted — routing them through the new helper closes 6-6 residual Exe risk everywhere.",
+              "detail": "internal/restore/multipane_legacy_integration_test.go:111-128 and :184-201 still open-code KillServer -> list-sessions must-fail guard -> EnsureServer -> restore.Orchestrator{...} -> RestoreWithMarker, which is now restoretest.RebootServer + restoretest.RestoreFromState verbatim. The same file carries a third and fourth copy of the ~25-line arrange (:29-82, :151-170) that newRenameRebootFixture generalises (differs by pane count and hook vocabulary, so it needs a parameterised variant, not a straight swap). Separately internal/restore/armed_restore_integration_test.go:62-68,140-146, exit_closes_pane_integration_test.go:164-170 and integration_full_test.go:116-122 each hand-build restore.Orchestrator{Client, StateDir, Logger, Exe} and call RestoreWithMarker directly — correct today, but each is a site where a future edit can drop Exe and get 6-6 silent self-re-run.",
+              "files": [
+                "internal/restore/multipane_legacy_integration_test.go",
+                "internal/restore/armed_restore_integration_test.go",
+                "internal/restore/exit_closes_pane_integration_test.go",
+                "internal/restore/integration_full_test.go",
+                "internal/restoretest/reboot.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-15",
+              "source": "reviewer",
+              "summary": "newRenameRebootFixture does not register RegisterStateDirTeardownGuard — the shared arrange is now the one place that would fix it for both suites.",
+              "detail": "The new shared arrange matches the pre-move code exactly and omits portaltest.RegisterStateDirTeardownGuard. Task 6-17 scopes that sweep; noting here because the consolidation means one edit now covers both rename-reboot suites rather than two.",
+              "files": [
+                "internal/restore/rename_reboot_shared_test.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -1236,7 +1258,8 @@
             "resume-hooks-silently-lost-6-11",
             "resume-hooks-silently-lost-6-12",
             "resume-hooks-silently-lost-6-13",
-            "resume-hooks-silently-lost-6-14"
+            "resume-hooks-silently-lost-6-14",
+            "resume-hooks-silently-lost-6-15"
           ],
           "staging": {
             "p1": {
