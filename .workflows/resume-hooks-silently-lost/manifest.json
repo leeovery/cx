@@ -214,7 +214,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 6,
-          "current_task": "resume-hooks-silently-lost-6-24",
+          "current_task": "resume-hooks-silently-lost-6-25",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -1522,6 +1522,26 @@
                 "cmd/noncontiguous_window_reboot_integration_test.go",
                 ".claude/skills/golang-testing/SKILL.md"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-24",
+              "source": "reviewer",
+              "summary": "The Multi-window spawn bullet still claims the nanoid alphabet is single-sourced in internal/spawn, which the new nanoid row contradicts.",
+              "detail": "CLAUDE.md:213 — \"Result classification, message renderers, log emission, the exec boundary, the nanoid alphabet, and the net-N split are all single-sourced in internal/spawn\". The alphabet has never lived there (pre-6-3 it was session.NanoIDAlphabet, now nanoid.Alphabet, referenced from internal/spawn/ackid.go:30). Pre-existing, not introduced here, but it is now the one place in the file that points an agent at the wrong home for the id vocabulary. Fix is deleting three words from a row this task did not amend.",
+              "files": [
+                "CLAUDE.md",
+                "internal/spawn/ackid.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-24",
+              "source": "reviewer",
+              "summary": "CLAUDE.md documents no part of CleanStale's snapshot-before-enumeration narrowing, which is load-bearing loss-prevention machinery.",
+              "detail": "internal/hooks/store.go:302-345 — the snapshot is read before enumerateLive and may only narrow the delete set, which is what keeps a hook set landing in the enumeration gap from being reaped. The word snapshot appears nowhere in CLAUDE.md outside the unrelated portaltest row. The hooks row's new sentence (applied under the lock by CleanStale) is accurate but silent on it.",
+              "files": [
+                "CLAUDE.md",
+                "internal/hooks/store.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -1597,7 +1617,8 @@
             "resume-hooks-silently-lost-6-20",
             "resume-hooks-silently-lost-6-21",
             "resume-hooks-silently-lost-6-22",
-            "resume-hooks-silently-lost-6-23"
+            "resume-hooks-silently-lost-6-23",
+            "resume-hooks-silently-lost-6-24"
           ],
           "staging": {
             "p1": {
