@@ -102,17 +102,16 @@ var stateCommitNowCmd = &cobra.Command{
 
 		deps := resolveCommitNowDeps()
 
-		// A query failure is treated like (true, nil): absent proof the marker is
-		// clear, presume it set and protect the in-flight restore. The cost is a
-		// longer resurrection window, recovered on the next tick by the touch.
-		restoring, err := deps.IsRestoring()
-		switch {
-		case err != nil:
-			logger.Warn("isRestoring query failed; presuming @portal-restoring set to protect in-flight restore", "error", err)
-			touchAfterShortCircuit(logger, dir, deps.TouchSaveRequested)
-			return nil
-		case restoring:
-			logger.Info("commit-now skipped: @portal-restoring set")
+		// Standing down costs a longer resurrection window, recovered on the
+		// next tick by the touch below, so a failed read is reported as the
+		// anomaly it is while the skip itself stays routine.
+		restoring, err := state.RestoreWindowActive(deps.IsRestoring())
+		if restoring {
+			if err != nil {
+				logger.Warn("isRestoring query failed; presuming @portal-restoring set to protect in-flight restore", "error", err)
+			} else {
+				logger.Info("commit-now skipped: @portal-restoring set")
+			}
 			touchAfterShortCircuit(logger, dir, deps.TouchSaveRequested)
 			return nil
 		}

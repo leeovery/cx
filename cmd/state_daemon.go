@@ -171,10 +171,9 @@ func defaultDaemonTickLoop(ctx context.Context, deps *daemonDeps) error {
 // throttled prunes sit on the idle branch — behind the capture branch they
 // would never fire on a mostly-idle server.
 func tick(ctx context.Context, deps *daemonDeps) {
-	restoring, err := state.IsRestoringSet(deps.Client)
+	restoring, err := state.RestoreWindowActive(state.IsRestoringSet(deps.Client))
 	if err != nil {
 		deps.Logger.Warn("read @portal-restoring failed", "error", err)
-		return
 	}
 	if restoring {
 		return
@@ -332,18 +331,18 @@ func isPaneVanishedError(err error) bool {
 	return false
 }
 
-// The flush is skipped while @portal-restoring is set — a half-restored
-// topology must not become the committed snapshot — and also when the marker
-// read fails: a stale snapshot beats a guaranteed-bad one.
+// The flush is skipped for the whole restore window: a half-restored topology
+// must not become the committed snapshot, and a stale snapshot beats a
+// guaranteed-bad one. The failed read the window's rule presumes set is still
+// worth a WARN here — a shutdown flush gets no second attempt.
 func defaultShutdownFlush(deps *daemonDeps) error {
-	restoring, err := state.IsRestoringSet(deps.Client)
-	if err != nil {
-		deps.Logger.Warn("read @portal-restoring at shutdown failed; skipping final flush", "error", err)
-		deps.Logger.Info("shutdown", "reason", deps.shutdownReason(), "flush_completed", false)
-		return nil
-	}
+	restoring, err := state.RestoreWindowActive(state.IsRestoringSet(deps.Client))
 	if restoring {
-		deps.Logger.Debug("skipping final flush: @portal-restoring set")
+		if err != nil {
+			deps.Logger.Warn("read @portal-restoring at shutdown failed; skipping final flush", "error", err)
+		} else {
+			deps.Logger.Debug("skipping final flush: @portal-restoring set")
+		}
 		deps.Logger.Info("shutdown", "reason", deps.shutdownReason(), "flush_completed", false)
 		return nil
 	}

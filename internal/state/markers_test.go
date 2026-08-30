@@ -362,3 +362,36 @@ func TestUnsetSkeletonMarkerForFIFO(t *testing.T) {
 		}
 	})
 }
+
+func TestRestoreWindowActive(t *testing.T) {
+	t.Run("reports active when @portal-restoring is set", func(t *testing.T) {
+		active, err := state.RestoreWindowActive(state.IsRestoringSet(&checkerMock{val: "1", found: true}))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !active {
+			t.Errorf("got false; want true (marker set)")
+		}
+	})
+
+	t.Run("reports inactive when @portal-restoring is absent", func(t *testing.T) {
+		active, err := state.RestoreWindowActive(state.IsRestoringSet(&checkerMock{found: false}))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if active {
+			t.Errorf("got true; want false (marker absent)")
+		}
+	})
+
+	t.Run("presumes active on a failed read and returns the error alongside", func(t *testing.T) {
+		sentinel := errors.New("tmux exploded")
+		active, err := state.RestoreWindowActive(state.IsRestoringSet(&checkerMock{err: sentinel}))
+		if !errors.Is(err, sentinel) {
+			t.Fatalf("err = %v; want the read error", err)
+		}
+		if !active {
+			t.Errorf("got false; want true (a failed read counts as set)")
+		}
+	})
+}

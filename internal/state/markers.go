@@ -99,6 +99,16 @@ func IsRestoringSet(c RestoringChecker) (bool, error) {
 	return val != "", nil
 }
 
+// RestoreWindowActive folds a read of @portal-restoring into the posture work
+// that must not disturb an in-flight restore takes: a failed read counts as
+// set, so such work stands down absent proof the window is clear. It composes
+// with any read of the marker — RestoreWindowActive(IsRestoringSet(c)), or a
+// caller's own seam — and returns the read error alongside, already folded
+// into the bool, for a caller that reports why it stood down.
+func RestoreWindowActive(restoring bool, err error) (bool, error) {
+	return restoring || err != nil, err
+}
+
 // BootstrappedLatchSatisfied requires the latch's value to equal runningVersion
 // exactly. Absence, mismatch and read failure all report false, so a cold,
 // upgraded or unreachable server takes the full-bootstrap path.

@@ -85,9 +85,12 @@ type stalenessView struct {
 
 // hookStalenessStandDown reports whether hook-staleness work may run at all.
 // Both the sweep and the diagnostic take it before they read their store, so
-// neither judges an entry the other protects.
+// neither judges an entry the other protects. A restore's panes carry no token
+// until the re-stamp, so work landing in that window would treat every
+// token-keyed entry on the machine as lost; a deferred prune costs nothing, so
+// a failed read reports no louder than the stand-down itself.
 func hookStalenessStandDown(reader state.RestoringChecker) standDown {
-	if active, err := restoreWindowActive(reader); active {
+	if active, err := state.RestoreWindowActive(state.IsRestoringSet(reader)); active {
 		return declineDebug(skipReasonRestoring, errAttr(err)...)
 	}
 	return standDown{}
@@ -129,17 +132,6 @@ func liveTokensFrom(rows []tmux.PaneHookRow) []string {
 		}
 	}
 	return tokens
-}
-
-// restoreWindowActive reports whether hook-staleness work must stand down. A
-// restore's panes carry no token until the re-stamp, so work landing in that
-// window would treat every token-keyed entry on the machine as lost. A failed
-// read counts as set: a deferred prune costs nothing, and on a machine with no
-// tmux server the read fails. The read error is returned alongside for a caller
-// that reports why, and is already folded into the bool.
-func restoreWindowActive(checker state.RestoringChecker) (bool, error) {
-	restoring, err := state.IsRestoringSet(checker)
-	return restoring || err != nil, err
 }
 
 // sweepOutcome is everything one cycle has to say: the keys it removed, or the

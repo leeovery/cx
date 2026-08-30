@@ -307,6 +307,29 @@ func TestDaemonTick_SkipsEntireTickWhenRestoring(t *testing.T) {
 	}
 }
 
+func TestDaemonTick_SkipsEntireTickAndWarnsOnRestoringReadError(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("PORTAL_STATE_DIR", dir)
+	fc := &daemonFakeCommander{
+		optionErr: transportErrCommandError(),
+		// Seeded so a leak through the restore guard trips the assertion.
+		sessionsOut: "work|1|0|",
+	}
+	deps := makeDeps(t, dir, fc)
+	logger, sink := newCaptureLoggerForComponent(t, "daemon")
+	deps.Logger = logger
+	touchSaveRequested(t, dir)
+
+	tick(t.Context(), deps)
+
+	if got := fc.callsContaining("list-sessions"); len(got) != 0 {
+		t.Errorf("list-sessions invoked despite a failed restoring read: %v", got)
+	}
+	if n := countLines(sink, "WARN", "read @portal-restoring failed"); n != 1 {
+		t.Errorf("expected the restoring-read-error WARN; got %d in:\n%s", n, sink.Body())
+	}
+}
+
 func TestDaemonTick_PreservesSaveRequestedWhenRestoring(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
