@@ -214,7 +214,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 6,
-          "current_task": "resume-hooks-silently-lost-6-16",
+          "current_task": "resume-hooks-silently-lost-6-17",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -1192,6 +1192,31 @@
               "files": [
                 "internal/restore/rename_reboot_shared_test.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-16",
+              "source": "reviewer",
+              "summary": "The identical unpolled hook-fire read still sits in cmd/bootstrap, one package over.",
+              "detail": "verifyHookFiredOnce (cmd/bootstrap/reboot_roundtrip_test.go:434-445) does a bare os.ReadFile + strings.Count(HOOK_FIRED) with a t.Fatalf on ENOENT, called at :164 after the same WaitForSkeletonMarkersCleared at :158 — the exact shape and the exact race task 6-16 removed from internal/restore (only the intervening verifyANSIScrollback narrows the window). The consolidation is to promote the polled helper into internal/restoretest (both packages already import it) along with the 10s/50ms pair, which is also triplicated as raw literals in internal/restore and as divergentHydrateBudget/divergentPollTick in cmd/noncontiguous_window_reboot_integration_test.go.",
+              "files": [
+                "cmd/bootstrap/reboot_roundtrip_test.go",
+                "internal/restore/marker_assert_test.go",
+                "internal/restore/multipane_legacy_integration_test.go",
+                "internal/restoretest/waitfor_file_exists.go",
+                "cmd/noncontiguous_window_reboot_integration_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-16",
+              "source": "reviewer",
+              "summary": "Residue around the new polled helper: 20s lane cost, two literal call sites, a panic in a writer goroutine, and a misplaced constant home.",
+              "detail": "(1) TestMultiPaneLegacy_PerPaneHookRouting went 1s -> ~21s; the second want-0 assertion buys nothing because by the time it starts the first has already given every hook a full 10s to leak — running the two absence assertions against one shared settle recovers 10s without weakening either. (2) internal/restore/multipane_legacy_integration_test.go:136,203 still pass 10*time.Second, 50*time.Millisecond literals where the rename fixture now passes hydrateBudget, hydrateTick; adopting the constants makes the corrected doc comment true by construction. (3) internal/restore/marker_assert_meta_test.go:57 panics inside a writer goroutine, which would abort the whole integration binary rather than fail one test; dropping the error fails just as loudly via the helper deadline message. (4) hydrateBudget/hydrateTick now serve both families but still live in rename_reboot_shared_test.go; marker_assert_test.go is the more cohesive home.",
+              "files": [
+                "internal/restore/multipane_legacy_integration_test.go",
+                "internal/restore/marker_assert_test.go",
+                "internal/restore/marker_assert_meta_test.go",
+                "internal/restore/rename_reboot_shared_test.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -1259,7 +1284,8 @@
             "resume-hooks-silently-lost-6-12",
             "resume-hooks-silently-lost-6-13",
             "resume-hooks-silently-lost-6-14",
-            "resume-hooks-silently-lost-6-15"
+            "resume-hooks-silently-lost-6-15",
+            "resume-hooks-silently-lost-6-16"
           ],
           "staging": {
             "p1": {
