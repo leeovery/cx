@@ -63,6 +63,9 @@ func TestMultiPaneLegacy_PerPaneHookRouting(t *testing.T) {
 	verifyHookKeyed(t, hooksPath, pane0Key)
 	verifyHookKeyed(t, hooksPath, pane1Key)
 
+	// LIFO runs this wait between kill-server and the TempDir RemoveAll.
+	portaltest.RegisterStateDirTeardownGuard(t, stateDir)
+
 	ts := tmuxtest.New(t, "ptl-3-7-mp-")
 	client := ts.Client()
 
@@ -160,6 +163,9 @@ func TestMultiPaneLegacy_UnstampedNoHookLandsOnBareShell(t *testing.T) {
 
 	hooksPath := filepath.Join(t.TempDir(), "hooks.json")
 	t.Setenv("PORTAL_HOOKS_FILE", hooksPath)
+
+	// LIFO runs this wait between kill-server and the TempDir RemoveAll.
+	portaltest.RegisterStateDirTeardownGuard(t, stateDir)
 
 	ts := tmuxtest.New(t, "ptl-3-7-bare-")
 	client := ts.Client()

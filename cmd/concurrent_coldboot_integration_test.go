@@ -43,6 +43,9 @@ func setupConcurrentColdBootEnv(t *testing.T) (*tmuxtest.Socket, *tmux.Client, s
 		t.Fatalf("EnsureDir: %v", err)
 	}
 
+	// LIFO runs this wait between kill-server and the TempDir RemoveAll.
+	portaltest.RegisterStateDirTeardownGuard(t, stateDir)
+
 	ts := tmuxtest.New(t, "ptl-cc-coldboot-")
 	client := ts.Client()
 
@@ -378,6 +381,9 @@ func TestConcurrentColdBoot_WarmUnlatchedOpen_TakesConcurrentDeferredRoute(t *te
 	if _, err := state.EnsureDir(); err != nil {
 		t.Fatalf("EnsureDir: %v", err)
 	}
+
+	// LIFO runs this wait between kill-server and the TempDir RemoveAll.
+	portaltest.RegisterStateDirTeardownGuard(t, stateDir)
 
 	ts := tmuxtest.New(t, "ptl-cc-warm-")
 	client := ts.Client()

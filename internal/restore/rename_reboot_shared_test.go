@@ -72,6 +72,9 @@ func newRenameRebootFixture(t *testing.T, socketPrefix string) *renameRebootFixt
 		t.Fatalf("hooks.Set: %v", err)
 	}
 
+	// LIFO runs this wait between kill-server and the TempDir RemoveAll.
+	portaltest.RegisterStateDirTeardownGuard(t, fx.stateDir)
+
 	fx.ts = tmuxtest.New(t, socketPrefix)
 	fx.client = fx.ts.Client()
 

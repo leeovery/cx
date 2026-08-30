@@ -45,6 +45,9 @@ func TestSelfEject_PortalSaverAbsent_ExitsCleanly(t *testing.T) {
 	envSlice, stateDir := portaltest.IsolateStateForTest(t)
 	t.Setenv("PORTAL_STATE_DIR", stateDir)
 
+	// LIFO runs this wait between kill-server and the TempDir RemoveAll.
+	portaltest.RegisterStateDirTeardownGuard(t, stateDir)
+
 	// No _portal-saver session: the saver-membership probe must fail on
 	// every tick for the self-eject path to fire.
 	sock := tmuxtest.New(t, "ptl-selfeject-")
@@ -213,6 +216,9 @@ func TestSelfEject_PortalSaverPaneMismatch_ExitsCleanly(t *testing.T) {
 
 	envSlice, stateDir := portaltest.IsolateStateForTest(t)
 	t.Setenv("PORTAL_STATE_DIR", stateDir)
+
+	// LIFO runs this wait between kill-server and the TempDir RemoveAll.
+	portaltest.RegisterStateDirTeardownGuard(t, stateDir)
 
 	sock := tmuxtest.New(t, "ptl-selfeject-mismatch-")
 
@@ -406,6 +412,9 @@ func TestSelfEject_NoScrollbackDeltaAcrossEject(t *testing.T) {
 	envSlice, stateDir := portaltest.IsolateStateForTest(t)
 	t.Setenv("PORTAL_STATE_DIR", stateDir)
 
+	// LIFO runs this wait between kill-server and the TempDir RemoveAll.
+	portaltest.RegisterStateDirTeardownGuard(t, stateDir)
+
 	// No _portal-saver session: the saver-membership probe fails from the
 	// first tick onward.
 	sock := tmuxtest.New(t, "ptl-selfeject-noflush-")
@@ -557,6 +566,9 @@ func TestSelfEject_LegitimateColdStartDoesNotFalsePositive(t *testing.T) {
 	t.Setenv("PORTAL_STATE_DIR", stateDir)
 	t.Setenv("PORTAL_LOG_LEVEL", "INFO")
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	// LIFO runs this wait between kill-server and the TempDir RemoveAll.
+	portaltest.RegisterStateDirTeardownGuard(t, stateDir)
 
 	sock := tmuxtest.New(t, "ptl-selfeject-legit-")
 	client := sock.Client()

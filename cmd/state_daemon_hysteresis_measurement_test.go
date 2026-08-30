@@ -239,6 +239,10 @@ func newHarness(t *testing.T, binary string) *harness {
 	}
 	t.Setenv("PORTAL_STATE_DIR", stateDir)
 	t.Setenv("PATH", stagedBinDir(binary)+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	// LIFO runs this wait between kill-server and the TempDir RemoveAll.
+	portaltest.RegisterStateDirTeardownGuard(t, stateDir)
+
 	sock := tmuxtest.New(t, "ptl-hyst-")
 	// tmux needs a live session before set-option / set-hook can run. The
 	// leading underscore keeps _anchor out of CaptureStructure, so it does not

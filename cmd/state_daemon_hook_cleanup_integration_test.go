@@ -77,6 +77,9 @@ func TestDaemon_ThrottledHookCleanup_ReapsStaleRetainsLiveOnIdleServer(t *testin
 	t.Setenv("PORTAL_LOG_LEVEL", "INFO")
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
+	// LIFO runs this wait between kill-server and the TempDir RemoveAll.
+	portaltest.RegisterStateDirTeardownGuard(t, stateDir)
+
 	sock := tmuxtest.New(t, "ptl-daemon-hookclean-")
 	client := sock.Client()
 

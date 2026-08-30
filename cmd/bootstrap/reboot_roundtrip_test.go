@@ -86,6 +86,9 @@ func runRebootRoundTrip(t *testing.T, cfg roundTripCfg) {
 		t.Fatalf("hooks.Set: %v", err)
 	}
 
+	// LIFO runs this wait between kill-server and the TempDir RemoveAll.
+	portaltest.RegisterStateDirTeardownGuard(t, stateDir)
+
 	ts := tmuxtest.New(t, "ptl-rt-")
 	client := ts.Client()
 
@@ -463,6 +466,9 @@ func TestPhase5RebootRoundTripBothSessionsHydrateViaSignalHydrateBinary(t *testi
 	cwdAlpha := t.TempDir()
 	cwdBeta := t.TempDir()
 
+	// LIFO runs this wait between kill-server and the TempDir RemoveAll.
+	portaltest.RegisterStateDirTeardownGuard(t, stateDir)
+
 	ts := tmuxtest.New(t, "ptl-rt-switch-")
 	client := ts.Client()
 
@@ -598,6 +604,9 @@ func TestRebootRoundTrip_LeadingDashSessionName(t *testing.T) {
 	t.Setenv("PORTAL_HOOKS_FILE", hooksPath)
 
 	cwd := t.TempDir()
+
+	// LIFO runs this wait between kill-server and the TempDir RemoveAll.
+	portaltest.RegisterStateDirTeardownGuard(t, stateDir)
 
 	ts := tmuxtest.New(t, "ptl-rt-leadingdash-")
 	client := ts.Client()

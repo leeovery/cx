@@ -26,8 +26,11 @@ func isolateCleanStaleTestEnv(t *testing.T) (env []string, stateDir string) {
 	t.Setenv("PORTAL_HOOKS_FILE", filepath.Join(t.TempDir(), "portal", "hooks.json"))
 	env, stateDir = portaltest.IsolateStateForTest(t)
 	t.Setenv("PORTAL_STATE_DIR", stateDir)
+	// LIFO runs this wait between kill-server and the TempDir RemoveAll.
+	portaltest.RegisterStateDirTeardownGuard(t, stateDir)
 	t.Setenv("PORTAL_LOG_LEVEL", "debug")
 	t.Setenv("XDG_CONFIG_HOME", configDirFromEnvSlice(t, env))
+
 	// Stands in for main's log.Init so the in-process prune's breadcrumbs land
 	// in the isolated state dir's portal.log; the handler swap is bracketed so
 	// it does not leak into sibling subtests.

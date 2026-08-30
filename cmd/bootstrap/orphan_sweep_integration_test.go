@@ -35,6 +35,9 @@ func TestSweepOrphanDaemons_Integration_ThreeDaemonsConvergeToOne(t *testing.T) 
 	envSlice, stateDir := portaltest.IsolateStateForTest(t)
 	t.Setenv("PORTAL_STATE_DIR", stateDir)
 
+	// LIFO runs this wait between kill-server and the TempDir RemoveAll.
+	portaltest.RegisterStateDirTeardownGuard(t, stateDir)
+
 	sock := tmuxtest.New(t, "ptl-sweep3-")
 	client := sock.Client()
 
@@ -94,6 +97,9 @@ func TestSweepOrphanDaemons_Integration_CleanStateZeroSignals(t *testing.T) {
 	_, stateDir := portaltest.IsolateStateForTest(t)
 	t.Setenv("PORTAL_STATE_DIR", stateDir)
 
+	// LIFO runs this wait between kill-server and the TempDir RemoveAll.
+	portaltest.RegisterStateDirTeardownGuard(t, stateDir)
+
 	sock := tmuxtest.New(t, "ptl-sweepclean-")
 	client := sock.Client()
 
@@ -147,6 +153,9 @@ func TestSweepOrphanDaemons_Integration_RecycledPIDRefusal(t *testing.T) {
 
 	_, stateDir := portaltest.IsolateStateForTest(t)
 	t.Setenv("PORTAL_STATE_DIR", stateDir)
+
+	// LIFO runs this wait between kill-server and the TempDir RemoveAll.
+	portaltest.RegisterStateDirTeardownGuard(t, stateDir)
 
 	sock := tmuxtest.New(t, "ptl-sweeprecycle-")
 	client := sock.Client()

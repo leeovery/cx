@@ -54,19 +54,8 @@ func setupCompositeHarness(t *testing.T) *compositeHarness {
 	envSlice, stateDir := portaltest.IsolateStateForTest(t)
 	t.Setenv("PORTAL_STATE_DIR", stateDir)
 
-	// Registered after IsolateStateForTest and before tmuxtest.New: LIFO then
-	// runs this wait between kill-server and the state-dir RemoveAll, so the
-	// saver's SIGHUP flush cannot race the removal.
-	var saverTeardownPID int
-	t.Cleanup(func() {
-		if saverTeardownPID <= 0 {
-			return
-		}
-		deadline := time.Now().Add(3 * time.Second)
-		for pidAlive(saverTeardownPID) && time.Now().Before(deadline) {
-			time.Sleep(20 * time.Millisecond)
-		}
-	})
+	// LIFO runs this wait between kill-server and the TempDir RemoveAll.
+	portaltest.RegisterStateDirTeardownGuard(t, stateDir)
 
 	sock := tmuxtest.New(t, "ptl-comp-e2e-")
 	client := sock.Client()
@@ -78,7 +67,6 @@ func setupCompositeHarness(t *testing.T) *compositeHarness {
 	}
 	legitimateDaemonPID := waitForSaverPanePID(t, sock)
 	waitForDaemonPID(t, stateDir, legitimateDaemonPID)
-	saverTeardownPID = legitimateDaemonPID
 
 	// Own the saver by its live pane PID, not daemon.pid: the step below
 	// overwrites daemon.pid with an orphan's, and a PID-file-based source would

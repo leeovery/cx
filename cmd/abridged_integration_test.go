@@ -34,6 +34,9 @@ func setupAbridgedEnv(t *testing.T) (*tmuxtest.Socket, *tmux.Client, string, []s
 		t.Fatalf("EnsureDir: %v", err)
 	}
 
+	// LIFO runs this wait between kill-server and the TempDir RemoveAll.
+	portaltest.RegisterStateDirTeardownGuard(t, stateDir)
+
 	ts := tmuxtest.New(t, "ptl-abridged-")
 	client := ts.Client()
 

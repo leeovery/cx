@@ -32,6 +32,9 @@ func TestUpgradePath_TwoBinary_AllComponentsCompose(t *testing.T) {
 	envSlice, stateDir := portaltest.IsolateStateForTest(t)
 	t.Setenv("PORTAL_STATE_DIR", stateDir)
 
+	// LIFO runs this wait between kill-server and the TempDir RemoveAll.
+	portaltest.RegisterStateDirTeardownGuard(t, stateDir)
+
 	sock := tmuxtest.New(t, "ptl-upgrade-abc-")
 	client := sock.Client()
 
@@ -109,6 +112,9 @@ func TestUpgradePath_ComponentC_IsolatedRefusesCleanly(t *testing.T) {
 	envSlice, stateDir := portaltest.IsolateStateForTest(t)
 	t.Setenv("PORTAL_STATE_DIR", stateDir)
 
+	// LIFO runs this wait between kill-server and the TempDir RemoveAll.
+	portaltest.RegisterStateDirTeardownGuard(t, stateDir)
+
 	_ = tmuxtest.New(t, "ptl-upgrade-c-iso-")
 
 	vNEnv := append([]string{}, envSlice...)
@@ -151,6 +157,9 @@ func TestUpgradePath_PostBootstrap_FreshAcquireDaemonLockRefuses(t *testing.T) {
 
 	_, stateDir := portaltest.IsolateStateForTest(t)
 	t.Setenv("PORTAL_STATE_DIR", stateDir)
+
+	// LIFO runs this wait between kill-server and the TempDir RemoveAll.
+	portaltest.RegisterStateDirTeardownGuard(t, stateDir)
 
 	sock := tmuxtest.New(t, "ptl-upgrade-fresh-")
 	client := sock.Client()

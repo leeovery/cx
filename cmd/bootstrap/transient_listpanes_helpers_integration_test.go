@@ -60,7 +60,10 @@ func TestTransientListPanesHelpers_Smoke(t *testing.T) {
 	t.Run("passes_through_unrelated_tmux_commands", func(t *testing.T) {
 		tmuxtest.SkipIfNoTmux(t)
 
-		_, _ = portaltest.IsolateStateForTest(t)
+		_, stateDir := portaltest.IsolateStateForTest(t)
+
+		// LIFO runs this wait between kill-server and the TempDir RemoveAll.
+		portaltest.RegisterStateDirTeardownGuard(t, stateDir)
 
 		sock := tmuxtest.New(t, "ptl-trans-smoke-")
 		if _, err := sock.TryRun("new-session", "-d", "-s", "smoke"); err != nil {
@@ -150,7 +153,10 @@ func TestTransientListPanesHelpers_Smoke(t *testing.T) {
 
 	t.Run("one_shot_toggle_only_intercepts_first_call", func(t *testing.T) {
 		tmuxtest.SkipIfNoTmux(t)
-		_, _ = portaltest.IsolateStateForTest(t)
+		_, stateDir := portaltest.IsolateStateForTest(t)
+
+		// LIFO runs this wait between kill-server and the TempDir RemoveAll.
+		portaltest.RegisterStateDirTeardownGuard(t, stateDir)
 
 		sock := tmuxtest.New(t, "ptl-trans-oneshot-")
 		if _, err := sock.TryRun("new-session", "-d", "-s", "oneshot"); err != nil {
