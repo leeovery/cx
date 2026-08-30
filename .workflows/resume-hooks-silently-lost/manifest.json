@@ -214,7 +214,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 6,
-          "current_task": "resume-hooks-silently-lost-6-11",
+          "current_task": "resume-hooks-silently-lost-6-12",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -1026,6 +1026,44 @@
               "files": [
                 "cmd/hooks_rm_exit_test.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-11",
+              "source": "executor",
+              "summary": "cmd_test hook-key fixtures cannot reach the cmd seed vocabulary, so they re-derive indices and keep a live name on a reapable seed.",
+              "detail": "cmd/state_daemon_hook_cleanup_integration_test.go:47,51 declare staleHookKey = transienttest.ReapableHookKey(0) and liveHookToken = transienttest.ReapableHookKey(1), coinciding with reapableSeedA/reapableSeedB in cmd/hookkey_vocabulary_test.go:19-20. The file is in package cmd_test so it cannot see the vocabulary. The fix is upstream — a shared live/reapable seed vocabulary exported from internal/transienttest (which internal/hooks also re-derives at store_test.go:625-628, cleanstale_snapshot_test.go:28-31, store_shape_test.go:26-28) — so it spans three packages.",
+              "files": [
+                "cmd/state_daemon_hook_cleanup_integration_test.go",
+                "cmd/hookkey_vocabulary_test.go",
+                "internal/transienttest/hooks.go",
+                "internal/hooks/store_test.go",
+                "internal/hooks/cleanstale_snapshot_test.go",
+                "internal/hooks/store_shape_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-11",
+              "source": "executor",
+              "summary": "Two daemon fixtures hand-build a hooks.json body that staleHookSeed already names.",
+              "detail": "cmd/state_daemon_hook_cleanup_test.go:68 and cmd/state_daemon_run_test.go:555 each fmt.Sprintf a two-entry seed over reapableSeedA + liveSeedA, differing from staleHookSeed (cmd/hookkey_vocabulary_test.go:38-41) only in the stale entry command text (cmd-stale vs cmd-gone). Collapsing them means reconciling that command string across both suites assertions, which reaches past the fake/seed surface.",
+              "files": [
+                "cmd/state_daemon_hook_cleanup_test.go",
+                "cmd/state_daemon_run_test.go",
+                "cmd/hookkey_vocabulary_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-11",
+              "source": "reviewer",
+              "summary": "AMENDS the cross-package seed-vocabulary bank entry: it misses cmd/bootstrap, and the live-name-on-reapable-seed pattern recurs in internal/hooks.",
+              "detail": "The executor entry lists internal/transienttest/hooks.go, internal/hooks/store_test.go, cleanstale_snapshot_test.go and store_shape_test.go, but cmd/bootstrap/transient_listpanes_helpers_integration_test.go:104-105 also re-derives transienttest.ReapableHookKey(0)/(1) inline and belongs in the same consolidation. Also worth knowing: internal/hooks/store_shape_test.go:26 and cleanstale_snapshot_test.go:28 both bind a local named liveKey to ReapableHookKey(0) — the exact name-asserting-live-on-a-reapable-seed pattern task 6-11 removed from cmd, so the upstream fix closes it in three places at once.",
+              "files": [
+                "cmd/bootstrap/transient_listpanes_helpers_integration_test.go",
+                "internal/transienttest/hooks.go",
+                "internal/hooks/store_shape_test.go",
+                "internal/hooks/cleanstale_snapshot_test.go",
+                "internal/hooks/store_test.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -1088,7 +1126,8 @@
             "resume-hooks-silently-lost-6-7",
             "resume-hooks-silently-lost-6-8",
             "resume-hooks-silently-lost-6-9",
-            "resume-hooks-silently-lost-6-10"
+            "resume-hooks-silently-lost-6-10",
+            "resume-hooks-silently-lost-6-11"
           ],
           "staging": {
             "p1": {
