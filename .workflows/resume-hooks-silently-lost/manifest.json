@@ -214,7 +214,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 6,
-          "current_task": "resume-hooks-silently-lost-6-25",
+          "current_task": null,
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -1542,6 +1542,33 @@
                 "CLAUDE.md",
                 "internal/hooks/store.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-25",
+              "source": "executor",
+              "summary": "Integration-tagged source carries its own untouched modernize debt — 21 findings invisible to the plain lint command, plus a max-same-issues cap that hid 47 of this task's own findings.",
+              "detail": "golangci-lint run ./... only analyses the default build tags, so files behind //go:build integration were never in scope. Running with --build-tags integration --max-same-issues 0 --max-issues-per-linter 0 reports 21: 14 rangeint, 4 stringsseq, 1 stringscutprefix, 1 stringscut, 1 minmax. Concentrated in internal/restore/integration_full_test.go (10x rangeint), rest across cmd/bootstrap and cmd. Same mechanical class as the 77 just cleared and equally autofixable. Worth pairing with a decision on whether .golangci.yml should pin max-same-issues: 0 — the default cap is what made this task's finding count read as 30 instead of 77, and it will keep hiding real findings.",
+              "files": [
+                ".golangci.yml",
+                "internal/restore/integration_full_test.go",
+                "cmd/bootstrap/composition_e2e_harness_integration_test.go",
+                "cmd/bootstrap/orphan_sweep_integration_test.go",
+                "cmd/bootstrap/reboot_roundtrip_test.go",
+                "cmd/doctor_fix_transient_listpanes_shared_integration_test.go",
+                "cmd/state_daemon_hysteresis_measurement_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-25",
+              "source": "executor",
+              "summary": "The cmd/bootstrap composite-e2e 6s convergence budget is unreliable on a normally-loaded developer machine and fails on a pristine tree.",
+              "detail": "Five tests share a pgrep-converged-to-1-within-6s assertion. Under ~18 load on 10 cores the observed elapsed clusters at 6.05-6.12s — just over budget — and which member trips rotates between runs. Confirmed on a stashed clean tree, so it is unrelated to any recent change. Because there is no CI, every run is on a machine carrying the developer's real workload, so a budget with ~2% headroom will keep producing false failures and eroding trust in the lane. Needs either a wider budget or a contention-tolerant wait, decided as its own change.",
+              "files": [
+                "cmd/bootstrap/composition_e2e_f_observables_integration_test.go",
+                "cmd/bootstrap/composition_e2e_fresh_acquire_integration_test.go",
+                "cmd/bootstrap/composition_e2e_self_eject_integration_test.go",
+                "cmd/bootstrap/composition_e2e_harness_integration_test.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -1618,7 +1645,8 @@
             "resume-hooks-silently-lost-6-21",
             "resume-hooks-silently-lost-6-22",
             "resume-hooks-silently-lost-6-23",
-            "resume-hooks-silently-lost-6-24"
+            "resume-hooks-silently-lost-6-24",
+            "resume-hooks-silently-lost-6-25"
           ],
           "staging": {
             "p1": {
@@ -1710,7 +1738,8 @@
             2,
             3,
             4,
-            5
+            5,
+            6
           ]
         }
       }
