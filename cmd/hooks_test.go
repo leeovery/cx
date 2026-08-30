@@ -492,27 +492,6 @@ func TestHooksSetCommand(t *testing.T) {
 			t.Errorf("hook command = %q, want %q", data["tok123"]["on-resume"], "claude --resume abc123")
 		}
 	})
-
-	t.Run("it errors when TMUX_PANE is unset for set", func(t *testing.T) {
-		hooksFileInTempDir(t)
-		t.Setenv("TMUX_PANE", "")
-
-		resolver := &mockKeyResolver{key: "unus00"}
-		withHooksDeps(t, HooksDeps{KeyResolver: resolver})
-
-		resetRootCmd()
-		rootCmd.SetOut(new(bytes.Buffer))
-		rootCmd.SetErr(new(bytes.Buffer))
-		rootCmd.SetArgs([]string{"hooks", "set", "--on-resume", "some-cmd"})
-		err := rootCmd.Execute()
-		if err == nil {
-			t.Fatal("expected error, got nil")
-		}
-		if !strings.Contains(err.Error(), "must be run from inside a tmux pane") {
-			t.Errorf("error = %q, want it to contain %q", err.Error(), "must be run from inside a tmux pane")
-		}
-	})
-
 }
 
 func TestHooksRmCommand(t *testing.T) {

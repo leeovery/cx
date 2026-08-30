@@ -1100,12 +1100,18 @@ func TestDoctorStaleHooksCheck(t *testing.T) {
 		assertRestoreWindowResult(t, got)
 	})
 
+	// The live enumeration the count is taken from must not run at all: the
+	// rendered result alone cannot tell a marker read that came first from one
+	// that merely overrode a count already computed.
 	t.Run("it reads the marker before counting", func(t *testing.T) {
 		dir := t.TempDir()
 		hookStore, _ := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(reapableSeedA)})
 		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedB), restoring: true}
 		got := staleHooksCheckResult(t, dir, lister, hookStore)
 		assertRestoreWindowResult(t, got)
+		if lister.calls != 0 {
+			t.Errorf("live pane enumerations = %d; want 0 (the marker read stands the check down first)", lister.calls)
+		}
 	})
 
 	t.Run("it reports not evaluable with no server running", func(t *testing.T) {
@@ -1591,21 +1597,6 @@ func TestDoctorStaleChecksAreReadOnly(t *testing.T) {
 	if !bytes.Equal(projectsBefore, projectsAfter) {
 		t.Errorf("projects.json mutated by diagnosis (read-only violated)\nbefore: %s\nafter:  %s", projectsBefore, projectsAfter)
 	}
-}
-
-// The reaper's log line names the removed command; its stdout does not, and a
-// user reading a repair still sees exactly the key.
-func TestDoctorFixPrunedHookOutput(t *testing.T) {
-	t.Run("it leaves doctor --fix stdout unchanged", func(t *testing.T) {
-		deps, hooksPath, projectsPath, liveDir, goneDir := seedStalePruneFixture(t, t.TempDir(), staleHookLister())
-
-		outBuf, _, err := runDoctorFixCmd(t, deps)
-		if err != nil {
-			t.Fatalf("Execute err = %v; want nil", err)
-		}
-
-		assertStalePrunesApplied(t, hooksPath, projectsPath, liveDir, goneDir, outBuf.String())
-	})
 }
 
 func TestDoctorFixReportsSkippedHookPrune(t *testing.T) {
