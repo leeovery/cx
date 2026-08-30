@@ -214,7 +214,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 6,
-          "current_task": "resume-hooks-silently-lost-6-14",
+          "current_task": "resume-hooks-silently-lost-6-15",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -1140,6 +1140,36 @@
                 "cmd/state_commit_now.go",
                 "cmd/uninstall.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-14",
+              "source": "executor",
+              "summary": "Two hooks_test.go subtests are now line-for-line duplicates of each other, and a third elsewhere asserts the same behaviour better-named.",
+              "detail": "cmd/hooks_test.go:726 (--pane-key flag removes specified key without requiring TMUX_PANE) and cmd/hooks_test.go:784 (it removes the verbatim key on rm --pane-key without consulting the resolver) have identical setup (same eee555/other-proj:0.0 seed, same empty TMUX_PANE, same argv) and identical assertions — after task 6-14 they are line-for-line the same test under two names. They also overlap cmd/hooks_rm_exit_test.go:143 (it exits 0 and removes on the --pane-key path), which asserts the same behaviour with a better-named subject. Consolidating spans the older hooks_test.go suite and the newer exit-code suite.",
+              "files": [
+                "cmd/hooks_test.go",
+                "cmd/hooks_rm_exit_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-14",
+              "source": "reviewer",
+              "summary": "A subtest named \"it touches no dirty flag on either path\" does not cover either path.",
+              "detail": "cmd/hooks_rm_exit_test.go:307-338 — both rows drive runHookRm(t) with TMUX_PANE=%3 and no --pane-key, i.e. the resolved-token path twice; the rows vary the OUTCOME (removed / removed nothing). The sibling subtest 70 lines above (:231, it mints and stamps nothing on either path) uses the identical phrase to mean resolved-token vs --pane-key, so the two names read as parallel while covering different axes. Either add a --pane-key row or rename to say on either outcome.",
+              "files": [
+                "cmd/hooks_rm_exit_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-14",
+              "source": "reviewer",
+              "summary": "The poisoned pair is hoisted per parent subtest, so a second --pane-key row added later would silently share its counters.",
+              "detail": "cmd/hooks_rm_exit_test.go:168 and :232 construct the poisoned pair once per parent subtest and store it into the table literal. Correct today because exactly one row consumes each pair, but a second --pane-key row added later would share the counters with the first and could see its calls. Constructing inside the loop off a paneKeyPath bool field would remove the trap and drop both hoisted vars. Also: cmd/hookkey_vocabulary_test.go file header enumerates four kinds of resident and the new assertion helper is a fifth — a later sweep may want to widen it or move the assertion to testhelpers_test.go beside assertHooksFileUnchanged.",
+              "files": [
+                "cmd/hooks_rm_exit_test.go",
+                "cmd/hookkey_vocabulary_test.go",
+                "cmd/testhelpers_test.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -1205,7 +1235,8 @@
             "resume-hooks-silently-lost-6-10",
             "resume-hooks-silently-lost-6-11",
             "resume-hooks-silently-lost-6-12",
-            "resume-hooks-silently-lost-6-13"
+            "resume-hooks-silently-lost-6-13",
+            "resume-hooks-silently-lost-6-14"
           ],
           "staging": {
             "p1": {
