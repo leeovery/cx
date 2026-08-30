@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/leeovery/portal/internal/hooks"
-	"github.com/leeovery/portal/internal/transienttest"
+	"github.com/leeovery/portal/internal/hookstest"
 )
 
 // lockBound is the lowered acquisition bound the lock-timeout suites drive the
@@ -64,7 +64,7 @@ func newStagedHooksStore(t *testing.T, staging hooksStoreStaging) (*hooks.Store,
 	if !staging.sidecarAbsent {
 		// Created before any denial, so a denied write fails at the temp create
 		// rather than earlier at the sidecar's own open.
-		transienttest.CreateHooksSidecar(t, path)
+		hookstest.CreateHooksSidecar(t, path)
 	}
 	if staging.writesDenied {
 		if err := os.Chmod(dir, 0o500); err != nil {

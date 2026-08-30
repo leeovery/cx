@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/leeovery/portal/internal/hooks"
+	"github.com/leeovery/portal/internal/hookstest"
 	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/tmux"
-	"github.com/leeovery/portal/internal/transienttest"
 )
 
 func installHooksSink(t *testing.T) *logtest.Sink {
@@ -35,7 +35,7 @@ func TestDoctorStaleHooksDegradedRead(t *testing.T) {
 		wantUnhealthy := doctorUnhealthy(baseline)
 
 		heldStore, heldPath := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(liveSeedA)})
-		transienttest.HoldHooksSidecar(t, heldPath)
+		hookstest.HoldHooksSidecar(t, heldPath)
 
 		sink := installHooksSink(t)
 		degraded, err := runDoctorDiagnosis(staleDeps(t.TempDir(), lister, heldStore, nil))
@@ -53,7 +53,7 @@ func TestDoctorStaleHooksDegradedRead(t *testing.T) {
 		if doctorUnhealthy(degraded) != wantUnhealthy {
 			t.Errorf("doctorUnhealthy = %v under a degraded read, want %v", doctorUnhealthy(degraded), wantUnhealthy)
 		}
-		transienttest.AssertDegradedRead(t, sink, "doctor")
+		hookstest.AssertDegradedRead(t, sink, "doctor")
 	})
 
 	t.Run("it leaves the config directory untouched across portal doctor", func(t *testing.T) {
@@ -87,14 +87,14 @@ func TestHookListDegradedRead(t *testing.T) {
 
 		want := runHookList(t)
 
-		transienttest.HoldHooksSidecar(t, hooksFile)
+		hookstest.HoldHooksSidecar(t, hooksFile)
 		sink := installHooksSink(t)
 		got := runHookList(t)
 
 		if got != want {
 			t.Errorf("output under a degraded read = %q, want %q", got, want)
 		}
-		transienttest.AssertDegradedRead(t, sink, "cli")
+		hookstest.AssertDegradedRead(t, sink, "cli")
 	})
 
 	t.Run("it takes no tmux read and creates nothing on a fresh install", func(t *testing.T) {
@@ -119,7 +119,7 @@ func TestSweepPreReadBound(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, 5*time.Second)
 
 		store, path := newStagedHooksStore(t, hooksStoreStaging{seed: `{"` + reapableSeedA + `": {"on-resume": "cmd-a"}}`})
-		transienttest.HoldHooksSidecar(t, path)
+		hookstest.HoldHooksSidecar(t, path)
 
 		// An empty live set stands the cycle down after the pre-read, so the
 		// elapsed time measures that read alone rather than CleanStale's own
@@ -140,7 +140,7 @@ func TestSweepPreReadBound(t *testing.T) {
 		if elapsed < short {
 			t.Errorf("the sweep returned after %v — the pre-read did not wait out the %v short bound", elapsed, short)
 		}
-		transienttest.AssertDegradedRead(t, sink, "internal")
+		hookstest.AssertDegradedRead(t, sink, "internal")
 	})
 }
 
@@ -172,7 +172,7 @@ func TestStagedHooksStoreSidecar(t *testing.T) {
 			t.Fatalf("Load: %v", err)
 		}
 
-		if got := transienttest.UnlockedRecords(t, sink); len(got) != 0 {
+		if got := hookstest.UnlockedRecords(t, sink); len(got) != 0 {
 			t.Errorf("read degraded despite a staged sidecar: %+v", got)
 		}
 	})
@@ -186,6 +186,6 @@ func TestStagedHooksStoreSidecar(t *testing.T) {
 			t.Fatalf("Load: %v", err)
 		}
 
-		transienttest.AssertDegradedRead(t, sink, "doctor")
+		hookstest.AssertDegradedRead(t, sink, "doctor")
 	})
 }

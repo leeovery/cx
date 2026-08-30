@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/portal/internal/hookstest"
 	"github.com/leeovery/portal/internal/portaltest"
 	"github.com/leeovery/portal/internal/transienttest"
 )
@@ -59,8 +60,8 @@ func runTransientCleanStaleModeSubtest(t *testing.T, spec transientModeSpec) {
 
 	env, stateDir := isolateCleanStaleTestEnv(t)
 
-	transienttest.SeedHooksJSON(t, env, transientModeSeedEntries)
-	before := transienttest.HooksJSONBytes(t, env)
+	hookstest.SeedHooksJSON(t, env, transientModeSeedEntries)
+	before := hookstest.HooksJSONBytes(t, env)
 	if len(before) == 0 {
 		t.Fatalf("precondition: hooksJSONBytes returned empty slice after seed (subtest %s)", spec.name)
 	}
@@ -71,7 +72,7 @@ func runTransientCleanStaleModeSubtest(t *testing.T, spec transientModeSpec) {
 			spec.name, err, output)
 	}
 
-	after := transienttest.HooksJSONBytes(t, env)
+	after := hookstest.HooksJSONBytes(t, env)
 	if !bytes.Equal(before, after) {
 		t.Fatalf("hooks.json mutated under %s — the wipe regression has returned\n"+
 			"  before: %s\n"+

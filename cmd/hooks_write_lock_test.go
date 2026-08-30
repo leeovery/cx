@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/leeovery/portal/internal/hooks"
+	"github.com/leeovery/portal/internal/hookstest"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/state"
-	"github.com/leeovery/portal/internal/transienttest"
 )
 
 // assertLockFailureReachesStderr pins the route a lock failure takes to the
@@ -75,7 +75,7 @@ func TestHookSetLockTimeout(t *testing.T) {
 		before := seedHooksFile(t, hooksFile, map[string]map[string]string{
 			"tok999": {"on-resume": "npm start"},
 		})
-		transienttest.HoldHooksSidecar(t, hooksFile)
+		hookstest.HoldHooksSidecar(t, hooksFile)
 
 		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}})
 
@@ -90,7 +90,7 @@ func TestHookSetLockTimeout(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, lockBound)
 		_, hooksFile := hooksFileInTempDir(t)
 		t.Setenv("TMUX_PANE", "%3")
-		transienttest.HoldHooksSidecar(t, hooksFile)
+		hookstest.HoldHooksSidecar(t, hooksFile)
 
 		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}})
 
@@ -108,7 +108,7 @@ func TestHookSetLockTimeout(t *testing.T) {
 		stateDir := t.TempDir()
 		t.Setenv("PORTAL_STATE_DIR", stateDir)
 		t.Setenv("TMUX_PANE", "%3")
-		transienttest.HoldHooksSidecar(t, hooksFile)
+		hookstest.HoldHooksSidecar(t, hooksFile)
 
 		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}})
 
@@ -124,7 +124,7 @@ func TestHookSetLockTimeout(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, lockBound)
 		_, hooksFile := hooksFileInTempDir(t)
 		t.Setenv("TMUX_PANE", "%7")
-		release := transienttest.HoldHooksSidecar(t, hooksFile)
+		release := hookstest.HoldHooksSidecar(t, hooksFile)
 
 		pane := &stampedPane{}
 		minted := 0
@@ -177,7 +177,7 @@ func TestHookSetLockTimeout(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, lockBound)
 		_, hooksFile := hooksFileInTempDir(t)
 		t.Setenv("TMUX_PANE", "%3")
-		transienttest.HoldHooksSidecar(t, hooksFile)
+		hookstest.HoldHooksSidecar(t, hooksFile)
 
 		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}})
 
@@ -207,7 +207,7 @@ func TestHookRmLockTimeout(t *testing.T) {
 		before := seedHooksFile(t, hooksFile, map[string]map[string]string{
 			"tok123": {"on-resume": "claude --resume abc"},
 		})
-		transienttest.HoldHooksSidecar(t, hooksFile)
+		hookstest.HoldHooksSidecar(t, hooksFile)
 
 		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}})
 
@@ -225,7 +225,7 @@ func TestHookRmLockTimeout(t *testing.T) {
 		before := seedHooksFile(t, hooksFile, map[string]map[string]string{
 			"tok123": {"on-resume": "claude --resume abc"},
 		})
-		transienttest.HoldHooksSidecar(t, hooksFile)
+		hookstest.HoldHooksSidecar(t, hooksFile)
 
 		resolver, stamper := paneKeyPathSeams()
 		withHooksDeps(t, HooksDeps{KeyResolver: resolver, PaneStamper: stamper})
@@ -243,7 +243,7 @@ func TestHookRmLockTimeout(t *testing.T) {
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{
 			"tok123": {"on-resume": "claude --resume abc"},
 		})
-		transienttest.HoldHooksSidecar(t, hooksFile)
+		hookstest.HoldHooksSidecar(t, hooksFile)
 
 		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}})
 

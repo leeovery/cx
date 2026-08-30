@@ -11,28 +11,28 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/portal/internal/hookstest"
 	"github.com/leeovery/portal/internal/tmux"
-	"github.com/leeovery/portal/internal/transienttest"
 )
 
 // The hook-key seed vocabulary the cmd suites share: a reapable key is one the
 // staleness rule can judge, so it is swept once absent from the live set; an
 // unjudgeable key is retained whatever the live set says.
 var (
-	reapableSeedA = transienttest.ReapableHookKey(0)
-	reapableSeedB = transienttest.ReapableHookKey(1)
-	reapableSeedC = transienttest.ReapableHookKey(2)
-	reapableSeedD = transienttest.ReapableHookKey(3)
+	reapableSeedA = hookstest.ReapableHookKey(0)
+	reapableSeedB = hookstest.ReapableHookKey(1)
+	reapableSeedC = hookstest.ReapableHookKey(2)
+	reapableSeedD = hookstest.ReapableHookKey(3)
 
-	unjudgeableSeedA = transienttest.UnjudgeableHookKey(0)
-	unjudgeableSeedB = transienttest.UnjudgeableHookKey(1)
+	unjudgeableSeedA = hookstest.UnjudgeableHookKey(0)
+	unjudgeableSeedB = hookstest.UnjudgeableHookKey(1)
 
 	// The live half of the vocabulary: token-shaped keys the enumeration
 	// reports, so an entry under one is preserved because its pane is live and
 	// not because the reaper cannot judge its shape.
-	liveSeedA = transienttest.ReapableHookKey(4)
-	liveSeedB = transienttest.ReapableHookKey(5)
-	liveSeedC = transienttest.ReapableHookKey(6)
+	liveSeedA = hookstest.ReapableHookKey(4)
+	liveSeedB = hookstest.ReapableHookKey(5)
+	liveSeedC = hookstest.ReapableHookKey(6)
 )
 
 // hooksBody renders a hooks.json body registering one on-resume entry per key,

@@ -1,4 +1,4 @@
-package transienttest
+package hookstest
 
 import (
 	"log/slog"
@@ -18,7 +18,7 @@ import (
 func CreateHooksSidecar(t *testing.T, hooksPath string) {
 	t.Helper()
 	if err := os.WriteFile(hooksPath+".lock", nil, 0o600); err != nil {
-		t.Fatalf("transienttest.CreateHooksSidecar: create sidecar lock: %v", err)
+		t.Fatalf("hookstest.CreateHooksSidecar: create sidecar lock: %v", err)
 	}
 }
 
@@ -32,7 +32,7 @@ func HoldHooksSidecar(t *testing.T, hooksPath string) func() {
 	t.Helper()
 	f := openSidecar(t, hooksPath)
 	if err := unix.Flock(int(f.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
-		t.Fatalf("transienttest.HoldHooksSidecar: flock sidecar: %v", err)
+		t.Fatalf("hookstest.HoldHooksSidecar: flock sidecar: %v", err)
 	}
 	var once sync.Once
 	release := func() {
@@ -53,7 +53,7 @@ func HoldHooksSidecarShared(t *testing.T, hooksPath string) {
 	t.Helper()
 	f := openSidecar(t, hooksPath)
 	if err := unix.Flock(int(f.Fd()), unix.LOCK_SH|unix.LOCK_NB); err != nil {
-		t.Fatalf("transienttest.HoldHooksSidecarShared: flock sidecar shared: %v", err)
+		t.Fatalf("hookstest.HoldHooksSidecarShared: flock sidecar shared: %v", err)
 	}
 	t.Cleanup(func() {
 		_ = unix.Flock(int(f.Fd()), unix.LOCK_UN)

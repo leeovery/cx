@@ -188,6 +188,7 @@ func TestSurfaceAudit_NoNewPackageForPreview(t *testing.T) {
 		"fileutil":         {},
 		"fuzzy":            {},
 		"hooks":            {},
+		"hookstest":        {},
 		"log":              {},
 		"logtest":          {},
 		"nanoid":           {},

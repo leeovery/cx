@@ -13,12 +13,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/portal/internal/hookstest"
 	"github.com/leeovery/portal/internal/portalbintest"
 	"github.com/leeovery/portal/internal/portaltest"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
 	"github.com/leeovery/portal/internal/tmuxtest"
-	"github.com/leeovery/portal/internal/transienttest"
 )
 
 const (
@@ -44,11 +44,11 @@ const (
 var (
 	// staleHookKey has no matching live pane on the test server, and its token
 	// shape is one the reaper can judge, so it is genuinely reapable.
-	staleHookKey = transienttest.ReapableHookKey(0)
+	staleHookKey = hookstest.ReapableHookKey(0)
 
 	// liveHookToken is token-shaped, so an entry keyed on it survives because
 	// its pane is live rather than because the reaper cannot judge the key.
-	liveHookToken = transienttest.ReapableHookKey(1)
+	liveHookToken = hookstest.ReapableHookKey(1)
 )
 
 func TestDaemon_ThrottledHookCleanup_ReapsStaleRetainsLiveOnIdleServer(t *testing.T) {
@@ -97,7 +97,7 @@ func TestDaemon_ThrottledHookCleanup_ReapsStaleRetainsLiveOnIdleServer(t *testin
 		t.Fatalf("test setup collision: live key %q equals the stale key constant", liveHookKey)
 	}
 
-	transienttest.SeedHooksJSON(t, env, map[string]string{
+	hookstest.SeedHooksJSON(t, env, map[string]string{
 		staleHookKey: "echo stale-should-be-reaped",
 		liveHookKey:  "echo live-should-be-retained",
 	})
@@ -199,7 +199,7 @@ func TestDaemon_ThrottledHookCleanup_ReapsStaleRetainsLiveOnIdleServer(t *testin
 			"  remaining hooks.json keys: %v\n"+
 			"--- hooks.json (%s) ---\n%s\n--- portal.log ---\n%s",
 			staleHookKey, hookCleanupObservationBudget, hookCleanupIntervalMirror,
-			sortedKeys(finalKeys), hooksPath, string(transienttest.HooksJSONBytes(t, env)),
+			sortedKeys(finalKeys), hooksPath, string(hookstest.HooksJSONBytes(t, env)),
 			portaltest.ReadPortalLogSafe(stateDir))
 	}
 	t.Logf("stale key %q reaped after the throttle interval on the idle server", staleHookKey)
@@ -210,7 +210,7 @@ func TestDaemon_ThrottledHookCleanup_ReapsStaleRetainsLiveOnIdleServer(t *testin
 			"whose paneKey is present in the live pane set (ListAllPanes)\n"+
 			"  remaining keys: %v\n--- hooks.json (%s) ---\n%s\n--- portal.log ---\n%s",
 			liveHookKey, sortedKeys(postKeys), hooksPath,
-			string(transienttest.HooksJSONBytes(t, env)), portaltest.ReadPortalLogSafe(stateDir))
+			string(hookstest.HooksJSONBytes(t, env)), portaltest.ReadPortalLogSafe(stateDir))
 	}
 	if _, ok := postKeys[staleHookKey]; ok {
 		t.Fatalf("stale key %q reappeared after reap; keys=%v", staleHookKey, sortedKeys(postKeys))
@@ -223,7 +223,7 @@ func TestDaemon_ThrottledHookCleanup_ReapsStaleRetainsLiveOnIdleServer(t *testin
 // concurrent read never sees a partial file.
 func readHookKeys(t *testing.T, env []string) map[string]struct{} {
 	t.Helper()
-	raw := transienttest.HooksJSONBytes(t, env)
+	raw := hookstest.HooksJSONBytes(t, env)
 	keys := make(map[string]struct{})
 	if len(raw) == 0 {
 		return keys

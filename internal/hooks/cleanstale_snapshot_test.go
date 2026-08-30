@@ -11,7 +11,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/leeovery/portal/internal/hooks"
-	"github.com/leeovery/portal/internal/transienttest"
+	"github.com/leeovery/portal/internal/hookstest"
 )
 
 // enumerating answers tokens as the live set whatever the snapshot holds: the
@@ -25,10 +25,10 @@ func enumerating(tokens ...string) func(hooks.Snapshot) ([]string, error) {
 // because such a key was written after the live set was read — so that read
 // never had the chance to protect it.
 func TestCleanStaleSnapshotNarrowing(t *testing.T) {
-	liveKey := transienttest.ReapableHookKey(0)
-	staleKey := transienttest.ReapableHookKey(1)
-	lateKey := transienttest.ReapableHookKey(2)
-	unjudgeableKey := transienttest.UnjudgeableHookKey(0)
+	liveKey := hookstest.ReapableHookKey(0)
+	staleKey := hookstest.ReapableHookKey(1)
+	lateKey := hookstest.ReapableHookKey(2)
+	unjudgeableKey := hookstest.UnjudgeableHookKey(0)
 
 	t.Run("it deletes a key present in the file, in the snapshot and absent from the live set", func(t *testing.T) {
 		store, _ := seedHooksFile(t, fmt.Sprintf(`{%q:{"on-resume":"live"},%q:{"on-resume":"gone"}}`, liveKey, staleKey))

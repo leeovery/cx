@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/hooks"
-	"github.com/leeovery/portal/internal/transienttest"
+	"github.com/leeovery/portal/internal/hookstest"
 )
 
 // seedHooksFile writes the raw on-disk map so a fixture can hold an arbitrary
@@ -23,9 +23,9 @@ func seedHooksFile(t *testing.T, contents string) (*hooks.Store, string) {
 }
 
 func TestCleanStaleShapeAwareness(t *testing.T) {
-	liveKey := transienttest.ReapableHookKey(0)
-	staleKey := transienttest.ReapableHookKey(1)
-	retainedKey := transienttest.UnjudgeableHookKey(0)
+	liveKey := hookstest.ReapableHookKey(0)
+	staleKey := hookstest.ReapableHookKey(1)
+	retainedKey := hookstest.UnjudgeableHookKey(0)
 
 	t.Run("it retains a non-token-shaped key absent from the live set", func(t *testing.T) {
 		store, path := seedHooksFile(t, fmt.Sprintf(`{%q:{"on-resume":"old"},%q:{"on-resume":"live"}}`, retainedKey, liveKey))
@@ -105,7 +105,7 @@ func TestCleanStaleShapeAwareness(t *testing.T) {
 	})
 
 	t.Run("it writes no file and emits no summary when every candidate is retained", func(t *testing.T) {
-		store, path := seedHooksFile(t, fmt.Sprintf(`{%q:{"on-resume":"a"},%q:{"on-resume":"b"}}`, transienttest.UnjudgeableHookKey(1), transienttest.UnjudgeableHookKey(2)))
+		store, path := seedHooksFile(t, fmt.Sprintf(`{%q:{"on-resume":"a"},%q:{"on-resume":"b"}}`, hookstest.UnjudgeableHookKey(1), hookstest.UnjudgeableHookKey(2)))
 
 		before, err := os.ReadFile(path)
 		if err != nil {

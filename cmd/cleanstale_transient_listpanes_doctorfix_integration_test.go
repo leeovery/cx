@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/portal/internal/hookstest"
 	"github.com/leeovery/portal/internal/portaltest"
 	"github.com/leeovery/portal/internal/tmux"
 	"github.com/leeovery/portal/internal/tmuxtest"
@@ -104,7 +105,7 @@ func TestDoctorFix_TmuxTransient_DoesNotWipeHooks(t *testing.T) {
 			liveKey:  "echo live",
 			staleKey: "echo gone",
 		}
-		transienttest.SeedHooksJSON(t, env, seedEntries)
+		hookstest.SeedHooksJSON(t, env, seedEntries)
 
 		passThroughStub := &transienttest.Commander{
 			Inner: &transienttest.SocketCommander{SocketPath: sock.SocketPath()},
@@ -116,7 +117,7 @@ func TestDoctorFix_TmuxTransient_DoesNotWipeHooks(t *testing.T) {
 			t.Fatalf("doctor --fix hook prune returned error on the normal path; want nil: %v\n  output:\n%s", err, output)
 		}
 
-		afterStr := string(transienttest.HooksJSONBytes(t, env))
+		afterStr := string(hookstest.HooksJSONBytes(t, env))
 		if !strings.Contains(afterStr, `"`+liveKey+`"`) {
 			t.Fatalf("normal path destroyed the live entry %q; want it preserved\n"+
 				"  hooks.json after: %s", liveKey, afterStr)

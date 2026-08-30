@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/hooks"
+	"github.com/leeovery/portal/internal/hookstest"
 	"github.com/leeovery/portal/internal/portaltest"
 	"github.com/leeovery/portal/internal/tmuxtest"
 	"github.com/leeovery/portal/internal/transienttest"
@@ -104,17 +105,17 @@ func TestTransientListPanesHelpers_Smoke(t *testing.T) {
 		env, _ := portaltest.IsolateStateForTest(t)
 
 		entries := map[string]string{
-			transienttest.ReapableHookKey(0): "echo hello",
-			transienttest.ReapableHookKey(1): "claude --resume",
+			hookstest.ReapableHookKey(0): "echo hello",
+			hookstest.ReapableHookKey(1): "claude --resume",
 		}
-		transienttest.SeedHooksJSON(t, env, entries)
+		hookstest.SeedHooksJSON(t, env, entries)
 
-		data := transienttest.HooksJSONBytes(t, env)
+		data := hookstest.HooksJSONBytes(t, env)
 		if len(data) == 0 {
 			t.Fatalf("HooksJSONBytes returned empty slice after seed")
 		}
 
-		path := transienttest.ResolveHooksFilePathFromEnv(t, env)
+		path := hookstest.ResolveHooksFilePathFromEnv(t, env)
 		store := hooks.NewStore(path)
 		for key, want := range entries {
 			cmd, ok, err := hooks.LookupOnResume(store, key)
@@ -129,7 +130,7 @@ func TestTransientListPanesHelpers_Smoke(t *testing.T) {
 			}
 		}
 
-		data2 := transienttest.HooksJSONBytes(t, env)
+		data2 := hookstest.HooksJSONBytes(t, env)
 		if !bytes.Equal(data, data2) {
 			t.Fatalf("HooksJSONBytes not deterministic across reads:\n  first:  %s\n  second: %s", data, data2)
 		}

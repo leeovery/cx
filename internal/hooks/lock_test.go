@@ -15,7 +15,7 @@ import (
 
 	"github.com/leeovery/portal/internal/fileutil"
 	"github.com/leeovery/portal/internal/hooks"
-	"github.com/leeovery/portal/internal/transienttest"
+	"github.com/leeovery/portal/internal/hookstest"
 )
 
 // inodeOf identifies the file behind a path, so a test can tell an in-place
@@ -183,7 +183,7 @@ func TestMutationLockExclusion(t *testing.T) {
 
 	t.Run("it loads only after a held lock is released", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "hooks.json")
-		release := transienttest.HoldHooksSidecar(t, path)
+		release := hookstest.HoldHooksSidecar(t, path)
 
 		done := make(chan error, 1)
 		go func() {
@@ -294,7 +294,7 @@ func TestMutationLockBound(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, 50*time.Millisecond)
 
 		path := filepath.Join(t.TempDir(), "hooks.json")
-		transienttest.HoldHooksSidecar(t, path)
+		hookstest.HoldHooksSidecar(t, path)
 
 		err := hooks.NewStore(path).Set("k0", "on-resume", "cmd0", hooks.ViaCLI)
 		if !errors.Is(err, hooks.ErrLockHeld) {

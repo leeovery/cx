@@ -1,4 +1,4 @@
-package transienttest
+package hookstest
 
 import (
 	"fmt"
@@ -34,7 +34,7 @@ func ResolveHooksFilePathFromEnv(t *testing.T, env []string) string {
 		}
 	}
 	if xdg == "" {
-		t.Fatalf("transienttest.ResolveHooksFilePathFromEnv: env slice contains neither PORTAL_HOOKS_FILE nor XDG_CONFIG_HOME — IsolateStateForTest isolation regression")
+		t.Fatalf("hookstest.ResolveHooksFilePathFromEnv: env slice contains neither PORTAL_HOOKS_FILE nor XDG_CONFIG_HOME — IsolateStateForTest isolation regression")
 	}
 	return filepath.Join(xdg, "portal", "hooks.json")
 }
@@ -44,16 +44,16 @@ func ResolveHooksFilePathFromEnv(t *testing.T, env []string) string {
 func SeedHooksJSON(t *testing.T, env []string, entries map[string]string) {
 	t.Helper()
 	path := ResolveHooksFilePathFromEnv(t, env)
-	t.Logf("transienttest.SeedHooksJSON: resolved hooks.json path = %s", path)
+	t.Logf("hookstest.SeedHooksJSON: resolved hooks.json path = %s", path)
 
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		t.Fatalf("transienttest.SeedHooksJSON: mkdir %s: %v", filepath.Dir(path), err)
+		t.Fatalf("hookstest.SeedHooksJSON: mkdir %s: %v", filepath.Dir(path), err)
 	}
 
 	store := hooks.NewStore(path)
 	for key, cmd := range entries {
 		if err := store.Set(key, "on-resume", cmd, hooks.ViaCLI); err != nil {
-			t.Fatalf("transienttest.SeedHooksJSON: set %s=%q: %v", key, cmd, err)
+			t.Fatalf("hookstest.SeedHooksJSON: set %s=%q: %v", key, cmd, err)
 		}
 	}
 }
@@ -68,7 +68,7 @@ func HooksJSONBytes(t *testing.T, env []string) []byte {
 		if os.IsNotExist(err) {
 			return nil
 		}
-		t.Fatalf("transienttest.HooksJSONBytes: read %s: %v", path, err)
+		t.Fatalf("hookstest.HooksJSONBytes: read %s: %v", path, err)
 	}
 	return data
 }
@@ -81,14 +81,14 @@ func HooksJSONBytes(t *testing.T, env []string) []byte {
 func ReapableHookKey(n int) string {
 	radix := len(nanoid.Alphabet)
 	if n < 0 || n >= radix*radix {
-		panic(fmt.Sprintf("transienttest.ReapableHookKey: n = %d out of range [0,%d)", n, radix*radix))
+		panic(fmt.Sprintf("hookstest.ReapableHookKey: n = %d out of range [0,%d)", n, radix*radix))
 	}
 	key := reapableSeedPrefix + string([]byte{
 		nanoid.Alphabet[n/radix],
 		nanoid.Alphabet[n%radix],
 	})
 	if !nanoid.IsTokenShaped(key) {
-		panic(fmt.Sprintf("transienttest.ReapableHookKey: %q is not token-shaped — the seed vocabulary has drifted from nanoid.IsTokenShaped", key))
+		panic(fmt.Sprintf("hookstest.ReapableHookKey: %q is not token-shaped — the seed vocabulary has drifted from nanoid.IsTokenShaped", key))
 	}
 	return key
 }

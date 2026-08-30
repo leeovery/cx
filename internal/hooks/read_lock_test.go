@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/leeovery/portal/internal/hooks"
-	"github.com/leeovery/portal/internal/transienttest"
+	"github.com/leeovery/portal/internal/hookstest"
 )
 
 // seedReadFixture stages hooks.json holding entries keys plus the sidecar
@@ -27,7 +27,7 @@ func seedReadFixture(t *testing.T, entries int) (*hooks.Store, string) {
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		t.Fatalf("seed hooks.json: %v", err)
 	}
-	transienttest.CreateHooksSidecar(t, path)
+	hookstest.CreateHooksSidecar(t, path)
 	return hooks.NewStore(path), path
 }
 
@@ -35,7 +35,7 @@ func TestReadSharedLock(t *testing.T) {
 	t.Run("it takes a shared lock for a read", func(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, 2*time.Second)
 		store, path := seedReadFixture(t, 2)
-		transienttest.HoldHooksSidecarShared(t, path)
+		hookstest.HoldHooksSidecarShared(t, path)
 
 		sink := installCapture(t)
 		start := time.Now()
@@ -51,7 +51,7 @@ func TestReadSharedLock(t *testing.T) {
 		if elapsed >= 500*time.Millisecond {
 			t.Fatalf("Load took %v against another shared holder — it acquired exclusively", elapsed)
 		}
-		if got := transienttest.UnlockedRecords(t, sink); len(got) != 0 {
+		if got := hookstest.UnlockedRecords(t, sink); len(got) != 0 {
 			t.Fatalf("read degraded despite a grantable shared lock: %+v", got)
 		}
 	})
@@ -92,7 +92,7 @@ func TestReadSharedLock(t *testing.T) {
 		// exclusive read would block out against the hold and degrade.
 		hooks.SetLockTimeoutForTest(t, 300*time.Millisecond)
 		store, path := seedReadFixture(t, 4)
-		transienttest.HoldHooksSidecarShared(t, path)
+		hookstest.HoldHooksSidecarShared(t, path)
 
 		sink := installCapture(t)
 		var wg sync.WaitGroup
@@ -126,7 +126,7 @@ func TestReadSharedLock(t *testing.T) {
 		if total >= 300*time.Millisecond {
 			t.Errorf("two overlapping reads took %v — they serialised", total)
 		}
-		if got := transienttest.UnlockedRecords(t, sink); len(got) != 0 {
+		if got := hookstest.UnlockedRecords(t, sink); len(got) != 0 {
 			t.Fatalf("a concurrent read degraded: %+v", got)
 		}
 	})
@@ -135,7 +135,7 @@ func TestReadSharedLock(t *testing.T) {
 		bound := 60 * time.Millisecond
 		hooks.SetLockTimeoutForTest(t, bound)
 		store, path := seedReadFixture(t, 3)
-		transienttest.HoldHooksSidecar(t, path)
+		hookstest.HoldHooksSidecar(t, path)
 
 		sink := installCapture(t)
 		start := time.Now()
@@ -151,13 +151,13 @@ func TestReadSharedLock(t *testing.T) {
 		if elapsed < bound {
 			t.Errorf("Load returned after %v — it did not wait out the %v bound", elapsed, bound)
 		}
-		transienttest.AssertDegradedRead(t, sink, "cli")
+		hookstest.AssertDegradedRead(t, sink, "cli")
 	})
 
 	t.Run("it logs one DEBUG per degraded read", func(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, 20*time.Millisecond)
 		store, path := seedReadFixture(t, 42)
-		transienttest.HoldHooksSidecar(t, path)
+		hookstest.HoldHooksSidecar(t, path)
 
 		sink := installCapture(t)
 		h, err := store.Load(hooks.ViaCLI)
@@ -167,7 +167,7 @@ func TestReadSharedLock(t *testing.T) {
 		if len(h) != 42 {
 			t.Fatalf("got %d entries, want 42", len(h))
 		}
-		transienttest.AssertDegradedRead(t, sink, "cli")
+		hookstest.AssertDegradedRead(t, sink, "cli")
 	})
 
 	t.Run("it degrades when the sidecar is absent", func(t *testing.T) {
@@ -189,7 +189,7 @@ func TestReadSharedLock(t *testing.T) {
 		if _, statErr := os.Stat(path + ".lock"); !os.IsNotExist(statErr) {
 			t.Fatalf("the degraded read created the sidecar: %v", statErr)
 		}
-		transienttest.AssertDegradedRead(t, sink, "cli")
+		hookstest.AssertDegradedRead(t, sink, "cli")
 	})
 
 	t.Run("it creates nothing when it reads", func(t *testing.T) {
@@ -220,7 +220,7 @@ func TestReadSharedLock(t *testing.T) {
 		if err := store.Set("k0", "on-resume", "cmd0", hooks.ViaCLI); err != nil {
 			t.Fatalf("Set: %v", err)
 		}
-		if got := transienttest.UnlockedRecords(t, sink); len(got) != 0 {
+		if got := hookstest.UnlockedRecords(t, sink); len(got) != 0 {
 			t.Fatalf("a mutation's non-locking load emitted %+v — it is exclusive, not degraded", got)
 		}
 	})
@@ -232,7 +232,7 @@ func TestReadSharedLockBoundSelection(t *testing.T) {
 		hooks.SetSnapshotLockTimeoutForTest(t, short)
 		hooks.SetLockTimeoutForTest(t, 5*time.Second)
 		store, path := seedReadFixture(t, 2)
-		transienttest.HoldHooksSidecar(t, path)
+		hookstest.HoldHooksSidecar(t, path)
 
 		sink := installCapture(t)
 		var entries int
@@ -255,7 +255,7 @@ func TestReadSharedLockBoundSelection(t *testing.T) {
 		if elapsed >= time.Second {
 			t.Fatalf("the snapshot read took %v — it waited at lockTimeout, not snapshotLockTimeout", elapsed)
 		}
-		transienttest.AssertDegradedRead(t, sink, "internal")
+		hookstest.AssertDegradedRead(t, sink, "internal")
 	})
 
 	t.Run("it takes the bound from the parameter, not from via", func(t *testing.T) {
@@ -267,7 +267,7 @@ func TestReadSharedLockBoundSelection(t *testing.T) {
 		bound := 120 * time.Millisecond
 		hooks.SetLockTimeoutForTest(t, bound)
 		store, path := seedReadFixture(t, 1)
-		transienttest.HoldHooksSidecar(t, path)
+		hookstest.HoldHooksSidecar(t, path)
 
 		start := time.Now()
 		if _, err := store.Load(hooks.ViaInternal); err != nil {
@@ -283,7 +283,7 @@ func TestReadSharedLockBoundSelection(t *testing.T) {
 		bound := 120 * time.Millisecond
 		hooks.SetLockTimeoutForTest(t, bound)
 		store, path := seedReadFixture(t, 1)
-		transienttest.HoldHooksSidecar(t, path)
+		hookstest.HoldHooksSidecar(t, path)
 
 		reads := map[string]func() error{
 			"Load": func() error { _, err := store.Load(hooks.ViaCLI); return err },
@@ -333,13 +333,13 @@ func TestReadSharedLockVia(t *testing.T) {
 			hooks.SetLockTimeoutForTest(t, 20*time.Millisecond)
 			hooks.SetSnapshotLockTimeoutForTest(t, 20*time.Millisecond)
 			store, path := seedReadFixture(t, 1)
-			transienttest.HoldHooksSidecar(t, path)
+			hookstest.HoldHooksSidecar(t, path)
 
 			sink := installCapture(t)
 			if err := tc.read(store); err != nil {
 				t.Fatalf("%s: %v", tc.name, err)
 			}
-			transienttest.AssertDegradedRead(t, sink, tc.via.String())
+			hookstest.AssertDegradedRead(t, sink, tc.via.String())
 		})
 	}
 }
@@ -351,8 +351,8 @@ func TestLookupOnResumeUnderHeldLock(t *testing.T) {
 		if err := os.WriteFile(path, []byte(`{"tok01":{"on-resume":"claude --resume abc"}}`), 0o600); err != nil {
 			t.Fatalf("seed hooks.json: %v", err)
 		}
-		transienttest.CreateHooksSidecar(t, path)
-		transienttest.HoldHooksSidecar(t, path)
+		hookstest.CreateHooksSidecar(t, path)
+		hookstest.HoldHooksSidecar(t, path)
 
 		sink := installCapture(t)
 		cmd, ok, err := hooks.LookupOnResume(hooks.NewStore(path), "tok01")
@@ -362,13 +362,13 @@ func TestLookupOnResumeUnderHeldLock(t *testing.T) {
 		if !ok || cmd != "claude --resume abc" {
 			t.Fatalf("got (%q, %v), want the registered command — a busy lock must not drop a pane to a bare shell", cmd, ok)
 		}
-		transienttest.AssertDegradedRead(t, sink, "hydrate")
+		hookstest.AssertDegradedRead(t, sink, "hydrate")
 	})
 
 	t.Run("an empty key takes no lock and logs nothing", func(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, time.Second)
 		store, path := seedReadFixture(t, 1)
-		transienttest.HoldHooksSidecar(t, path)
+		hookstest.HoldHooksSidecar(t, path)
 
 		sink := installCapture(t)
 		start := time.Now()
@@ -381,7 +381,7 @@ func TestLookupOnResumeUnderHeldLock(t *testing.T) {
 		if elapsed >= 100*time.Millisecond {
 			t.Errorf("empty-key lookup took %v — it reached the acquire", elapsed)
 		}
-		if got := transienttest.UnlockedRecords(t, sink); len(got) != 0 {
+		if got := hookstest.UnlockedRecords(t, sink); len(got) != 0 {
 			t.Fatalf("empty-key lookup emitted %+v", got)
 		}
 	})

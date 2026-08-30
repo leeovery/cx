@@ -15,9 +15,9 @@ import (
 
 	"github.com/leeovery/portal/internal/fileutil"
 	"github.com/leeovery/portal/internal/hooks"
+	"github.com/leeovery/portal/internal/hookstest"
 	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
-	"github.com/leeovery/portal/internal/transienttest"
 )
 
 func installCapture(t *testing.T) *logtest.Sink {
@@ -64,7 +64,7 @@ func seedThenDenyWrites(t *testing.T, body []byte) (*hooks.Store, string) {
 			t.Fatalf("seed: %v", err)
 		}
 	}
-	transienttest.CreateHooksSidecar(t, path)
+	hookstest.CreateHooksSidecar(t, path)
 	if err := os.Chmod(dir, 0o500); err != nil {
 		t.Fatalf("chmod parent dir: %v", err)
 	}
@@ -605,10 +605,10 @@ func TestList(t *testing.T) {
 // The hook-key seed vocabulary: a reapable key is one the staleness rule can
 // judge, so it is swept once absent from the live set.
 var (
-	reapableSeedA = transienttest.ReapableHookKey(0)
-	reapableSeedB = transienttest.ReapableHookKey(1)
-	reapableSeedC = transienttest.ReapableHookKey(2)
-	reapableSeedD = transienttest.ReapableHookKey(3)
+	reapableSeedA = hookstest.ReapableHookKey(0)
+	reapableSeedB = hookstest.ReapableHookKey(1)
+	reapableSeedC = hookstest.ReapableHookKey(2)
+	reapableSeedD = hookstest.ReapableHookKey(3)
 )
 
 func TestCleanStale(t *testing.T) {
