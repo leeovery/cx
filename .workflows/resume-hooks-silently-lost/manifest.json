@@ -214,7 +214,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 6,
-          "current_task": "resume-hooks-silently-lost-6-9",
+          "current_task": "resume-hooks-silently-lost-6-10",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -970,6 +970,38 @@
                 "internal/state/capture.go",
                 "internal/tui/model.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-9",
+              "source": "executor",
+              "summary": "Client.ListPanes is a third exported tmux client method with no production caller — a decision, not cleanup.",
+              "detail": "internal/tmux/tmux.go:565 — reachable only from internal/tmux/tmux_test.go:1293, exact_session_target_test.go:81 and exact_session_target_realtmux_test.go:126,234; satisfies no seam interface. Same family as the two deleted in 6-9, but its removal would undo coverage task 6-7 just added, and would orphan two exactCoordTarget routing proofs that would need re-pointing at another site rather than plain removal. Executor recommendation: delete it, since the task outcome statement (the tmux client exports no method with zero production callers) is otherwise only two-thirds true.",
+              "files": [
+                "internal/tmux/tmux.go",
+                "internal/tmux/tmux_test.go",
+                "internal/tmux/exact_session_target_test.go",
+                "internal/tmux/exact_session_target_realtmux_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-9",
+              "source": "executor",
+              "summary": "Four cmd test names and failure messages still name the now-deleted ListAllPanes.",
+              "detail": "cmd/run_hook_stale_cleanup_test.go:93,104,112,116,242 (including a subtest literally named \"it enumerates live keys via ListAllPaneHookKeys not ListAllPanes\" — a contrast against a method that no longer exists), cmd/state_daemon_hook_cleanup_test.go:171,175, cmd/state_daemon_hook_cleanup_integration_test.go:207. They describe the ListAllPanesWithFormat seam error path, so the assertions are correct — only the prose is stale. Renaming tests in another package was outside 6-9 surface.",
+              "files": [
+                "cmd/run_hook_stale_cleanup_test.go",
+                "cmd/state_daemon_hook_cleanup_test.go",
+                "cmd/state_daemon_hook_cleanup_integration_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-9",
+              "source": "executor",
+              "summary": "TestCompositeBootstrap_* flakes under full-lane load but passes package-alone and in isolation.",
+              "detail": "Pre-existing and reproduced on a stashed baseline. Which test fails varies per run (FreshAcquireDaemonLockRefusesPostBootstrap, FObservables), suggesting a daemon-timing sensitivity that -p 1 does not fully contain when the whole lane runs ahead of it. Three separate agents have now observed this independently.",
+              "files": [
+                "cmd/bootstrap"
+              ]
             }
           ],
           "completed_tasks": [
@@ -1030,7 +1062,8 @@
             "resume-hooks-silently-lost-6-5",
             "resume-hooks-silently-lost-6-6",
             "resume-hooks-silently-lost-6-7",
-            "resume-hooks-silently-lost-6-8"
+            "resume-hooks-silently-lost-6-8",
+            "resume-hooks-silently-lost-6-9"
           ],
           "staging": {
             "p1": {
