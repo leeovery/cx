@@ -43,7 +43,7 @@ func (m *captureMock) Run(args ...string) (string, error) {
 		if len(args) < 3 {
 			m.t.Fatalf("show-environment called with insufficient args: %v", args)
 		}
-		session := args[2]
+		session := sessionFromExactTarget(args[2])
 		if err, ok := m.envErrs[session]; ok {
 			return "", err
 		}
@@ -55,6 +55,13 @@ func (m *captureMock) Run(args ...string) (string, error) {
 		m.t.Fatalf("captureMock: unexpected command %v", args)
 		return "", nil
 	}
+}
+
+// sessionFromExactTarget undoes the "=" exact-match prefix the tmux client
+// composes onto a session target, so the fake resolves the same session real
+// tmux would.
+func sessionFromExactTarget(target string) string {
+	return strings.TrimPrefix(target, "=")
 }
 
 func (m *captureMock) RunRaw(args ...string) (string, error) {

@@ -259,6 +259,13 @@ func TestDaemonTick_CapturePaneFailureLogsWarnWithPaneKey(t *testing.T) {
 	}
 }
 
+// sessionFromExactTarget undoes the "=" exact-match prefix the tmux client
+// composes onto a session target, so a fake resolves the same session real tmux
+// would.
+func sessionFromExactTarget(target string) string {
+	return strings.TrimPrefix(target, "=")
+}
+
 type envFailingCommander struct {
 	inner   *daemonFakeCommander
 	envErrs map[string]error
@@ -266,7 +273,7 @@ type envFailingCommander struct {
 
 func (c *envFailingCommander) Run(args ...string) (string, error) {
 	if len(args) >= 3 && args[0] == "show-environment" && args[1] == "-t" {
-		if err, ok := c.envErrs[args[2]]; ok {
+		if err, ok := c.envErrs[sessionFromExactTarget(args[2])]; ok {
 			return "", err
 		}
 	}

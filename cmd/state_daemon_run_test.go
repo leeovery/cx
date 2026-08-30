@@ -108,7 +108,7 @@ func (c *daemonFakeCommander) dispatch(args []string) (string, error) {
 		return c.panesOut, c.panesErr
 	case "show-environment":
 		if len(args) >= 3 {
-			if v, ok := c.envBySession[args[2]]; ok {
+			if v, ok := c.envBySession[sessionFromExactTarget(args[2])]; ok {
 				return v, nil
 			}
 		}

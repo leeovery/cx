@@ -579,7 +579,7 @@ func TestBootstrapPortalSaver_AlwaysSetsDestroyUnattachedOff(t *testing.T) {
 		t.Fatalf("BootstrapPortalSaver returned error: %v", err)
 	}
 
-	wantArgs := []string{"set-option", "-t", "_portal-saver", "destroy-unattached", "off"}
+	wantArgs := []string{"set-option", "-t", "=_portal-saver:", "destroy-unattached", "off"}
 	if len(setOptionArgs) != len(wantArgs) {
 		t.Fatalf("set-option argv = %v, want %v", setOptionArgs, wantArgs)
 	}
@@ -1108,7 +1108,7 @@ func TestEnsurePortalSaverVersion_AlwaysInvokesBootstrapPortalSaver(t *testing.T
 		t.Fatalf("EnsurePortalSaverVersion returned error: %v", err)
 	}
 
-	wantArgs := []string{"set-option", "-t", "_portal-saver", "destroy-unattached", "off"}
+	wantArgs := []string{"set-option", "-t", "=_portal-saver:", "destroy-unattached", "off"}
 	if len(setOptionArgs) != len(wantArgs) {
 		t.Fatalf("set-option argv = %v, want %v", setOptionArgs, wantArgs)
 	}

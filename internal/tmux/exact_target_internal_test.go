@@ -7,3 +7,9 @@ func TestExactTarget(t *testing.T) {
 		t.Errorf("exactTarget(\"foo\") = %q, want \"=foo\"", got)
 	}
 }
+
+func TestExactCoordTarget(t *testing.T) {
+	if got := exactCoordTarget("foo"); got != "=foo:" {
+		t.Errorf("exactCoordTarget(\"foo\") = %q, want \"=foo:\"", got)
+	}
+}

@@ -1014,7 +1014,7 @@ func TestSetSessionOption(t *testing.T) {
 		if len(mock.Calls) != 1 {
 			t.Fatalf("expected 1 call, got %d", len(mock.Calls))
 		}
-		wantArgs := "set-option -t _portal-saver destroy-unattached off"
+		wantArgs := "set-option -t =_portal-saver: destroy-unattached off"
 		gotArgs := strings.Join(mock.Calls[0], " ")
 		if gotArgs != wantArgs {
 			t.Errorf("called with %q, want %q", gotArgs, wantArgs)
@@ -1314,7 +1314,7 @@ func TestListPanes(t *testing.T) {
 		if len(mock.Calls) != 1 {
 			t.Fatalf("expected 1 call, got %d", len(mock.Calls))
 		}
-		wantArgs := "list-panes -t my-session -F " + tmux.StructuralKeyFormat
+		wantArgs := "list-panes -t =my-session: -F " + tmux.StructuralKeyFormat
 		gotArgs := strings.Join(mock.Calls[0], " ")
 		if gotArgs != wantArgs {
 			t.Errorf("called with %q, want %q", gotArgs, wantArgs)
@@ -1780,7 +1780,7 @@ func TestShowEnvironment(t *testing.T) {
 		if len(mock.Calls) != 1 {
 			t.Fatalf("expected 1 call, got %d", len(mock.Calls))
 		}
-		wantArgs := "show-environment -t work"
+		wantArgs := "show-environment -t =work"
 		gotArgs := strings.Join(mock.Calls[0], " ")
 		if gotArgs != wantArgs {
 			t.Errorf("called with %q, want %q", gotArgs, wantArgs)
@@ -2242,7 +2242,7 @@ func TestSetSessionEnvironment(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		want := []string{"set-environment", "-t", "work", "LANG", "en_US.UTF-8"}
+		want := []string{"set-environment", "-t", "=work", "LANG", "en_US.UTF-8"}
 		got := mock.Calls[0]
 		if len(got) != len(want) {
 			t.Fatalf("got %d args %v, want %d args %v", len(got), got, len(want), want)
@@ -2281,7 +2281,7 @@ func TestSelectLayout(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		want := []string{"select-layout", "-t", "work:1", "abcd,80x24,0,0"}
+		want := []string{"select-layout", "-t", "=work:1", "abcd,80x24,0,0"}
 		got := mock.Calls[0]
 		if len(got) != len(want) {
 			t.Fatalf("got %d args %v, want %d args %v", len(got), got, len(want), want)
@@ -2495,7 +2495,7 @@ func TestListPanesInSession(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		want := []string{"list-panes", "-s", "-t", "work", "-F", "#{window_index}:#{pane_index}"}
+		want := []string{"list-panes", "-s", "-t", "=work:", "-F", "#{window_index}:#{pane_index}"}
 		got := mock.Calls[0]
 		if len(got) != len(want) {
 			t.Fatalf("got %d args %v, want %d args %v", len(got), got, len(want), want)
@@ -2756,7 +2756,7 @@ func TestListWindowsAndPanesInSession(t *testing.T) {
 			t.Fatalf("expected 1 call, got %d", len(mock.Calls))
 		}
 		want := []string{
-			"list-panes", "-s", "-t", "work",
+			"list-panes", "-s", "-t", "=work:",
 			"-F", "#{window_index}\x1f#{window_name}\x1f#{pane_index}",
 		}
 		got := mock.Calls[0]
@@ -3155,7 +3155,7 @@ func TestActivePaneCurrentPath(t *testing.T) {
 		if len(mock.Calls) != 1 {
 			t.Fatalf("expected exactly 1 call, got %d: %v", len(mock.Calls), mock.Calls)
 		}
-		wantArgs := []string{"display-message", "-p", "-t", "my-session", "-F", "#{pane_current_path}"}
+		wantArgs := []string{"display-message", "-p", "-t", "=my-session:", "-F", "#{pane_current_path}"}
 		if len(mock.Calls[0]) != len(wantArgs) {
 			t.Fatalf("got args %v, want %v", mock.Calls[0], wantArgs)
 		}
