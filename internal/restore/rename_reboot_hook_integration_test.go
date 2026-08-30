@@ -84,5 +84,5 @@ func runRenameRebootFire(t *testing.T, rename func(t *testing.T, ts *tmuxtest.So
 		t.Fatalf("rebootAndHydrate: %v", err)
 	}
 
-	assertHookFireCount(t, fx.hookFireFile, 1)
+	assertMarkerCount(t, fx.hookFireFile, hookFiredMarker, 1)
 }

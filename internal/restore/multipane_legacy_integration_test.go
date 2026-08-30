@@ -3,7 +3,6 @@
 package restore_test
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -136,10 +135,10 @@ func TestMultiPaneLegacy_PerPaneHookRouting(t *testing.T) {
 	restoretest.DriveSignalHydrate(t, client, stateDir, []string{renameNewName})
 	restoretest.WaitForSkeletonMarkersCleared(t, client, 10*time.Second, 50*time.Millisecond)
 
-	assertMarkerFiredOnce(t, pane0File, pane0Marker)
-	assertMarkerFiredOnce(t, pane1File, pane1Marker)
-	assertMarkerAbsent(t, pane0File, pane1Marker)
-	assertMarkerAbsent(t, pane1File, pane0Marker)
+	assertMarkerCount(t, pane0File, pane0Marker, 1)
+	assertMarkerCount(t, pane1File, pane1Marker, 1)
+	assertMarkerCount(t, pane0File, pane1Marker, 0)
+	assertMarkerCount(t, pane1File, pane0Marker, 0)
 }
 
 func TestMultiPaneLegacy_UnstampedNoHookLandsOnBareShell(t *testing.T) {
@@ -218,30 +217,4 @@ func paneIndices(sess state.Session) [][]int {
 		out = append(out, panes)
 	}
 	return out
-}
-
-func assertMarkerFiredOnce(t *testing.T, path, marker string) {
-	t.Helper()
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read hook fire file %s (bare-shell miss leaves it absent): %v", path, err)
-	}
-	if got := strings.Count(string(data), marker); got != 1 {
-		t.Errorf("marker %q fired %d times in %s; want exactly 1\ncontents:\n%s", marker, got, path, data)
-	}
-}
-
-func assertMarkerAbsent(t *testing.T, path, marker string) {
-	t.Helper()
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return
-		}
-		t.Fatalf("read hook fire file %s: %v", path, err)
-	}
-	if strings.Contains(string(data), marker) {
-		t.Errorf("CROSS-FIRE: marker %q leaked into %s (the :w.p suffix did not route hooks per-pane)\ncontents:\n%s",
-			marker, path, data)
-	}
 }

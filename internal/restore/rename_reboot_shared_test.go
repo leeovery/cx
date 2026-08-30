@@ -3,7 +3,6 @@
 package restore_test
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -22,8 +21,14 @@ const (
 	renameOldName   = "renamesrc"
 	renameNewName   = "renamedst"
 
-	renameHydrateBudget = 10 * time.Second
-	renameHydrateTick   = 50 * time.Millisecond
+	// hookFiredMarker is what the fixture's hook echoes, and so what a fired
+	// hook is counted by.
+	hookFiredMarker = "HOOK_FIRED"
+
+	// hydrateBudget bounds a wait for a restored pane's helper to clear its
+	// skeleton marker, and for the hook it then fires to land.
+	hydrateBudget = 10 * time.Second
+	hydrateTick   = 50 * time.Millisecond
 )
 
 // renameRebootFixture is one stamped pane under its pre-rename name, with a
@@ -62,7 +67,7 @@ func newRenameRebootFixture(t *testing.T, socketPrefix string) *renameRebootFixt
 	t.Setenv("PORTAL_HOOKS_FILE", fx.hooksPath)
 
 	fx.hookFireFile = filepath.Join(t.TempDir(), "hook-fired.txt")
-	hookCmd := "echo HOOK_FIRED >> " + fx.hookFireFile
+	hookCmd := "echo " + hookFiredMarker + " >> " + fx.hookFireFile
 	if err := hooks.NewStore(fx.hooksPath).Set(renamePaneToken, "on-resume", hookCmd, hooks.ViaCLI); err != nil {
 		t.Fatalf("hooks.Set: %v", err)
 	}
@@ -125,7 +130,7 @@ func (fx *renameRebootFixture) rebootAndHydrate(t *testing.T) error {
 	}
 
 	restoretest.DriveSignalHydrate(t, fx.client, fx.stateDir, []string{renameNewName})
-	restoretest.WaitForSkeletonMarkersCleared(t, fx.client, renameHydrateBudget, renameHydrateTick)
+	restoretest.WaitForSkeletonMarkersCleared(t, fx.client, hydrateBudget, hydrateTick)
 	return nil
 }
 
@@ -146,17 +151,5 @@ func verifyHookKeyed(t *testing.T, hooksPath, wantKey string) {
 	events := persisted[wantKey]
 	if _, ok := events["on-resume"]; !ok {
 		t.Fatalf("hooks.json missing on-resume entry under stable key %q; got events=%v", wantKey, events)
-	}
-}
-
-func assertHookFireCount(t *testing.T, hookFireFile string, want int) {
-	t.Helper()
-	data, err := os.ReadFile(hookFireFile)
-	if err != nil {
-		t.Fatalf("read hook fire file %s (bare-shell miss leaves it absent): %v", hookFireFile, err)
-	}
-	got := strings.Count(string(data), "HOOK_FIRED")
-	if got != want {
-		t.Errorf("hook fired %d times cumulatively; want exactly %d\nfile contents:\n%s", got, want, data)
 	}
 }
