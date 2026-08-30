@@ -8,6 +8,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/themetest"
 	"github.com/leeovery/portal/internal/tui"
@@ -70,7 +71,7 @@ func seedRoundTripThemes(t *testing.T) {
 func themeRoundTripConfig(t *testing.T) tuiConfig {
 	t.Helper()
 
-	installMigrateCapture(t)
+	logtest.Install(t)
 
 	load, err := loadPrefsStore()
 	if err != nil {

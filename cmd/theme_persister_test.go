@@ -6,6 +6,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/theme"
 )
@@ -78,7 +79,7 @@ func TestThemePersister_FailedCommitLogsAndReturns(t *testing.T) {
 	const malformed = `{"session_list_mode":"by-tag",`
 	path := setPrefsFile(t, malformed)
 	persister := newThemePersister(prefsStoreForTest(t))
-	sink := installMigrateCapture(t)
+	sink := logtest.Install(t)
 
 	err := persister.CommitTheme(nordSlug)
 
@@ -129,7 +130,7 @@ func TestThemePersister_CommitFailedAttrs(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			setPrefsFile(t, `{"appearance":"dark",`)
 			persister := newThemePersister(prefsStoreForTest(t))
-			sink := installMigrateCapture(t)
+			sink := logtest.Install(t)
 
 			if err := tc.commit(persister); err == nil {
 				t.Fatal("the commit succeeded over a malformed prefs.json; there is no failure to describe")
@@ -164,7 +165,7 @@ func TestThemePersister_CommitFailedAttrs(t *testing.T) {
 		// Reads the loader's rendering back off a real emission rather than
 		// restating the literals a second time.
 		for _, member := range []theme.Member{theme.MemberLight, theme.MemberDark} {
-			sink := installMigrateCapture(t)
+			sink := logtest.Install(t)
 			theme.NewEventLogger(themeLogger).Loaded(nordSlug, member.Slot())
 			want := sink.OnlyRecord(t).AttrString(t, "slot")
 
@@ -179,7 +180,7 @@ func TestThemePersister_CommitFailedAttrs(t *testing.T) {
 func TestThemePersister_SuccessIsSilent(t *testing.T) {
 	path := setPrefsFile(t, `{"session_list_mode":"by-tag"}`)
 	persister := newThemePersister(prefsStoreForTest(t))
-	sink := installMigrateCapture(t)
+	sink := logtest.Install(t)
 
 	if err := persister.CommitTheme(nordSlug); err != nil {
 		t.Fatalf("CommitTheme(%s): %v", nordSlug, err)

@@ -937,7 +937,7 @@ func saveRequestedExists(t *testing.T, stateDir string) bool {
 func assertTouchWarn(t *testing.T, sink *logtest.Sink, wantKey string) {
 	t.Helper()
 
-	warns := sink.RecordsAtLevel(slog.LevelWarn)
+	warns := sink.RecordsAtOrAboveLevel(slog.LevelWarn)
 	if len(warns) != 1 {
 		t.Fatalf("WARN record count = %d, want 1: %+v", len(warns), warns)
 	}
@@ -1033,7 +1033,7 @@ func TestHooksSetTouchesSaveRequested(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		for _, r := range sink.RecordsAtLevel(slog.LevelWarn) {
+		for _, r := range sink.RecordsAtOrAboveLevel(slog.LevelWarn) {
 			if r.HasAttr("op") && r.AttrString(t, "op") == "set" {
 				t.Errorf("a set WARN was emitted for a registration that succeeded: %+v", r)
 			}
@@ -1051,7 +1051,7 @@ func TestHooksSetTouchesSaveRequested(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if warns := sink.RecordsAtLevel(slog.LevelWarn); len(warns) != 1 {
+		if warns := sink.RecordsAtOrAboveLevel(slog.LevelWarn); len(warns) != 1 {
 			t.Errorf("WARN record count = %d, want 1: %+v", len(warns), warns)
 		}
 	})

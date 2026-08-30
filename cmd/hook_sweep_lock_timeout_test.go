@@ -29,7 +29,7 @@ func lockedSweepFixture(t *testing.T, bound time.Duration) (*hooks.Store, string
 // taken at WARN rather than over every record.
 func lockStandDownRecord(t *testing.T, sink *logtest.Sink) logtest.Record {
 	t.Helper()
-	warns := sink.RecordsAtLevel(slog.LevelWarn)
+	warns := sink.RecordsAtOrAboveLevel(slog.LevelWarn)
 	if len(warns) != 1 {
 		t.Fatalf("WARN record count = %d, want exactly 1: %+v", len(warns), warns)
 	}
@@ -57,7 +57,7 @@ func TestHookSweepStandsDownOnLockTimeout(t *testing.T) {
 
 	t.Run("it logs the stand-down at WARN with reason=lock-timeout", func(t *testing.T) {
 		store, _, _ := lockedSweepFixture(t, lockBound)
-		sink := installHooksSink(t)
+		sink := logtest.Install(t)
 
 		if err := sweepErr(lister, store, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
@@ -73,7 +73,7 @@ func TestHookSweepStandsDownOnLockTimeout(t *testing.T) {
 
 	t.Run("it emits exactly one WARN per stood-down cycle", func(t *testing.T) {
 		store, _, _ := lockedSweepFixture(t, lockBound)
-		sink := installHooksSink(t)
+		sink := logtest.Install(t)
 		injected := &recordingLogger{}
 
 		if err := sweepErr(lister, store, injected.Logger().With("component", "daemon")); err != nil {
@@ -159,7 +159,7 @@ func TestHookSweepStandsDownOnLockTimeout(t *testing.T) {
 		store, path, _ := lockedSweepFixture(t, lockBound)
 		before := readFileBytes(t, path)
 
-		sink := installHooksSink(t)
+		sink := logtest.Install(t)
 		injected := &recordingLogger{}
 		fc := &daemonFakeCommander{panesOut: livePaneRowOut}
 		deps := hookCleanupDeps(fc, store, injected.Logger().With("component", "daemon"))
@@ -184,7 +184,7 @@ func TestHookSweepDiscriminatesLockTimeoutFromFailure(t *testing.T) {
 			seed:         staleHookSeed,
 			writesDenied: true,
 		})
-		sink := installHooksSink(t)
+		sink := logtest.Install(t)
 
 		outcome, err := runHookStaleCleanup(lister, store, nil)
 		if err == nil {
@@ -211,7 +211,7 @@ func TestHookSweepDiscriminatesLockTimeoutFromFailure(t *testing.T) {
 			seed:         staleHookSeed,
 			writesDenied: true,
 		})
-		sink := installHooksSink(t)
+		sink := logtest.Install(t)
 
 		outcome, err := runHookStaleCleanup(lister, store, nil)
 		if err == nil {

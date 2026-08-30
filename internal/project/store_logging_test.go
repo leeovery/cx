@@ -8,17 +8,9 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/fileutil"
-	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/project"
 )
-
-func installCapture(t *testing.T) *logtest.Sink {
-	t.Helper()
-	sink := &logtest.Sink{}
-	log.SetTestHandler(t, sink)
-	return sink
-}
 
 // readOnlyDirPath returns a path under a 0500 directory, so a write to it fails
 // at the temp-create phase.
@@ -37,25 +29,20 @@ func TestUpsertLogging(t *testing.T) {
 	t.Run("emits INFO op=set with value=name and via=internal for a new project", func(t *testing.T) {
 		dir := t.TempDir()
 		store := project.NewStore(filepath.Join(dir, "projects.json"))
-		sink := installCapture(t)
+		sink := logtest.Install(t)
 
 		if err := store.Upsert("/code/portal", "portal", "internal"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
 		rec := sink.OnlyRecord(t)
-		if rec.Level != slog.LevelInfo {
-			t.Errorf("level = %v, want INFO", rec.Level)
-		}
-		if rec.Msg != "set" {
-			t.Errorf("msg = %q, want %q", rec.Msg, "set")
-		}
-		if got := rec.AttrString(t, "op"); got != "set" {
-			t.Errorf("op = %q, want %q", got, "set")
-		}
-		if got := rec.AttrString(t, "component"); got != "projects" {
-			t.Errorf("component = %q, want %q", got, "projects")
-		}
+		logtest.AssertRecord(t, rec, logtest.RecordWant{
+			Level:     slog.LevelInfo,
+			Msg:       "set",
+			Component: "projects",
+			Op:        "set",
+			Via:       "internal",
+		})
 		if got := rec.AttrString(t, "project"); got != "portal" {
 			t.Errorf("project = %q, want %q", got, "portal")
 		}
@@ -64,9 +51,6 @@ func TestUpsertLogging(t *testing.T) {
 		}
 		if got := rec.AttrString(t, "value"); got != "portal" {
 			t.Errorf("value = %q, want %q", got, "portal")
-		}
-		if got := rec.AttrString(t, "via"); got != "internal" {
-			t.Errorf("via = %q, want %q", got, "internal")
 		}
 	})
 
@@ -78,24 +62,19 @@ func TestUpsertLogging(t *testing.T) {
 			t.Fatalf("unexpected error on first upsert: %v", err)
 		}
 
-		sink := installCapture(t)
+		sink := logtest.Install(t)
 		if err := store.Upsert("/code/portal", "portal-renamed", "cli"); err != nil {
 			t.Fatalf("unexpected error on second upsert: %v", err)
 		}
 
 		rec := sink.OnlyRecord(t)
-		if rec.Level != slog.LevelInfo {
-			t.Errorf("level = %v, want INFO", rec.Level)
-		}
-		if rec.Msg != "modify" {
-			t.Errorf("msg = %q, want %q", rec.Msg, "modify")
-		}
-		if got := rec.AttrString(t, "op"); got != "modify" {
-			t.Errorf("op = %q, want %q", got, "modify")
-		}
-		if got := rec.AttrString(t, "component"); got != "projects" {
-			t.Errorf("component = %q, want %q", got, "projects")
-		}
+		logtest.AssertRecord(t, rec, logtest.RecordWant{
+			Level:     slog.LevelInfo,
+			Msg:       "modify",
+			Component: "projects",
+			Op:        "modify",
+			Via:       "cli",
+		})
 		if got := rec.AttrString(t, "project"); got != "portal-renamed" {
 			t.Errorf("project = %q, want %q", got, "portal-renamed")
 		}
@@ -105,15 +84,12 @@ func TestUpsertLogging(t *testing.T) {
 		if got := rec.AttrString(t, "value"); got != "portal-renamed" {
 			t.Errorf("value = %q, want %q", got, "portal-renamed")
 		}
-		if got := rec.AttrString(t, "via"); got != "cli" {
-			t.Errorf("via = %q, want %q", got, "cli")
-		}
 	})
 
 	t.Run("emits WARN with write-failed-* error_class when AtomicWrite fails on Upsert", func(t *testing.T) {
 		path := readOnlyDirPath(t)
 		store := project.NewStore(path)
-		sink := installCapture(t)
+		sink := logtest.Install(t)
 
 		err := store.Upsert("/code/portal", "portal", "internal")
 		if err == nil {
@@ -168,24 +144,19 @@ func TestRenameLogging(t *testing.T) {
 			t.Fatalf("unexpected error on upsert: %v", err)
 		}
 
-		sink := installCapture(t)
+		sink := logtest.Install(t)
 		if err := store.Rename("/code/portal", "portal-new", "cli"); err != nil {
 			t.Fatalf("unexpected error on rename: %v", err)
 		}
 
 		rec := sink.OnlyRecord(t)
-		if rec.Level != slog.LevelInfo {
-			t.Errorf("level = %v, want INFO", rec.Level)
-		}
-		if rec.Msg != "modify" {
-			t.Errorf("msg = %q, want %q", rec.Msg, "modify")
-		}
-		if got := rec.AttrString(t, "op"); got != "modify" {
-			t.Errorf("op = %q, want %q", got, "modify")
-		}
-		if got := rec.AttrString(t, "component"); got != "projects" {
-			t.Errorf("component = %q, want %q", got, "projects")
-		}
+		logtest.AssertRecord(t, rec, logtest.RecordWant{
+			Level:     slog.LevelInfo,
+			Msg:       "modify",
+			Component: "projects",
+			Op:        "modify",
+			Via:       "cli",
+		})
 		if got := rec.AttrString(t, "project"); got != "portal-new" {
 			t.Errorf("project = %q, want %q", got, "portal-new")
 		}
@@ -194,9 +165,6 @@ func TestRenameLogging(t *testing.T) {
 		}
 		if got := rec.AttrString(t, "value"); got != "portal-new" {
 			t.Errorf("value = %q, want %q", got, "portal-new")
-		}
-		if got := rec.AttrString(t, "via"); got != "cli" {
-			t.Errorf("via = %q, want %q", got, "cli")
 		}
 	})
 
@@ -214,7 +182,7 @@ func TestRenameLogging(t *testing.T) {
 			t.Fatalf("failed to stat file: %v", err)
 		}
 
-		sink := installCapture(t)
+		sink := logtest.Install(t)
 		if err := store.Rename("/code/absent", "anything", "cli"); err != nil {
 			t.Fatalf("unexpected error on rename of absent path: %v", err)
 		}
@@ -245,7 +213,7 @@ func TestRenameLogging(t *testing.T) {
 		t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
 
 		store := project.NewStore(seeded)
-		sink := installCapture(t)
+		sink := logtest.Install(t)
 
 		err := store.Rename("/code/portal", "portal-new", "cli")
 		if err == nil {
@@ -297,32 +265,24 @@ func TestRemoveLogging(t *testing.T) {
 			t.Fatalf("unexpected error on upsert: %v", err)
 		}
 
-		sink := installCapture(t)
+		sink := logtest.Install(t)
 		if err := store.Remove("/code/portal", "cli"); err != nil {
 			t.Fatalf("unexpected error on remove: %v", err)
 		}
 
 		rec := sink.OnlyRecord(t)
-		if rec.Level != slog.LevelInfo {
-			t.Errorf("level = %v, want INFO", rec.Level)
-		}
-		if rec.Msg != "rm" {
-			t.Errorf("msg = %q, want %q", rec.Msg, "rm")
-		}
-		if got := rec.AttrString(t, "op"); got != "rm" {
-			t.Errorf("op = %q, want %q", got, "rm")
-		}
-		if got := rec.AttrString(t, "component"); got != "projects" {
-			t.Errorf("component = %q, want %q", got, "projects")
-		}
+		logtest.AssertRecord(t, rec, logtest.RecordWant{
+			Level:     slog.LevelInfo,
+			Msg:       "rm",
+			Component: "projects",
+			Op:        "rm",
+			Via:       "cli",
+		})
 		if got := rec.AttrString(t, "project"); got != "portal" {
 			t.Errorf("project = %q, want %q", got, "portal")
 		}
 		if got := rec.AttrString(t, "path"); got != "/code/portal" {
 			t.Errorf("path = %q, want %q", got, "/code/portal")
-		}
-		if got := rec.AttrString(t, "via"); got != "cli" {
-			t.Errorf("via = %q, want %q", got, "cli")
 		}
 		if _, ok := rec.Attrs["value"]; ok {
 			t.Errorf("rm record should not carry a value attr: %+v", rec.Attrs)
@@ -337,36 +297,31 @@ func TestRemoveLogging(t *testing.T) {
 			t.Fatalf("unexpected error on upsert: %v", err)
 		}
 
-		sink := installCapture(t)
+		sink := logtest.Install(t)
 		if err := store.Remove("/code/absent", "cli"); err != nil {
 			t.Fatalf("unexpected error on remove of absent path: %v", err)
 		}
 
 		rec := sink.OnlyRecord(t)
-		if rec.Level != slog.LevelInfo {
-			t.Errorf("level = %v, want INFO", rec.Level)
-		}
-		if rec.Msg != "rm" {
-			t.Errorf("msg = %q, want %q", rec.Msg, "rm")
-		}
-		if got := rec.AttrString(t, "op"); got != "rm" {
-			t.Errorf("op = %q, want %q", got, "rm")
-		}
+		logtest.AssertRecord(t, rec, logtest.RecordWant{
+			Level:     slog.LevelInfo,
+			Msg:       "rm",
+			Component: "projects",
+			Op:        "rm",
+			Via:       "cli",
+		})
 		if got := rec.AttrString(t, "path"); got != "/code/absent" {
 			t.Errorf("path = %q, want %q", got, "/code/absent")
 		}
 		if got := rec.AttrString(t, "project"); got != "" {
 			t.Errorf("project = %q, want empty (no matching entry)", got)
 		}
-		if got := rec.AttrString(t, "via"); got != "cli" {
-			t.Errorf("via = %q, want %q", got, "cli")
-		}
 	})
 
 	t.Run("emits WARN with write-failed-* error_class when AtomicWrite fails on Remove", func(t *testing.T) {
 		path := readOnlyDirPath(t)
 		store := project.NewStore(path)
-		sink := installCapture(t)
+		sink := logtest.Install(t)
 
 		err := store.Remove("/code/portal", "cli")
 		if err == nil {
@@ -424,7 +379,7 @@ func TestCleanStaleLogging(t *testing.T) {
 			}
 		}
 
-		sink := installCapture(t)
+		sink := logtest.Install(t)
 		removed, err := store.CleanStale()
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -515,7 +470,7 @@ func TestCleanStaleLogging(t *testing.T) {
 			t.Fatalf("failed to stat file: %v", err)
 		}
 
-		sink := installCapture(t)
+		sink := logtest.Install(t)
 		removed, err := store.CleanStale()
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -551,7 +506,7 @@ func TestCleanStaleLogging(t *testing.T) {
 		}
 		t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
 
-		sink := installCapture(t)
+		sink := logtest.Install(t)
 		_, err := store.CleanStale()
 		if err == nil {
 			t.Fatal("expected error from CleanStale on read-only dir, got nil")
@@ -604,7 +559,7 @@ func TestSaveDoesNotLog(t *testing.T) {
 	dir := t.TempDir()
 	store := project.NewStore(filepath.Join(dir, "projects.json"))
 
-	sink := installCapture(t)
+	sink := logtest.Install(t)
 	if err := store.Save([]project.Project{{Path: "/code/portal", Name: "portal"}}); err != nil {
 		t.Fatalf("unexpected error on save: %v", err)
 	}

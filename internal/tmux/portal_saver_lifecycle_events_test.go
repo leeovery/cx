@@ -7,43 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
 )
-
-type saverEventSink struct {
-	*logtest.Sink
-}
-
-func (s *saverEventSink) saverEvents(msg string) []logtest.Record {
-	var out []logtest.Record
-	for _, r := range s.Records() {
-		comp, ok := r.Attrs["component"]
-		if !ok || comp.String() != "saver" || r.Msg != msg {
-			continue
-		}
-		out = append(out, r)
-	}
-	return out
-}
-
-func (s *saverEventSink) onlySaverEvent(t *testing.T, msg string) logtest.Record {
-	t.Helper()
-	evs := s.saverEvents(msg)
-	if len(evs) != 1 {
-		t.Fatalf("expected exactly 1 saver %q event, got %d: %+v", msg, len(evs), s.Records())
-	}
-	return evs[0]
-}
-
-func installSaverEventSink(t *testing.T) *saverEventSink {
-	t.Helper()
-	sink := &saverEventSink{Sink: &logtest.Sink{}}
-	log.SetTestHandler(t, sink.Sink)
-	return sink
-}
 
 func TestSaverPaneID_ReturnsTrimmedFirstLine(t *testing.T) {
 	var observed []string
@@ -91,7 +58,7 @@ func TestBootstrapPortalSaver_EmitsPlaceholderCreatedWithTmuxPane(t *testing.T) 
 	stubAliveCheck(t, false)
 	shrinkRetryDelay(t)
 	stubReadinessReady(t)
-	sink := installSaverEventSink(t)
+	sink := logtest.Install(t)
 
 	script := &portalSaverScript{
 		hasSession: func(int) (string, error) {
@@ -114,7 +81,7 @@ func TestBootstrapPortalSaver_EmitsPlaceholderCreatedWithTmuxPane(t *testing.T) 
 		t.Fatalf("BootstrapPortalSaver returned error: %v", err)
 	}
 
-	rec := sink.onlySaverEvent(t, "placeholder created")
+	rec := sink.OnlyRecordWith(t, "saver", "placeholder created")
 	if rec.Level != slog.LevelInfo {
 		t.Errorf("level = %v, want INFO", rec.Level)
 	}
@@ -127,7 +94,7 @@ func TestBootstrapPortalSaver_EmitsDestroyUnattachedOffOnCreateBranch(t *testing
 	stubAliveCheck(t, false)
 	shrinkRetryDelay(t)
 	stubReadinessReady(t)
-	sink := installSaverEventSink(t)
+	sink := logtest.Install(t)
 
 	script := &portalSaverScript{
 		hasSession: func(int) (string, error) {
@@ -150,7 +117,7 @@ func TestBootstrapPortalSaver_EmitsDestroyUnattachedOffOnCreateBranch(t *testing
 		t.Fatalf("BootstrapPortalSaver returned error: %v", err)
 	}
 
-	rec := sink.onlySaverEvent(t, "destroy-unattached off")
+	rec := sink.OnlyRecordWith(t, "saver", "destroy-unattached off")
 	if rec.Level != slog.LevelInfo {
 		t.Errorf("level = %v, want INFO", rec.Level)
 	}
@@ -162,7 +129,7 @@ func TestBootstrapPortalSaver_EmitsDestroyUnattachedOffOnCreateBranch(t *testing
 func TestBootstrapPortalSaver_EmitsDestroyUnattachedOffOnAliveHappyPath_AndNotRespawnOrReady(t *testing.T) {
 	stubAliveCheck(t, true)
 	shrinkRetryDelay(t)
-	sink := installSaverEventSink(t)
+	sink := logtest.Install(t)
 
 	script := &portalSaverScript{
 		hasSession: func(int) (string, error) { return "", nil },
@@ -181,7 +148,7 @@ func TestBootstrapPortalSaver_EmitsDestroyUnattachedOffOnAliveHappyPath_AndNotRe
 		t.Fatalf("BootstrapPortalSaver returned error: %v", err)
 	}
 
-	rec := sink.onlySaverEvent(t, "destroy-unattached off")
+	rec := sink.OnlyRecordWith(t, "saver", "destroy-unattached off")
 	if rec.Level != slog.LevelInfo {
 		t.Errorf("level = %v, want INFO", rec.Level)
 	}
@@ -189,13 +156,13 @@ func TestBootstrapPortalSaver_EmitsDestroyUnattachedOffOnAliveHappyPath_AndNotRe
 		t.Errorf("tmux_pane = %q, want %q", got, "%9")
 	}
 
-	if evs := sink.saverEvents("respawn-daemon"); len(evs) != 0 {
+	if evs := sink.RecordsWith("saver", "respawn-daemon"); len(evs) != 0 {
 		t.Errorf("expected 0 respawn-daemon events on alive happy path, got %d: %+v", len(evs), evs)
 	}
-	if evs := sink.saverEvents("daemon ready"); len(evs) != 0 {
+	if evs := sink.RecordsWith("saver", "daemon ready"); len(evs) != 0 {
 		t.Errorf("expected 0 daemon ready events on alive happy path, got %d: %+v", len(evs), evs)
 	}
-	if evs := sink.saverEvents("placeholder created"); len(evs) != 0 {
+	if evs := sink.RecordsWith("saver", "placeholder created"); len(evs) != 0 {
 		t.Errorf("expected 0 placeholder created events on alive happy path, got %d: %+v", len(evs), evs)
 	}
 }
@@ -204,7 +171,7 @@ func TestBootstrapPortalSaver_EmitsRespawnDaemonWithFromToPidAndTmuxPane(t *test
 	stubAliveCheck(t, false)
 	shrinkRetryDelay(t)
 	stubReadinessReady(t)
-	sink := installSaverEventSink(t)
+	sink := logtest.Install(t)
 
 	panePIDCall := 0
 	script := &portalSaverScript{
@@ -232,7 +199,7 @@ func TestBootstrapPortalSaver_EmitsRespawnDaemonWithFromToPidAndTmuxPane(t *test
 		t.Fatalf("BootstrapPortalSaver returned error: %v", err)
 	}
 
-	rec := sink.onlySaverEvent(t, "respawn-daemon")
+	rec := sink.OnlyRecordWith(t, "saver", "respawn-daemon")
 	if rec.Level != slog.LevelInfo {
 		t.Errorf("level = %v, want INFO", rec.Level)
 	}
@@ -251,7 +218,7 @@ func TestBootstrapPortalSaver_StillEmitsRespawnDaemonBestEffortWhenPanePIDReadFa
 	stubAliveCheck(t, false)
 	shrinkRetryDelay(t)
 	stubReadinessReady(t)
-	sink := installSaverEventSink(t)
+	sink := logtest.Install(t)
 
 	panePIDCall := 0
 	script := &portalSaverScript{
@@ -279,7 +246,7 @@ func TestBootstrapPortalSaver_StillEmitsRespawnDaemonBestEffortWhenPanePIDReadFa
 		t.Fatalf("BootstrapPortalSaver must not abort on a pid-read miss, got: %v", err)
 	}
 
-	rec := sink.onlySaverEvent(t, "respawn-daemon")
+	rec := sink.OnlyRecordWith(t, "saver", "respawn-daemon")
 	if got := rec.IntAttr(t, "from_pid"); got != 0 {
 		t.Errorf("from_pid = %d, want 0 (read failed)", got)
 	}
@@ -287,7 +254,7 @@ func TestBootstrapPortalSaver_StillEmitsRespawnDaemonBestEffortWhenPanePIDReadFa
 		t.Errorf("to_pid = %d, want 2222", got)
 	}
 
-	failures := sink.saverEvents("saver respawn: pane-pid read failed")
+	failures := sink.RecordsWith("saver", "saver respawn: pane-pid read failed")
 	if len(failures) == 0 {
 		t.Fatalf("expected a pane-pid read-failure log line, got none: %+v", sink.Records())
 	}
@@ -299,7 +266,7 @@ func TestBootstrapPortalSaver_StillEmitsRespawnDaemonBestEffortWhenPanePIDReadFa
 func TestWaitForSaverDaemonReady_EmitsDaemonReadyWithTargetPidOnSuccess(t *testing.T) {
 	installReadinessPollInterval(t, 1*time.Millisecond)
 	installReadinessTimeout(t, 500*time.Millisecond)
-	sink := installSaverEventSink(t)
+	sink := logtest.Install(t)
 
 	installReadinessReadPID(t, func(string) (int, error) { return 4321, nil })
 	installReadinessIdentify(t, func(int) (state.IdentifyResult, error) {
@@ -310,7 +277,7 @@ func TestWaitForSaverDaemonReady_EmitsDaemonReadyWithTargetPidOnSuccess(t *testi
 		t.Fatalf("WaitForSaverDaemonReady returned error: %v", err)
 	}
 
-	rec := sink.onlySaverEvent(t, "daemon ready")
+	rec := sink.OnlyRecordWith(t, "saver", "daemon ready")
 	if rec.Level != slog.LevelInfo {
 		t.Errorf("level = %v, want INFO", rec.Level)
 	}
@@ -322,7 +289,7 @@ func TestWaitForSaverDaemonReady_EmitsDaemonReadyWithTargetPidOnSuccess(t *testi
 func TestWaitForSaverDaemonReady_EmitsNoDaemonReadyAndKeepsWarnOnTimeout(t *testing.T) {
 	installReadinessPollInterval(t, 1*time.Millisecond)
 	installReadinessTimeout(t, 20*time.Millisecond)
-	sink := installSaverEventSink(t)
+	sink := logtest.Install(t)
 
 	installReadinessReadPID(t, func(string) (int, error) { return 4321, nil })
 	installReadinessIdentify(t, func(int) (state.IdentifyResult, error) {
@@ -335,7 +302,7 @@ func TestWaitForSaverDaemonReady_EmitsNoDaemonReadyAndKeepsWarnOnTimeout(t *test
 		t.Fatalf("WaitForSaverDaemonReady returned error: %v", err)
 	}
 
-	if evs := sink.saverEvents("daemon ready"); len(evs) != 0 {
+	if evs := sink.RecordsWith("saver", "daemon ready"); len(evs) != 0 {
 		t.Errorf("expected 0 daemon ready events on timeout, got %d: %+v", len(evs), evs)
 	}
 	if len(barrierLog.warns) != 1 {
@@ -343,13 +310,15 @@ func TestWaitForSaverDaemonReady_EmitsNoDaemonReadyAndKeepsWarnOnTimeout(t *test
 	}
 }
 
-func (s *saverEventSink) firstSaverIndex(msg string) int {
-	for i, r := range s.Records() {
-		comp, ok := r.Attrs["component"]
-		if !ok || comp.String() != "saver" || r.Msg != msg {
-			continue
+// firstSaverIndex is the capture-order position of the first saver record
+// carrying msg, so a test can assert one event was emitted before another. -1
+// when none was.
+func firstSaverIndex(sink *logtest.Sink, msg string) int {
+	recs := sink.Records()
+	for i := range recs {
+		if len(recs[:i+1].With("saver", msg)) == 1 {
+			return i
 		}
-		return i
 	}
 	return -1
 }
@@ -366,12 +335,12 @@ func TestKillSaverAndWaitForDaemon_EmitsKillBarrierStartedWhenPriorDaemonAlive(t
 	})
 	barrierLog := &recordingBarrierLogger{}
 	installBarrierLogger(t, barrierLog)
-	sink := installSaverEventSink(t)
+	sink := logtest.Install(t)
 
 	startedAtKillTime := -1
 	script := &portalSaverScript{
 		killSession: func(int) (string, error) {
-			startedAtKillTime = len(sink.saverEvents("kill-barrier started"))
+			startedAtKillTime = len(sink.RecordsWith("saver", "kill-barrier started"))
 			return "", nil
 		},
 	}
@@ -382,7 +351,7 @@ func TestKillSaverAndWaitForDaemon_EmitsKillBarrierStartedWhenPriorDaemonAlive(t
 		t.Fatalf("KillSaverAndWaitForDaemon returned error: %v", err)
 	}
 
-	rec := sink.onlySaverEvent(t, "kill-barrier started")
+	rec := sink.OnlyRecordWith(t, "saver", "kill-barrier started")
 	if rec.Level != slog.LevelInfo {
 		t.Errorf("level = %v, want INFO", rec.Level)
 	}
@@ -403,7 +372,7 @@ func TestKillSaverAndWaitForDaemon_NoKillBarrierStartedOnNoPriorPIDShortcut(t *t
 	})
 	barrierLog := &recordingBarrierLogger{}
 	installBarrierLogger(t, barrierLog)
-	sink := installSaverEventSink(t)
+	sink := logtest.Install(t)
 
 	script := &portalSaverScript{
 		killSession: func(int) (string, error) { return "", nil },
@@ -415,7 +384,7 @@ func TestKillSaverAndWaitForDaemon_NoKillBarrierStartedOnNoPriorPIDShortcut(t *t
 		t.Fatalf("KillSaverAndWaitForDaemon returned error: %v", err)
 	}
 
-	if evs := sink.saverEvents("kill-barrier started"); len(evs) != 0 {
+	if evs := sink.RecordsWith("saver", "kill-barrier started"); len(evs) != 0 {
 		t.Errorf("expected 0 kill-barrier started events on no-prior-PID shortcut, got %d: %+v", len(evs), evs)
 	}
 	if len(barrierLog.warns) != 0 {
@@ -428,7 +397,7 @@ func TestKillSaverAndWaitForDaemon_NoKillBarrierStartedWhenPriorDaemonAlreadyDea
 	installBarrierIsAlive(t, func(int) bool { return false })
 	barrierLog := &recordingBarrierLogger{}
 	installBarrierLogger(t, barrierLog)
-	sink := installSaverEventSink(t)
+	sink := logtest.Install(t)
 
 	script := &portalSaverScript{
 		killSession: func(int) (string, error) { return "", nil },
@@ -440,7 +409,7 @@ func TestKillSaverAndWaitForDaemon_NoKillBarrierStartedWhenPriorDaemonAlreadyDea
 		t.Fatalf("KillSaverAndWaitForDaemon returned error: %v", err)
 	}
 
-	if evs := sink.saverEvents("kill-barrier started"); len(evs) != 0 {
+	if evs := sink.RecordsWith("saver", "kill-barrier started"); len(evs) != 0 {
 		t.Errorf("expected 0 kill-barrier started events when prior daemon already dead, got %d: %+v", len(evs), evs)
 	}
 	if len(barrierLog.warns) != 0 {
@@ -460,12 +429,12 @@ func TestKillSaverAndWaitForDaemon_EmitsKillBarrierEscalatedAboveDebugBreadcrumb
 
 	barrierLog := &recordingBarrierLogger{}
 	installBarrierLogger(t, barrierLog)
-	sink := installSaverEventSink(t)
+	sink := logtest.Install(t)
 
 	killCalls := 0
 	escalatedAtKillTime := -1
 	installBarrierSendSIGKILL(t, func(int) error {
-		escalatedAtKillTime = len(sink.saverEvents("kill-barrier escalated"))
+		escalatedAtKillTime = len(sink.RecordsWith("saver", "kill-barrier escalated"))
 		killCalls++
 		return nil
 	})
@@ -481,7 +450,7 @@ func TestKillSaverAndWaitForDaemon_EmitsKillBarrierEscalatedAboveDebugBreadcrumb
 		t.Fatalf("KillSaverAndWaitForDaemon returned error: %v", err)
 	}
 
-	rec := sink.onlySaverEvent(t, "kill-barrier escalated")
+	rec := sink.OnlyRecordWith(t, "saver", "kill-barrier escalated")
 	if rec.Level != slog.LevelInfo {
 		t.Errorf("level = %v, want INFO", rec.Level)
 	}
@@ -496,14 +465,14 @@ func TestKillSaverAndWaitForDaemon_EmitsKillBarrierEscalatedAboveDebugBreadcrumb
 		t.Errorf("kill-barrier escalated must be emitted BEFORE SIGKILL (count at kill time = %d, want 1)", escalatedAtKillTime)
 	}
 
-	breadcrumbIdx := sink.firstSaverIndex("kill-barrier escalating to SIGKILL")
+	breadcrumbIdx := firstSaverIndex(sink, "kill-barrier escalating to SIGKILL")
 	if breadcrumbIdx < 0 {
 		t.Fatalf("expected the existing DEBUG breadcrumb %q to still be present: %+v", "kill-barrier escalating to SIGKILL", sink.Records())
 	}
-	if breadcrumbs := sink.saverEvents("kill-barrier escalating to SIGKILL"); len(breadcrumbs) != 1 {
+	if breadcrumbs := sink.RecordsWith("saver", "kill-barrier escalating to SIGKILL"); len(breadcrumbs) != 1 {
 		t.Errorf("expected exactly 1 DEBUG breadcrumb, got %d: %+v", len(breadcrumbs), breadcrumbs)
 	}
-	escalatedIdx := sink.firstSaverIndex("kill-barrier escalated")
+	escalatedIdx := firstSaverIndex(sink, "kill-barrier escalated")
 	if escalatedIdx < 0 || escalatedIdx >= breadcrumbIdx {
 		t.Errorf("escalated INFO (idx %d) must precede the DEBUG breadcrumb (idx %d)", escalatedIdx, breadcrumbIdx)
 	}
@@ -543,7 +512,7 @@ func TestKillSaverAndWaitForDaemon_NoKillBarrierEscalatedAndKeepsSingleWarnOnIde
 
 			barrierLog := &recordingBarrierLogger{}
 			installBarrierLogger(t, barrierLog)
-			sink := installSaverEventSink(t)
+			sink := logtest.Install(t)
 
 			script := &portalSaverScript{
 				killSession: func(int) (string, error) { return "", nil },
@@ -558,7 +527,7 @@ func TestKillSaverAndWaitForDaemon_NoKillBarrierEscalatedAndKeepsSingleWarnOnIde
 			if killCalls != 0 {
 				t.Errorf("expected 0 SIGKILL seam calls on identity-skip branch, got %d", killCalls)
 			}
-			if evs := sink.saverEvents("kill-barrier escalated"); len(evs) != 0 {
+			if evs := sink.RecordsWith("saver", "kill-barrier escalated"); len(evs) != 0 {
 				t.Errorf("expected 0 kill-barrier escalated events on identity-skip branch, got %d: %+v", len(evs), evs)
 			}
 			if len(barrierLog.warns) != 1 {
@@ -580,7 +549,7 @@ func TestKillSaverAndWaitForDaemon_EmitsPlaceholderDiedReasonSignalOnKillSession
 	})
 	barrierLog := &recordingBarrierLogger{}
 	installBarrierLogger(t, barrierLog)
-	sink := installSaverEventSink(t)
+	sink := logtest.Install(t)
 
 	script := &portalSaverScript{
 		killSession: func(int) (string, error) { return "", nil },
@@ -592,7 +561,7 @@ func TestKillSaverAndWaitForDaemon_EmitsPlaceholderDiedReasonSignalOnKillSession
 		t.Fatalf("KillSaverAndWaitForDaemon returned error: %v", err)
 	}
 
-	rec := sink.onlySaverEvent(t, "placeholder died")
+	rec := sink.OnlyRecordWith(t, "saver", "placeholder died")
 	if rec.Level != slog.LevelInfo {
 		t.Errorf("level = %v, want INFO", rec.Level)
 	}
@@ -626,7 +595,7 @@ func TestKillSaverAndWaitForDaemon_EmitsPlaceholderDiedReasonSignalOnPostSIGKILL
 
 	barrierLog := &recordingBarrierLogger{}
 	installBarrierLogger(t, barrierLog)
-	sink := installSaverEventSink(t)
+	sink := logtest.Install(t)
 
 	script := &portalSaverScript{
 		killSession: func(int) (string, error) { return "", nil },
@@ -638,7 +607,7 @@ func TestKillSaverAndWaitForDaemon_EmitsPlaceholderDiedReasonSignalOnPostSIGKILL
 		t.Fatalf("KillSaverAndWaitForDaemon returned error: %v", err)
 	}
 
-	rec := sink.onlySaverEvent(t, "placeholder died")
+	rec := sink.OnlyRecordWith(t, "saver", "placeholder died")
 	if rec.Level != slog.LevelInfo {
 		t.Errorf("level = %v, want INFO", rec.Level)
 	}
@@ -667,7 +636,7 @@ func TestKillSaverAndWaitForDaemon_PreservesAtMostOneWarnContractAcrossLifecycle
 
 		barrierLog := &recordingBarrierLogger{}
 		installBarrierLogger(t, barrierLog)
-		sink := installSaverEventSink(t)
+		sink := logtest.Install(t)
 
 		script := &portalSaverScript{
 			killSession: func(int) (string, error) { return "", nil },
@@ -682,13 +651,13 @@ func TestKillSaverAndWaitForDaemon_PreservesAtMostOneWarnContractAcrossLifecycle
 		if len(barrierLog.warns) != 1 {
 			t.Errorf("expected exactly 1 WARN on escalation-survive path, got %d: %v", len(barrierLog.warns), barrierLog.warns)
 		}
-		if evs := sink.saverEvents("kill-barrier started"); len(evs) != 1 {
+		if evs := sink.RecordsWith("saver", "kill-barrier started"); len(evs) != 1 {
 			t.Errorf("expected 1 kill-barrier started, got %d", len(evs))
 		}
-		if evs := sink.saverEvents("kill-barrier escalated"); len(evs) != 1 {
+		if evs := sink.RecordsWith("saver", "kill-barrier escalated"); len(evs) != 1 {
 			t.Errorf("expected 1 kill-barrier escalated, got %d", len(evs))
 		}
-		if evs := sink.saverEvents("placeholder died"); len(evs) != 0 {
+		if evs := sink.RecordsWith("saver", "placeholder died"); len(evs) != 0 {
 			t.Errorf("expected 0 placeholder died on never-exits path, got %d: %+v", len(evs), evs)
 		}
 	})

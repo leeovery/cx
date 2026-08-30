@@ -12,6 +12,7 @@ import (
 
 	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/hookstest"
+	"github.com/leeovery/portal/internal/logtest"
 )
 
 // seedReadFixture stages hooks.json holding entries keys plus the sidecar
@@ -37,7 +38,7 @@ func TestReadSharedLock(t *testing.T) {
 		store, path := seedReadFixture(t, 2)
 		hookstest.HoldHooksSidecarShared(t, path)
 
-		sink := installCapture(t)
+		sink := logtest.Install(t)
 		start := time.Now()
 		h, err := store.Load(hooks.ViaCLI)
 		elapsed := time.Since(start)
@@ -94,7 +95,7 @@ func TestReadSharedLock(t *testing.T) {
 		store, path := seedReadFixture(t, 4)
 		hookstest.HoldHooksSidecarShared(t, path)
 
-		sink := installCapture(t)
+		sink := logtest.Install(t)
 		var wg sync.WaitGroup
 		elapsed := make([]time.Duration, 2)
 		errs := make([]error, 2)
@@ -137,7 +138,7 @@ func TestReadSharedLock(t *testing.T) {
 		store, path := seedReadFixture(t, 3)
 		hookstest.HoldHooksSidecar(t, path)
 
-		sink := installCapture(t)
+		sink := logtest.Install(t)
 		start := time.Now()
 		h, err := store.Load(hooks.ViaCLI)
 		elapsed := time.Since(start)
@@ -159,7 +160,7 @@ func TestReadSharedLock(t *testing.T) {
 		store, path := seedReadFixture(t, 42)
 		hookstest.HoldHooksSidecar(t, path)
 
-		sink := installCapture(t)
+		sink := logtest.Install(t)
 		h, err := store.Load(hooks.ViaCLI)
 		if err != nil {
 			t.Fatalf("Load: %v", err)
@@ -178,7 +179,7 @@ func TestReadSharedLock(t *testing.T) {
 		}
 		store := hooks.NewStore(path)
 
-		sink := installCapture(t)
+		sink := logtest.Install(t)
 		h, err := store.Load(hooks.ViaCLI)
 		if err != nil {
 			t.Fatalf("Load: %v", err)
@@ -216,7 +217,7 @@ func TestReadSharedLock(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "hooks.json")
 		store := hooks.NewStore(path)
 
-		sink := installCapture(t)
+		sink := logtest.Install(t)
 		if err := store.Set("k0", "on-resume", "cmd0", hooks.ViaCLI); err != nil {
 			t.Fatalf("Set: %v", err)
 		}
@@ -234,7 +235,7 @@ func TestReadSharedLockBoundSelection(t *testing.T) {
 		store, path := seedReadFixture(t, 2)
 		hookstest.HoldHooksSidecar(t, path)
 
-		sink := installCapture(t)
+		sink := logtest.Install(t)
 		var entries int
 		start := time.Now()
 		// Aborted at the enumeration, so the elapsed time measures the snapshot
@@ -335,7 +336,7 @@ func TestReadSharedLockVia(t *testing.T) {
 			store, path := seedReadFixture(t, 1)
 			hookstest.HoldHooksSidecar(t, path)
 
-			sink := installCapture(t)
+			sink := logtest.Install(t)
 			if err := tc.read(store); err != nil {
 				t.Fatalf("%s: %v", tc.name, err)
 			}
@@ -354,7 +355,7 @@ func TestLookupOnResumeUnderHeldLock(t *testing.T) {
 		hookstest.CreateHooksSidecar(t, path)
 		hookstest.HoldHooksSidecar(t, path)
 
-		sink := installCapture(t)
+		sink := logtest.Install(t)
 		cmd, ok, err := hooks.LookupOnResume(hooks.NewStore(path), "tok01")
 		if err != nil {
 			t.Fatalf("LookupOnResume returned an error under a held lock: %v", err)
@@ -370,7 +371,7 @@ func TestLookupOnResumeUnderHeldLock(t *testing.T) {
 		store, path := seedReadFixture(t, 1)
 		hookstest.HoldHooksSidecar(t, path)
 
-		sink := installCapture(t)
+		sink := logtest.Install(t)
 		start := time.Now()
 		cmd, ok, err := hooks.LookupOnResume(store, "")
 		elapsed := time.Since(start)

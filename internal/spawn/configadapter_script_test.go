@@ -2,11 +2,14 @@ package spawn
 
 import (
 	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/leeovery/portal/internal/logtest"
 )
 
 func writeExecutableScript(t *testing.T, path string) {
@@ -67,7 +70,7 @@ func TestNewScriptRecipeAdapter(t *testing.T) {
 	})
 
 	t.Run("it skips a missing script with a WARN and no adapter", func(t *testing.T) {
-		sink := installSpawnCapture(t)
+		sink := logtest.Install(t)
 		missing := filepath.Join(t.TempDir(), "nope.sh")
 
 		adapter, ok := newScriptRecipeAdapter(key, missing, &fakeRecipeRunner{})
@@ -78,7 +81,7 @@ func TestNewScriptRecipeAdapter(t *testing.T) {
 		if adapter != nil {
 			t.Errorf("adapter = %#v, want nil for a missing script", adapter)
 		}
-		warns := warnRecords(sink)
+		warns := sink.RecordsAtExactLevel(slog.LevelWarn)
 		if len(warns) != 1 {
 			t.Fatalf("emitted %d WARN records for a missing script, want exactly 1: %+v", len(warns), warns)
 		}
@@ -92,7 +95,7 @@ func TestNewScriptRecipeAdapter(t *testing.T) {
 	})
 
 	t.Run("it skips a non-executable script with a WARN and no adapter", func(t *testing.T) {
-		sink := installSpawnCapture(t)
+		sink := logtest.Install(t)
 		scriptPath := filepath.Join(t.TempDir(), "plain.sh")
 		if err := os.WriteFile(scriptPath, []byte("#!/bin/sh\nexit 0\n"), 0o644); err != nil {
 			t.Fatalf("writing non-executable script: %v", err)
@@ -106,7 +109,7 @@ func TestNewScriptRecipeAdapter(t *testing.T) {
 		if adapter != nil {
 			t.Errorf("adapter = %#v, want nil for a non-executable script", adapter)
 		}
-		warns := warnRecords(sink)
+		warns := sink.RecordsAtExactLevel(slog.LevelWarn)
 		if len(warns) != 1 {
 			t.Fatalf("emitted %d WARN records for a non-executable script, want exactly 1: %+v", len(warns), warns)
 		}
@@ -120,7 +123,7 @@ func TestNewScriptRecipeAdapter(t *testing.T) {
 	})
 
 	t.Run("it skips a directory path with a WARN and no adapter", func(t *testing.T) {
-		sink := installSpawnCapture(t)
+		sink := logtest.Install(t)
 		// t.TempDir is 0o700, so a directory carries exec bits: only the IsDir()
 		// arm of the gate can reject it.
 		dirPath := t.TempDir()
@@ -133,7 +136,7 @@ func TestNewScriptRecipeAdapter(t *testing.T) {
 		if adapter != nil {
 			t.Errorf("adapter = %#v, want nil for a directory path", adapter)
 		}
-		warns := warnRecords(sink)
+		warns := sink.RecordsAtExactLevel(slog.LevelWarn)
 		if len(warns) != 1 {
 			t.Fatalf("emitted %d WARN records for a directory path, want exactly 1: %+v", len(warns), warns)
 		}

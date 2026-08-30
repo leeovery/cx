@@ -8,43 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
 )
-
-type captureSummarySink struct {
-	*logtest.Sink
-}
-
-func (s *captureSummarySink) summaries() []logtest.Record {
-	var out []logtest.Record
-	for _, r := range s.Records() {
-		comp, ok := r.Attrs["component"]
-		if !ok || comp.String() != "capture" || r.Msg != "tick complete" {
-			continue
-		}
-		out = append(out, r)
-	}
-	return out
-}
-
-func (s *captureSummarySink) onlySummary(t *testing.T) logtest.Record {
-	t.Helper()
-	sums := s.summaries()
-	if len(sums) != 1 {
-		t.Fatalf("expected exactly 1 capture: tick complete summary, got %d: %+v", len(sums), s.Records())
-	}
-	return sums[0]
-}
-
-func installCaptureSummarySink(t *testing.T) *captureSummarySink {
-	t.Helper()
-	sink := &captureSummarySink{Sink: &logtest.Sink{}}
-	log.SetTestHandler(t, sink.Sink)
-	return sink
-}
 
 // paneVanishedCommandErr carries tmux's canonical "can't find
 // {session,window,pane}" phrasing, the un-sentinel-wrapped shape CapturePane
@@ -99,7 +66,7 @@ func breakCommitTarget(t *testing.T, dir string) {
 func TestCaptureAndCommit_EmitsOneTickCompleteSummaryOnSuccess(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
-	sink := installCaptureSummarySink(t)
+	sink := logtest.Install(t)
 
 	sess, panes := oneSession()
 	fc := &daemonFakeCommander{sessionsOut: sess, panesOut: panes}
@@ -109,7 +76,7 @@ func TestCaptureAndCommit_EmitsOneTickCompleteSummaryOnSuccess(t *testing.T) {
 		t.Fatalf("captureAndCommit: %v", err)
 	}
 
-	rec := sink.onlySummary(t)
+	rec := sink.OnlyRecordWith(t, "capture", "tick complete")
 	if rec.Level != slog.LevelInfo {
 		t.Errorf("summary level = %v, want INFO", rec.Level)
 	}
@@ -137,7 +104,7 @@ func TestCaptureAndCommit_EmitsOneTickCompleteSummaryOnSuccess(t *testing.T) {
 func TestCaptureAndCommit_NoSummaryWhenCtxCancelledAtObsPoint1(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
-	sink := installCaptureSummarySink(t)
+	sink := logtest.Install(t)
 
 	sess, panes := oneSession()
 	fc := &daemonFakeCommander{sessionsOut: sess, panesOut: panes}
@@ -149,7 +116,7 @@ func TestCaptureAndCommit_NoSummaryWhenCtxCancelledAtObsPoint1(t *testing.T) {
 	if err := captureAndCommit(ctx, deps); err != nil {
 		t.Fatalf("captureAndCommit on cancelled ctx = %v, want nil", err)
 	}
-	if got := sink.summaries(); len(got) != 0 {
+	if got := sink.RecordsWith("capture", "tick complete"); len(got) != 0 {
 		t.Errorf("expected no summary on obs-point-1 cancel, got %d: %+v", len(got), got)
 	}
 	if got := fc.callsContaining("list-sessions"); len(got) != 0 {
@@ -160,7 +127,7 @@ func TestCaptureAndCommit_NoSummaryWhenCtxCancelledAtObsPoint1(t *testing.T) {
 func TestCaptureAndCommit_NoSummaryWhenCtxCancelledAtObsPoint2(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
-	sink := installCaptureSummarySink(t)
+	sink := logtest.Install(t)
 
 	sess, panes := oneSession()
 	// cancel() fires after CaptureStructure's show-environment subcall, so the
@@ -180,7 +147,7 @@ func TestCaptureAndCommit_NoSummaryWhenCtxCancelledAtObsPoint2(t *testing.T) {
 	if err := captureAndCommit(ctx, deps); err != nil {
 		t.Fatalf("captureAndCommit = %v, want nil", err)
 	}
-	if got := sink.summaries(); len(got) != 0 {
+	if got := sink.RecordsWith("capture", "tick complete"); len(got) != 0 {
 		t.Errorf("expected no summary on obs-point-2 cancel, got %d: %+v", len(got), got)
 	}
 	if got := fc.callsContaining("capture-pane"); len(got) != 0 {
@@ -191,7 +158,7 @@ func TestCaptureAndCommit_NoSummaryWhenCtxCancelledAtObsPoint2(t *testing.T) {
 func TestCaptureAndCommit_NoSummaryWhenCtxCancelledAtObsPoint3(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
-	sink := installCaptureSummarySink(t)
+	sink := logtest.Install(t)
 
 	// cancel() fires on the FIRST capture-pane call, so the second iteration's
 	// between-panes check returns before Commit.
@@ -211,7 +178,7 @@ func TestCaptureAndCommit_NoSummaryWhenCtxCancelledAtObsPoint3(t *testing.T) {
 	if err := captureAndCommit(ctx, deps); err != nil {
 		t.Fatalf("captureAndCommit = %v, want nil", err)
 	}
-	if got := sink.summaries(); len(got) != 0 {
+	if got := sink.RecordsWith("capture", "tick complete"); len(got) != 0 {
 		t.Errorf("expected no summary on obs-point-3 cancel, got %d: %+v", len(got), got)
 	}
 }
@@ -219,7 +186,7 @@ func TestCaptureAndCommit_NoSummaryWhenCtxCancelledAtObsPoint3(t *testing.T) {
 func TestCaptureAndCommit_AnomalousCapturePaneFailureIncrementsAnomalousAndWarns(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
-	sink := installCaptureSummarySink(t)
+	sink := logtest.Install(t)
 
 	// A genuine capture failure: neither ErrNoSuchSession nor a "can't find"
 	// *tmux.CommandError.
@@ -236,7 +203,7 @@ func TestCaptureAndCommit_AnomalousCapturePaneFailureIncrementsAnomalousAndWarns
 		t.Fatalf("captureAndCommit: %v", err)
 	}
 
-	rec := sink.onlySummary(t)
+	rec := sink.OnlyRecordWith(t, "capture", "tick complete")
 	if got := rec.IntAttr(t, "anomalous"); got != 1 {
 		t.Errorf("anomalous = %d, want 1", got)
 	}
@@ -264,7 +231,7 @@ func TestCaptureAndCommit_AnomalousCapturePaneFailureIncrementsAnomalousAndWarns
 func TestCaptureAndCommit_AnomalousWriteScrollbackFailureIncrementsAnomalousAndWarns(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
-	sink := installCaptureSummarySink(t)
+	sink := logtest.Install(t)
 
 	sess, panes := oneSession()
 	fc := &daemonFakeCommander{
@@ -279,7 +246,7 @@ func TestCaptureAndCommit_AnomalousWriteScrollbackFailureIncrementsAnomalousAndW
 		t.Fatalf("captureAndCommit: %v", err)
 	}
 
-	rec := sink.onlySummary(t)
+	rec := sink.OnlyRecordWith(t, "capture", "tick complete")
 	if got := rec.IntAttr(t, "anomalous"); got != 1 {
 		t.Errorf("anomalous = %d, want 1", got)
 	}
@@ -304,7 +271,7 @@ func TestCaptureAndCommit_AnomalousWriteScrollbackFailureIncrementsAnomalousAndW
 func TestCaptureAndCommit_NoSummaryOnCommitPhaseError(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
-	sink := installCaptureSummarySink(t)
+	sink := logtest.Install(t)
 
 	sess, panes := oneSession()
 	fc := &daemonFakeCommander{sessionsOut: sess, panesOut: panes}
@@ -316,7 +283,7 @@ func TestCaptureAndCommit_NoSummaryOnCommitPhaseError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected a commit phase-boundary error, got nil")
 	}
-	if got := sink.summaries(); len(got) != 0 {
+	if got := sink.RecordsWith("capture", "tick complete"); len(got) != 0 {
 		t.Errorf("expected no summary on commit phase error, got %d: %+v", len(got), got)
 	}
 }
@@ -324,7 +291,7 @@ func TestCaptureAndCommit_NoSummaryOnCommitPhaseError(t *testing.T) {
 func TestCaptureAndCommit_CountsUserClosedPaneAsNaturalChurnNotAnomalous(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
-	sink := installCaptureSummarySink(t)
+	sink := logtest.Install(t)
 
 	fc := &daemonFakeCommander{
 		sessionsOut: "work|1|0|",
@@ -341,7 +308,7 @@ func TestCaptureAndCommit_CountsUserClosedPaneAsNaturalChurnNotAnomalous(t *test
 		t.Fatalf("captureAndCommit: %v", err)
 	}
 
-	rec := sink.onlySummary(t)
+	rec := sink.OnlyRecordWith(t, "capture", "tick complete")
 	if got := rec.IntAttr(t, "natural_churn"); got != 1 {
 		t.Errorf("natural_churn = %d, want 1 (option a: user-closed pane is natural churn)", got)
 	}
@@ -374,7 +341,7 @@ func TestCaptureAndCommit_CountsUserClosedPaneAsNaturalChurnNotAnomalous(t *test
 func TestCaptureAndCommit_EmitsPerPaneDebugBreadcrumbUnderCapture(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
-	sink := installCaptureSummarySink(t)
+	sink := logtest.Install(t)
 
 	sess, panes := oneSession()
 	fc := &daemonFakeCommander{sessionsOut: sess, panesOut: panes}

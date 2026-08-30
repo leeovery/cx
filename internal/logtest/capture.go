@@ -22,6 +22,7 @@ import (
 // their own failure paths can be unit-tested without aborting the harness.
 type TestingT interface {
 	Helper()
+	Errorf(format string, args ...any)
 	Fatalf(format string, args ...any)
 }
 
@@ -74,6 +75,39 @@ func (r Record) RequireDuration(t TestingT, key string) {
 func (r Record) HasAttr(key string) bool {
 	_, ok := r.Attrs[key]
 	return ok
+}
+
+// Records is a captured slice of records, filterable by chaining. Every filter
+// returns a new slice and leaves the receiver untouched; nil when none match.
+type Records []Record
+
+// AtExactLevel keeps only the records logged at exactly level — a record one
+// level higher does not match. AtOrAboveLevel is the threshold filter.
+func (rs Records) AtExactLevel(level slog.Level) Records {
+	return rs.filter(func(r Record) bool { return r.Level == level })
+}
+
+// AtOrAboveLevel keeps the records logged at minLevel or any higher level.
+func (rs Records) AtOrAboveLevel(minLevel slog.Level) Records {
+	return rs.filter(func(r Record) bool { return r.Level >= minLevel })
+}
+
+// With keeps the records emitted under component carrying message msg.
+func (rs Records) With(component, msg string) Records {
+	return rs.filter(func(r Record) bool {
+		c, ok := r.Attrs["component"]
+		return ok && c.String() == component && r.Msg == msg
+	})
+}
+
+func (rs Records) filter(keep func(Record) bool) Records {
+	var out Records
+	for _, r := range rs {
+		if keep(r) {
+			out = append(out, r)
+		}
+	}
+	return out
 }
 
 // Sink captures every record into an in-memory buffer, shared with the handlers
@@ -150,32 +184,46 @@ func (s *Sink) Lines() []string {
 }
 
 // Records returns a snapshot: later writes do not mutate it.
-func (s *Sink) Records() []Record {
+func (s *Sink) Records() Records {
 	owner := s.owner()
 	owner.mu.Lock()
 	defer owner.mu.Unlock()
-	return append([]Record(nil), owner.records...)
+	return append(Records(nil), owner.records...)
 }
 
-// RecordsAtLevel returns a snapshot of the records captured at minLevel or
-// above, in capture order. Nil when none match.
-func (s *Sink) RecordsAtLevel(minLevel slog.Level) []Record {
-	var out []Record
-	for _, r := range s.Records() {
-		if r.Level >= minLevel {
-			out = append(out, r)
-		}
-	}
-	return out
+// RecordsAtExactLevel returns the records captured at exactly level.
+func (s *Sink) RecordsAtExactLevel(level slog.Level) Records {
+	return s.Records().AtExactLevel(level)
+}
+
+// RecordsAtOrAboveLevel returns the records captured at minLevel or above.
+func (s *Sink) RecordsAtOrAboveLevel(minLevel slog.Level) Records {
+	return s.Records().AtOrAboveLevel(minLevel)
+}
+
+// RecordsWith returns the records emitted under component carrying message msg.
+func (s *Sink) RecordsWith(component, msg string) Records {
+	return s.Records().With(component, msg)
 }
 
 func (s *Sink) OnlyRecord(t TestingT) Record {
 	t.Helper()
-	recs := s.Records()
-	if len(recs) != 1 {
-		t.Fatalf("expected exactly 1 log record, got %d: %+v", len(recs), recs)
+	return s.only(t, s.Records(), "log record")
+}
+
+// OnlyRecordWith fails the test unless exactly one captured record was emitted
+// under component carrying message msg.
+func (s *Sink) OnlyRecordWith(t TestingT, component, msg string) Record {
+	t.Helper()
+	return s.only(t, s.RecordsWith(component, msg), fmt.Sprintf("%q %q record", component, msg))
+}
+
+func (s *Sink) only(t TestingT, matched Records, description string) Record {
+	t.Helper()
+	if len(matched) != 1 {
+		t.Fatalf("expected exactly 1 %s, got %d: %+v", description, len(matched), s.Records())
 	}
-	return recs[0]
+	return matched[0]
 }
 
 func NewCaptureLogger(t *testing.T) (*slog.Logger, *Sink) {

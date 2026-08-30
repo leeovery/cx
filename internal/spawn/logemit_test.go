@@ -38,26 +38,6 @@ func assertClosedKeys(t *testing.T, sink *logtest.Sink) {
 	}
 }
 
-func debugRecords(recs []logtest.Record) []logtest.Record {
-	var out []logtest.Record
-	for _, r := range recs {
-		if r.Level == slog.LevelDebug {
-			out = append(out, r)
-		}
-	}
-	return out
-}
-
-func infoRecords(recs []logtest.Record) []logtest.Record {
-	var out []logtest.Record
-	for _, r := range recs {
-		if r.Level == slog.LevelInfo {
-			out = append(out, r)
-		}
-	}
-	return out
-}
-
 func TestLogBatchSummary_FullSuccessBody(t *testing.T) {
 	logger, sink := logtest.NewCaptureLogger(t)
 	results := []WindowResult{
@@ -89,7 +69,7 @@ func TestLogBatchSummary_OpenedDerivedFromPartitionResults(t *testing.T) {
 
 	failLogger, failSink := logtest.NewCaptureLogger(t)
 	LogBatchSummary(failLogger, ghosttyID(), ResolutionNative, results, 4, false, "b")
-	failInfo := infoRecords(failSink.Records())
+	failInfo := failSink.RecordsAtExactLevel(slog.LevelInfo)
 	if len(failInfo) != 1 {
 		t.Fatalf("want exactly 1 INFO summary, got %d", len(failInfo))
 	}
@@ -105,7 +85,7 @@ func TestLogBatchSummary_OpenedDerivedFromPartitionResults(t *testing.T) {
 
 	okLogger, okSink := logtest.NewCaptureLogger(t)
 	LogBatchSummary(okLogger, ghosttyID(), ResolutionNative, results, 4, true, "b")
-	okInfo := infoRecords(okSink.Records())
+	okInfo := okSink.RecordsAtExactLevel(slog.LevelInfo)
 	if got := okInfo[0].IntAttr(t, "opened"); got != int64(len(confirmed)+1) {
 		t.Errorf("opened = %d, want %d (confirmed + trigger self-attach)", got, len(confirmed)+1)
 	}
@@ -113,10 +93,10 @@ func TestLogBatchSummary_OpenedDerivedFromPartitionResults(t *testing.T) {
 		t.Errorf("summary msg = %q, want %q", okInfo[0].Msg, "opened 2/4")
 	}
 
-	if n := len(debugRecords(failSink.Records())); n != 1 {
+	if n := len(failSink.RecordsAtExactLevel(slog.LevelDebug)); n != 1 {
 		t.Errorf("DEBUG records = %d, want 1 (only the confirmed alpha window)", n)
 	}
-	if n := len(warnRecords(failSink)); n != 2 {
+	if n := len(failSink.RecordsAtExactLevel(slog.LevelWarn)); n != 2 {
 		t.Errorf("WARN records = %d, want 2 (the two failed windows bravo, charlie)", n)
 	}
 }
@@ -135,7 +115,7 @@ func TestLogWindowResults_SplitsByOutcome(t *testing.T) {
 	if got := sink.Body(); got != want {
 		t.Errorf("LogWindowResults body =\n  %q\nwant\n  %q", got, want)
 	}
-	if n := len(infoRecords(sink.Records())); n != 0 {
+	if n := len(sink.RecordsAtExactLevel(slog.LevelInfo)); n != 0 {
 		t.Errorf("LogWindowResults must emit NO INFO record, got %d", n)
 	}
 	assertClosedKeys(t, sink)
@@ -202,7 +182,7 @@ func TestLogWindowResults_FailedWindowsWarn(t *testing.T) {
 		if r.Msg != "external window" {
 			t.Errorf("msg = %q, want %q", r.Msg, "external window")
 		}
-		if n := len(warnRecords(sink)); n != 0 {
+		if n := len(sink.RecordsAtExactLevel(slog.LevelWarn)); n != 0 {
 			t.Errorf("confirmed window must emit NO WARN, got %d", n)
 		}
 		assertClosedKeys(t, sink)
@@ -221,7 +201,7 @@ func TestLogWindowResults_FailedWindowsWarn(t *testing.T) {
 		if r.Msg != "external window" {
 			t.Errorf("msg = %q, want %q", r.Msg, "external window")
 		}
-		if n := len(warnRecords(sink)); n != 0 {
+		if n := len(sink.RecordsAtExactLevel(slog.LevelWarn)); n != 0 {
 			t.Errorf("permission-required window must emit NO WARN (no double-report), got %d", n)
 		}
 		assertClosedKeys(t, sink)

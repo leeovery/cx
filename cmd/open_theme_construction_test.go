@@ -136,7 +136,7 @@ func TestConstruction_LateReplyNeverReThemes(t *testing.T) {
 func TestConstruction_ConstantWinsOverStaleSlots(t *testing.T) {
 	setPrefsFile(t, `{"theme":"`+nordSlug+`","theme_light":"../evil","theme_dark":"no-such-theme"}`)
 	nord := themetest.Builtin(t, nordSlug)
-	sink := installMigrateCapture(t)
+	sink := logtest.Install(t)
 
 	nomination := themeNominationForTest(t)
 
@@ -151,7 +151,7 @@ func TestConstruction_ConstantWinsOverStaleSlots(t *testing.T) {
 func TestConstruction_UnloadableNominationFallsBackWithoutWriting(t *testing.T) {
 	const content = `{"session_list_mode":"by-tag","theme":"no-such-theme"}`
 	setPrefsFile(t, content)
-	sink := installMigrateCapture(t)
+	sink := logtest.Install(t)
 
 	nomination := themeNominationForTest(t)
 
@@ -173,7 +173,7 @@ func TestConstruction_UnloadableNominationFallsBackWithoutWriting(t *testing.T) 
 func TestConstruction_EmitsLoadedPerNomination(t *testing.T) {
 	t.Run("a constant emits one line carrying no slot", func(t *testing.T) {
 		setPrefsFile(t, `{"theme":"`+nordSlug+`"}`)
-		sink := installMigrateCapture(t)
+		sink := logtest.Install(t)
 
 		themeNominationForTest(t)
 
@@ -182,7 +182,7 @@ func TestConstruction_EmitsLoadedPerNomination(t *testing.T) {
 
 	t.Run("a pair emits one line per slot, light then dark", func(t *testing.T) {
 		setPrefsFile(t, `{"theme_dark":"`+nordSlug+`"}`)
-		sink := installMigrateCapture(t)
+		sink := logtest.Install(t)
 
 		themeNominationForTest(t)
 
@@ -212,7 +212,7 @@ func TestConstruction_ReadBudget(t *testing.T) {
 
 	t.Run("a built-in constant reads the directory zero times", func(t *testing.T) {
 		setPrefsFile(t, `{"theme":"`+nordSlug+`"}`)
-		sink := installMigrateCapture(t)
+		sink := logtest.Install(t)
 
 		nomination := themeNominationForTest(t)
 
@@ -222,7 +222,7 @@ func TestConstruction_ReadBudget(t *testing.T) {
 
 	t.Run("a drop-in constant reads exactly its own file", func(t *testing.T) {
 		setPrefsFile(t, `{"theme":"drop-alone"}`)
-		sink := installMigrateCapture(t)
+		sink := logtest.Install(t)
 
 		nomination := themeNominationForTest(t)
 
@@ -232,7 +232,7 @@ func TestConstruction_ReadBudget(t *testing.T) {
 
 	t.Run("a drop-in pair reads exactly two files", func(t *testing.T) {
 		setPrefsFile(t, `{"theme_light":"drop-light","theme_dark":"drop-dark"}`)
-		sink := installMigrateCapture(t)
+		sink := logtest.Install(t)
 
 		nomination := themeNominationForTest(t)
 
@@ -272,7 +272,7 @@ func TestConstruction_PathFailuresDegradeNotBlock(t *testing.T) {
 	t.Run("a drop-in nomination falls back when there is no directory to look in", func(t *testing.T) {
 		setPrefsFile(t, `{"theme":"a-drop-in"}`)
 		unresolvableThemesDir(t)
-		sink := installMigrateCapture(t)
+		sink := logtest.Install(t)
 
 		nomination := themeNominationForTest(t)
 
@@ -289,7 +289,7 @@ func TestConstruction_PathFailuresDegradeNotBlock(t *testing.T) {
 // observable difference between a skipped gate and a pending one.
 func TestConstruction_NoColorLoadsBothSelectsDark(t *testing.T) {
 	setPrefsFile(t, `{"theme_dark":"`+nordSlug+`"}`)
-	sink := installMigrateCapture(t)
+	sink := logtest.Install(t)
 
 	nomination := themeNominationForTest(t)
 

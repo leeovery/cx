@@ -30,19 +30,9 @@ var closedSpawnAttrKeys = map[string]bool{
 	"detail":     true,
 }
 
-func recordsByLevel(recs []logtest.Record, level slog.Level) []logtest.Record {
-	var out []logtest.Record
-	for _, r := range recs {
-		if r.Level == level {
-			out = append(out, r)
-		}
-	}
-	return out
-}
-
 func onlyInfoRecord(t *testing.T, sink *logtest.Sink) logtest.Record {
 	t.Helper()
-	infos := recordsByLevel(sink.Records(), slog.LevelInfo)
+	infos := sink.RecordsAtExactLevel(slog.LevelInfo)
 	if len(infos) != 1 {
 		t.Fatalf("want exactly 1 INFO spawn record, got %d: %+v", len(infos), infos)
 	}
@@ -161,7 +151,7 @@ func TestBurstObservability_PerExternalWindowSplitByOutcome(t *testing.T) {
 	}
 	injectComplete(t, m, msg)
 
-	debugs := recordsByLevel(sink.Records(), slog.LevelDebug)
+	debugs := sink.RecordsAtExactLevel(slog.LevelDebug)
 	if len(debugs) != 1 {
 		t.Fatalf("want exactly 1 DEBUG spawn record (the confirmed window), got %d: %+v", len(debugs), debugs)
 	}
@@ -178,7 +168,7 @@ func TestBurstObservability_PerExternalWindowSplitByOutcome(t *testing.T) {
 		t.Errorf("DEBUG detail = %q, want the opaque driver detail", got)
 	}
 
-	warns := recordsByLevel(sink.Records(), slog.LevelWarn)
+	warns := sink.RecordsAtExactLevel(slog.LevelWarn)
 	if len(warns) != 1 {
 		t.Fatalf("want exactly 1 WARN spawn record (the failed window), got %d: %+v", len(warns), warns)
 	}
@@ -227,7 +217,7 @@ func TestBurstObservability_UnsupportedNoopNoPerWindow(t *testing.T) {
 	if info.HasAttr("opened") || info.HasAttr("total") {
 		t.Errorf("unsupported no-op must carry no opened/total counts: keys=%v", info.Keys)
 	}
-	if debugs := recordsByLevel(sink.Records(), slog.LevelDebug); len(debugs) != 0 {
+	if debugs := sink.RecordsAtExactLevel(slog.LevelDebug); len(debugs) != 0 {
 		t.Errorf("unsupported no-op must emit NO per-window records, got %d DEBUG records", len(debugs))
 	}
 	assertClosedSpawnKeys(t, sink)
@@ -245,7 +235,7 @@ func TestBurstObservability_PreflightAbortNamesGone(t *testing.T) {
 	if info.Msg != "'bravo' is gone — nothing opened" {
 		t.Errorf("INFO msg = %q, want %q (names the gone session)", info.Msg, "'bravo' is gone — nothing opened")
 	}
-	if debugs := recordsByLevel(sink.Records(), slog.LevelDebug); len(debugs) != 0 {
+	if debugs := sink.RecordsAtExactLevel(slog.LevelDebug); len(debugs) != 0 {
 		t.Errorf("pre-flight abort must emit NO per-window records, got %d DEBUG records", len(debugs))
 	}
 	assertClosedSpawnKeys(t, sink)

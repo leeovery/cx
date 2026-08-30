@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/leeovery/portal/internal/logtest"
 )
 
 func TestPrefsFilePath(t *testing.T) {
@@ -197,7 +199,7 @@ func TestPrefsMigrateSuppressesLog(t *testing.T) {
 			t.Fatalf("failed to write old file: %v", err)
 		}
 
-		sink := installMigrateCapture(t)
+		sink := logtest.Install(t)
 
 		got, err := prefsFilePath()
 		if err != nil {

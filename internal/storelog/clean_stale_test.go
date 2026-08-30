@@ -12,37 +12,22 @@ import (
 	"github.com/leeovery/portal/internal/storelog"
 )
 
-func installCapture(t *testing.T) *logtest.Sink {
-	t.Helper()
-	sink := &logtest.Sink{}
-	log.SetTestHandler(t, sink)
-	return sink
-}
-
 func TestEmitCleanStaleSummary_SuccessInfo(t *testing.T) {
 	logger := log.For("hooks")
-	sink := installCapture(t)
+	sink := logtest.Install(t)
 
 	storelog.EmitCleanStaleSummary(logger, 2, time.Now().Add(-5*time.Millisecond), nil)
 
 	rec := sink.OnlyRecord(t)
-	if rec.Level != slog.LevelInfo {
-		t.Errorf("level = %v, want INFO", rec.Level)
-	}
-	if rec.Msg != "clean-stale" {
-		t.Errorf("msg = %q, want %q", rec.Msg, "clean-stale")
-	}
-	if got := rec.AttrString(t, "op"); got != "clean-stale" {
-		t.Errorf("op = %q, want %q", got, "clean-stale")
-	}
-	if got := rec.AttrString(t, "component"); got != "hooks" {
-		t.Errorf("component = %q, want %q", got, "hooks")
-	}
+	logtest.AssertRecord(t, rec, logtest.RecordWant{
+		Level:     slog.LevelInfo,
+		Msg:       "clean-stale",
+		Component: "hooks",
+		Op:        "clean-stale",
+		Via:       "internal",
+	})
 	if got := rec.AttrString(t, "entries"); got != "2" {
 		t.Errorf("entries = %q, want %q", got, "2")
-	}
-	if got := rec.AttrString(t, "via"); got != "internal" {
-		t.Errorf("via = %q, want %q", got, "internal")
 	}
 	tookVal, ok := rec.Attrs["took"]
 	if !ok {
@@ -61,29 +46,21 @@ func TestEmitCleanStaleSummary_SuccessInfo(t *testing.T) {
 
 func TestEmitCleanStaleSummary_FailureWarn(t *testing.T) {
 	logger := log.For("projects")
-	sink := installCapture(t)
+	sink := logtest.Install(t)
 
 	saveErr := fmt.Errorf("%w: boom", fileutil.ErrWriteTempCreate)
 	storelog.EmitCleanStaleSummary(logger, 3, time.Now().Add(-5*time.Millisecond), saveErr)
 
 	rec := sink.OnlyRecord(t)
-	if rec.Level != slog.LevelWarn {
-		t.Errorf("level = %v, want WARN", rec.Level)
-	}
-	if rec.Msg != "clean-stale" {
-		t.Errorf("msg = %q, want %q", rec.Msg, "clean-stale")
-	}
-	if got := rec.AttrString(t, "op"); got != "clean-stale" {
-		t.Errorf("op = %q, want %q", got, "clean-stale")
-	}
-	if got := rec.AttrString(t, "component"); got != "projects" {
-		t.Errorf("component = %q, want %q", got, "projects")
-	}
+	logtest.AssertRecord(t, rec, logtest.RecordWant{
+		Level:     slog.LevelWarn,
+		Msg:       "clean-stale",
+		Component: "projects",
+		Op:        "clean-stale",
+		Via:       "internal",
+	})
 	if got := rec.AttrString(t, "entries"); got != "3" {
 		t.Errorf("entries = %q, want %q", got, "3")
-	}
-	if got := rec.AttrString(t, "via"); got != "internal" {
-		t.Errorf("via = %q, want %q", got, "internal")
 	}
 	if got := rec.AttrString(t, "error_class"); got != "write-failed-temp-create" {
 		t.Errorf("error_class = %q, want %q", got, "write-failed-temp-create")

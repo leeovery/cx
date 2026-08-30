@@ -9,17 +9,9 @@ import (
 
 	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/hookstest"
-	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/tmux"
 )
-
-func installHooksSink(t *testing.T) *logtest.Sink {
-	t.Helper()
-	sink := &logtest.Sink{}
-	log.SetTestHandler(t, sink)
-	return sink
-}
 
 func TestDoctorStaleHooksDegradedRead(t *testing.T) {
 	t.Run("it keeps the stale-hooks check green under a degraded read", func(t *testing.T) {
@@ -37,7 +29,7 @@ func TestDoctorStaleHooksDegradedRead(t *testing.T) {
 		heldStore, heldPath := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(liveSeedA)})
 		hookstest.HoldHooksSidecar(t, heldPath)
 
-		sink := installHooksSink(t)
+		sink := logtest.Install(t)
 		degraded, err := runDoctorDiagnosis(staleDeps(t.TempDir(), lister, heldStore, nil))
 		if err != nil {
 			t.Fatalf("runDoctorDiagnosis under a held lock: %v", err)
@@ -88,7 +80,7 @@ func TestHookListDegradedRead(t *testing.T) {
 		want := runHookList(t)
 
 		hookstest.HoldHooksSidecar(t, hooksFile)
-		sink := installHooksSink(t)
+		sink := logtest.Install(t)
 		got := runHookList(t)
 
 		if got != want {
@@ -125,7 +117,7 @@ func TestSweepPreReadBound(t *testing.T) {
 		// elapsed time measures that read alone rather than CleanStale's own
 		// exclusive acquire behind it.
 		lister := &stubStaleSweepReader{rows: tokenRows()}
-		sink := installHooksSink(t)
+		sink := logtest.Install(t)
 
 		start := time.Now()
 		err := sweepErr(lister, store, bootstrapLogger)
@@ -167,7 +159,7 @@ func TestStagedHooksStoreSidecar(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, 20*time.Millisecond)
 		store, _ := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(liveSeedA)})
 
-		sink := installHooksSink(t)
+		sink := logtest.Install(t)
 		if _, err := store.Load(hooks.ViaDoctor); err != nil {
 			t.Fatalf("Load: %v", err)
 		}
@@ -181,7 +173,7 @@ func TestStagedHooksStoreSidecar(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, 20*time.Millisecond)
 		store, _ := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(liveSeedA), sidecarAbsent: true})
 
-		sink := installHooksSink(t)
+		sink := logtest.Install(t)
 		if _, err := store.Load(hooks.ViaDoctor); err != nil {
 			t.Fatalf("Load: %v", err)
 		}

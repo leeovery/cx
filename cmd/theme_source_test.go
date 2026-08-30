@@ -15,7 +15,7 @@ import (
 
 func themeSourceForTest(t *testing.T) (theme.Loader, *logtest.Sink) {
 	t.Helper()
-	sink := installMigrateCapture(t)
+	sink := logtest.Install(t)
 	return newThemeLoader(), sink
 }
 
@@ -87,7 +87,7 @@ func TestThemeSource_SharesTheConstructionReadsDedupScope(t *testing.T) {
 		// An existing but unreadable themes directory earns a `theme: directory
 		// unusable` WARN, where an absent one is silent.
 		_ = themetest.DenyDir(t, useThemesDir(t))
-		sink := installMigrateCapture(t)
+		sink := logtest.Install(t)
 		construction := newThemeLoader()
 
 		if _, _, err := themeResolution(prefs.ThemeKeys{Theme: dropIn}, construction); err != nil {
@@ -197,13 +197,13 @@ func TestThemePanelOpen_ExecPathUntouched(t *testing.T) {
 	// A drop-in slug: a built-in would never touch the poison.
 	setPrefsFile(t, `{"theme":"a-drop-in"}`)
 
-	loud := installMigrateCapture(t)
+	loud := logtest.Install(t)
 	newThemeSource(newThemeLoader()).Open(theme.RawKeys{Theme: "a-drop-in"})
 	if len(themeEvents(t, loud)) == 0 {
 		t.Fatal("the panel seam emitted no theme record against the poisoned directory; the zero-record assertion below would be vacuous")
 	}
 
-	sink := installMigrateCapture(t)
+	sink := logtest.Install(t)
 
 	if got := execOpenSession(t, "api-x7Kd9a"); got != "api-x7Kd9a" {
 		t.Fatalf("open attached %q, want the session it resolved — the exec path must have run", got)

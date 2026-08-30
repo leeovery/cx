@@ -1,9 +1,12 @@
 package spawn
 
 import (
+	"log/slog"
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/leeovery/portal/internal/logtest"
 )
 
 func TestValidateRecipe(t *testing.T) {
@@ -74,7 +77,7 @@ func TestValidRecipeForEntry(t *testing.T) {
 	const key = "com.example.MyTerm"
 
 	t.Run("it warns once and skips an entry with a structurally invalid open recipe", func(t *testing.T) {
-		sink := installSpawnCapture(t)
+		sink := logtest.Install(t)
 		entry := TerminalEntry{Commands: Capabilities{Open: &Recipe{
 			Argv:   []string{"kitty", "{command}"},
 			Script: "/opt/myterm/open.sh",
@@ -91,7 +94,7 @@ func TestValidRecipeForEntry(t *testing.T) {
 		if recipe.Argv != nil || recipe.Script != "" {
 			t.Errorf("recipe = %+v, want the zero Recipe for a rejected entry", recipe)
 		}
-		warns := warnRecords(sink)
+		warns := sink.RecordsAtExactLevel(slog.LevelWarn)
 		if len(warns) != 1 {
 			t.Fatalf("emitted %d WARN records for an invalid recipe, want exactly 1: %+v", len(warns), warns)
 		}
@@ -109,7 +112,7 @@ func TestValidRecipeForEntry(t *testing.T) {
 	})
 
 	t.Run("it skips an entry with no open capability without warning (forward-compat)", func(t *testing.T) {
-		sink := installSpawnCapture(t)
+		sink := logtest.Install(t)
 		entry := TerminalEntry{Commands: Capabilities{Open: nil}}
 
 		recipe, kind, ok := validRecipeForEntry(key, entry)
@@ -123,13 +126,13 @@ func TestValidRecipeForEntry(t *testing.T) {
 		if recipe.Argv != nil || recipe.Script != "" {
 			t.Errorf("recipe = %+v, want the zero Recipe for a no-open entry", recipe)
 		}
-		if warns := warnRecords(sink); len(warns) != 0 {
+		if warns := sink.RecordsAtExactLevel(slog.LevelWarn); len(warns) != 0 {
 			t.Errorf("emitted %d WARN records for a no-open entry, want 0 (forward-compat): %+v", len(warns), warns)
 		}
 	})
 
 	t.Run("it returns the recipe and kind for a valid open recipe with no warning", func(t *testing.T) {
-		sink := installSpawnCapture(t)
+		sink := logtest.Install(t)
 		argvEntry := TerminalEntry{Commands: Capabilities{Open: &Recipe{Argv: []string{"kitty", "{command}"}}}}
 
 		recipe, kind, ok := validRecipeForEntry(key, argvEntry)
@@ -157,7 +160,7 @@ func TestValidRecipeForEntry(t *testing.T) {
 			t.Errorf("recipe.Script = %q, want %q", recipe.Script, "/opt/myterm/open.sh")
 		}
 
-		if warns := warnRecords(sink); len(warns) != 0 {
+		if warns := sink.RecordsAtExactLevel(slog.LevelWarn); len(warns) != 0 {
 			t.Errorf("emitted %d WARN records for valid recipes, want 0: %+v", len(warns), warns)
 		}
 	})

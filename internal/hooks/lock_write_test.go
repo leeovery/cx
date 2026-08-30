@@ -133,7 +133,7 @@ func TestMutationLockTimeoutLogging(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "hooks.json")
 		hookstest.HoldHooksSidecar(t, path)
 
-		sink := installCapture(t)
+		sink := logtest.Install(t)
 		if err := hooks.NewStore(path).Set("tok123", "on-resume", "npm start", hooks.ViaCLI); err == nil {
 			t.Fatal("expected an error when the lock will not yield, got nil")
 		}
@@ -152,7 +152,7 @@ func TestMutationLockTimeoutLogging(t *testing.T) {
 		}
 		hookstest.HoldHooksSidecar(t, path)
 
-		sink := installCapture(t)
+		sink := logtest.Install(t)
 		if err := hooks.NewStore(path).Set("tok123", "on-resume", "npm start", hooks.ViaCLI); err == nil {
 			t.Fatal("expected an error when the lock will not yield, got nil")
 		}
@@ -168,7 +168,7 @@ func TestMutationLockTimeoutLogging(t *testing.T) {
 		}
 		hookstest.HoldHooksSidecar(t, path)
 
-		sink := installCapture(t)
+		sink := logtest.Install(t)
 		removed, err := hooks.NewStore(path).Remove("tok123", "on-resume", hooks.ViaInternal)
 		if err == nil {
 			t.Fatal("expected an error when the lock will not yield, got nil")
@@ -187,7 +187,7 @@ func TestMutationLockTimeoutLogging(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "hooks.json")
 			hookstest.HoldHooksSidecar(t, path)
 
-			sink := installCapture(t)
+			sink := logtest.Install(t)
 			if err := hooks.NewStore(path).Set("tok123", "on-resume", "npm start", hooks.ViaCLI); err == nil {
 				t.Fatal("expected an error, got nil")
 			}
@@ -205,7 +205,7 @@ func TestMutationLockTimeoutLogging(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "hooks.json")
 			hookstest.HoldHooksSidecar(t, path)
 
-			sink := installCapture(t)
+			sink := logtest.Install(t)
 			if _, err := hooks.NewStore(path).Remove("tok123", "on-resume", hooks.ViaCLI); err == nil {
 				t.Fatal("expected an error, got nil")
 			}
@@ -228,7 +228,7 @@ func TestMutationLockTimeoutLogging(t *testing.T) {
 		}
 		before := readFileBytes(t, path)
 
-		sink := installCapture(t)
+		sink := logtest.Install(t)
 		removed, err := store.Remove("tok123", "on-resume", hooks.ViaCLI)
 		if err != nil {
 			t.Fatalf("Remove: %v", err)
@@ -252,7 +252,7 @@ func TestMutationLockTimeoutLogging(t *testing.T) {
 		}
 		hookstest.HoldHooksSidecar(t, path)
 
-		sink := installCapture(t)
+		sink := logtest.Install(t)
 		removed, err := hooks.NewStore(path).CleanStale(enumerating())
 		if !errors.Is(err, hooks.ErrLockHeld) {
 			t.Fatalf("CleanStale error = %v, want errors.Is ErrLockHeld", err)
@@ -277,7 +277,7 @@ func TestMutationLockTimeoutLogging(t *testing.T) {
 		t.Cleanup(func() { _ = os.Chmod(parent, 0o700) })
 		path := filepath.Join(parent, "portal", "hooks.json")
 
-		sink := installCapture(t)
+		sink := logtest.Install(t)
 		if err := hooks.NewStore(path).Set("tok123", "on-resume", "npm start", hooks.ViaCLI); err == nil {
 			t.Fatal("Set succeeded under a directory that permits no file creation")
 		}

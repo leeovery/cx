@@ -196,30 +196,108 @@ func TestSink_OnlyRecord(t *testing.T) {
 	}
 }
 
-func TestSink_RecordsAtLevel(t *testing.T) {
+func TestSink_RecordsAtOrAboveLevel(t *testing.T) {
 	logger, sink := logtest.NewCaptureLogger(t)
 	logger.Debug("below")
 	logger.Warn("at")
 	logger.Error("above")
 
-	got := sink.RecordsAtLevel(slog.LevelWarn)
+	got := sink.RecordsAtOrAboveLevel(slog.LevelWarn)
 	if len(got) != 2 {
-		t.Fatalf("RecordsAtLevel(WARN) returned %d records, want 2: %+v", len(got), got)
+		t.Fatalf("RecordsAtOrAboveLevel(WARN) returned %d records, want 2: %+v", len(got), got)
 	}
 	if got[0].Msg != "at" || got[1].Msg != "above" {
-		t.Errorf("RecordsAtLevel(WARN) messages = [%q %q], want [\"at\" \"above\"]", got[0].Msg, got[1].Msg)
+		t.Errorf("RecordsAtOrAboveLevel(WARN) messages = [%q %q], want [\"at\" \"above\"]", got[0].Msg, got[1].Msg)
 	}
 
-	if none := sink.RecordsAtLevel(slog.LevelError + 1); none != nil {
-		t.Errorf("RecordsAtLevel above every captured level = %+v, want nil", none)
+	if none := sink.RecordsAtOrAboveLevel(slog.LevelError + 1); none != nil {
+		t.Errorf("RecordsAtOrAboveLevel above every captured level = %+v, want nil", none)
+	}
+}
+
+func TestSink_RecordsAtExactLevelExcludesHigherLevels(t *testing.T) {
+	logger, sink := logtest.NewCaptureLogger(t)
+	logger.Debug("below")
+	logger.Warn("at")
+	logger.Error("above")
+
+	got := sink.RecordsAtExactLevel(slog.LevelWarn)
+	if len(got) != 1 {
+		t.Fatalf("RecordsAtExactLevel(WARN) returned %d records, want 1: %+v", len(got), got)
+	}
+	if got[0].Msg != "at" {
+		t.Errorf("RecordsAtExactLevel(WARN) message = %q, want %q", got[0].Msg, "at")
+	}
+
+	if none := sink.RecordsAtExactLevel(slog.LevelInfo); none != nil {
+		t.Errorf("RecordsAtExactLevel(INFO) = %+v, want nil", none)
+	}
+}
+
+func TestSink_RecordsWithFiltersOnComponentAndMessage(t *testing.T) {
+	logger, sink := logtest.NewCaptureLogger(t)
+	hooks := logger.With("component", "hooks")
+	hooks.Info("clean-stale")
+	hooks.Info("clean-stale")
+	hooks.Info("set")
+	logger.With("component", "projects").Info("clean-stale")
+	logger.Info("clean-stale")
+
+	got := sink.RecordsWith("hooks", "clean-stale")
+	if len(got) != 2 {
+		t.Fatalf("RecordsWith(hooks, clean-stale) returned %d records, want 2: %+v", len(got), got)
+	}
+
+	if none := sink.RecordsWith("hooks", "nothing"); none != nil {
+		t.Errorf("RecordsWith on an unemitted message = %+v, want nil", none)
+	}
+}
+
+func TestSink_OnlyRecordWith(t *testing.T) {
+	logger, sink := logtest.NewCaptureLogger(t)
+	logger.With("component", "hooks").Info("set", "op", "set")
+	logger.With("component", "projects").Info("set", "op", "set")
+
+	rec := sink.OnlyRecordWith(t, "hooks", "set")
+	if got := rec.AttrString(t, "component"); got != "hooks" {
+		t.Errorf("component = %q, want %q", got, "hooks")
+	}
+
+	if !expectFail(func(sub logtest.TestingT) { sink.OnlyRecordWith(sub, "hooks", "rm") }) {
+		t.Errorf("OnlyRecordWith must fail when no record matches")
+	}
+
+	logger.With("component", "hooks").Info("set", "op", "set")
+	if !expectFail(func(sub logtest.TestingT) { sink.OnlyRecordWith(sub, "hooks", "set") }) {
+		t.Errorf("OnlyRecordWith must fail when more than one record matches")
+	}
+}
+
+func TestRecords_FilterChainCombinesLevelAndComponent(t *testing.T) {
+	logger, sink := logtest.NewCaptureLogger(t)
+	logger.With("component", "clean").Warn("orphan killed")
+	logger.With("component", "clean").Error("orphan killed")
+	logger.With("component", "bootstrap").Warn("orphan killed")
+
+	got := sink.RecordsWith("clean", "orphan killed").AtExactLevel(slog.LevelWarn)
+	if len(got) != 1 {
+		t.Fatalf("chained filter returned %d records, want 1: %+v", len(got), got)
+	}
+	if got[0].Level != slog.LevelWarn {
+		t.Errorf("Level = %v, want WARN", got[0].Level)
 	}
 }
 
 type fakeT struct {
 	failed bool
+	errors int
 }
 
 func (f *fakeT) Helper() {}
+
+func (f *fakeT) Errorf(string, ...any) {
+	f.errors++
+}
 
 func (f *fakeT) Fatalf(string, ...any) {
 	f.failed = true

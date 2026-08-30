@@ -45,7 +45,7 @@ func assertLockFailureReachesStderr(t *testing.T, out string, err error) {
 // caller. One line, so the dirty-flag touch cannot have run behind it either.
 func assertOneLockWarn(t *testing.T, sink *logtest.Sink, wantOp, wantKey string) {
 	t.Helper()
-	warns := sink.RecordsAtLevel(slog.LevelWarn)
+	warns := sink.RecordsAtOrAboveLevel(slog.LevelWarn)
 	if len(warns) != 1 {
 		t.Fatalf("WARN record count = %d, want exactly 1: %+v", len(warns), warns)
 	}
@@ -79,7 +79,7 @@ func TestHookSetLockTimeout(t *testing.T) {
 
 		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}})
 
-		sink := installHooksSink(t)
+		sink := logtest.Install(t)
 		out, err := runHookSet(t, "claude --resume abc")
 		assertLockFailureReachesStderr(t, out, err)
 		assertOneLockWarn(t, sink, "set", "tok123")
@@ -211,7 +211,7 @@ func TestHookRmLockTimeout(t *testing.T) {
 
 		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}})
 
-		sink := installHooksSink(t)
+		sink := logtest.Install(t)
 		out, err := runHookRm(t)
 		assertLockFailureReachesStderr(t, out, err)
 		assertOneLockWarn(t, sink, "rm", "tok123")

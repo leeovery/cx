@@ -41,7 +41,7 @@ func TestHydrateTimeoutLog_TookAttrIsDurationNotString(t *testing.T) {
 		t.Fatalf("runHydrate: %v", err)
 	}
 
-	rec := hydrateRecord(t, sink, "signal timeout")
+	rec := sink.OnlyRecordWith(t, "hydrate", "signal timeout")
 	took, ok := rec.Attrs["took"]
 	if !ok {
 		t.Fatalf("signal timeout record missing took attr: %+v", rec.Attrs)

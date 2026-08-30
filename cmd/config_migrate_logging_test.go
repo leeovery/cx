@@ -6,16 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 )
-
-func installMigrateCapture(t *testing.T) *logtest.Sink {
-	t.Helper()
-	sink := &logtest.Sink{}
-	log.SetTestHandler(t, sink)
-	return sink
-}
 
 func seedOldFile(t *testing.T, tmpDir, filename, content string) (oldPath, newPath string) {
 	t.Helper()
@@ -35,26 +27,18 @@ func TestMigrateConfigFileLogging(t *testing.T) {
 	t.Run("emits one INFO migrate via=migrate path=new under component hooks for hooks.json", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		oldPath, newPath := seedOldFile(t, tmpDir, "hooks.json", `{}`)
-		sink := installMigrateCapture(t)
+		sink := logtest.Install(t)
 
 		migrateConfigFile(oldPath, newPath, "hooks")
 
 		rec := sink.OnlyRecord(t)
-		if rec.Level != slog.LevelInfo {
-			t.Errorf("level = %v, want INFO", rec.Level)
-		}
-		if rec.Msg != "migrate" {
-			t.Errorf("msg = %q, want %q", rec.Msg, "migrate")
-		}
-		if got := rec.AttrString(t, "op"); got != "migrate" {
-			t.Errorf("op = %q, want %q", got, "migrate")
-		}
-		if got := rec.AttrString(t, "component"); got != "hooks" {
-			t.Errorf("component = %q, want %q", got, "hooks")
-		}
-		if got := rec.AttrString(t, "via"); got != "migrate" {
-			t.Errorf("via = %q, want %q", got, "migrate")
-		}
+		logtest.AssertRecord(t, rec, logtest.RecordWant{
+			Level:     slog.LevelInfo,
+			Msg:       "migrate",
+			Component: "hooks",
+			Op:        "migrate",
+			Via:       "migrate",
+		})
 		if got := rec.AttrString(t, "path"); got != newPath {
 			t.Errorf("path = %q, want %q", got, newPath)
 		}
@@ -75,26 +59,18 @@ func TestMigrateConfigFileLogging(t *testing.T) {
 			t.Run(tc.filename, func(t *testing.T) {
 				tmpDir := t.TempDir()
 				oldPath, newPath := seedOldFile(t, tmpDir, tc.filename, "data")
-				sink := installMigrateCapture(t)
+				sink := logtest.Install(t)
 
 				migrateConfigFile(oldPath, newPath, tc.component)
 
 				rec := sink.OnlyRecord(t)
-				if rec.Level != slog.LevelInfo {
-					t.Errorf("level = %v, want INFO", rec.Level)
-				}
-				if rec.Msg != "migrate" {
-					t.Errorf("msg = %q, want %q", rec.Msg, "migrate")
-				}
-				if got := rec.AttrString(t, "op"); got != "migrate" {
-					t.Errorf("op = %q, want %q", got, "migrate")
-				}
-				if got := rec.AttrString(t, "component"); got != tc.component {
-					t.Errorf("component = %q, want %q", got, tc.component)
-				}
-				if got := rec.AttrString(t, "via"); got != "migrate" {
-					t.Errorf("via = %q, want %q", got, "migrate")
-				}
+				logtest.AssertRecord(t, rec, logtest.RecordWant{
+					Level:     slog.LevelInfo,
+					Msg:       "migrate",
+					Component: tc.component,
+					Op:        "migrate",
+					Via:       "migrate",
+				})
 				if got := rec.AttrString(t, "path"); got != newPath {
 					t.Errorf("path = %q, want %q", got, newPath)
 				}
@@ -106,7 +82,7 @@ func TestMigrateConfigFileLogging(t *testing.T) {
 		tmpDir := t.TempDir()
 		oldPath := filepath.Join(tmpDir, "nonexistent", "portal", "projects.json")
 		newPath := filepath.Join(tmpDir, ".config", "portal", "projects.json")
-		sink := installMigrateCapture(t)
+		sink := logtest.Install(t)
 
 		migrateConfigFile(oldPath, newPath, "projects")
 
@@ -124,7 +100,7 @@ func TestMigrateConfigFileLogging(t *testing.T) {
 		if err := os.WriteFile(newPath, []byte("new"), 0o644); err != nil {
 			t.Fatalf("failed to write new file: %v", err)
 		}
-		sink := installMigrateCapture(t)
+		sink := logtest.Install(t)
 
 		migrateConfigFile(oldPath, newPath, "projects")
 
@@ -149,7 +125,7 @@ func TestMigrateConfigFileLogging(t *testing.T) {
 		t.Cleanup(func() { _ = os.Chmod(newDir, 0o755) })
 		newPath := filepath.Join(newDir, "projects.json")
 
-		sink := installMigrateCapture(t)
+		sink := logtest.Install(t)
 
 		migrateConfigFile(oldPath, newPath, "projects")
 
@@ -174,26 +150,18 @@ func TestMigrateConfigFileLogging(t *testing.T) {
 		t.Cleanup(func() { _ = os.Chmod(newDir, 0o755) })
 		newPath := filepath.Join(newDir, "projects.json")
 
-		sink := installMigrateCapture(t)
+		sink := logtest.Install(t)
 
 		migrateConfigFile(oldPath, newPath, "projects")
 
 		rec := sink.OnlyRecord(t)
-		if rec.Level != slog.LevelWarn {
-			t.Errorf("level = %v, want WARN", rec.Level)
-		}
-		if rec.Msg != "migrate" {
-			t.Errorf("msg = %q, want %q", rec.Msg, "migrate")
-		}
-		if got := rec.AttrString(t, "op"); got != "migrate" {
-			t.Errorf("op = %q, want %q", got, "migrate")
-		}
-		if got := rec.AttrString(t, "component"); got != "projects" {
-			t.Errorf("component = %q, want %q", got, "projects")
-		}
-		if got := rec.AttrString(t, "via"); got != "migrate" {
-			t.Errorf("via = %q, want %q", got, "migrate")
-		}
+		logtest.AssertRecord(t, rec, logtest.RecordWant{
+			Level:     slog.LevelWarn,
+			Msg:       "migrate",
+			Component: "projects",
+			Op:        "migrate",
+			Via:       "migrate",
+		})
 		if got := rec.AttrString(t, "path"); got != newPath {
 			t.Errorf("path = %q, want %q", got, newPath)
 		}
@@ -222,23 +190,18 @@ func TestMigrateConfigFileLogging(t *testing.T) {
 		t.Cleanup(func() { _ = os.Chmod(roDir, 0o755) })
 		newPath := filepath.Join(roDir, "portal", "projects.json")
 
-		sink := installMigrateCapture(t)
+		sink := logtest.Install(t)
 
 		migrateConfigFile(oldPath, newPath, "projects")
 
 		rec := sink.OnlyRecord(t)
-		if rec.Level != slog.LevelWarn {
-			t.Errorf("level = %v, want WARN", rec.Level)
-		}
-		if rec.Msg != "migrate" {
-			t.Errorf("msg = %q, want %q", rec.Msg, "migrate")
-		}
-		if got := rec.AttrString(t, "op"); got != "migrate" {
-			t.Errorf("op = %q, want %q", got, "migrate")
-		}
-		if got := rec.AttrString(t, "via"); got != "migrate" {
-			t.Errorf("via = %q, want %q", got, "migrate")
-		}
+		logtest.AssertRecord(t, rec, logtest.RecordWant{
+			Level:     slog.LevelWarn,
+			Msg:       "migrate",
+			Component: "projects",
+			Op:        "migrate",
+			Via:       "migrate",
+		})
 		if got := rec.AttrString(t, "path"); got != filepath.Dir(newPath) {
 			t.Errorf("path = %q, want %q", got, filepath.Dir(newPath))
 		}
@@ -253,7 +216,7 @@ func TestMigrateConfigFileLogging(t *testing.T) {
 	t.Run("emits nothing and does not panic when component is empty (unmapped)", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		oldPath, newPath := seedOldFile(t, tmpDir, "projects.json", "data")
-		sink := installMigrateCapture(t)
+		sink := logtest.Install(t)
 
 		migrateConfigFile(oldPath, newPath, "")
 
@@ -283,7 +246,7 @@ func TestConfigFilePathThreadsComponent(t *testing.T) {
 			t.Fatalf("failed to write old file: %v", err)
 		}
 
-		sink := installMigrateCapture(t)
+		sink := logtest.Install(t)
 
 		if _, err := configFilePath("TEST_THREADS_UNSET", "hooks.json"); err != nil {
 			t.Fatalf("unexpected error: %v", err)

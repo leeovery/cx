@@ -13,6 +13,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/theme"
 )
@@ -64,7 +65,7 @@ func assertPrefsOnDisk(t *testing.T, path string, want prefsOnDisk) {
 func TestPersistTranslation_WritesAndEmits(t *testing.T) {
 	path := setPrefsFile(t, `{"session_list_mode":"by-tag","appearance":"dark"}`)
 	syncPersistTranslation(t)
-	sink := installMigrateCapture(t)
+	sink := logtest.Install(t)
 
 	load := migratingLoadForTest(t)
 
@@ -86,12 +87,12 @@ func TestPersistTranslation_OneShot(t *testing.T) {
 	path := setPrefsFile(t, `{"appearance":"dark"}`)
 	syncPersistTranslation(t)
 
-	first := installMigrateCapture(t)
+	first := logtest.Install(t)
 	migratingLoadForTest(t)
 	assertThemeEvents(t, first, migratedEvent(theme.DefaultDarkSlug))
 	migrated := prefsBytes(t, path)
 
-	second := installMigrateCapture(t)
+	second := logtest.Install(t)
 	load := migratingLoadForTest(t)
 
 	assertLoad(t, load, prefsLoad{Keys: prefs.ThemeKeys{Theme: theme.DefaultDarkSlug}})
@@ -113,7 +114,7 @@ func TestPersistTranslation_MarkerOnlyIsSilent(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			path := setPrefsFile(t, tc.content)
 			syncPersistTranslation(t)
-			sink := installMigrateCapture(t)
+			sink := logtest.Install(t)
 
 			migratingLoadForTest(t)
 
@@ -125,7 +126,7 @@ func TestPersistTranslation_MarkerOnlyIsSilent(t *testing.T) {
 	t.Run("an absent prefs.json is neither created nor announced", func(t *testing.T) {
 		path := setPrefsFile(t, "")
 		syncPersistTranslation(t)
-		sink := installMigrateCapture(t)
+		sink := logtest.Install(t)
 
 		migratingLoadForTest(t)
 
@@ -141,7 +142,7 @@ func TestPersistTranslation_FailureIsSilentAndRetryable(t *testing.T) {
 		const malformed = `{"appearance":"dark",`
 		path := setPrefsFile(t, malformed)
 		syncPersistTranslation(t)
-		sink := installMigrateCapture(t)
+		sink := logtest.Install(t)
 
 		migratingLoadForTest(t)
 
@@ -155,7 +156,7 @@ func TestPersistTranslation_FailureIsSilentAndRetryable(t *testing.T) {
 		path := setPrefsFile(t, seeded)
 		makePrefsDirUnwritable(t, path)
 		syncPersistTranslation(t)
-		sink := installMigrateCapture(t)
+		sink := logtest.Install(t)
 
 		migratingLoadForTest(t)
 
@@ -180,7 +181,7 @@ func TestPersistTranslation_NeverEmitsCommitFailed(t *testing.T) {
 			path := setPrefsFile(t, tc.content)
 			makePrefsDirUnwritable(t, path)
 			syncPersistTranslation(t)
-			sink := installMigrateCapture(t)
+			sink := logtest.Install(t)
 
 			migratingLoadForTest(t)
 
@@ -206,7 +207,7 @@ func TestLoadPrefsStore_PersistIsNonBlocking(t *testing.T) {
 		const seeded = `{"appearance":"dark"}`
 		path := setPrefsFile(t, seeded)
 		dispatched := recordPersistTranslation(t)
-		sink := installMigrateCapture(t)
+		sink := logtest.Install(t)
 
 		load := migratingLoadForTest(t)
 
@@ -225,7 +226,7 @@ func TestLoadPrefsStore_PersistIsNonBlocking(t *testing.T) {
 		t.Run("the write lands", func(t *testing.T) {
 			setPrefsFile(t, `{"appearance":"dark"}`)
 			syncPersistTranslation(t)
-			installMigrateCapture(t)
+			logtest.Install(t)
 
 			assertLoad(t, migratingLoadForTest(t), want)
 		})
@@ -258,7 +259,7 @@ func TestLoadPrefsStore_PersistIsNonBlocking(t *testing.T) {
 func TestPersistTranslation_DoesNotRevertAConcurrentCommit(t *testing.T) {
 	path := setPrefsFile(t, `{"appearance":"dark"}`)
 	dispatched := recordPersistTranslation(t)
-	sink := installMigrateCapture(t)
+	sink := logtest.Install(t)
 
 	load := migratingLoadForTest(t)
 	assertDispatched(t, dispatched, load.Store, theme.DefaultDarkSlug)
@@ -296,12 +297,12 @@ func TestPersistTranslation_ConcurrentInstancesConverge(t *testing.T) {
 		winner := migratingLoadForTest(t)
 		loser := migratingLoadForTest(t)
 
-		won := installMigrateCapture(t)
+		won := logtest.Install(t)
 		runTranslationPersist(winner.Store, winner.TranslatedSlug)
 		assertThemeEvents(t, won, migratedEvent(theme.DefaultDarkSlug))
 		migrated := prefsBytes(t, path)
 
-		lost := installMigrateCapture(t)
+		lost := logtest.Install(t)
 		runTranslationPersist(loser.Store, loser.TranslatedSlug)
 
 		assertPrefsUnchanged(t, path, migrated)
@@ -315,7 +316,7 @@ func TestPersistTranslation_ConcurrentInstancesConverge(t *testing.T) {
 	t.Run("a genuine race converges on one file and one line per persister", func(t *testing.T) {
 		path := setPrefsFile(t, `{"appearance":"dark"}`)
 		dispatched := recordPersistTranslation(t)
-		sink := installMigrateCapture(t)
+		sink := logtest.Install(t)
 
 		instances := []prefsLoad{migratingLoadForTest(t), migratingLoadForTest(t)}
 		if len(dispatched.calls) != len(instances) {
@@ -347,7 +348,7 @@ func TestPersistTranslation_ConcurrentInstancesConverge(t *testing.T) {
 func TestPersistTranslation_EventShape(t *testing.T) {
 	setPrefsFile(t, `{"appearance":"light"}`)
 	syncPersistTranslation(t)
-	sink := installMigrateCapture(t)
+	sink := logtest.Install(t)
 
 	migratingLoadForTest(t)
 
@@ -404,7 +405,7 @@ func TestOpenExecPath_NoTranslation(t *testing.T) {
 	const seeded = `{"appearance":"dark"}`
 	path := setPrefsFile(t, seeded)
 	dispatched := recordPersistTranslation(t)
-	sink := installMigrateCapture(t)
+	sink := logtest.Install(t)
 
 	if got := execOpenSession(t, "api-x7Kd9a"); got != "api-x7Kd9a" {
 		t.Fatalf("open attached %q, want the session it resolved — the exec path must have run", got)

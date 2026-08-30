@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/leeovery/portal/internal/hooks"
-	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
 )
@@ -42,25 +41,6 @@ func signalFIFOAsync(t *testing.T, fifo string) {
 		_, _ = f.Write([]byte("X"))
 		_ = f.Close()
 	}()
-}
-
-// hydrateRecord returns the single hydrate record carrying msg. It works on
-// records rather than rendered text because substring matching cannot
-// distinguish a structured attr (a slog.KindDuration took, an int bytes) from a
-// stringified one.
-func hydrateRecord(t *testing.T, sink *logtest.Sink, msg string) logtest.Record {
-	t.Helper()
-	var out []logtest.Record
-	for _, r := range sink.Records() {
-		if comp, ok := r.Attrs["component"]; !ok || comp.String() != "hydrate" || r.Msg != msg {
-			continue
-		}
-		out = append(out, r)
-	}
-	if len(out) != 1 {
-		t.Fatalf("expected exactly 1 hydrate %q record, got %d: %+v", msg, len(out), sink.Records())
-	}
-	return out[0]
 }
 
 type stubExecShell struct {

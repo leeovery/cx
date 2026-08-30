@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/statetest"
 )
@@ -115,7 +116,7 @@ func TestWriteFIFOSignal_RetriesOnENXIOPerLadder(t *testing.T) {
 }
 
 func TestWriteFIFOSignal_EmitsRetryDebugUnderSignal(t *testing.T) {
-	sink := installFIFOSummarySink(t)
+	sink := logtest.Install(t)
 
 	r, w, err := os.Pipe()
 	if err != nil {
@@ -141,7 +142,7 @@ func TestWriteFIFOSignal_EmitsRetryDebugUnderSignal(t *testing.T) {
 		t.Fatalf("WriteFIFOSignal: %v", err)
 	}
 
-	dbg := sink.matching(slog.LevelDebug, "signal", "fifo signal retrying")
+	dbg := sink.RecordsWith("signal", "fifo signal retrying").AtExactLevel(slog.LevelDebug)
 	if len(dbg) != 1 {
 		t.Fatalf("expected 1 DEBUG 'fifo signal retrying' under component=signal (one retryable transition), got %d: %+v", len(dbg), sink.Records())
 	}
@@ -161,7 +162,7 @@ func TestWriteFIFOSignal_EmitsRetryDebugUnderSignal(t *testing.T) {
 }
 
 func TestWriteFIFOSignal_RetryDebugOncePerRetryTransition(t *testing.T) {
-	sink := installFIFOSummarySink(t)
+	sink := logtest.Install(t)
 
 	open := func(_ string) (*os.File, error) { return nil, syscall.ENXIO }
 	sleep := &statetest.RecordingSleep{}
@@ -171,7 +172,7 @@ func TestWriteFIFOSignal_RetryDebugOncePerRetryTransition(t *testing.T) {
 		t.Fatalf("expected retry-exhaustion error, got nil")
 	}
 
-	dbg := sink.matching(slog.LevelDebug, "signal", "fifo signal retrying")
+	dbg := sink.RecordsWith("signal", "fifo signal retrying").AtExactLevel(slog.LevelDebug)
 	if len(dbg) != len(state.SignalHydrateRetryDelays) {
 		t.Errorf("retry DEBUG count = %d; want %d (one per sleep+retry transition)", len(dbg), len(state.SignalHydrateRetryDelays))
 	}

@@ -20,13 +20,6 @@ import (
 	"github.com/leeovery/portal/internal/logtest"
 )
 
-func installCapture(t *testing.T) *logtest.Sink {
-	t.Helper()
-	sink := &logtest.Sink{}
-	log.SetTestHandler(t, sink)
-	return sink
-}
-
 // readFileBytes returns the file's exact bytes, so a test can assert a no-op
 // left the file untouched rather than rewritten to equivalent content.
 func readFileBytes(t *testing.T, path string) []byte {
@@ -986,7 +979,7 @@ func TestCleanStaleLogging(t *testing.T) {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
 
-		sink := installCapture(t)
+		sink := logtest.Install(t)
 		removed, err := store.CleanStale(enumerating("my-session:0.0"))
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -1041,7 +1034,7 @@ func TestCleanStaleLogging(t *testing.T) {
 		}
 		store := hooks.NewStore(path)
 
-		sink := installCapture(t)
+		sink := logtest.Install(t)
 		if _, err := store.CleanStale(enumerating("my-session:0.0")); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -1066,7 +1059,7 @@ func TestCleanStaleLogging(t *testing.T) {
 		}
 		store := hooks.NewStore(path)
 
-		sink := installCapture(t)
+		sink := logtest.Install(t)
 		if _, err := store.CleanStale(enumerating("my-session:0.0")); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -1083,7 +1076,7 @@ func TestCleanStaleLogging(t *testing.T) {
 	t.Run("it emits no per-key lines and warns in the summary when the save fails", func(t *testing.T) {
 		body := fmt.Appendf(nil, `{%q:{"on-resume":"cmdA"}}`, reapableSeedA)
 		store, seeded := seedThenDenyWrites(t, body)
-		sink := installCapture(t)
+		sink := logtest.Install(t)
 
 		if _, err := store.CleanStale(enumerating("my-session:0.0")); err == nil {
 			t.Fatal("expected error from CleanStale on read-only dir, got nil")
@@ -1124,7 +1117,7 @@ func TestCleanStaleLogging(t *testing.T) {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
 
-		sink := installCapture(t)
+		sink := logtest.Install(t)
 		if _, err := store.CleanStale(enumerating("my-session:0.0")); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -1147,7 +1140,7 @@ func TestCleanStaleLogging(t *testing.T) {
 
 	t.Run("emits WARN with write-failed-* error_class (not unexpected) when the batched Save fails", func(t *testing.T) {
 		store, _ := seedThenDenyWrites(t, fmt.Appendf(nil, `{%q:{"on-resume":"x"},%q:{"on-resume":"y"}}`, reapableSeedA, reapableSeedB))
-		sink := installCapture(t)
+		sink := logtest.Install(t)
 
 		_, err := store.CleanStale(enumerating())
 		if err == nil {
@@ -1213,7 +1206,7 @@ func TestCleanStaleLogging(t *testing.T) {
 			t.Fatalf("failed to stat file: %v", err)
 		}
 
-		sink := installCapture(t)
+		sink := logtest.Install(t)
 		removed, err := store.CleanStale(enumerating("my-session:0.0"))
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -1240,33 +1233,25 @@ func TestSetLogging(t *testing.T) {
 	t.Run("emits INFO op=set with value and via=cli for a new hook key", func(t *testing.T) {
 		dir := t.TempDir()
 		store := hooks.NewStore(filepath.Join(dir, "hooks.json"))
-		sink := installCapture(t)
+		sink := logtest.Install(t)
 
 		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
 		rec := sink.OnlyRecord(t)
-		if rec.Level != slog.LevelInfo {
-			t.Errorf("level = %v, want INFO", rec.Level)
-		}
-		if rec.Msg != "set" {
-			t.Errorf("msg = %q, want %q", rec.Msg, "set")
-		}
-		if got := rec.AttrString(t, "op"); got != "set" {
-			t.Errorf("op = %q, want %q", got, "set")
-		}
-		if got := rec.AttrString(t, "component"); got != "hooks" {
-			t.Errorf("component = %q, want %q", got, "hooks")
-		}
+		logtest.AssertRecord(t, rec, logtest.RecordWant{
+			Level:     slog.LevelInfo,
+			Msg:       "set",
+			Component: "hooks",
+			Op:        "set",
+			Via:       "cli",
+		})
 		if got := rec.AttrString(t, "hook_key"); got != "my-session:0.0" {
 			t.Errorf("hook_key = %q, want %q", got, "my-session:0.0")
 		}
 		if got := rec.AttrString(t, "value"); got != "claude --resume abc123" {
 			t.Errorf("value = %q, want %q", got, "claude --resume abc123")
-		}
-		if got := rec.AttrString(t, "via"); got != "cli" {
-			t.Errorf("via = %q, want %q", got, "cli")
 		}
 	})
 
@@ -1278,32 +1263,24 @@ func TestSetLogging(t *testing.T) {
 			t.Fatalf("unexpected error on first set: %v", err)
 		}
 
-		sink := installCapture(t)
+		sink := logtest.Install(t)
 		if err := store.Set("my-session:0.0", "on-resume", "claude --resume xyz789", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error on second set: %v", err)
 		}
 
 		rec := sink.OnlyRecord(t)
-		if rec.Level != slog.LevelInfo {
-			t.Errorf("level = %v, want INFO", rec.Level)
-		}
-		if rec.Msg != "modify" {
-			t.Errorf("msg = %q, want %q", rec.Msg, "modify")
-		}
-		if got := rec.AttrString(t, "op"); got != "modify" {
-			t.Errorf("op = %q, want %q", got, "modify")
-		}
-		if got := rec.AttrString(t, "component"); got != "hooks" {
-			t.Errorf("component = %q, want %q", got, "hooks")
-		}
+		logtest.AssertRecord(t, rec, logtest.RecordWant{
+			Level:     slog.LevelInfo,
+			Msg:       "modify",
+			Component: "hooks",
+			Op:        "modify",
+			Via:       "cli",
+		})
 		if got := rec.AttrString(t, "hook_key"); got != "my-session:0.0" {
 			t.Errorf("hook_key = %q, want %q", got, "my-session:0.0")
 		}
 		if got := rec.AttrString(t, "value"); got != "claude --resume xyz789" {
 			t.Errorf("value = %q, want %q", got, "claude --resume xyz789")
-		}
-		if got := rec.AttrString(t, "via"); got != "cli" {
-			t.Errorf("via = %q, want %q", got, "cli")
 		}
 	})
 
@@ -1321,29 +1298,21 @@ func TestSetLogging(t *testing.T) {
 			t.Fatalf("failed to stat file: %v", err)
 		}
 
-		sink := installCapture(t)
+		sink := logtest.Install(t)
 		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error on noop set: %v", err)
 		}
 
 		rec := sink.OnlyRecord(t)
-		if rec.Level != slog.LevelDebug {
-			t.Errorf("level = %v, want DEBUG", rec.Level)
-		}
-		if rec.Msg != "set-noop" {
-			t.Errorf("msg = %q, want %q", rec.Msg, "set-noop")
-		}
-		if got := rec.AttrString(t, "op"); got != "set-noop" {
-			t.Errorf("op = %q, want %q", got, "set-noop")
-		}
-		if got := rec.AttrString(t, "component"); got != "hooks" {
-			t.Errorf("component = %q, want %q", got, "hooks")
-		}
+		logtest.AssertRecord(t, rec, logtest.RecordWant{
+			Level:     slog.LevelDebug,
+			Msg:       "set-noop",
+			Component: "hooks",
+			Op:        "set-noop",
+			Via:       "cli",
+		})
 		if got := rec.AttrString(t, "hook_key"); got != "my-session:0.0" {
 			t.Errorf("hook_key = %q, want %q", got, "my-session:0.0")
-		}
-		if got := rec.AttrString(t, "via"); got != "cli" {
-			t.Errorf("via = %q, want %q", got, "cli")
 		}
 		if _, ok := rec.Attrs["value"]; ok {
 			t.Errorf("set-noop record should not carry a value attr: %+v", rec.Attrs)
@@ -1360,7 +1329,7 @@ func TestSetLogging(t *testing.T) {
 
 	t.Run("emits WARN with error_class=write-failed-temp-create when AtomicWrite fails on Set", func(t *testing.T) {
 		store, _ := seedThenDenyWrites(t, nil)
-		sink := installCapture(t)
+		sink := logtest.Install(t)
 
 		err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI)
 		if err == nil {
@@ -1431,7 +1400,7 @@ func TestRemoveLogging(t *testing.T) {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
 
-		sink := installCapture(t)
+		sink := logtest.Install(t)
 		removed, err := store.Remove("my-session:0.0", "on-resume", hooks.ViaCLI)
 		if err != nil {
 			t.Fatalf("unexpected error on remove: %v", err)
@@ -1441,23 +1410,15 @@ func TestRemoveLogging(t *testing.T) {
 		}
 
 		rec := sink.OnlyRecord(t)
-		if rec.Level != slog.LevelInfo {
-			t.Errorf("level = %v, want INFO", rec.Level)
-		}
-		if rec.Msg != "rm" {
-			t.Errorf("msg = %q, want %q", rec.Msg, "rm")
-		}
-		if got := rec.AttrString(t, "op"); got != "rm" {
-			t.Errorf("op = %q, want %q", got, "rm")
-		}
-		if got := rec.AttrString(t, "component"); got != "hooks" {
-			t.Errorf("component = %q, want %q", got, "hooks")
-		}
+		logtest.AssertRecord(t, rec, logtest.RecordWant{
+			Level:     slog.LevelInfo,
+			Msg:       "rm",
+			Component: "hooks",
+			Op:        "rm",
+			Via:       "cli",
+		})
 		if got := rec.AttrString(t, "hook_key"); got != "my-session:0.0" {
 			t.Errorf("hook_key = %q, want %q", got, "my-session:0.0")
-		}
-		if got := rec.AttrString(t, "via"); got != "cli" {
-			t.Errorf("via = %q, want %q", got, "cli")
 		}
 		if _, ok := rec.Attrs["value"]; ok {
 			t.Errorf("rm record should not carry a value attr: %+v", rec.Attrs)
@@ -1503,7 +1464,7 @@ func TestRemoveLogging(t *testing.T) {
 					}
 				}
 
-				sink := installCapture(t)
+				sink := logtest.Install(t)
 				removed, err := store.Remove(tc.key, tc.ev, hooks.ViaCLI)
 				if err != nil {
 					t.Fatalf("unexpected error on remove: %v", err)
@@ -1521,7 +1482,7 @@ func TestRemoveLogging(t *testing.T) {
 
 	t.Run("emits WARN with error_class=write-failed-temp-create when AtomicWrite fails on Remove", func(t *testing.T) {
 		store, _ := seedThenDenyWrites(t, []byte(`{"my-session:0.0":{"on-resume":"claude --resume abc123"}}`))
-		sink := installCapture(t)
+		sink := logtest.Install(t)
 
 		removed, err := store.Remove("my-session:0.0", "on-resume", hooks.ViaCLI)
 		if err == nil {

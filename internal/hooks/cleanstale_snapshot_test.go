@@ -12,6 +12,7 @@ import (
 
 	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/hookstest"
+	"github.com/leeovery/portal/internal/logtest"
 )
 
 // enumerating answers tokens as the live set whatever the snapshot holds: the
@@ -136,7 +137,7 @@ func TestCleanStaleSnapshotNarrowing(t *testing.T) {
 		before := string(readFileBytes(t, path))
 
 		sentinel := errors.New("nothing to enumerate")
-		sink := installCapture(t)
+		sink := logtest.Install(t)
 
 		removed, err := store.CleanStale(func(hooks.Snapshot) ([]string, error) { return nil, sentinel })
 		if !errors.Is(err, sentinel) {

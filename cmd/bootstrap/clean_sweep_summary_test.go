@@ -11,55 +11,8 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-type cleanSummarySink struct {
-	*logtest.Sink
-}
-
-func (s *cleanSummarySink) summariesFor(comp, msg string) []logtest.Record {
-	var out []logtest.Record
-	for _, r := range s.Records() {
-		c, ok := r.Attrs["component"]
-		if !ok || c.String() != comp || r.Msg != msg {
-			continue
-		}
-		out = append(out, r)
-	}
-	return out
-}
-
-func (s *cleanSummarySink) onlySummary(t *testing.T, comp, msg string) logtest.Record {
-	t.Helper()
-	sums := s.summariesFor(comp, msg)
-	if len(sums) != 1 {
-		t.Fatalf("expected exactly 1 %q %q summary, got %d: %+v", comp, msg, len(sums), s.Records())
-	}
-	return sums[0]
-}
-
-func installCleanSummarySink(t *testing.T) *cleanSummarySink {
-	t.Helper()
-	sink := &cleanSummarySink{Sink: &logtest.Sink{}}
-	log.SetTestHandler(t, sink.Sink)
-	return sink
-}
-
-func (s *cleanSummarySink) matching(level slog.Level, comp, msg string) []logtest.Record {
-	var out []logtest.Record
-	for _, r := range s.Records() {
-		if r.Level != level || r.Msg != msg {
-			continue
-		}
-		c, ok := r.Attrs["component"]
-		if !ok || c.String() != comp {
-			continue
-		}
-		out = append(out, r)
-	}
-	return out
-}
-
 func TestSweepOrphanDaemons_EmitsCleanSummaryCountingSuccessfulKills(t *testing.T) {
-	sink := installCleanSummarySink(t)
+	sink := logtest.Install(t)
 	identify := &recordingIdentify{def: identifyOutcome{res: state.IdentifyIsPortalDaemon}}
 	kill := &recordingKill{}
 
@@ -74,7 +27,7 @@ func TestSweepOrphanDaemons_EmitsCleanSummaryCountingSuccessfulKills(t *testing.
 		t.Fatalf("SweepOrphanDaemons returned error: %v", err)
 	}
 
-	rec := sink.onlySummary(t, "clean", "orphan-daemon sweep complete")
+	rec := sink.OnlyRecordWith(t, "clean", "orphan-daemon sweep complete")
 	if rec.Level != slog.LevelInfo {
 		t.Errorf("summary level = %v, want INFO", rec.Level)
 	}
@@ -85,7 +38,7 @@ func TestSweepOrphanDaemons_EmitsCleanSummaryCountingSuccessfulKills(t *testing.
 }
 
 func TestSweepOrphanDaemons_DemotesPerKillInfoToDebug(t *testing.T) {
-	sink := installCleanSummarySink(t)
+	sink := logtest.Install(t)
 	identify := &recordingIdentify{def: identifyOutcome{res: state.IdentifyIsPortalDaemon}}
 	kill := &recordingKill{}
 
@@ -108,7 +61,7 @@ func TestSweepOrphanDaemons_DemotesPerKillInfoToDebug(t *testing.T) {
 			t.Errorf("old per-kill INFO message must be gone: %+v", r)
 		}
 	}
-	dbg := sink.matching(slog.LevelDebug, "clean", "orphan killed")
+	dbg := sink.RecordsWith("clean", "orphan killed").AtExactLevel(slog.LevelDebug)
 	if len(dbg) != 1 {
 		t.Fatalf("expected 1 DEBUG 'orphan killed' under clean, got %d: %+v", len(dbg), sink.Records())
 	}
@@ -118,7 +71,7 @@ func TestSweepOrphanDaemons_DemotesPerKillInfoToDebug(t *testing.T) {
 }
 
 func TestSweepOrphanDaemons_ExcludesSkippedAndFailedFromKilled(t *testing.T) {
-	sink := installCleanSummarySink(t)
+	sink := logtest.Install(t)
 	identify := &recordingIdentify{
 		results: map[int]identifyOutcome{
 			3001: {res: state.IdentifyNotPortalDaemon},
@@ -139,23 +92,23 @@ func TestSweepOrphanDaemons_ExcludesSkippedAndFailedFromKilled(t *testing.T) {
 		t.Fatalf("SweepOrphanDaemons returned error: %v", err)
 	}
 
-	rec := sink.onlySummary(t, "clean", "orphan-daemon sweep complete")
+	rec := sink.OnlyRecordWith(t, "clean", "orphan-daemon sweep complete")
 	if got := rec.IntAttr(t, "killed"); got != 1 {
 		t.Errorf("killed = %d, want 1 (excludes skip + failed kill)", got)
 	}
 
-	skips := sink.matching(slog.LevelDebug, "bootstrap", "sweep: pid not identity-checked as portal daemon, skipping")
+	skips := sink.RecordsWith("bootstrap", "sweep: pid not identity-checked as portal daemon, skipping").AtExactLevel(slog.LevelDebug)
 	if len(skips) != 1 {
 		t.Errorf("expected 1 identity-skip DEBUG under bootstrap, got %d: %+v", len(skips), sink.Records())
 	}
-	warns := sink.matching(slog.LevelWarn, "bootstrap", "sweep: kill failed")
+	warns := sink.RecordsWith("bootstrap", "sweep: kill failed").AtExactLevel(slog.LevelWarn)
 	if len(warns) != 1 {
 		t.Errorf("expected 1 kill-failure WARN under bootstrap, got %d: %+v", len(warns), sink.Records())
 	}
 }
 
 func TestSweepOrphanDaemons_NoSummaryWhenPgrepFails(t *testing.T) {
-	sink := installCleanSummarySink(t)
+	sink := logtest.Install(t)
 	c := &OrphanSweepCore{
 		Pgrep:        func() ([]int, error) { return nil, errors.New("pgrep boom") },
 		SaverPanePID: func() (pid int, present bool, err error) { return 0, false, nil },
@@ -167,13 +120,13 @@ func TestSweepOrphanDaemons_NoSummaryWhenPgrepFails(t *testing.T) {
 		t.Fatalf("SweepOrphanDaemons returned error: %v", err)
 	}
 
-	if got := sink.summariesFor("clean", "orphan-daemon sweep complete"); len(got) != 0 {
+	if got := sink.RecordsWith("clean", "orphan-daemon sweep complete"); len(got) != 0 {
 		t.Errorf("expected no summary on pgrep failure (returns before loop), got %d: %+v", len(got), got)
 	}
 }
 
 func TestSweepOrphanDaemons_SummaryWithZeroKilledWhenSaverPanePIDErrors(t *testing.T) {
-	sink := installCleanSummarySink(t)
+	sink := logtest.Install(t)
 	identify := &recordingIdentify{def: identifyOutcome{res: state.IdentifyDead}}
 	kill := &recordingKill{}
 
@@ -188,7 +141,7 @@ func TestSweepOrphanDaemons_SummaryWithZeroKilledWhenSaverPanePIDErrors(t *testi
 		t.Fatalf("SweepOrphanDaemons returned error: %v", err)
 	}
 
-	rec := sink.onlySummary(t, "clean", "orphan-daemon sweep complete")
+	rec := sink.OnlyRecordWith(t, "clean", "orphan-daemon sweep complete")
 	if got := rec.IntAttr(t, "killed"); got != 0 {
 		t.Errorf("killed = %d, want 0", got)
 	}
@@ -196,7 +149,7 @@ func TestSweepOrphanDaemons_SummaryWithZeroKilledWhenSaverPanePIDErrors(t *testi
 }
 
 func TestCleanStaleMarkers_EmitsCleanSummaryCountingSuccessfulUnsets(t *testing.T) {
-	sink := installCleanSummarySink(t)
+	sink := logtest.Install(t)
 	lister := &fakeMarkerLister{markers: map[string]struct{}{
 		"stale1__0.0": {},
 		"stale2__1.2": {},
@@ -215,7 +168,7 @@ func TestCleanStaleMarkers_EmitsCleanSummaryCountingSuccessfulUnsets(t *testing.
 		t.Fatalf("CleanStaleMarkers returned error: %v", err)
 	}
 
-	rec := sink.onlySummary(t, "clean", "marker sweep complete")
+	rec := sink.OnlyRecordWith(t, "clean", "marker sweep complete")
 	if rec.Level != slog.LevelInfo {
 		t.Errorf("summary level = %v, want INFO", rec.Level)
 	}
@@ -226,7 +179,7 @@ func TestCleanStaleMarkers_EmitsCleanSummaryCountingSuccessfulUnsets(t *testing.
 }
 
 func TestCleanStaleMarkers_SummaryUnsetCountsOnlySuccessfulUnsets(t *testing.T) {
-	sink := installCleanSummarySink(t)
+	sink := logtest.Install(t)
 	lister := &fakeMarkerLister{markers: map[string]struct{}{
 		"a__0.0": {},
 		"b__0.0": {},
@@ -250,14 +203,14 @@ func TestCleanStaleMarkers_SummaryUnsetCountsOnlySuccessfulUnsets(t *testing.T) 
 		t.Errorf("expected returned error to wrap sentinel %v, got %v", sentinel, err)
 	}
 
-	rec := sink.onlySummary(t, "clean", "marker sweep complete")
+	rec := sink.OnlyRecordWith(t, "clean", "marker sweep complete")
 	if got := rec.IntAttr(t, "unset"); got != 2 {
 		t.Errorf("unset = %d, want 2 (counts successful unsets only)", got)
 	}
 }
 
 func TestCleanStaleMarkers_SummaryUnsetZeroOnMassUnsetHazardDeferral(t *testing.T) {
-	sink := installCleanSummarySink(t)
+	sink := logtest.Install(t)
 	lister := &fakeMarkerLister{markers: map[string]struct{}{
 		"protected__0.0": {},
 		"another__1.2":   {},
@@ -278,11 +231,11 @@ func TestCleanStaleMarkers_SummaryUnsetZeroOnMassUnsetHazardDeferral(t *testing.
 		t.Errorf("expected zero unset calls under deferral, got %v", unsetter.calls)
 	}
 
-	rec := sink.onlySummary(t, "clean", "marker sweep complete")
+	rec := sink.OnlyRecordWith(t, "clean", "marker sweep complete")
 	if got := rec.IntAttr(t, "unset"); got != 0 {
 		t.Errorf("unset = %d, want 0 (never a false unset on deferral)", got)
 	}
-	warns := sink.matching(slog.LevelWarn, "bootstrap", "stale-marker cleanup: zero live panes parsed with markers present; skipping to avoid mass-unset hazard (next bootstrap retries)")
+	warns := sink.RecordsWith("bootstrap", "stale-marker cleanup: zero live panes parsed with markers present; skipping to avoid mass-unset hazard (next bootstrap retries)").AtExactLevel(slog.LevelWarn)
 	if len(warns) != 1 {
 		t.Errorf("expected 1 deferral WARN under bootstrap, got %d: %+v", len(warns), sink.Records())
 	}
@@ -290,7 +243,7 @@ func TestCleanStaleMarkers_SummaryUnsetZeroOnMassUnsetHazardDeferral(t *testing.
 
 func TestCleanStaleMarkers_NoSummaryWhenListErrorReturns(t *testing.T) {
 	t.Run("ListSkeletonMarkers error", func(t *testing.T) {
-		sink := installCleanSummarySink(t)
+		sink := logtest.Install(t)
 		lister := &fakeMarkerLister{err: errors.New("show-options: tmux dead")}
 		live := &fakeLivePaneLister{output: "live:0.0\n"}
 		unsetter := &fakeMarkerUnsetter{}
@@ -304,13 +257,13 @@ func TestCleanStaleMarkers_NoSummaryWhenListErrorReturns(t *testing.T) {
 		if err := c.CleanStaleMarkers(); err == nil {
 			t.Fatalf("expected non-nil error from ListSkeletonMarkers failure")
 		}
-		if got := sink.summariesFor("clean", "marker sweep complete"); len(got) != 0 {
+		if got := sink.RecordsWith("clean", "marker sweep complete"); len(got) != 0 {
 			t.Errorf("expected no summary on ListSkeletonMarkers error, got %d: %+v", len(got), got)
 		}
 	})
 
 	t.Run("ListAllPanesWithFormat error", func(t *testing.T) {
-		sink := installCleanSummarySink(t)
+		sink := logtest.Install(t)
 		lister := &fakeMarkerLister{markers: map[string]struct{}{"m__0.0": {}}}
 		live := &fakeLivePaneLister{err: errors.New("list-panes: socket gone")}
 		unsetter := &fakeMarkerUnsetter{}
@@ -324,14 +277,14 @@ func TestCleanStaleMarkers_NoSummaryWhenListErrorReturns(t *testing.T) {
 		if err := c.CleanStaleMarkers(); err == nil {
 			t.Fatalf("expected non-nil error from ListAllPanesWithFormat failure")
 		}
-		if got := sink.summariesFor("clean", "marker sweep complete"); len(got) != 0 {
+		if got := sink.RecordsWith("clean", "marker sweep complete"); len(got) != 0 {
 			t.Errorf("expected no summary on ListAllPanesWithFormat error, got %d: %+v", len(got), got)
 		}
 	})
 }
 
 func TestCleanStaleMarkers_SummaryUnsetZeroOnEmptyMarkersNoOp(t *testing.T) {
-	sink := installCleanSummarySink(t)
+	sink := logtest.Install(t)
 	lister := &fakeMarkerLister{markers: map[string]struct{}{}}
 	live := &fakeLivePaneLister{output: ""}
 	unsetter := &fakeMarkerUnsetter{}
@@ -346,7 +299,7 @@ func TestCleanStaleMarkers_SummaryUnsetZeroOnEmptyMarkersNoOp(t *testing.T) {
 		t.Fatalf("CleanStaleMarkers returned error: %v", err)
 	}
 
-	rec := sink.onlySummary(t, "clean", "marker sweep complete")
+	rec := sink.OnlyRecordWith(t, "clean", "marker sweep complete")
 	if got := rec.IntAttr(t, "unset"); got != 0 {
 		t.Errorf("unset = %d, want 0 on empty-markers no-op", got)
 	}

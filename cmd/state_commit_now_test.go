@@ -11,17 +11,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/state"
 )
-
-func installCommitNowLogCapture(t *testing.T) *logtest.Sink {
-	t.Helper()
-	sink := &logtest.Sink{}
-	log.SetTestHandler(t, sink)
-	return sink
-}
 
 func runStateCommitNow(t *testing.T) (*bytes.Buffer, *bytes.Buffer, error) {
 	t.Helper()
@@ -385,7 +377,7 @@ func TestStateCommitNow_FallsBackToZeroPrevAndLogsWarnWhenSessionsJSONMissing(t 
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
 	t.Setenv("PORTAL_LOG_LEVEL", "warn")
-	sink := installCommitNowLogCapture(t)
+	sink := logtest.Install(t)
 
 	f := &commitNowFixture{
 		client: &fakeCaptureClient{sessions: nil},
@@ -427,7 +419,7 @@ func TestStateCommitNow_FallsBackToZeroPrevAndLogsWarnOnCorruptSessionsJSON(t *t
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
 	t.Setenv("PORTAL_LOG_LEVEL", "warn")
-	sink := installCommitNowLogCapture(t)
+	sink := logtest.Install(t)
 
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		t.Fatalf("mkdir: %v", err)
@@ -587,7 +579,7 @@ func TestStateCommitNow_ShortCircuits_LogsInfoSkipEvent(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
 	t.Setenv("PORTAL_LOG_LEVEL", "info")
-	sink := installCommitNowLogCapture(t)
+	sink := logtest.Install(t)
 
 	f := &commitNowFixture{
 		client:    &fakeCaptureClient{sessions: nil},
@@ -630,7 +622,7 @@ func TestStateCommitNow_ShortCircuits_ExitsZeroWhenSaveRequestedTouchFails(t *te
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
 	t.Setenv("PORTAL_LOG_LEVEL", "warn")
-	sink := installCommitNowLogCapture(t)
+	sink := logtest.Install(t)
 
 	f := &commitNowFixture{
 		client:    &fakeCaptureClient{sessions: nil},
@@ -666,7 +658,7 @@ func TestStateCommitNow_TreatsIsRestoringErrorAsMarkerPresumedSet(t *testing.T) 
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
 	t.Setenv("PORTAL_LOG_LEVEL", "warn")
-	sink := installCommitNowLogCapture(t)
+	sink := logtest.Install(t)
 
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		t.Fatalf("mkdir: %v", err)
@@ -803,7 +795,7 @@ func TestStateCommitNow_LogsErrorWhenCaptureStructureFails(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
 	t.Setenv("PORTAL_LOG_LEVEL", "error")
-	sink := installCommitNowLogCapture(t)
+	sink := logtest.Install(t)
 
 	f := &commitNowFixture{
 		client:     &fakeCaptureClient{sessions: nil},
@@ -918,7 +910,7 @@ func TestStateCommitNow_LogsErrorWhenCommitFails(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
 	t.Setenv("PORTAL_LOG_LEVEL", "error")
-	sink := installCommitNowLogCapture(t)
+	sink := logtest.Install(t)
 
 	f := &commitNowFixture{
 		client: &fakeCaptureClient{sessions: nil},
@@ -974,7 +966,7 @@ func TestStateCommitNow_LogsWarnForTouchFailureAlongsidePrimaryError(t *testing.
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
 	t.Setenv("PORTAL_LOG_LEVEL", "warn")
-	sink := installCommitNowLogCapture(t)
+	sink := logtest.Install(t)
 
 	f := &commitNowFixture{
 		client: &fakeCaptureClient{sessions: nil},

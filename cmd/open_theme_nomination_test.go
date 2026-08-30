@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/resolver"
 	"github.com/leeovery/portal/internal/sourceguardtest"
 	"github.com/leeovery/portal/internal/theme"
@@ -56,13 +57,13 @@ func TestOpenExecPath_DoesNoThemeWork(t *testing.T) {
 		// never touch the poison.
 		setPrefsFile(t, `{"theme":"a-drop-in"}`)
 
-		loud := installMigrateCapture(t)
+		loud := logtest.Install(t)
 		themeNominationForTest(t)
 		if len(themeEvents(t, loud)) == 0 {
 			t.Fatal("the construction-time resolution emitted no theme record against the poisoned directory; the zero-record assertion below would be vacuous")
 		}
 
-		sink := installMigrateCapture(t)
+		sink := logtest.Install(t)
 
 		if got := execOpenSession(t, "api-x7Kd9a"); got != "api-x7Kd9a" {
 			t.Fatalf("open attached %q, want the session it resolved — the exec path must have run", got)

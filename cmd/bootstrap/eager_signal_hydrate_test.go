@@ -6,6 +6,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/statetest"
 )
@@ -77,7 +78,7 @@ func TestEagerSignalHydrate_ZeroMarkersIsNoOp(t *testing.T) {
 }
 
 func TestEagerSignalHydrate_PerFIFOWriteFailureLogsAndContinues(t *testing.T) {
-	sink := installCleanSummarySink(t)
+	sink := logtest.Install(t)
 	stateDir := "/var/state"
 	failPath := state.FIFOPath(stateDir, "broken__0.0")
 	sentinel := errors.New("write fifo: i/o error")
@@ -104,7 +105,7 @@ func TestEagerSignalHydrate_PerFIFOWriteFailureLogsAndContinues(t *testing.T) {
 		t.Errorf("Signaler.SendSignal call count = %d; want 3 (loop must continue past the failing write); calls=%v", len(signaler.Calls), signaler.Calls)
 	}
 
-	warns := sink.matching(slog.LevelWarn, "signal", "eager-signal write fifo failed")
+	warns := sink.RecordsWith("signal", "eager-signal write fifo failed").AtExactLevel(slog.LevelWarn)
 	if len(warns) != 1 {
 		t.Fatalf("expected 1 WARN under component=signal for the failing FIFO, got %d: %+v", len(warns), sink.Records())
 	}
@@ -178,7 +179,7 @@ func TestEagerSignalHydrate_NilLoggerTolerated(t *testing.T) {
 }
 
 func TestEagerSignalHydrate_SuccessEmitsSignalledDebugBreadcrumb(t *testing.T) {
-	sink := installCleanSummarySink(t)
+	sink := logtest.Install(t)
 	stateDir := "/var/state"
 
 	lister := &fakeMarkerLister{markers: map[string]struct{}{
@@ -197,7 +198,7 @@ func TestEagerSignalHydrate_SuccessEmitsSignalledDebugBreadcrumb(t *testing.T) {
 		t.Fatalf("EagerSignalHydrate returned error: %v", err)
 	}
 
-	dbg := sink.matching(slog.LevelDebug, "signal", "fifo signalled")
+	dbg := sink.RecordsWith("signal", "fifo signalled").AtExactLevel(slog.LevelDebug)
 	if len(dbg) != 2 {
 		t.Fatalf("expected 2 DEBUG 'fifo signalled' under component=signal, got %d: %+v", len(dbg), sink.Records())
 	}
@@ -216,13 +217,13 @@ func TestEagerSignalHydrate_SuccessEmitsSignalledDebugBreadcrumb(t *testing.T) {
 		}
 	}
 
-	if got := sink.matching(slog.LevelInfo, "signal", "fifo signalled"); len(got) != 0 {
+	if got := sink.RecordsWith("signal", "fifo signalled").AtExactLevel(slog.LevelInfo); len(got) != 0 {
 		t.Errorf("'fifo signalled' must be DEBUG, not INFO; got %d INFO entries: %+v", len(got), got)
 	}
 }
 
 func TestEagerSignalHydrate_NoSignalingLineUnderHydrateOrBootstrap(t *testing.T) {
-	sink := installCleanSummarySink(t)
+	sink := logtest.Install(t)
 	stateDir := "/var/state"
 	failPath := state.FIFOPath(stateDir, "broken__0.0")
 
@@ -256,7 +257,7 @@ func TestEagerSignalHydrate_NoSignalingLineUnderHydrateOrBootstrap(t *testing.T)
 }
 
 func TestEagerSignalHydrate_NoCycleSummaryNorNewAttrKeys(t *testing.T) {
-	sink := installCleanSummarySink(t)
+	sink := logtest.Install(t)
 	stateDir := "/var/state"
 	failPath := state.FIFOPath(stateDir, "broken__0.0")
 

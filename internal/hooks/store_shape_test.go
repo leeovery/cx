@@ -9,6 +9,7 @@ import (
 
 	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/hookstest"
+	"github.com/leeovery/portal/internal/logtest"
 )
 
 // seedHooksFile writes the raw on-disk map so a fixture can hold an arbitrary
@@ -112,7 +113,7 @@ func TestCleanStaleShapeAwareness(t *testing.T) {
 			t.Fatalf("read seeded file: %v", err)
 		}
 
-		sink := installCapture(t)
+		sink := logtest.Install(t)
 		removed, err := store.CleanStale(enumerating())
 		if err != nil {
 			t.Fatalf("CleanStale: %v", err)

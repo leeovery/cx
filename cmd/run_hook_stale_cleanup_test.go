@@ -130,7 +130,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		logger := &recordingLogger{}
 		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA), err: nil}
 
-		sink := installHooksSink(t)
+		sink := logtest.Install(t)
 
 		outcome, err := runHookStaleCleanup(lister, store, logger.Logger().With("component", "bootstrap"))
 		if err == nil {
@@ -142,7 +142,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 
 		// The store's own degraded-read breadcrumb shares the sink, so the
 		// stand-down is taken at WARN rather than over every record.
-		warns := sink.RecordsAtLevel(slog.LevelWarn)
+		warns := sink.RecordsAtOrAboveLevel(slog.LevelWarn)
 		if len(warns) != 1 {
 			t.Fatalf("WARN record count = %d, want exactly 1: %+v", len(warns), warns)
 		}
@@ -522,7 +522,7 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 func standDownRecord(t *testing.T, sink *logtest.Sink) logtest.Record {
 	t.Helper()
 
-	for _, r := range sink.RecordsAtLevel(slog.LevelWarn) {
+	for _, r := range sink.RecordsAtOrAboveLevel(slog.LevelWarn) {
 		t.Errorf("stand-down emitted at %v: %+v", r.Level, r)
 	}
 

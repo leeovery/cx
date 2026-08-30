@@ -12,55 +12,8 @@ import (
 	"github.com/leeovery/portal/internal/state"
 )
 
-type fifoSummarySink struct {
-	*logtest.Sink
-}
-
-func (s *fifoSummarySink) summariesFor(comp, msg string) []logtest.Record {
-	var out []logtest.Record
-	for _, r := range s.Records() {
-		c, ok := r.Attrs["component"]
-		if !ok || c.String() != comp || r.Msg != msg {
-			continue
-		}
-		out = append(out, r)
-	}
-	return out
-}
-
-func (s *fifoSummarySink) onlySummary(t *testing.T, comp, msg string) logtest.Record {
-	t.Helper()
-	sums := s.summariesFor(comp, msg)
-	if len(sums) != 1 {
-		t.Fatalf("expected exactly 1 %q %q summary, got %d: %+v", comp, msg, len(sums), s.Records())
-	}
-	return sums[0]
-}
-
-func (s *fifoSummarySink) matching(level slog.Level, comp, msg string) []logtest.Record {
-	var out []logtest.Record
-	for _, r := range s.Records() {
-		if r.Level != level || r.Msg != msg {
-			continue
-		}
-		c, ok := r.Attrs["component"]
-		if !ok || c.String() != comp {
-			continue
-		}
-		out = append(out, r)
-	}
-	return out
-}
-
-func installFIFOSummarySink(t *testing.T) *fifoSummarySink {
-	t.Helper()
-	sink := &fifoSummarySink{Sink: &logtest.Sink{}}
-	log.SetTestHandler(t, sink.Sink)
-	return sink
-}
-
 func TestSweepOrphanFIFOs_EmitsCleanSummaryCountingReapedAndSkipped(t *testing.T) {
-	sink := installFIFOSummarySink(t)
+	sink := logtest.Install(t)
 	dir := t.TempDir()
 
 	reapedA := filepath.Join(dir, "hydrate-a__0.0.fifo")
@@ -78,7 +31,7 @@ func TestSweepOrphanFIFOs_EmitsCleanSummaryCountingReapedAndSkipped(t *testing.T
 		t.Fatalf("SweepOrphanFIFOs: %v", err)
 	}
 
-	rec := sink.onlySummary(t, "clean", "orphan-fifo sweep complete")
+	rec := sink.OnlyRecordWith(t, "clean", "orphan-fifo sweep complete")
 	if rec.Level != slog.LevelInfo {
 		t.Errorf("summary level = %v, want INFO", rec.Level)
 	}
@@ -92,14 +45,14 @@ func TestSweepOrphanFIFOs_EmitsCleanSummaryCountingReapedAndSkipped(t *testing.T
 }
 
 func TestSweepOrphanFIFOs_EmitsZeroReapedZeroSkippedForMissingStateDir(t *testing.T) {
-	sink := installFIFOSummarySink(t)
+	sink := logtest.Install(t)
 	missing := filepath.Join(t.TempDir(), "does-not-exist")
 
 	if err := state.SweepOrphanFIFOs(missing, map[string]struct{}{}, log.For("bootstrap")); err != nil {
 		t.Fatalf("SweepOrphanFIFOs: %v", err)
 	}
 
-	rec := sink.onlySummary(t, "clean", "orphan-fifo sweep complete")
+	rec := sink.OnlyRecordWith(t, "clean", "orphan-fifo sweep complete")
 	if got := rec.IntAttr(t, "reaped"); got != 0 {
 		t.Errorf("reaped = %d, want 0 (loop runs zero times)", got)
 	}
@@ -110,7 +63,7 @@ func TestSweepOrphanFIFOs_EmitsZeroReapedZeroSkippedForMissingStateDir(t *testin
 }
 
 func TestSweepOrphanFIFOs_PreservedNonFIFOCountsAsSkipped(t *testing.T) {
-	sink := installFIFOSummarySink(t)
+	sink := logtest.Install(t)
 	dir := t.TempDir()
 
 	regular := filepath.Join(dir, "hydrate-foo__0.0.fifo")
@@ -128,7 +81,7 @@ func TestSweepOrphanFIFOs_PreservedNonFIFOCountsAsSkipped(t *testing.T) {
 		t.Errorf("file mode changed: got %v", info.Mode())
 	}
 
-	rec := sink.onlySummary(t, "clean", "orphan-fifo sweep complete")
+	rec := sink.OnlyRecordWith(t, "clean", "orphan-fifo sweep complete")
 	if got := rec.IntAttr(t, "reaped"); got != 0 {
 		t.Errorf("reaped = %d, want 0", got)
 	}
@@ -145,7 +98,7 @@ func TestSweepOrphanFIFOs_RemoveFailureWarnsOnLoggerAndCountsAsSkipped(t *testin
 		t.Skip("root bypasses 0500 directory write protection")
 	}
 
-	sink := installFIFOSummarySink(t)
+	sink := logtest.Install(t)
 	dir := t.TempDir()
 
 	a := filepath.Join(dir, "hydrate-a__0.0.fifo")
@@ -172,7 +125,7 @@ func TestSweepOrphanFIFOs_RemoveFailureWarnsOnLoggerAndCountsAsSkipped(t *testin
 		t.Fatalf("restore chmod: %v", err)
 	}
 
-	warns := sink.matching(slog.LevelWarn, "bootstrap", "remove orphan fifo failed")
+	warns := sink.RecordsWith("bootstrap", "remove orphan fifo failed").AtExactLevel(slog.LevelWarn)
 	if len(warns) != 2 {
 		t.Fatalf("expected 2 remove-failure WARNs under bootstrap, got %d: %+v", len(warns), sink.Records())
 	}
@@ -185,7 +138,7 @@ func TestSweepOrphanFIFOs_RemoveFailureWarnsOnLoggerAndCountsAsSkipped(t *testin
 		}
 	}
 
-	rec := sink.onlySummary(t, "clean", "orphan-fifo sweep complete")
+	rec := sink.OnlyRecordWith(t, "clean", "orphan-fifo sweep complete")
 	if got := rec.IntAttr(t, "reaped"); got != 0 {
 		t.Errorf("reaped = %d, want 0", got)
 	}
@@ -195,7 +148,7 @@ func TestSweepOrphanFIFOs_RemoveFailureWarnsOnLoggerAndCountsAsSkipped(t *testin
 }
 
 func TestSweepOrphanFIFOs_LiveMarkerProtectedCountsAsSkippedAndIsLeftInPlace(t *testing.T) {
-	sink := installFIFOSummarySink(t)
+	sink := logtest.Install(t)
 	dir := t.TempDir()
 
 	protected := filepath.Join(dir, "hydrate-keep__0.0.fifo")
@@ -213,7 +166,7 @@ func TestSweepOrphanFIFOs_LiveMarkerProtectedCountsAsSkippedAndIsLeftInPlace(t *
 		t.Errorf("live-marker-protected FIFO removed: %v", err)
 	}
 
-	rec := sink.onlySummary(t, "clean", "orphan-fifo sweep complete")
+	rec := sink.OnlyRecordWith(t, "clean", "orphan-fifo sweep complete")
 	if got := rec.IntAttr(t, "reaped"); got != 0 {
 		t.Errorf("reaped = %d, want 0", got)
 	}
@@ -223,7 +176,7 @@ func TestSweepOrphanFIFOs_LiveMarkerProtectedCountsAsSkippedAndIsLeftInPlace(t *
 }
 
 func TestSweepOrphanFIFOs_DemotesPerRemovalInfoToDebugUnderClean(t *testing.T) {
-	sink := installFIFOSummarySink(t)
+	sink := logtest.Install(t)
 	dir := t.TempDir()
 
 	orphan := filepath.Join(dir, "hydrate-gone__0.0.fifo")
@@ -241,7 +194,7 @@ func TestSweepOrphanFIFOs_DemotesPerRemovalInfoToDebugUnderClean(t *testing.T) {
 		}
 	}
 
-	dbg := sink.matching(slog.LevelDebug, "clean", "orphan fifo reaped")
+	dbg := sink.RecordsWith("clean", "orphan fifo reaped").AtExactLevel(slog.LevelDebug)
 	if len(dbg) != 1 {
 		t.Fatalf("expected 1 DEBUG 'orphan fifo reaped' under clean, got %d: %+v", len(dbg), sink.Records())
 	}
@@ -258,7 +211,7 @@ func TestSweepOrphanFIFOs_BoundaryContract_CallerWarnSinkVsCleanSummary(t *testi
 		t.Skip("root bypasses 0500 directory write protection")
 	}
 
-	sink := installFIFOSummarySink(t)
+	sink := logtest.Install(t)
 	dir := t.TempDir()
 
 	orphan := filepath.Join(dir, "hydrate-gone__0.0.fifo")
@@ -282,25 +235,25 @@ func TestSweepOrphanFIFOs_BoundaryContract_CallerWarnSinkVsCleanSummary(t *testi
 		t.Fatalf("restore chmod: %v", err)
 	}
 
-	warns := sink.matching(slog.LevelWarn, callerComponent, "remove orphan fifo failed")
+	warns := sink.RecordsWith(callerComponent, "remove orphan fifo failed").AtExactLevel(slog.LevelWarn)
 	if len(warns) != 1 {
 		t.Fatalf("expected 1 remove-failure WARN under %q, got %d: %+v", callerComponent, len(warns), sink.Records())
 	}
-	if cleanWarns := sink.matching(slog.LevelWarn, "clean", "remove orphan fifo failed"); len(cleanWarns) != 0 {
+	if cleanWarns := sink.RecordsWith("clean", "remove orphan fifo failed").AtExactLevel(slog.LevelWarn); len(cleanWarns) != 0 {
 		t.Errorf("per-item WARN must NOT be attributed to clean, got %d: %+v", len(cleanWarns), cleanWarns)
 	}
 
-	rec := sink.onlySummary(t, "clean", "orphan-fifo sweep complete")
+	rec := sink.OnlyRecordWith(t, "clean", "orphan-fifo sweep complete")
 	if rec.Level != slog.LevelInfo {
 		t.Errorf("summary level = %v, want INFO", rec.Level)
 	}
-	if sums := sink.summariesFor(callerComponent, "orphan-fifo sweep complete"); len(sums) != 0 {
+	if sums := sink.RecordsWith(callerComponent, "orphan-fifo sweep complete"); len(sums) != 0 {
 		t.Errorf("summary must NOT be attributed to caller component %q, got %d: %+v", callerComponent, len(sums), sums)
 	}
 }
 
 func TestSweepOrphanFIFOs_NoSummaryWhenGlobFails(t *testing.T) {
-	sink := installFIFOSummarySink(t)
+	sink := logtest.Install(t)
 	// An unterminated "[" makes filepath.Glob report ErrBadPattern.
 	badDir := filepath.Join(t.TempDir(), "[")
 
@@ -308,7 +261,7 @@ func TestSweepOrphanFIFOs_NoSummaryWhenGlobFails(t *testing.T) {
 		t.Fatalf("expected non-nil error from filepath.Glob failure")
 	}
 
-	if got := sink.summariesFor("clean", "orphan-fifo sweep complete"); len(got) != 0 {
+	if got := sink.RecordsWith("clean", "orphan-fifo sweep complete"); len(got) != 0 {
 		t.Errorf("expected no summary on glob failure (returns before loop), got %d: %+v", len(got), got)
 	}
 }

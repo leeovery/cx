@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/leeovery/portal/internal/logtest"
 )
 
 func TestThemesDirPath_EnvVarWins(t *testing.T) {
@@ -149,7 +151,7 @@ func TestThemesDirPath_IsNotAConfigFilePathMember(t *testing.T) {
 			t.Fatalf("failed to seed old macOS themes dir: %v", err)
 		}
 
-		sink := installMigrateCapture(t)
+		sink := logtest.Install(t)
 
 		got, err := themesDirPath()
 		if err != nil {

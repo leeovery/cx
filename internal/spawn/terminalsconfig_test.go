@@ -7,30 +7,12 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 )
 
-func installSpawnCapture(t *testing.T) *logtest.Sink {
-	t.Helper()
-	sink := &logtest.Sink{}
-	log.SetTestHandler(t, sink)
-	return sink
-}
-
-func warnRecords(sink *logtest.Sink) []logtest.Record {
-	var out []logtest.Record
-	for _, r := range sink.Records() {
-		if r.Level == slog.LevelWarn {
-			out = append(out, r)
-		}
-	}
-	return out
-}
-
 func TestTerminalsStoreLoad(t *testing.T) {
 	t.Run("it returns an empty config with no WARN for a missing file", func(t *testing.T) {
-		sink := installSpawnCapture(t)
+		sink := logtest.Install(t)
 		path := filepath.Join(t.TempDir(), "terminals.json")
 
 		cfg := NewTerminalsStore(path).Load()
@@ -41,7 +23,7 @@ func TestTerminalsStoreLoad(t *testing.T) {
 		if len(cfg) != 0 {
 			t.Errorf("config len = %d, want 0 for a missing file", len(cfg))
 		}
-		if got := warnRecords(sink); len(got) != 0 {
+		if got := sink.RecordsAtExactLevel(slog.LevelWarn); len(got) != 0 {
 			t.Errorf("emitted %d WARN records for a missing file, want 0: %+v", len(got), got)
 		}
 		if _, err := os.Stat(path); !os.IsNotExist(err) {
@@ -53,7 +35,7 @@ func TestTerminalsStoreLoad(t *testing.T) {
 		if os.Geteuid() == 0 {
 			t.Skip("running as root: chmod 0000 does not deny reads")
 		}
-		sink := installSpawnCapture(t)
+		sink := logtest.Install(t)
 		path := filepath.Join(t.TempDir(), "terminals.json")
 		writeFile(t, path, `{"com.example.MyTerm":{"commands":{"open":{"argv":["kitty","{command}"]}}}}`)
 		if err := os.Chmod(path, 0o000); err != nil {
@@ -66,7 +48,7 @@ func TestTerminalsStoreLoad(t *testing.T) {
 		if cfg == nil || len(cfg) != 0 {
 			t.Errorf("config = %+v, want an empty non-nil config for an unreadable file", cfg)
 		}
-		got := warnRecords(sink)
+		got := sink.RecordsAtExactLevel(slog.LevelWarn)
 		if len(got) != 1 {
 			t.Fatalf("emitted %d WARN records for an unreadable file, want exactly 1: %+v", len(got), got)
 		}
@@ -80,7 +62,7 @@ func TestTerminalsStoreLoad(t *testing.T) {
 	})
 
 	t.Run("it ignores a malformed file and emits a spawn WARN", func(t *testing.T) {
-		sink := installSpawnCapture(t)
+		sink := logtest.Install(t)
 		path := filepath.Join(t.TempDir(), "terminals.json")
 		writeFile(t, path, `{ not valid json`)
 
@@ -89,7 +71,7 @@ func TestTerminalsStoreLoad(t *testing.T) {
 		if cfg == nil || len(cfg) != 0 {
 			t.Errorf("config = %+v, want an empty non-nil config for malformed JSON", cfg)
 		}
-		got := warnRecords(sink)
+		got := sink.RecordsAtExactLevel(slog.LevelWarn)
 		if len(got) != 1 {
 			t.Fatalf("emitted %d WARN records for malformed JSON, want exactly 1: %+v", len(got), got)
 		}
@@ -103,7 +85,7 @@ func TestTerminalsStoreLoad(t *testing.T) {
 	})
 
 	t.Run("it parses a valid entry and ignores unknown capability sub-keys", func(t *testing.T) {
-		sink := installSpawnCapture(t)
+		sink := logtest.Install(t)
 		path := filepath.Join(t.TempDir(), "terminals.json")
 		writeFile(t, path, `{"com.example.MyTerm":{"commands":{"open":{"argv":["kitty","{command}"]},"introspect":{"foo":1},"place":{"bar":2}}}}`)
 
@@ -120,13 +102,13 @@ func TestTerminalsStoreLoad(t *testing.T) {
 		if got := entry.Commands.Open.Argv; !slices.Equal(got, wantArgv) {
 			t.Errorf("open argv = %v, want %v", got, wantArgv)
 		}
-		if got := warnRecords(sink); len(got) != 0 {
+		if got := sink.RecordsAtExactLevel(slog.LevelWarn); len(got) != 0 {
 			t.Errorf("emitted %d WARN records for a valid entry, want 0: %+v", len(got), got)
 		}
 	})
 
 	t.Run("it never writes the file (read-only load)", func(t *testing.T) {
-		installSpawnCapture(t)
+		logtest.Install(t)
 		path := filepath.Join(t.TempDir(), "terminals.json")
 		writeFile(t, path, `{"com.example.MyTerm":{"commands":{"open":{"argv":["kitty","{command}"]}}}}`)
 		before, err := os.ReadFile(path)
@@ -157,7 +139,7 @@ func TestTerminalsStoreLoad(t *testing.T) {
 	})
 
 	t.Run("it normalises a JSON null to an empty config", func(t *testing.T) {
-		installSpawnCapture(t)
+		logtest.Install(t)
 		path := filepath.Join(t.TempDir(), "terminals.json")
 		writeFile(t, path, `null`)
 

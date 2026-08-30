@@ -1,10 +1,13 @@
 package spawn
 
 import (
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
 	"testing"
+
+	"github.com/leeovery/portal/internal/logtest"
 )
 
 func newTestResolver(cfg TerminalsConfig) (*Resolver, *fakeRecipeRunner) {
@@ -61,7 +64,7 @@ func TestResolverResolve(t *testing.T) {
 	})
 
 	t.Run("it falls through past an invalid config entry to native then unsupported", func(t *testing.T) {
-		sink := installSpawnCapture(t)
+		sink := logtest.Install(t)
 		cfg := TerminalsConfig{"com.mitchellh.ghostty*": bothArgvAndScriptEntry()}
 		r, _ := newTestResolver(cfg)
 
@@ -73,13 +76,13 @@ func TestResolverResolve(t *testing.T) {
 		if _, ok := adapter.(*ghosttyAdapter); !ok {
 			t.Errorf("adapter = %T, want *ghosttyAdapter", adapter)
 		}
-		if got := warnRecords(sink); len(got) != 1 {
+		if got := sink.RecordsAtExactLevel(slog.LevelWarn); len(got) != 1 {
 			t.Errorf("emitted %d WARN records, want exactly 1 rejecting the invalid entry: %+v", len(got), got)
 		}
 	})
 
 	t.Run("it falls through to unsupported past an invalid matching config entry for a non-native identity", func(t *testing.T) {
-		sink := installSpawnCapture(t)
+		sink := logtest.Install(t)
 		cfg := TerminalsConfig{"com.example.MyTerm": bothArgvAndScriptEntry()}
 		r, _ := newTestResolver(cfg)
 
@@ -91,7 +94,7 @@ func TestResolverResolve(t *testing.T) {
 		if adapter != nil {
 			t.Errorf("adapter = %T, want nil", adapter)
 		}
-		if got := warnRecords(sink); len(got) != 1 {
+		if got := sink.RecordsAtExactLevel(slog.LevelWarn); len(got) != 1 {
 			t.Errorf("emitted %d WARN records, want exactly 1 rejecting the invalid entry: %+v", len(got), got)
 		}
 	})
