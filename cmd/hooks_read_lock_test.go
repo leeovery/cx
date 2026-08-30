@@ -81,10 +81,9 @@ func TestHookListDegradedRead(t *testing.T) {
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{
 			"aaa111": {"on-resume": "npm start"},
 		})
-		hooksDeps = &HooksDeps{PaneLister: &recordingPaneHookLister{rows: []tmux.PaneHookRow{
+		withHooksDeps(t, HooksDeps{PaneLister: &recordingPaneHookLister{rows: []tmux.PaneHookRow{
 			{Token: "aaa111", Location: "proj:0.0"},
-		}}}
-		t.Cleanup(func() { hooksDeps = nil })
+		}}})
 
 		want := runHookList(t)
 
@@ -101,8 +100,7 @@ func TestHookListDegradedRead(t *testing.T) {
 	t.Run("it takes no tmux read and creates nothing on a fresh install", func(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, 20*time.Millisecond)
 		configDir, _ := hooksFileInTempDir(t)
-		hooksDeps = &HooksDeps{PaneLister: &loudPaneHookLister{t: t}}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{PaneLister: &loudPaneHookLister{t: t}})
 
 		before := dirListing(t, configDir)
 		if got := runHookList(t); got != "" {

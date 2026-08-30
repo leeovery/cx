@@ -17,8 +17,7 @@ func TestHooksSetStampsPaneToken(t *testing.T) {
 		t.Setenv("TMUX_PANE", "%7")
 
 		stamper := &recordingPaneStamper{}
-		hooksDeps = &HooksDeps{KeyResolver: &mockKeyResolver{key: ""}, PaneStamper: stamper}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: ""}, PaneStamper: stamper})
 
 		if _, err := runHookSet(t, "claude --resume abc123"); err != nil {
 			t.Fatalf("hook set: %v", err)
@@ -52,8 +51,7 @@ func TestHooksSetStampsPaneToken(t *testing.T) {
 		t.Setenv("TMUX_PANE", "%7")
 
 		stamper := &recordingPaneStamper{}
-		hooksDeps = &HooksDeps{KeyResolver: &mockKeyResolver{key: "tok999"}, PaneStamper: stamper}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: "tok999"}, PaneStamper: stamper})
 
 		if _, err := runHookSet(t, "some-cmd"); err != nil {
 			t.Fatalf("hook set: %v", err)
@@ -73,8 +71,7 @@ func TestHooksSetStampsPaneToken(t *testing.T) {
 		t.Setenv("TMUX_PANE", "%999")
 
 		stamper := &recordingPaneStamper{err: fmt.Errorf("no such pane: %%999")}
-		hooksDeps = &HooksDeps{KeyResolver: &mockKeyResolver{key: ""}, PaneStamper: stamper}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: ""}, PaneStamper: stamper})
 
 		_, err := runHookSet(t, "some-cmd")
 		if err == nil {
@@ -98,8 +95,7 @@ func TestHooksSetStampsPaneToken(t *testing.T) {
 				t.Error("hooks.json already existed when the stamp ran: the write must not precede the stamp")
 			}
 		}
-		hooksDeps = &HooksDeps{KeyResolver: &mockKeyResolver{key: ""}, PaneStamper: stamper}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: ""}, PaneStamper: stamper})
 
 		if _, err := runHookSet(t, "some-cmd"); err != nil {
 			t.Fatalf("hook set: %v", err)
@@ -121,8 +117,7 @@ func TestHooksSetStampsPaneToken(t *testing.T) {
 		t.Cleanup(func() { _ = os.Chmod(denied, 0o700) })
 
 		stamper := &recordingPaneStamper{}
-		hooksDeps = &HooksDeps{KeyResolver: &mockKeyResolver{key: ""}, PaneStamper: stamper}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: ""}, PaneStamper: stamper})
 
 		if _, err := runHookSet(t, "some-cmd"); err == nil {
 			t.Fatal("expected an error from an unwritable hooks path, got nil")
@@ -141,12 +136,11 @@ func TestHooksSetStampsPaneToken(t *testing.T) {
 		t.Setenv("TMUX_PANE", "%7")
 
 		stamper := &recordingPaneStamper{}
-		hooksDeps = &HooksDeps{
+		withHooksDeps(t, HooksDeps{
 			KeyResolver: &mockKeyResolver{key: ""},
 			PaneStamper: stamper,
 			TokenMinter: func() (string, error) { return "", fmt.Errorf("entropy source unavailable") },
-		}
-		t.Cleanup(func() { hooksDeps = nil })
+		})
 
 		_, err := runHookSet(t, "some-cmd")
 		if err == nil {
@@ -168,11 +162,10 @@ func TestHooksSetStampsPaneToken(t *testing.T) {
 		})
 
 		stamper := &recordingPaneStamper{err: fmt.Errorf("the stamper must not be called on the --pane-key path")}
-		hooksDeps = &HooksDeps{
+		withHooksDeps(t, HooksDeps{
 			KeyResolver: &mockKeyResolver{err: fmt.Errorf("the resolver must not be called on the --pane-key path")},
 			PaneStamper: stamper,
-		}
-		t.Cleanup(func() { hooksDeps = nil })
+		})
 
 		resetRootCmd()
 		rootCmd.SetOut(new(bytes.Buffer))
@@ -200,12 +193,11 @@ func TestHooksSetRefusesAnUnresolvablePane(t *testing.T) {
 
 		stamper := &recordingPaneStamper{}
 		minted := 0
-		hooksDeps = &HooksDeps{
+		withHooksDeps(t, HooksDeps{
 			KeyResolver: &mockKeyResolver{err: &tmux.CommandError{Stderr: stderr}},
 			PaneStamper: stamper,
 			TokenMinter: func() (string, error) { minted++; return "tok000", nil },
-		}
-		t.Cleanup(func() { hooksDeps = nil })
+		})
 
 		if _, err := runHookSet(t, "some-cmd"); err == nil {
 			t.Fatal("expected an error from an unresolvable pane, got nil")

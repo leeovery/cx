@@ -77,8 +77,7 @@ func TestHookSetLockTimeout(t *testing.T) {
 		})
 		transienttest.HoldHooksSidecar(t, hooksFile)
 
-		hooksDeps = &HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}})
 
 		sink := installHooksSink(t)
 		out, err := runHookSet(t, "claude --resume abc")
@@ -93,8 +92,7 @@ func TestHookSetLockTimeout(t *testing.T) {
 		t.Setenv("TMUX_PANE", "%3")
 		transienttest.HoldHooksSidecar(t, hooksFile)
 
-		hooksDeps = &HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}})
 
 		if _, err := runHookSet(t, "claude --resume abc"); err == nil {
 			t.Fatal("expected a non-zero exit under a held lock, got nil")
@@ -112,8 +110,7 @@ func TestHookSetLockTimeout(t *testing.T) {
 		t.Setenv("TMUX_PANE", "%3")
 		transienttest.HoldHooksSidecar(t, hooksFile)
 
-		hooksDeps = &HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}})
 
 		if _, err := runHookSet(t, "claude --resume abc"); err == nil {
 			t.Fatal("expected a non-zero exit under a held lock, got nil")
@@ -131,12 +128,11 @@ func TestHookSetLockTimeout(t *testing.T) {
 
 		pane := &stampedPane{}
 		minted := 0
-		hooksDeps = &HooksDeps{
+		withHooksDeps(t, HooksDeps{
 			KeyResolver: pane,
 			PaneStamper: pane,
 			TokenMinter: func() (string, error) { minted++; return "tok000", nil },
-		}
-		t.Cleanup(func() { hooksDeps = nil })
+		})
 
 		if _, err := runHookSet(t, "claude --resume abc"); err == nil {
 			t.Fatal("expected a non-zero exit under a held lock, got nil")
@@ -183,8 +179,7 @@ func TestHookSetLockTimeout(t *testing.T) {
 		t.Setenv("TMUX_PANE", "%3")
 		transienttest.HoldHooksSidecar(t, hooksFile)
 
-		hooksDeps = &HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}})
 
 		start := time.Now()
 		_, err := runHookSet(t, "claude --resume abc")
@@ -214,8 +209,7 @@ func TestHookRmLockTimeout(t *testing.T) {
 		})
 		transienttest.HoldHooksSidecar(t, hooksFile)
 
-		hooksDeps = &HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}})
 
 		sink := installHooksSink(t)
 		out, err := runHookRm(t)
@@ -235,8 +229,7 @@ func TestHookRmLockTimeout(t *testing.T) {
 
 		resolver := &mockKeyResolver{err: errors.New("the resolver must not be called on the --pane-key path")}
 		stamper := &recordingPaneStamper{err: errors.New("the stamper must not be called on the --pane-key path")}
-		hooksDeps = &HooksDeps{KeyResolver: resolver, PaneStamper: stamper}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: resolver, PaneStamper: stamper})
 
 		out, err := runHookRm(t, "--pane-key", "tok123")
 		assertLockFailureReachesStderr(t, out, err)
@@ -258,8 +251,7 @@ func TestHookRmLockTimeout(t *testing.T) {
 		})
 		transienttest.HoldHooksSidecar(t, hooksFile)
 
-		hooksDeps = &HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}})
 
 		start := time.Now()
 		_, err := runHookRm(t)

@@ -8,7 +8,7 @@ import (
 
 func TestHookSeams(t *testing.T) {
 	t.Run("it resolves every seam to its production default when nothing is injected", func(t *testing.T) {
-		hooksDeps = nil
+		withoutHooksDeps(t)
 
 		seams := hookSeams()
 
@@ -37,13 +37,12 @@ func TestHookSeams(t *testing.T) {
 		resolver := &mockKeyResolver{key: "tok123"}
 		lister := &recordingPaneHookLister{}
 		stamper := &recordingPaneStamper{}
-		hooksDeps = &HooksDeps{
+		withHooksDeps(t, HooksDeps{
 			KeyResolver: resolver,
 			PaneLister:  lister,
 			PaneStamper: stamper,
 			TokenMinter: func() (string, error) { return "tok000", nil },
-		}
-		t.Cleanup(func() { hooksDeps = nil })
+		})
 
 		seams := hookSeams()
 
@@ -67,8 +66,7 @@ func TestHookSeams(t *testing.T) {
 
 	t.Run("it fills the production default for every seam a test left unset", func(t *testing.T) {
 		resolver := &mockKeyResolver{key: "tok123"}
-		hooksDeps = &HooksDeps{KeyResolver: resolver}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: resolver})
 
 		seams := hookSeams()
 
@@ -128,8 +126,7 @@ func TestGonePaneErrorCarriesOnePortalClause(t *testing.T) {
 			hooksFileInTempDir(t)
 			t.Setenv("TMUX_PANE", "%999")
 
-			hooksDeps = &HooksDeps{KeyResolver: tmux.NewClient(&gonePaneCommander{paneID: "%999"})}
-			t.Cleanup(func() { hooksDeps = nil })
+			withHooksDeps(t, HooksDeps{KeyResolver: tmux.NewClient(&gonePaneCommander{paneID: "%999"})})
 
 			err := drive(t)
 			if err == nil {

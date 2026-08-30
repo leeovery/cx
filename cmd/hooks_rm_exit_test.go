@@ -20,8 +20,7 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 			"tok123": {"on-resume": "claude --resume abc"},
 		})
 
-		hooksDeps = &HooksDeps{KeyResolver: &mockKeyResolver{err: &tmux.CommandError{Stderr: stderr}}}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{err: &tmux.CommandError{Stderr: stderr}}})
 
 		_, err := runHookRm(t)
 		if err == nil {
@@ -41,8 +40,7 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 		hooksFileInTempDir(t)
 		t.Setenv("TMUX_PANE", "%3")
 
-		hooksDeps = &HooksDeps{KeyResolver: &mockKeyResolver{key: ""}}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: ""}})
 
 		_, err := runHookRm(t)
 		if err == nil {
@@ -57,8 +55,7 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 		_, hooksFile := hooksFileInTempDir(t)
 		t.Setenv("TMUX_PANE", "%3")
 
-		hooksDeps = &HooksDeps{KeyResolver: &mockKeyResolver{key: ""}}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: ""}})
 
 		if _, err := runHookRm(t); err == nil {
 			t.Fatal("expected an error for a live pane carrying no token, got nil")
@@ -84,8 +81,7 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 			"tok999": {"on-resume": "npm start"},
 		})
 
-		hooksDeps = &HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}})
 
 		_, err := runHookRm(t)
 		if err == nil {
@@ -108,8 +104,7 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 		// this path cannot pass silently.
 		resolver := &mockKeyResolver{err: fmt.Errorf("the resolver must not be called on the --pane-key path")}
 		stamper := &recordingPaneStamper{err: fmt.Errorf("the stamper must not be called on the --pane-key path")}
-		hooksDeps = &HooksDeps{KeyResolver: resolver, PaneStamper: stamper}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: resolver, PaneStamper: stamper})
 
 		_, err := runHookRm(t, "--pane-key", "sess:0.1")
 		if err == nil {
@@ -135,8 +130,7 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 			"tok999": {"on-resume": "npm start"},
 		})
 
-		hooksDeps = &HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}})
 
 		if _, err := runHookRm(t); err != nil {
 			t.Fatalf("hook rm: %v", err)
@@ -160,8 +154,7 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 		})
 
 		resolver := &mockKeyResolver{err: fmt.Errorf("the resolver must not be called on the --pane-key path")}
-		hooksDeps = &HooksDeps{KeyResolver: resolver}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: resolver})
 
 		// An old-format key: the pass-through validates nothing, so removing one
 		// by hand keeps working and keeps exiting 0.
@@ -223,8 +216,7 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 				t.Setenv("TMUX_PANE", tt.paneID)
 				before := seedHooksFile(t, hooksFile, seeded)
 
-				hooksDeps = &HooksDeps{KeyResolver: tt.resolver}
-				t.Cleanup(func() { hooksDeps = nil })
+				withHooksDeps(t, HooksDeps{KeyResolver: tt.resolver})
 
 				if _, err := runHookRm(t, tt.extra...); err == nil {
 					t.Fatal("expected a non-zero exit, got nil")
@@ -273,12 +265,11 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 
 				stamper := &recordingPaneStamper{}
 				minted := 0
-				hooksDeps = &HooksDeps{
+				withHooksDeps(t, HooksDeps{
 					KeyResolver: tt.resolver,
 					PaneStamper: stamper,
 					TokenMinter: func() (string, error) { minted++; return "tok000", nil },
-				}
-				t.Cleanup(func() { hooksDeps = nil })
+				})
 
 				_, err := runHookRm(t, tt.extra...)
 				if tt.wantErr && err == nil {
@@ -319,8 +310,7 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 					"tok123": {"on-resume": "npm start"},
 				})
 
-				hooksDeps = &HooksDeps{KeyResolver: &mockKeyResolver{key: tt.key}}
-				t.Cleanup(func() { hooksDeps = nil })
+				withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: tt.key}})
 
 				_, err := runHookRm(t)
 				if tt.wantErr != (err != nil) {
@@ -338,8 +328,7 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 		t.Setenv("TMUX_PANE", "%3")
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{})
 
-		hooksDeps = &HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}})
 
 		out, err := runHookRm(t)
 		if err == nil {

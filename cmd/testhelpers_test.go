@@ -75,6 +75,25 @@ func newStagedHooksStore(t *testing.T, staging hooksStoreStaging) (*hooks.Store,
 	return hooks.NewStore(path), path
 }
 
+// withHooksDeps installs deps as the package-level hooks seam for the rest of
+// the test and registers the restore in the same breath. The seam outlives the
+// test that sets it, so the install and its restore are written together here
+// rather than left to each call site to pair.
+func withHooksDeps(t *testing.T, deps HooksDeps) {
+	t.Helper()
+	hooksDeps = &deps
+	t.Cleanup(func() { hooksDeps = nil })
+}
+
+// withoutHooksDeps leaves the hooks seam unset for the rest of the test, so a
+// case whose subject is the production default states that precondition instead
+// of inheriting it.
+func withoutHooksDeps(t *testing.T) {
+	t.Helper()
+	hooksDeps = nil
+	t.Cleanup(func() { hooksDeps = nil })
+}
+
 // readFileBytes returns nil on ENOENT, so callers can distinguish "file absent"
 // from "file empty".
 func readFileBytes(t *testing.T, path string) []byte {

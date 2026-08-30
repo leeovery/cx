@@ -30,10 +30,9 @@ func TestHooksListCommand(t *testing.T) {
 		}
 		writeHooksJSON(t, hooksFile, data)
 
-		hooksDeps = &HooksDeps{PaneLister: &recordingPaneHookLister{rows: []tmux.PaneHookRow{
+		withHooksDeps(t, HooksDeps{PaneLister: &recordingPaneHookLister{rows: []tmux.PaneHookRow{
 			{Token: "aaa111", Location: "my-project-abc123:0.0"},
-		}}}
-		t.Cleanup(func() { hooksDeps = nil })
+		}}})
 
 		got := runHookList(t)
 		want := "aaa111\ton-resume\tclaude --resume abc123\tmy-project-abc123:0.0\n"
@@ -47,8 +46,7 @@ func TestHooksListCommand(t *testing.T) {
 
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{})
 
-		hooksDeps = &HooksDeps{PaneLister: &loudPaneHookLister{t: t}}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{PaneLister: &loudPaneHookLister{t: t}})
 
 		buf := new(bytes.Buffer)
 		resetRootCmd()
@@ -68,8 +66,7 @@ func TestHooksListCommand(t *testing.T) {
 	t.Run("produces empty output when hooks file does not exist", func(t *testing.T) {
 		hooksFileInTempDir(t)
 
-		hooksDeps = &HooksDeps{PaneLister: &loudPaneHookLister{t: t}}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{PaneLister: &loudPaneHookLister{t: t}})
 
 		buf := new(bytes.Buffer)
 		resetRootCmd()
@@ -101,12 +98,11 @@ func TestHooksListCommand(t *testing.T) {
 		}
 		writeHooksJSON(t, hooksFile, data)
 
-		hooksDeps = &HooksDeps{PaneLister: &recordingPaneHookLister{rows: []tmux.PaneHookRow{
+		withHooksDeps(t, HooksDeps{PaneLister: &recordingPaneHookLister{rows: []tmux.PaneHookRow{
 			{Token: "ccc333", Location: "proj-abc:1.0"},
 			{Token: "bbb222", Location: "proj-abc:0.0"},
 			{Token: "aaa111", Location: "other-proj:0.0"},
-		}}}
-		t.Cleanup(func() { hooksDeps = nil })
+		}}})
 
 		got := runHookList(t)
 		want := "aaa111\ton-resume\tnpm start\tother-proj:0.0\n" +
@@ -137,10 +133,9 @@ func TestHooksListLocationColumn(t *testing.T) {
 			"aaa111": {"on-resume": "claude --resume abc123"},
 		})
 
-		hooksDeps = &HooksDeps{PaneLister: &recordingPaneHookLister{rows: []tmux.PaneHookRow{
+		withHooksDeps(t, HooksDeps{PaneLister: &recordingPaneHookLister{rows: []tmux.PaneHookRow{
 			{Token: "aaa111", Location: "my-project-abc123:0.0"},
-		}}}
-		t.Cleanup(func() { hooksDeps = nil })
+		}}})
 
 		got := runHookList(t)
 		want := "aaa111\ton-resume\tclaude --resume abc123\tmy-project-abc123:0.0\n"
@@ -155,10 +150,9 @@ func TestHooksListLocationColumn(t *testing.T) {
 			"": {"on-resume": "npm start"},
 		})
 
-		hooksDeps = &HooksDeps{PaneLister: &recordingPaneHookLister{rows: []tmux.PaneHookRow{
+		withHooksDeps(t, HooksDeps{PaneLister: &recordingPaneHookLister{rows: []tmux.PaneHookRow{
 			{Token: "", Location: "unstamped-sess:0.0"},
-		}}}
-		t.Cleanup(func() { hooksDeps = nil })
+		}}})
 
 		got := runHookList(t)
 		want := "\ton-resume\tnpm start\t\n"
@@ -173,11 +167,10 @@ func TestHooksListLocationColumn(t *testing.T) {
 			"dup777": {"on-resume": "npm start"},
 		})
 
-		hooksDeps = &HooksDeps{PaneLister: &recordingPaneHookLister{rows: []tmux.PaneHookRow{
+		withHooksDeps(t, HooksDeps{PaneLister: &recordingPaneHookLister{rows: []tmux.PaneHookRow{
 			{Token: "dup777", Location: "first-sess:0.0"},
 			{Token: "dup777", Location: "second-sess:1.2"},
-		}}}
-		t.Cleanup(func() { hooksDeps = nil })
+		}}})
 
 		got := runHookList(t)
 		want := "dup777\ton-resume\tnpm start\tfirst-sess:0.0\n"
@@ -195,11 +188,10 @@ func TestHooksListLocationColumn(t *testing.T) {
 
 		// Rows alongside the error: a failed read must be judged by the error, not
 		// by whether the lister also handed back rows.
-		hooksDeps = &HooksDeps{PaneLister: &recordingPaneHookLister{
+		withHooksDeps(t, HooksDeps{PaneLister: &recordingPaneHookLister{
 			rows: []tmux.PaneHookRow{{Token: "aaa111", Location: "my-project:0.0"}},
 			err:  errors.New("no server running"),
-		}}
-		t.Cleanup(func() { hooksDeps = nil })
+		}})
 
 		got := runHookList(t)
 		want := "aaa111\ton-resume\tclaude --resume abc123\t\nbbb222\ton-resume\tnpm start\t\n"
@@ -212,8 +204,7 @@ func TestHooksListLocationColumn(t *testing.T) {
 		_, hooksFile := hooksFileInTempDir(t)
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{})
 
-		hooksDeps = &HooksDeps{PaneLister: &loudPaneHookLister{t: t}}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{PaneLister: &loudPaneHookLister{t: t}})
 
 		got := runHookList(t)
 		if got != "" {
@@ -227,11 +218,10 @@ func TestHooksListLocationColumn(t *testing.T) {
 			"ghost9": {"on-resume": "npm start"},
 		})
 
-		hooksDeps = &HooksDeps{PaneLister: &recordingPaneHookLister{rows: []tmux.PaneHookRow{
+		withHooksDeps(t, HooksDeps{PaneLister: &recordingPaneHookLister{rows: []tmux.PaneHookRow{
 			{Token: "aaa111", Location: "my-project:0.0"},
 			{Token: "bbb222", Location: "my-project:0.1"},
-		}}}
-		t.Cleanup(func() { hooksDeps = nil })
+		}}})
 
 		got := runHookList(t)
 		want := "ghost9\ton-resume\tnpm start\t\n"
@@ -247,10 +237,9 @@ func TestHooksListLocationColumn(t *testing.T) {
 			"sess:0.0": {"on-resume": "npm start"},
 		})
 
-		hooksDeps = &HooksDeps{PaneLister: &recordingPaneHookLister{rows: []tmux.PaneHookRow{
+		withHooksDeps(t, HooksDeps{PaneLister: &recordingPaneHookLister{rows: []tmux.PaneHookRow{
 			{Token: "aaa111", Location: "sess:0.0"},
-		}}}
-		t.Cleanup(func() { hooksDeps = nil })
+		}}})
 
 		got := runHookList(t)
 		want := "aaa111\ton-resume\tclaude --resume abc123\tsess:0.0\n" +
@@ -266,10 +255,9 @@ func TestHooksListLocationColumn(t *testing.T) {
 			"aaa111": {"on-resume": "npm start"},
 		})
 
-		hooksDeps = &HooksDeps{PaneLister: &recordingPaneHookLister{rows: []tmux.PaneHookRow{
+		withHooksDeps(t, HooksDeps{PaneLister: &recordingPaneHookLister{rows: []tmux.PaneHookRow{
 			{Token: "aaa111", Location: "a|b:0.0"},
-		}}}
-		t.Cleanup(func() { hooksDeps = nil })
+		}}})
 
 		got := runHookList(t)
 		want := "aaa111\ton-resume\tnpm start\ta|b:0.0\n"
@@ -290,8 +278,7 @@ func TestHooksListLocationColumn(t *testing.T) {
 		lister := &recordingPaneHookLister{rows: []tmux.PaneHookRow{
 			{Token: "aaa111", Location: "my-project:0.0"},
 		}}
-		hooksDeps = &HooksDeps{PaneLister: lister}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{PaneLister: lister})
 
 		runHookList(t)
 
@@ -317,8 +304,7 @@ func TestHooksSetCommand(t *testing.T) {
 		t.Setenv("TMUX_PANE", "%3")
 
 		resolver := &mockKeyResolver{key: "aaa111"}
-		hooksDeps = &HooksDeps{KeyResolver: resolver}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: resolver})
 
 		resetRootCmd()
 		rootCmd.SetOut(new(bytes.Buffer))
@@ -339,8 +325,7 @@ func TestHooksSetCommand(t *testing.T) {
 		t.Setenv("TMUX_PANE", "%99")
 
 		resolver := &mockKeyResolver{key: "bbb222"}
-		hooksDeps = &HooksDeps{KeyResolver: resolver}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: resolver})
 
 		resetRootCmd()
 		rootCmd.SetOut(new(bytes.Buffer))
@@ -364,8 +349,7 @@ func TestHooksSetCommand(t *testing.T) {
 		t.Setenv("TMUX_PANE", "")
 
 		resolver := &mockKeyResolver{key: "unus00"}
-		hooksDeps = &HooksDeps{KeyResolver: resolver}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: resolver})
 
 		resetRootCmd()
 		rootCmd.SetOut(new(bytes.Buffer))
@@ -389,8 +373,7 @@ func TestHooksSetCommand(t *testing.T) {
 		t.Setenv("TMUX_PANE", "%3")
 
 		resolver := &mockKeyResolver{key: "aaa111"}
-		hooksDeps = &HooksDeps{KeyResolver: resolver}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: resolver})
 
 		resetRootCmd()
 		rootCmd.SetOut(new(bytes.Buffer))
@@ -410,8 +393,7 @@ func TestHooksSetCommand(t *testing.T) {
 		t.Setenv("TMUX_PANE", "%3")
 
 		resolver := &mockKeyResolver{key: "aaa111"}
-		hooksDeps = &HooksDeps{KeyResolver: resolver}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: resolver})
 
 		resetRootCmd()
 		rootCmd.SetOut(new(bytes.Buffer))
@@ -438,8 +420,7 @@ func TestHooksSetCommand(t *testing.T) {
 		t.Setenv("TMUX_PANE", "%3")
 
 		resolver := &mockKeyResolver{key: "aaa111"}
-		hooksDeps = &HooksDeps{KeyResolver: resolver}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: resolver})
 
 		resetRootCmd()
 		rootCmd.SetOut(new(bytes.Buffer))
@@ -473,8 +454,7 @@ func TestHooksSetCommand(t *testing.T) {
 		t.Setenv("TMUX_PANE", "%999")
 
 		resolver := &mockKeyResolver{err: &tmux.CommandError{Stderr: stderr}}
-		hooksDeps = &HooksDeps{KeyResolver: resolver, PaneStamper: &recordingPaneStamper{}}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: resolver, PaneStamper: &recordingPaneStamper{}})
 
 		_, err := runHookSet(t, "some-cmd")
 		if err == nil {
@@ -498,8 +478,7 @@ func TestHooksSetCommand(t *testing.T) {
 		t.Setenv("TMUX_PANE", "%3")
 
 		resolver := &mockKeyResolver{key: "tok123"}
-		hooksDeps = &HooksDeps{KeyResolver: resolver}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: resolver})
 
 		resetRootCmd()
 		rootCmd.SetOut(new(bytes.Buffer))
@@ -519,8 +498,7 @@ func TestHooksSetCommand(t *testing.T) {
 		t.Setenv("TMUX_PANE", "")
 
 		resolver := &mockKeyResolver{key: "unus00"}
-		hooksDeps = &HooksDeps{KeyResolver: resolver}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: resolver})
 
 		resetRootCmd()
 		rootCmd.SetOut(new(bytes.Buffer))
@@ -547,8 +525,7 @@ func TestHooksRmCommand(t *testing.T) {
 		})
 
 		resolver := &mockKeyResolver{key: "aaa111"}
-		hooksDeps = &HooksDeps{KeyResolver: resolver}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: resolver})
 
 		resetRootCmd()
 		rootCmd.SetOut(new(bytes.Buffer))
@@ -573,8 +550,7 @@ func TestHooksRmCommand(t *testing.T) {
 		})
 
 		resolver := &mockKeyResolver{key: "bbb222"}
-		hooksDeps = &HooksDeps{KeyResolver: resolver}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: resolver})
 
 		resetRootCmd()
 		rootCmd.SetOut(new(bytes.Buffer))
@@ -598,8 +574,7 @@ func TestHooksRmCommand(t *testing.T) {
 		t.Setenv("TMUX_PANE", "")
 
 		resolver := &mockKeyResolver{key: "unus00"}
-		hooksDeps = &HooksDeps{KeyResolver: resolver}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: resolver})
 
 		resetRootCmd()
 		rootCmd.SetOut(new(bytes.Buffer))
@@ -619,8 +594,7 @@ func TestHooksRmCommand(t *testing.T) {
 		t.Setenv("TMUX_PANE", "%3")
 
 		resolver := &mockKeyResolver{key: "aaa111"}
-		hooksDeps = &HooksDeps{KeyResolver: resolver}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: resolver})
 
 		resetRootCmd()
 		rootCmd.SetOut(new(bytes.Buffer))
@@ -642,8 +616,7 @@ func TestHooksRmCommand(t *testing.T) {
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{})
 
 		resolver := &mockKeyResolver{key: "ccc333"}
-		hooksDeps = &HooksDeps{KeyResolver: resolver}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: resolver})
 
 		buf := new(bytes.Buffer)
 		resetRootCmd()
@@ -673,8 +646,7 @@ func TestHooksRmCommand(t *testing.T) {
 		})
 
 		resolver := &mockKeyResolver{key: "aaa111"}
-		hooksDeps = &HooksDeps{KeyResolver: resolver}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: resolver})
 
 		resetRootCmd()
 		rootCmd.SetOut(new(bytes.Buffer))
@@ -704,8 +676,7 @@ func TestHooksRmCommand(t *testing.T) {
 		})
 
 		resolver := &mockKeyResolver{key: "aaa111"}
-		hooksDeps = &HooksDeps{KeyResolver: resolver}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: resolver})
 
 		resetRootCmd()
 		rootCmd.SetOut(new(bytes.Buffer))
@@ -733,8 +704,7 @@ func TestHooksRmCommand(t *testing.T) {
 		})
 
 		resolver := &mockKeyResolver{err: fmt.Errorf("tmux not responding")}
-		hooksDeps = &HooksDeps{KeyResolver: resolver}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: resolver})
 
 		resetRootCmd()
 		rootCmd.SetOut(new(bytes.Buffer))
@@ -766,8 +736,7 @@ func TestHooksRmCommand(t *testing.T) {
 		// A resolver that fails loudly if consulted, so an accidental fallback on
 		// the flag-set branch cannot pass silently.
 		resolver := &mockKeyResolver{err: fmt.Errorf("resolver must not be called when --pane-key is set")}
-		hooksDeps = &HooksDeps{KeyResolver: resolver}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: resolver})
 
 		resetRootCmd()
 		rootCmd.SetOut(new(bytes.Buffer))
@@ -796,8 +765,7 @@ func TestHooksRmCommand(t *testing.T) {
 		})
 
 		resolver := &mockKeyResolver{key: "ddd444"}
-		hooksDeps = &HooksDeps{KeyResolver: resolver}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: resolver})
 
 		resetRootCmd()
 		rootCmd.SetOut(new(bytes.Buffer))
@@ -825,8 +793,7 @@ func TestHooksRmCommand(t *testing.T) {
 		// A resolver that fails loudly if consulted, so an accidental fallback on
 		// the --pane-key branch cannot pass silently.
 		resolver := &mockKeyResolver{err: fmt.Errorf("resolver must not be called when --pane-key is set")}
-		hooksDeps = &HooksDeps{KeyResolver: resolver}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: resolver})
 
 		resetRootCmd()
 		rootCmd.SetOut(new(bytes.Buffer))
@@ -850,8 +817,7 @@ func TestHooksRmCommand(t *testing.T) {
 		t.Setenv("TMUX_PANE", "")
 
 		resolver := &mockKeyResolver{key: "unus00"}
-		hooksDeps = &HooksDeps{KeyResolver: resolver}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: resolver})
 
 		resetRootCmd()
 		rootCmd.SetOut(new(bytes.Buffer))
@@ -905,8 +871,7 @@ func TestHookCommandRename(t *testing.T) {
 		_, hooksFile := hooksFileInTempDir(t)
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{})
 
-		hooksDeps = &HooksDeps{PaneLister: &loudPaneHookLister{t: t}}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{PaneLister: &loudPaneHookLister{t: t}})
 
 		outBuf := new(bytes.Buffer)
 		errBuf := new(bytes.Buffer)
@@ -932,8 +897,7 @@ func TestHookCommandRename(t *testing.T) {
 		t.Setenv("TMUX_PANE", "%3")
 
 		resolver := &mockKeyResolver{key: "aaa111"}
-		hooksDeps = &HooksDeps{KeyResolver: resolver}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: resolver})
 
 		resetRootCmd()
 		rootCmd.SetOut(new(bytes.Buffer))
@@ -955,8 +919,7 @@ func runHookSetForKey(t *testing.T, key, command string) error {
 	t.Helper()
 
 	t.Setenv("TMUX_PANE", "%3")
-	hooksDeps = &HooksDeps{KeyResolver: &mockKeyResolver{key: key}}
-	t.Cleanup(func() { hooksDeps = nil })
+	withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: key}})
 
 	_, err := runHookSet(t, command)
 	return err
@@ -1152,8 +1115,7 @@ func TestHooksSetTouchesSaveRequested(t *testing.T) {
 		t.Setenv("PORTAL_STATE_DIR", stateDir)
 		t.Setenv("TMUX_PANE", "%3")
 
-		hooksDeps = &HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}}
-		t.Cleanup(func() { hooksDeps = nil })
+		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}})
 
 		resetRootCmd()
 		rootCmd.SetOut(new(bytes.Buffer))
