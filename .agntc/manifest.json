@@ -1,7 +1,7 @@
 {
   "leeovery/agentic-workflows": {
-    "ref": "v0.7.14",
-    "commit": "7c5b8a41ab239603be1d7575174b0b202e2a0b7a",
+    "ref": "v0.7.19",
+    "commit": "9c901486dc8edc0f7278189a8b66336da0d555a8",
     "agents": [
       "claude"
     ],
@@ -208,6 +208,7 @@
       ".claude/skills/workflow-implementation-process/references/invoke-executor.md",
       ".claude/skills/workflow-implementation-process/references/invoke-reviewer.md",
       ".claude/skills/workflow-implementation-process/references/invoke-synthesizer.md",
+      ".claude/skills/workflow-implementation-process/references/invoke-task-author.md",
       ".claude/skills/workflow-implementation-process/references/invoke-task-writer.md",
       ".claude/skills/workflow-implementation-process/references/linter-setup.md",
       ".claude/skills/workflow-implementation-process/references/load-plan-adapter.md",
@@ -569,6 +570,7 @@
       ".claude/agents/workflow-implementation-analysis-standards.md",
       ".claude/agents/workflow-implementation-analysis-synthesizer.md",
       ".claude/agents/workflow-implementation-consolidation-finder.md",
+      ".claude/agents/workflow-implementation-task-author.md",
       ".claude/agents/workflow-implementation-task-executor.md",
       ".claude/agents/workflow-implementation-task-reviewer.md",
       ".claude/agents/workflow-implementation-task-writer.md",
@@ -596,7 +598,7 @@
     ],
     "type": "plugin",
     "cloneUrl": "https://github.com/leeovery/agentic-workflows.git",
-    "installedAt": "2026-08-29T16:49:01.654Z",
+    "installedAt": "2026-08-30T16:12:33.461Z",
     "constraint": "^0.7.0"
   },
   "samber/cc-skills-golang": {
