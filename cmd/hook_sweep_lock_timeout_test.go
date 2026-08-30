@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/portal/internal/fileutil"
 	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/hookstest"
 	"github.com/leeovery/portal/internal/logtest"
@@ -175,6 +176,12 @@ func TestHookSweepDiscriminatesLockTimeoutFromFailure(t *testing.T) {
 		}
 		if errors.Is(err, hooks.ErrLockHeld) {
 			t.Errorf("save failure %v reported as a lock timeout", err)
+		}
+		// The failure the fixture exists to produce: the mutation took its lock
+		// and read cleanly, then failed at the temp create. A staging change
+		// that failed at the lock open instead would carry a different class.
+		if !errors.Is(err, fileutil.ErrWriteTempCreate) {
+			t.Errorf("err = %v, want a write-phase failure carrying %v", err, fileutil.ErrWriteTempCreate)
 		}
 		if outcome.DeclineReason != "" {
 			t.Errorf("DeclineReason = %q, want none on a save failure", outcome.DeclineReason)
