@@ -214,7 +214,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 6,
-          "current_task": "resume-hooks-silently-lost-6-12",
+          "current_task": "resume-hooks-silently-lost-6-13",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -1064,6 +1064,49 @@
                 "internal/hooks/cleanstale_snapshot_test.go",
                 "internal/hooks/store_test.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-12",
+              "source": "executor",
+              "summary": "readOnlyDirPath still exists as an independent third copy in internal/project.",
+              "detail": "internal/project/store_logging_test.go:25 declares a readOnlyDirPath byte-for-byte parallel to the one just deleted from internal/hooks (nested ro dir at 0700 -> chmod 0500 -> 0700 cleanup), minus the sidecar. Both stores are fileutil.AtomicWrite consumers failing at the same temp-create phase, so the deny-writes fixture is a shared shape across two store packages; consolidating it means deciding where a cross-package test fixture lives (storelog is composition-only, transienttest is tmux-transient scaffolding — neither is an obvious home).",
+              "files": [
+                "internal/project/store_logging_test.go",
+                "internal/hooks/store_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-12",
+              "source": "executor",
+              "summary": "internal/hooks/read_lock_test.go stages a sidecar inline beside its own seedReadFixture helper.",
+              "detail": "read_lock_test.go:353-355 writes a hooks.json and calls transienttest.CreateHooksSidecar by hand, duplicating seedReadFixture (:19-31) for the sole reason that it wants one specific key/command pair rather than the generated k00/cmd00 ones. Giving seedReadFixture an entries-shaped parameter would absorb it, but that reshapes a helper the whole read-lock suite drives.",
+              "files": [
+                "internal/hooks/read_lock_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-12",
+              "source": "reviewer",
+              "summary": "cmd still has a second hooks.json staging route with the same sidecar drift this task set out to end.",
+              "detail": "hooksFileInTempDir (cmd/testhelpers_test.go:93) + writeHooksJSON (:142) stage a hooks.json via PORTAL_HOOKS_FILE for tests that Execute the real command body, and stage no sidecar — so every one of those reads degrades unasked, exactly the complaint that motivated this task. Visible at cmd/hooks_read_lock_test.go:80-89, where the want baseline is taken before HoldHooksSidecar creates the sidecar, so the baseline is itself a degraded read. Folding it in is a different axis (env-pointing with no store to inject) and reaches ~60 call sites in cmd/hooks_test.go.",
+              "files": [
+                "cmd/testhelpers_test.go",
+                "cmd/hooks_test.go",
+                "cmd/hooks_read_lock_test.go",
+                "cmd/hooks_seams_test.go",
+                "cmd/root_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-12",
+              "source": "reviewer",
+              "summary": "CORRECTION TO RECORD: a sidecar-less hooks.json is a reachable production state, not an impossible one.",
+              "detail": "The orchestrator decision for 6-12 rested on the claim that a hooks.json holding entries can only exist because a mutation created it, and that mutation created the sidecar too. The reviewer falsified it: (1) the sidecar shipped in unreleased commits 128e1dfb and 2c65211c, later than tag v0.11.0, so every install in the wild is sidecar-less on the first run of the next release and stays so until something takes the mutation lock — a box whose tmux server is down never runs the daemon sweep, so doctor and hook list read it degraded indefinitely; (2) migrateConfigFile (cmd/config.go:43) renames only hooks.json, never hooks.json.lock, so the macOS Application Support migration lands a seeded file with no sidecar at the new path. The DEFAULT was kept on independent grounds (fixture hygiene: no incidental load-unlocked breadcrumb across ~30 doctor fixtures; the degraded path is now deliberately pinned by three tests). Spec 6.5 and acquireSharedLock treat an absent sidecar as supported, so the production behaviour is by design — but the degraded read is the COMMON path after the next release, not an edge case.",
+              "files": [
+                "cmd/testhelpers_test.go",
+                "cmd/config.go",
+                "internal/hooks/lock.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -1127,7 +1170,8 @@
             "resume-hooks-silently-lost-6-8",
             "resume-hooks-silently-lost-6-9",
             "resume-hooks-silently-lost-6-10",
-            "resume-hooks-silently-lost-6-11"
+            "resume-hooks-silently-lost-6-11",
+            "resume-hooks-silently-lost-6-12"
           ],
           "staging": {
             "p1": {
