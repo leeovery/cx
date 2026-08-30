@@ -214,7 +214,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 6,
-          "current_task": "resume-hooks-silently-lost-6-7",
+          "current_task": "resume-hooks-silently-lost-6-8",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -856,6 +856,120 @@
                 "internal/restore/multipane_legacy_integration_test.go",
                 "internal/restore/integration_full_test.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-7",
+              "source": "executor",
+              "summary": "Two already-fixed exactTarget call sites in saver_pane_pid.go carry the same ineffective form and are still prefix-matchable.",
+              "detail": "internal/tmux/saver_pane_pid.go:13 and :37 both run list-panes -t exactTarget(sessionName). list-panes takes a window target, so =_portal-saver is not an exact session reference — verified against tmux 3.7c: with only _portal-saver-old live, list-panes -t =_portal-saver returns _portal-saver-old pane and pid, exit 0, while list-panes -t =_portal-saver: correctly fails with cant find session. SaverPanePIDOrAbsent is the tri-state feeding the orphan sweep, the daemon Component D self-supervision probe and the kill-barrier end-state assertions, so a prefix-sibling saver session can make a divergent daemon believe it is still the live saver pane process.",
+              "files": [
+                "internal/tmux/saver_pane_pid.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-7",
+              "source": "executor",
+              "summary": "exactTarget doc comment states an invariant it cannot deliver, independent of which sites call it.",
+              "detail": "internal/tmux/tmux.go:419-427 says Every session-level -t target must route through here, but the helper only pins the session for commands whose -t is a session target. The comment (and PaneTarget/PaneTargetExact neighbouring claims at :404-421) needs to name the session-target vs coordinate-target split, otherwise the next contributor repeats exactly this mistake — as the saver_pane_pid.go sites already did.",
+              "files": [
+                "internal/tmux/tmux.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-7",
+              "source": "executor",
+              "summary": "Every remaining -t in internal/tmux should be audited against the session/coordinate split now that the vocabulary exists.",
+              "detail": "This task fixed the seven the analysis named. The same question is open for clients.go:19 (list-clients -t — a genuine session target, so correct as-is, but unverified by any test) and for the PaneTarget call sites at internal/tmux/tmux.go:795,809, which the task explicitly fenced off. A single sweep against the two helpers would close the class rather than leaving it to be rediscovered a third time.",
+              "files": [
+                "internal/tmux/tmux.go",
+                "internal/tmux/clients.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-7",
+              "source": "executor",
+              "summary": "ActivePaneCurrentPath doc comment promises an ErrNoSuchSession this tmux never produces.",
+              "detail": "internal/tmux/tmux.go:255-257 states A session killed mid-read surfaces as errors.Is(err, ErrNoSuchSession), which callers can treat as unresolvable rather than fatal. Measured on tmux 3.7c, display-message -p -t <anything unmatched> exits 0 with an empty expansion and no stderr, so the method returns (\"\", nil) and wrapNoSuchSession is unreachable on this path. Pre-existing, unchanged by this task, and it matters because the caller is the TUI lazy dir-resolution fallback: it must already treat empty-and-nil as unresolved, so the fix is likely the comment rather than the code — but which one is a decision, not a cleanup.",
+              "files": [
+                "internal/tmux/tmux.go",
+                "internal/session/dirresolve.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-7",
+              "source": "reviewer",
+              "summary": "A bare -t <session> is composed outside the tmux client, so the package exactness rule cannot reach it.",
+              "detail": "internal/session/quickstart.go:51-52 builds a chained tmux argv with set-option -t <name> and attach-session -t <name>, both unprefixed. The name is generated-unique and created in the same chain, so an exact match normally wins — but if new-session fails, tmux continues the ; chain and the stamp can land on a prefix sibling. The fix belongs with whatever consolidates target composition across internal/session and internal/tmux.",
+              "files": [
+                "internal/session/quickstart.go",
+                "internal/tmux/tmux.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-7",
+              "source": "reviewer",
+              "summary": "The banked saver_pane_pid.go fix needs corrected guidance — exactTarget is the wrong helper there, and wrapNoSuchSession is likely dead on that path.",
+              "detail": "internal/tmux/saver_pane_pid.go:13 and :37 pass exactTarget(sessionName) to list-panes -t, which the doc comment written by this task (tmux.go:426-430) names as the wrong helper for a coordinate target. Measured: with _portal-saver absent and _portal-saver-old live, list-panes -t =_portal-saver -F #{pane_pid} returns the sibling pid with exit 0, while =_portal-saver: returns cant find session. That pid feeds the daemon self-supervision probe and the bootstrap orphan sweep. Second half: wrapNoSuchSession at :15 cannot fire on this path — list-panes emits cant find session/cant find window, never no such session — so SaverPanePIDOrAbsent ErrNoSuchSession collapse into present=false is likely dead code, and switching to exactCoordTarget does not fix that.",
+              "files": [
+                "internal/tmux/saver_pane_pid.go",
+                "internal/tmux/tmux.go",
+                "internal/tmux/saver_pane_pid_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-7",
+              "source": "reviewer",
+              "summary": "A session name containing a colon now fails at the five coordinate sites where a bare name previously worked at two of them.",
+              "detail": "tmux 3.7c accepts : in session names. Measured with a session literally named foo:bar: set-option -t foo:bar @k v and display-message -p -t foo:bar both succeeded before; -t =foo:bar: now fails and returns empty respectively. list-panes was already broken for such names. This widens a systemic limitation the package already has — PaneTarget/PaneTargetExact (tmux.go:411-419) and StructuralKeyFormat cannot round-trip a colon-bearing session name either, and RenameSession validates nothing. Portal GenerateSessionName never produces one, so the exposure is user-renamed sessions. A real fix is a package-wide name-validation or target-quoting decision.",
+              "files": [
+                "internal/tmux/tmux.go",
+                "internal/tmux/saver_pane_pid.go",
+                "internal/session/name.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-7",
+              "source": "reviewer",
+              "summary": "No source guard enumerates -t composition sites, so the exactness invariant rests on author discipline — and has now been missed three times.",
+              "detail": "The class has been rediscovered three times: the original seven sites, the two saver_pane_pid.go sites that were fixed with the wrong helper, and SelectLayout at tmux.go:794 which the review caught. Nothing enforces the invariant. A source guard enumerating -t composition sites in internal/tmux against the two helpers would close the class structurally rather than leaving it to be rediscovered a fourth time. New scope beyond this task acceptance criteria.",
+              "files": [
+                "internal/tmux/tmux.go",
+                "internal/tmux/clients.go",
+                "internal/tmux/saver_pane_pid.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-7",
+              "source": "reviewer",
+              "summary": "internal/restore/session.go composes the same bare coordinate target this task just pinned.",
+              "detail": "internal/restore/session.go:85 builds target := fmt.Sprintf(\"%s:\", sess.Name) and hands it to SplitWindow/NewWindow (:91, :99, :104) — the exact <session>: shape whose unpinned form resolves to a prefix sibling. Narrow in practice (restore created the session moments earlier), but the same class as the already-banked internal/session/quickstart.go site, and both would be caught by the banked -t-composition source guard.",
+              "files": [
+                "internal/restore/session.go",
+                "internal/session/quickstart.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-7",
+              "source": "reviewer",
+              "summary": "Client.ListPanes has no production consumer but now carries a corrected doc, a pinned wire form and two real-tmux subtests.",
+              "detail": "internal/tmux/tmux.go:573 is reachable only from tests (tmux_test.go:1298-1404, plus one subtest in each new file) and satisfies no seam interface. This task corrected its doc, pinned its wire form and gave it two real-tmux subtests — all maintained for an unused export. Worth deciding at the phase boundary whether to retire it instead.",
+              "files": [
+                "internal/tmux/tmux.go",
+                "internal/tmux/tmux_test.go",
+                "internal/tmux/exact_session_target_test.go",
+                "internal/tmux/exact_session_target_realtmux_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-7",
+              "source": "reviewer",
+              "summary": "SHARPENED: a colon-bearing session name now silently stops being saved or restored, not merely mis-targeted.",
+              "detail": "Measured, not inferred — tmux 3.7c accepts : in a session name, and show-environment -t =a:b fails with stderr no such session: =a:b where bare -t a:b succeeded. That stderr matches noSuchSessionStderrSubstr (internal/tmux/errors.go:30), so internal/state/capture.go:71 classifies it as NATURAL CHURN, logs a WARN and drops the session from sessions.json — it stops being saved or restored, silently. The failure mode moves from restored-with-wrong-geometry to never-saved. Portal own names strip : (internal/session/naming.go:21), but the TUI rename path applies no validation (internal/tui/model.go:2683 passes the typed name straight through). This sharpens the earlier colon-in-session-name bank entry with its actual consequence.",
+              "files": [
+                "internal/tmux/tmux.go",
+                "internal/state/capture.go",
+                "internal/tui/model.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -914,7 +1028,8 @@
             "resume-hooks-silently-lost-6-3",
             "resume-hooks-silently-lost-6-4",
             "resume-hooks-silently-lost-6-5",
-            "resume-hooks-silently-lost-6-6"
+            "resume-hooks-silently-lost-6-6",
+            "resume-hooks-silently-lost-6-7"
           ],
           "staging": {
             "p1": {
