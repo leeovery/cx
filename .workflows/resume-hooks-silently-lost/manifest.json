@@ -214,7 +214,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 6,
-          "current_task": "resume-hooks-silently-lost-6-17",
+          "current_task": "resume-hooks-silently-lost-6-18",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -1217,6 +1217,95 @@
                 "internal/restore/marker_assert_meta_test.go",
                 "internal/restore/rename_reboot_shared_test.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-17",
+              "source": "executor",
+              "summary": "A second distinct cause of the directory-not-empty family sits in HOME, not the state dir, and the teardown guard structurally cannot cover it.",
+              "detail": "IsolateStateForTest re-points HOME at a t.TempDir() (internal/portaltest/isolated_env.go:26), and tmux-hosted interactive shells write their history file there when kill-server SIGHUPs them — racing the same RemoveAll. Three fixtures already work around it locally with t.Setenv(HISTFILE, os.DevNull) (cmd/abridged_integration_test.go:33, cmd/concurrent_coldboot_integration_test.go:40 and :379), each with its own comment naming the race; every other server-hosting fixture is unprotected. RegisterStateDirTeardownGuard watches only the state dir, so it cannot help here. The fix is one line inside IsolateStateForTest (set HISTFILE to os.DevNull alongside the HOME re-point), which would let the three local workarounds be deleted.",
+              "files": [
+                "internal/portaltest/isolated_env.go",
+                "cmd/abridged_integration_test.go",
+                "cmd/concurrent_coldboot_integration_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-17",
+              "source": "executor",
+              "summary": "Eight integration fixtures run the built portal binary against a hand-rolled PORTAL_STATE_DIR without ever calling IsolateStateForTest.",
+              "detail": "They set PORTAL_STATE_DIR to a plain t.TempDir() and drive real restore/hydrate through a real tmux server, so they escape the mandated state isolation, the fingerprint backstop and the cross-process daemon-pgrep sandbox registry — and consequently task 6-17 guard rule, which is predicated on IsolateStateForTest. None spawns a saver or daemon (checked), so they fall outside the saver-hosting criterion, but they carry the same teardown-race shape via hydrate helpers. Retrofitting isolation across all eight is a cross-cutting pass, not a setup-line edit. This is an ABSOLUTE INVARIANT surface per CLAUDE.md — worth deciding deliberately rather than leaving.",
+              "files": [
+                "cmd/reattach_integration_test.go",
+                "cmd/bootstrap/eager_signal_hydrate_integration_test.go",
+                "cmd/bootstrap/phase2_hook_fire_integration_test.go",
+                "cmd/bootstrap/phase5_integration_test.go",
+                "cmd/bootstrap/phase5_marker_suppression_integration_test.go",
+                "internal/restore/armed_restore_integration_test.go",
+                "internal/restore/exit_closes_pane_integration_test.go",
+                "internal/restore/integration_full_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-17",
+              "source": "reviewer",
+              "summary": "A whole class of server-hosting fixtures is invisible to a rule keyed on IsolateStateForTest — three of them tear the state dir down BEFORE kill-server.",
+              "detail": "internal/restore/armed_restore_integration_test.go:22-23, internal/restore/integration_test.go:53-54 and cmd/reattach_integration_test.go:80-81 call tmuxtest.New BEFORE t.TempDir(), so LIFO runs the state-dir RemoveAll before kill-server — a strictly worse ordering than the shape task 6-17 fixed. internal/restore/exit_closes_pane_integration_test.go:109/120, internal/restore/integration_full_test.go:40/68, cmd/bootstrap/eager_signal_hydrate_integration_test.go:55 and cmd/bootstrap/scrollback_resumption_test.go:56 are the same family with the safer ordering but no quiescence wait. They isolate with a plain t.TempDir() + PORTAL_STATE_DIR rather than IsolateStateForTest, so the new coverage guard cannot see them. Covering them means editing seven fixtures and widening the guard rule from calls-the-isolation-helper to has-a-state-dir-at-all.",
+              "files": [
+                "internal/restore/armed_restore_integration_test.go",
+                "internal/restore/integration_test.go",
+                "internal/restore/integration_full_test.go",
+                "internal/restore/exit_closes_pane_integration_test.go",
+                "cmd/reattach_integration_test.go",
+                "cmd/bootstrap/eager_signal_hydrate_integration_test.go",
+                "cmd/bootstrap/scrollback_resumption_test.go",
+                "internal/portaltest/teardown_guard_coverage_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-17",
+              "source": "reviewer",
+              "summary": "The coverage guard checks presence per file, not per test function, and 20 sites repeat the same 3-line comment.",
+              "detail": "(1) The guard checks presence per file, not per test function and not the ordering its own failure message prescribes. All 20 files currently have matching isolate/server/guard counts so there is no live gap — but a second test function added to an already-guarded file gets no enforcement. Per-function scoping would close it. (2) The same 3-line comment block is repeated verbatim at 20 of the 21 new sites, restating what RegisterStateDirTeardownGuard own doc comment (internal/portaltest/teardown_guard.go:18-23) already says; the pre-existing convention was a bare call at four of the five prior sites. One line would carry it as well as three, and 20 copies of a claim is 20 things to keep true.",
+              "files": [
+                "internal/portaltest/teardown_guard_coverage_test.go",
+                "internal/portaltest/teardown_guard.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-17",
+              "source": "executor",
+              "summary": "TestDaemon_MidTickSIGHUP_ExitsWithinBoundedWindow has a throughput-sensitive seeding budget that fails on a loaded machine.",
+              "detail": "cmd/state_daemon_integration_test.go:75 fails with pane perf:0.0 did not accumulate 500000 scrollback lines within 10s. Reproduces 3/3 standalone on the current tree AND 2/2 with the file stashed back to HEAD (failing at the pre-edit line 72 with the identical message), so it is independent of task 6-17. It is a throughput-sensitive seeding budget failing on a box that had been running back-to-back integration suites for an hour; the same lane was green earlier in the session. The budget should scale with observed throughput or the seed should be smaller — a fixed 500k-lines-in-10s target is machine- and load-dependent.",
+              "files": [
+                "cmd/state_daemon_integration_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-17",
+              "source": "reviewer",
+              "summary": "Restore integration fixtures start real servers and exec the hydrate helper with a bare t.TempDir() state dir and no IsolateStateForTest.",
+              "detail": "internal/restore/integration_full_test.go:39-41, internal/restore/integration_test.go:20/:55, internal/restore/armed_restore_integration_test.go:24/:103, internal/restore/exit_closes_pane_integration_test.go:110, cmd/reattach_integration_test.go:82 all t.Setenv(PORTAL_STATE_DIR, t.TempDir()) and then call tmuxtest.New. They get no HOME/XDG scrub, no pgrep sandbox, and no teardown guard — the new source guard is blind to them because it keys on IsolateStateForTest. This is the ABSOLUTE INVARIANT surface per CLAUDE.md.",
+              "files": [
+                "internal/restore/integration_full_test.go",
+                "internal/restore/integration_test.go",
+                "internal/restore/armed_restore_integration_test.go",
+                "internal/restore/exit_closes_pane_integration_test.go",
+                "cmd/reattach_integration_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-17",
+              "source": "reviewer",
+              "summary": "The composition_e2e harness silently loses the teardown guard first phase, and nine pre-existing registration sites carry three different comment treatments.",
+              "detail": "(1) cmd/bootstrap/composition_e2e_harness_integration_test.go:58 — swapping the hand-rolled wait for the shared helper drops the helper FIRST phase in this one fixture: the harness deliberately overwrites daemon.pid with orphan1 PID at :89, and orphan1 is SIGKILLed earlier in the LIFO chain, so state.ReadPIDFile yields a dead PID and the wait-for-the-biggest-writer phase no-ops. Only the directory-quiescence loop protects this fixture, and the measured daemon-alive window (~52ms) sits right on the loop 50ms sampling boundary. If it flakes, the fix is a PID-source variant of the helper (the fixture already models one at :74, RegisterSandboxDaemonSource). (2) Nine pre-existing registration sites carry three different comment treatments: a 3-line comment (cmd/state_commit_now_symptom_integration_test.go:176-178), a 2-line one (cmd/state_commit_now_reentrancy_integration_test.go:42-43), and none at all (cmd/noncontiguous_window_reboot_integration_test.go:232, internal/tmux/portal_saver_integration_test.go x3, internal/tmux/portal_saver_endstate_integration_test.go x3). One sweep would leave one form.",
+              "files": [
+                "cmd/bootstrap/composition_e2e_harness_integration_test.go",
+                "cmd/state_commit_now_symptom_integration_test.go",
+                "cmd/state_commit_now_reentrancy_integration_test.go",
+                "cmd/noncontiguous_window_reboot_integration_test.go",
+                "internal/tmux/portal_saver_integration_test.go",
+                "internal/tmux/portal_saver_endstate_integration_test.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -1285,7 +1374,8 @@
             "resume-hooks-silently-lost-6-13",
             "resume-hooks-silently-lost-6-14",
             "resume-hooks-silently-lost-6-15",
-            "resume-hooks-silently-lost-6-16"
+            "resume-hooks-silently-lost-6-16",
+            "resume-hooks-silently-lost-6-17"
           ],
           "staging": {
             "p1": {
