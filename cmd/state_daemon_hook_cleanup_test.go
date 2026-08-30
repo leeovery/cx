@@ -15,16 +15,12 @@ import (
 	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/tmux"
-	"github.com/leeovery/portal/internal/transienttest"
 )
 
 // A daemon-sweep fixture that expects an entry to survive must key it on a
 // token the enumeration reports, or the entry survives on the reaper's
 // retention of keys it cannot judge and the fixture stops measuring liveness.
-var (
-	livePaneToken  = transienttest.ReapableHookKey(9)
-	livePaneRowOut = livePaneToken + "|live:0.0"
-)
+var livePaneRowOut = liveSeedA + "|live:0.0"
 
 func hookCleanupDeps(fc *daemonFakeCommander, store *hooks.Store, logger *slog.Logger) *daemonDeps {
 	return &daemonDeps{
@@ -72,7 +68,7 @@ func TestMaybeRunHookCleanup_RunsAndResetsOnceIntervalElapsed(t *testing.T) {
 	seed := fmt.Sprintf(`{
   %q: {"on-resume": "cmd-stale"},
   %q: {"on-resume": "cmd-live"}
-}`, reapableSeedA, livePaneToken)
+}`, reapableSeedA, liveSeedA)
 	store, _ := newTempHooksStore(t, seed)
 	fc := &daemonFakeCommander{panesOut: livePaneRowOut}
 	deps := hookCleanupDeps(fc, store, discardDaemonLogger())
@@ -89,7 +85,7 @@ func TestMaybeRunHookCleanup_RunsAndResetsOnceIntervalElapsed(t *testing.T) {
 	if _, ok := postRun[reapableSeedA]; ok {
 		t.Errorf("stale entry not reaped once interval elapsed; hooks=%v", keysOf(postRun))
 	}
-	if _, ok := postRun[livePaneToken]; !ok {
+	if _, ok := postRun[liveSeedA]; !ok {
 		t.Errorf("live entry wrongly reaped; hooks=%v", keysOf(postRun))
 	}
 

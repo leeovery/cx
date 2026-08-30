@@ -19,7 +19,7 @@ func TestHookSweepSnapshotPrecedesEnumeration(t *testing.T) {
 	t.Run("it retains an entry written during the pane enumeration", func(t *testing.T) {
 		store, path := newTempHooksStore(t, fmt.Sprintf(`{%q: {"on-resume": "cmd-live"}}`, liveSeedA))
 
-		lister := &stubAllPaneLister{rows: tokenRows(liveSeedA), during: func() {
+		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA), during: func() {
 			if err := store.Set(reapableSeedA, "on-resume", "cmd-fresh", hooks.ViaCLI); err != nil {
 				t.Errorf("register a hook during the enumeration: %v", err)
 			}
@@ -46,7 +46,7 @@ func TestHookSweepSnapshotPrecedesEnumeration(t *testing.T) {
 		store, path := newTempHooksStore(t, fmt.Sprintf(`{%q: {"on-resume": "cmd-live"}}`, liveSeedA))
 
 		probed := false
-		lister := &stubAllPaneLister{rows: tokenRows(liveSeedA), during: func() {
+		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA), during: func() {
 			probed = true
 			f, err := os.OpenFile(path+".lock", os.O_RDWR, 0o600)
 			if err != nil {
@@ -83,7 +83,7 @@ func TestHookSweepSnapshotPrecedesEnumeration(t *testing.T) {
 		// snapshot holds and the sweep would otherwise have reaped — while a
 		// registration lands for seed D. C leaves the file by someone else's
 		// hand and D never enters the snapshot, so neither may be named.
-		lister := &stubAllPaneLister{rows: tokenRows(liveSeedA), during: func() {
+		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA), during: func() {
 			if _, err := store.Remove(reapableSeedC, "on-resume", hooks.ViaCLI); err != nil {
 				t.Errorf("remove a hook during the enumeration: %v", err)
 			}
@@ -115,7 +115,7 @@ func TestHookSweepTakesNoLockWithNothingPersisted(t *testing.T) {
 	configDir := filepath.Join(configRoot, "portal")
 	hooksPath := filepath.Join(configDir, "hooks.json")
 
-	lister := &stubAllPaneLister{rows: tokenRows(liveSeedA)}
+	lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA)}
 	if err := sweepErr(lister, hooks.NewStore(hooksPath), nil); err != nil {
 		t.Fatalf("runHookStaleCleanup: %v", err)
 	}

@@ -8,18 +8,12 @@ import (
 
 	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/tmuxtest"
-	"github.com/leeovery/portal/internal/transienttest"
 )
 
 const (
 	renameRestoreName    = "renamedst"
 	renameRestoreNewName = "renamedst2"
 )
-
-// The pane token is stamped once and read back after the session is renamed:
-// the key a restored hook was registered under must still name a live pane, or
-// the sweep reaps it the way the mutable session name used to let it.
-var renameRestoreToken = transienttest.ReapableHookKey(1)
 
 func TestRenameRestoreCleanupSurvival_KeepsRestoredTokenKeyedHook(t *testing.T) {
 	if testing.Short() {
@@ -37,22 +31,25 @@ func TestRenameRestoreCleanupSurvival_KeepsRestoredTokenKeyedHook(t *testing.T) 
 	ts.WaitForSession(t, renameRestoreName, 2*time.Second)
 
 	// Restore's re-stamp: the recreated pane carries the token its saved state
-	// held. Omitting it leaves the pane unstamped and the entry unprotected.
-	ts.StampPaneToken(t, renameRestoreName+":0.0", renameRestoreToken)
+	// held, and it is read back after the rename — the key a restored hook was
+	// registered under must still name a live pane, or the sweep reaps it the
+	// way the mutable session name used to let it. Omitting the stamp leaves
+	// the pane unstamped and the entry unprotected.
+	ts.StampPaneToken(t, renameRestoreName+":0.0", liveSeedA)
 
 	if err := client.RenameSession(renameRestoreName, renameRestoreNewName); err != nil {
 		t.Fatalf("RenameSession: %v", err)
 	}
 	ts.WaitForSession(t, renameRestoreNewName, 2*time.Second)
 
-	assertLiveTokenPresent(t, client, renameRestoreToken)
+	assertLiveTokenPresent(t, client, liveSeedA)
 
 	// Truly-stale entry with no matching live pane, token-shaped so the reaper
 	// can judge it: must still be swept.
-	staleKey := transienttest.ReapableHookKey(0)
+	staleKey := reapableSeedA
 
 	seed := `{
-  "` + renameRestoreToken + `": {"on-resume": "echo restored"},
+  "` + liveSeedA + `": {"on-resume": "echo restored"},
   "` + staleKey + `": {"on-resume": "echo gone"}
 }`
 	store, path := newTempHooksStore(t, seed)
@@ -61,8 +58,8 @@ func TestRenameRestoreCleanupSurvival_KeepsRestoredTokenKeyedHook(t *testing.T) 
 	if err != nil {
 		t.Fatalf("pre-cleanup store.Load: %v", err)
 	}
-	if _, ok := preRun[renameRestoreToken]; !ok {
-		t.Fatalf("pre-cleanup seed missing token key %q; keys=%v", renameRestoreToken, keysOf(preRun))
+	if _, ok := preRun[liveSeedA]; !ok {
+		t.Fatalf("pre-cleanup seed missing token key %q; keys=%v", liveSeedA, keysOf(preRun))
 	}
 	if _, ok := preRun[staleKey]; !ok {
 		t.Fatalf("pre-cleanup seed missing stale key %q; keys=%v", staleKey, keysOf(preRun))
@@ -76,10 +73,10 @@ func TestRenameRestoreCleanupSurvival_KeepsRestoredTokenKeyedHook(t *testing.T) 
 	if err != nil {
 		t.Fatalf("post-cleanup store.Load: %v", err)
 	}
-	if _, ok := postRun[renameRestoreToken]; !ok {
+	if _, ok := postRun[liveSeedA]; !ok {
 		t.Errorf("token-keyed hook %q was swept after a rename; want preserved "+
 			"(the token is stamped on the pane and a rename cannot move it). "+
-			"post-cleanup keys=%v (path=%s)", renameRestoreToken, keysOf(postRun), path)
+			"post-cleanup keys=%v (path=%s)", liveSeedA, keysOf(postRun), path)
 	}
 	if _, ok := postRun[staleKey]; ok {
 		t.Errorf("truly-stale hook %q survived; want swept "+

@@ -88,46 +88,35 @@ func (r *recordingPaneHookLister) ListAllPaneHookKeys() ([]tmux.PaneHookRow, err
 
 var _ PaneHookLister = (*recordingPaneHookLister)(nil)
 
-// recordingHookKeyLister is the sweep's seam: the same enumeration fake, plus
-// the @portal-restoring marker read the sweep gates itself on.
-type recordingHookKeyLister struct {
-	recordingPaneHookLister
-	restoring    bool
-	restoringErr error
-}
-
-func (r *recordingHookKeyLister) TryGetServerOption(string) (string, bool, error) {
-	return restoringOption(r.restoring, r.restoringErr)
-}
-
-var _ staleSweepReader = (*recordingHookKeyLister)(nil)
-
-// stubAllPaneLister answers the sweep's two seams with fixed values: a fixed
+// stubStaleSweepReader answers the sweep's two seams with fixed values: a fixed
 // row set (or failure) for the pane-token enumeration, and a fixed
-// @portal-restoring read. The optional during hook runs at the top of the
-// enumeration, so a test can land a concurrent writer's mutation inside it — in
-// the window between the sweep's snapshot and the token set that snapshot is
-// weighed against.
-type stubAllPaneLister struct {
+// @portal-restoring read. It counts the enumeration reads, so a test can assert
+// the sweep stood down before enumerating as well as what it read. The optional
+// during hook runs at the top of the enumeration, so a test can land a
+// concurrent writer's mutation inside it — in the window between the sweep's
+// snapshot and the token set that snapshot is weighed against.
+type stubStaleSweepReader struct {
 	rows         []tmux.PaneHookRow
 	err          error
 	restoring    bool
 	restoringErr error
 	during       func()
+	calls        int
 }
 
-func (s *stubAllPaneLister) ListAllPaneHookKeys() ([]tmux.PaneHookRow, error) {
+func (s *stubStaleSweepReader) ListAllPaneHookKeys() ([]tmux.PaneHookRow, error) {
+	s.calls++
 	if s.during != nil {
 		s.during()
 	}
 	return s.rows, s.err
 }
 
-func (s *stubAllPaneLister) TryGetServerOption(string) (string, bool, error) {
+func (s *stubStaleSweepReader) TryGetServerOption(string) (string, bool, error) {
 	return restoringOption(s.restoring, s.restoringErr)
 }
 
-var _ staleSweepReader = (*stubAllPaneLister)(nil)
+var _ staleSweepReader = (*stubStaleSweepReader)(nil)
 
 // mockKeyResolver answers the registration read with one fixed key (or one
 // fixed failure) however many times it is asked, and counts the asks. The fixed

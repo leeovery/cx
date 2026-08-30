@@ -103,7 +103,7 @@ func TestDoctorFix_SuffixInBothSummaries(t *testing.T) {
 		// halves and the same suffix.
 		hookStore, _ := seedHooksJSON(t, reapableSeedA)
 		projectStore, _ := seedProjectsJSON(t, t.TempDir())
-		deps := staleDeps(dir, fakeHookLister{rows: tokenRows(liveSeedB)}, hookStore, projectStore)
+		deps := staleDeps(dir, &stubStaleSweepReader{rows: tokenRows(liveSeedB)}, hookStore, projectStore)
 		deps.ThemesDir = themesDirWith(t, map[string][]byte{
 			"a-missing.theme": sourceMissingTokens(t, "text.primary"),
 			"b-colour.theme":  sourceBadColours(t, themeOverride{"canvas", "blue"}),

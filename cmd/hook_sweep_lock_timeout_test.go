@@ -42,7 +42,7 @@ func lockStandDownRecord(t *testing.T, sink *logtest.Sink) logtest.Record {
 }
 
 func TestHookSweepStandsDownOnLockTimeout(t *testing.T) {
-	lister := &stubAllPaneLister{rows: tokenRows(liveSeedA)}
+	lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA)}
 
 	t.Run("it deletes nothing when the sweep cannot take the lock", func(t *testing.T) {
 		store, path, _ := lockedSweepFixture(t, lockBound)
@@ -176,7 +176,7 @@ func TestHookSweepStandsDownOnLockTimeout(t *testing.T) {
 }
 
 func TestHookSweepDiscriminatesLockTimeoutFromFailure(t *testing.T) {
-	lister := &stubAllPaneLister{rows: tokenRows(liveSeedA)}
+	lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA)}
 
 	t.Run("it still returns an error for a save failure", func(t *testing.T) {
 		store, _ := newStagedHooksStore(t, hooksStoreStaging{
@@ -251,7 +251,7 @@ func TestDoctorFixReportsLockedHookPrune(t *testing.T) {
 		store, path := newTempHooksStore(t, staleHookSeed)
 		transienttest.HoldHooksSidecar(t, path)
 
-		got := checkStaleHooks(&stubAllPaneLister{rows: tokenRows(liveSeedA)}, store)
+		got := checkStaleHooks(&stubStaleSweepReader{rows: tokenRows(liveSeedA)}, store)
 		if got.status != checkFail {
 			t.Errorf("status = %v, want checkFail under a held lock", got.status)
 		}
@@ -270,7 +270,7 @@ func TestDoctorFixReportsLockedHookPrune(t *testing.T) {
 		hookStore, hooksPath := seedHooksJSON(t, liveSeedA)
 		transienttest.HoldHooksSidecar(t, hooksPath)
 		projectStore, _ := seedProjectsJSON(t, t.TempDir())
-		deps := staleDeps(dir, fakeHookLister{rows: tokenRows(liveSeedA)}, hookStore, projectStore)
+		deps := staleDeps(dir, &stubStaleSweepReader{rows: tokenRows(liveSeedA)}, hookStore, projectStore)
 
 		outBuf, _, err := runDoctorFixCmd(t, deps)
 		if err != nil {
@@ -286,7 +286,7 @@ func TestDoctorFixReportsLockedHookPrune(t *testing.T) {
 		failingHooks, failingPath := seedHooksJSON(t, liveSeedA)
 		transienttest.HoldHooksSidecar(t, failingPath)
 		failingProjects, _ := seedProjectsJSON(t, t.TempDir())
-		failingDeps := staleDeps(failingDir, fakeHookLister{rows: tokenRows(liveSeedA)}, failingHooks, failingProjects)
+		failingDeps := staleDeps(failingDir, &stubStaleSweepReader{rows: tokenRows(liveSeedA)}, failingHooks, failingProjects)
 		failingDeps.SaverPresent = func() (bool, error) { return false, nil }
 
 		failBuf, _, failErr := runDoctorFixCmd(t, failingDeps)

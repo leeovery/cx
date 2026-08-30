@@ -552,7 +552,7 @@ func TestDaemonTick_RunsHookCleanupOnIdleTick(t *testing.T) {
 	seed := fmt.Sprintf(`{
   %q: {"on-resume": "cmd-stale"},
   %q: {"on-resume": "cmd-live"}
-}`, reapableSeedA, livePaneToken)
+}`, reapableSeedA, liveSeedA)
 	store, _ := newTempHooksStore(t, seed)
 
 	// The stale key is absent from panesOut so the cleanup reaps it; no
@@ -573,7 +573,7 @@ func TestDaemonTick_RunsHookCleanupOnIdleTick(t *testing.T) {
 	if _, ok := postRun[reapableSeedA]; ok {
 		t.Errorf("stale hook entry not reaped on idle tick; hooks=%v", keysOf(postRun))
 	}
-	if _, ok := postRun[livePaneToken]; !ok {
+	if _, ok := postRun[liveSeedA]; !ok {
 		t.Errorf("live hook entry wrongly reaped on idle tick; hooks=%v", keysOf(postRun))
 	}
 

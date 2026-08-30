@@ -18,7 +18,6 @@ import (
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
 	"github.com/leeovery/portal/internal/tmuxtest"
-	"github.com/leeovery/portal/internal/transienttest"
 )
 
 const (
@@ -242,13 +241,13 @@ func newDivergentRebootFixture(t *testing.T) *divergentRebootFixture {
 		binDir:        binDir,
 		sideEffectDir: sideEffectDir,
 		store:         hooks.NewStore(hooksPath),
-		staleKey:      transienttest.ReapableHookKey(0),
+		staleKey:      reapableSeedA,
 		stamped: []divergentPane{
 			{
 				role:       "first-window",
 				savedWin:   0,
 				savedPane:  0,
-				token:      transienttest.ReapableHookKey(1),
+				token:      liveSeedA,
 				markerFile: filepath.Join(sideEffectDir, "hook-first.txt"),
 				markerText: divergentFirstMarker,
 			},
@@ -256,7 +255,7 @@ func newDivergentRebootFixture(t *testing.T) *divergentRebootFixture {
 				role:       "last-window",
 				savedWin:   divergentKilledWindow + 1,
 				savedPane:  0,
-				token:      transienttest.ReapableHookKey(2),
+				token:      liveSeedB,
 				markerFile: filepath.Join(sideEffectDir, "hook-last.txt"),
 				markerText: divergentLastMarker,
 			},

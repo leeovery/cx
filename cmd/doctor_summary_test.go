@@ -17,7 +17,7 @@ func healthyDoctorDeps(t *testing.T) *DoctorDeps {
 	seedHealthyStateDir(t, dir)
 	hookStore, _ := seedHooksJSON(t)
 	projectStore, _ := seedProjectsJSON(t, t.TempDir())
-	return staleDeps(dir, fakeHookLister{rows: tokenRows(liveSeedA)}, hookStore, projectStore)
+	return staleDeps(dir, &stubStaleSweepReader{rows: tokenRows(liveSeedA)}, hookStore, projectStore)
 }
 
 func TestDoctorSummary_AllChecksPassed(t *testing.T) {
@@ -170,7 +170,7 @@ func TestDoctorSummary_FixPathRendersTwo(t *testing.T) {
 	seedHealthyStateDir(t, dir)
 	hookStore, _ := seedHooksJSON(t, reapableSeedA)
 	projectStore, _ := seedProjectsJSON(t, t.TempDir())
-	deps := staleDeps(dir, fakeHookLister{rows: tokenRows(liveSeedB)}, hookStore, projectStore)
+	deps := staleDeps(dir, &stubStaleSweepReader{rows: tokenRows(liveSeedB)}, hookStore, projectStore)
 
 	outBuf, _, err := runDoctorFixCmd(t, deps)
 	if err != nil {

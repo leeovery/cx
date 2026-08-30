@@ -24,7 +24,7 @@ func installHooksSink(t *testing.T) *logtest.Sink {
 func TestDoctorStaleHooksDegradedRead(t *testing.T) {
 	t.Run("it keeps the stale-hooks check green under a degraded read", func(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, 40*time.Millisecond)
-		lister := fakeHookLister{rows: tokenRows(liveSeedA)}
+		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA)}
 
 		// The baseline must be a genuinely *locked* read: seedHooksJSON stages no
 		// sidecar, so without this the baseline would itself degrade on ENOENT and
@@ -68,7 +68,7 @@ func TestDoctorStaleHooksDegradedRead(t *testing.T) {
 		store := hooks.NewStore(filepath.Join(configDir, "hooks.json"))
 		before := dirListing(t, configDir)
 
-		if _, err := runDoctorDiagnosis(staleDeps(t.TempDir(), fakeHookLister{rows: tokenRows(liveSeedA)}, store, nil)); err != nil {
+		if _, err := runDoctorDiagnosis(staleDeps(t.TempDir(), &stubStaleSweepReader{rows: tokenRows(liveSeedA)}, store, nil)); err != nil {
 			t.Fatalf("runDoctorDiagnosis: %v", err)
 		}
 
@@ -130,7 +130,7 @@ func TestSweepPreReadBound(t *testing.T) {
 		// An empty live set stands the cycle down after the pre-read, so the
 		// elapsed time measures that read alone rather than CleanStale's own
 		// exclusive acquire behind it.
-		lister := &stubAllPaneLister{rows: tokenRows()}
+		lister := &stubStaleSweepReader{rows: tokenRows()}
 		sink := installHooksSink(t)
 
 		start := time.Now()
