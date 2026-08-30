@@ -214,7 +214,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 6,
-          "current_task": "resume-hooks-silently-lost-6-20",
+          "current_task": "resume-hooks-silently-lost-6-21",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -1385,6 +1385,95 @@
                 "internal/theme/resolve_test.go",
                 "internal/restore/logging_capture_test.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-20",
+              "source": "executor",
+              "summary": "55 inline hydrateConfig literals could now route through the hydrateCfg builder this task created.",
+              "detail": "The task scoped these out explicitly, but the builder did not exist then and does now. cmd/state_hydrate_file_missing_log_test.go:23 is itself a fourth suite-local builder that hydrateCfg subsumes; the rest are per-case struct literals in the exec-log, file-missing and exec-failure suites.",
+              "files": [
+                "cmd/state_hydrate_exec_log_test.go",
+                "cmd/state_hydrate_file_missing_log_test.go",
+                "cmd/state_hydrate_exec_failure_test.go",
+                "cmd/state_hydrate_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-20",
+              "source": "executor",
+              "summary": "The hooks.json byte-identity assertion has three homes across two packages and one env-resolved variant.",
+              "detail": "cmd owns assertHooksFileUnchanged (cmd/testhelpers_test.go:199). internal/hooks/store_test.go open-codes the same comparison four times (:414, :449, :503, and one more) with no package-local helper, and cmd/cleanstale_transient_listpanes_shared_test.go:75 writes a third form over hookstest.HooksJSONBytes. Consolidating means promoting the assertion into internal/hookstest — which moves cmd's helper out of cmd, beyond this task's surface.",
+              "files": [
+                "cmd/testhelpers_test.go",
+                "internal/hooks/store_test.go",
+                "cmd/cleanstale_transient_listpanes_shared_test.go",
+                "internal/hookstest/hooks.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-20",
+              "source": "reviewer",
+              "summary": "The hooks.json byte-identity assertion has three homes across two packages plus one env-resolved variant.",
+              "detail": "cmd owns assertHooksFileUnchanged (cmd/testhelpers_test.go:199); internal/hooks/store_test.go:414,449,503,525 open-code the same readFileBytes + bytes.Equal comparison four times; cmd/cleanstale_transient_listpanes_shared_test.go:76 writes a third form over hookstest.HooksJSONBytes. A single home needs a hookstest-hosted assertion, which reaches past this task.",
+              "files": [
+                "cmd/testhelpers_test.go",
+                "internal/hooks/store_test.go",
+                "cmd/cleanstale_transient_listpanes_shared_test.go",
+                "internal/hookstest/hooks.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-20",
+              "source": "reviewer",
+              "summary": "Inline hydrateConfig literals elsewhere in the hydrate suites could now route through the builder this task created.",
+              "detail": "The task scoped these out because the builder did not exist; it does now. Confirmed the executor's finding.",
+              "files": [
+                "cmd/state_hydrate_exec_log_test.go",
+                "cmd/state_hydrate_file_missing_log_test.go",
+                "cmd/state_hydrate_exec_failure_test.go",
+                "cmd/state_hydrate_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-20",
+              "source": "executor",
+              "summary": "No projects.json counterpart to readFileBytes, so three symmetric hooks/projects read pairs stay raw.",
+              "detail": "cmd/doctor_test.go:860 and cmd/run_hook_stale_cleanup_test.go:305,448 read hooks.json and projects.json in the same shape for a strings.Contains check. Converting only the hooks half would split the pair; the fix is a projects-side read helper, which is a separate consolidation.",
+              "files": [
+                "cmd/doctor_test.go",
+                "cmd/run_hook_stale_cleanup_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-20",
+              "source": "executor",
+              "summary": "cmd/state_hydrate_test.go:1343,1394,1427 assign cfg.HookStore after the builder call although hydrateCfgOpts now carries the field.",
+              "detail": "Two styles sit side by side in one file. Related to the inline hydrateConfig literals already banked: cmd/state_hydrate_file_missing_log_test.go:23 is itself a fourth suite-local builder hydrateCfg subsumes.",
+              "files": [
+                "cmd/state_hydrate_test.go",
+                "cmd/state_hydrate_file_missing_log_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-20",
+              "source": "reviewer",
+              "summary": "The byte-unchanged assertion has a second home in internal/hooks, where no helper exists to route it through.",
+              "detail": "internal/hooks/store_test.go:414,449,503,525 hold four copies of if after := readFileBytes(t, filePath); !bytes.Equal(before, after) with near-identical failure messages — the same class as item (a), but in package hooks_test, which cannot reach cmd's assertHooksFileUnchanged (cmd/testhelpers_test.go:199). Promoting the assertion to internal/hookstest beside AssertSidecarFree — a package both cmd and internal/hooks already import — would give it one home across both packages and let cmd/testhelpers_test.go:199 delegate rather than duplicate.",
+              "files": [
+                "internal/hooks/store_test.go",
+                "internal/hookstest/hooks_lock.go",
+                "cmd/testhelpers_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-20",
+              "source": "reviewer",
+              "summary": "A third hydrateConfig builder of the same shape survives and is now superseded.",
+              "detail": "fileMissingCfg (cmd/state_hydrate_file_missing_log_test.go:21) takes the identical seven positional parameters replayCfg and timeoutCfg took, differing only in setting HandleFileMissing and omitting HandleTimeout. Since hydrateCfg now wires both handlers, it fully expresses every one of fileMissingCfg's three call sites (:64,:91,:176), which all pass openFIFOWithTimeout and never reach the timeout path.",
+              "files": [
+                "cmd/state_hydrate_file_missing_log_test.go",
+                "cmd/state_hydrate_test.go"
+              ]
             }
           ],
           "completed_tasks": [
@@ -1456,7 +1545,8 @@
             "resume-hooks-silently-lost-6-16",
             "resume-hooks-silently-lost-6-17",
             "resume-hooks-silently-lost-6-18",
-            "resume-hooks-silently-lost-6-19"
+            "resume-hooks-silently-lost-6-19",
+            "resume-hooks-silently-lost-6-20"
           ],
           "staging": {
             "p1": {
