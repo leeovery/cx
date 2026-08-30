@@ -214,7 +214,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 6,
-          "current_task": "resume-hooks-silently-lost-6-23",
+          "current_task": "resume-hooks-silently-lost-6-24",
           "bank": [
             {
               "task": "resume-hooks-silently-lost-1-4",
@@ -1483,6 +1483,45 @@
               "files": [
                 "cmd/hooks_test.go"
               ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-23",
+              "source": "executor",
+              "summary": "internal/tui/help_modal_test.go is committed in a state gofmt rejects, so gofmt -l . is never clean.",
+              "detail": "A one-line map-literal alignment breach at internal/tui/help_modal_test.go:294; the file is unmodified in git, so the breach is in HEAD. Every future task that runs the configured gofmt -l . linter sees a false positive.",
+              "files": [
+                "internal/tui/help_modal_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-23",
+              "source": "executor",
+              "summary": "Two cmd test files still exercise doctor.go / run_hook_stale_cleanup.go under names that cannot be fixed by rename alone.",
+              "detail": "cmd/hooks_read_lock_test.go:16 (TestDoctorStaleHooksDegradedRead) and :107 (TestSweepPreReadBound) sit in a file whose other tests belong to hooks.go — compliance needs a split, not a rename. cmd/noncontiguous_window_reboot_integration_test.go:195 drives the sweep as one step of a reboot round-trip spanning restore/state/cmd, so no single source name fits; deciding its home is a naming-convention call for the whole cross-source-scenario class.",
+              "files": [
+                "cmd/hooks_read_lock_test.go",
+                "cmd/noncontiguous_window_reboot_integration_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-23",
+              "source": "executor",
+              "summary": "cmd/doctor_fix_transient_listpanes_shared_integration_test.go is a shared scaffolding file with exactly one consumer.",
+              "detail": "After the internal/hookstest split, every helper in it (isolateCleanStaleTestEnv, runTransientCleanStaleModeSubtest, transientModeSpec, staleHookCleanupLogLines, logLinesContaining, containsLineMatching, configDirFromEnvSlice) is used only by cmd/doctor_fix_transient_listpanes_integration_test.go; the daemon-side test now reaches internal/hookstest instead. Folding the two files into one is a content merge beyond the rename task.",
+              "files": [
+                "cmd/doctor_fix_transient_listpanes_shared_integration_test.go",
+                "cmd/doctor_fix_transient_listpanes_integration_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-6-23",
+              "source": "reviewer",
+              "summary": "cmd/noncontiguous_window_reboot_integration_test.go is not named after a source file yet exercises run_hook_stale_cleanup.go.",
+              "detail": "It calls the sweep at :195 and asserts sweep behaviour in two subtests (:203, :213). But only 3 of its 8 subtests touch the sweep — the rest cover restore, hydrate, skeleton markers and per-pane hook firing across internal/restore / internal/state / cmd. Prefixing it run_hook_stale_cleanup_ would misdescribe it, so leaving it is right. The open question is cross-scope: either the naming convention needs an explicit carve-out for cross-cutting round-trip tests, or this file needs a home that resolves the ambiguity. Also: the reviewer judged the executor's cmd/hooks_read_lock_test.go entry to need no action — hooks_ derives from cmd/hooks.go, a real source file.",
+              "files": [
+                "cmd/noncontiguous_window_reboot_integration_test.go",
+                ".claude/skills/golang-testing/SKILL.md"
+              ]
             }
           ],
           "completed_tasks": [
@@ -1557,7 +1596,8 @@
             "resume-hooks-silently-lost-6-19",
             "resume-hooks-silently-lost-6-20",
             "resume-hooks-silently-lost-6-21",
-            "resume-hooks-silently-lost-6-22"
+            "resume-hooks-silently-lost-6-22",
+            "resume-hooks-silently-lost-6-23"
           ],
           "staging": {
             "p1": {
