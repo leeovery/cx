@@ -15,7 +15,7 @@ func healthyDoctorDeps(t *testing.T) *DoctorDeps {
 	t.Helper()
 	dir := t.TempDir()
 	seedHealthyStateDir(t, dir)
-	hookStore, _ := seedHooksJSON(t)
+	hookStore, _ := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody()})
 	projectStore, _ := seedProjectsJSON(t, t.TempDir())
 	return staleDeps(dir, &stubStaleSweepReader{rows: tokenRows(liveSeedA)}, hookStore, projectStore)
 }
@@ -168,7 +168,7 @@ func TestDoctorSummary_IsTheLastLine(t *testing.T) {
 func TestDoctorSummary_FixPathRendersTwo(t *testing.T) {
 	dir := t.TempDir()
 	seedHealthyStateDir(t, dir)
-	hookStore, _ := seedHooksJSON(t, reapableSeedA)
+	hookStore, _ := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(reapableSeedA)})
 	projectStore, _ := seedProjectsJSON(t, t.TempDir())
 	deps := staleDeps(dir, &stubStaleSweepReader{rows: tokenRows(liveSeedB)}, hookStore, projectStore)
 

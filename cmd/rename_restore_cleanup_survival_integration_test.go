@@ -52,7 +52,7 @@ func TestRenameRestoreCleanupSurvival_KeepsRestoredTokenKeyedHook(t *testing.T) 
   "` + liveSeedA + `": {"on-resume": "echo restored"},
   "` + staleKey + `": {"on-resume": "echo gone"}
 }`
-	store, path := newTempHooksStore(t, seed)
+	store, path := newStagedHooksStore(t, hooksStoreStaging{seed: seed})
 
 	preRun, err := store.Load(hooks.ViaInternal)
 	if err != nil {

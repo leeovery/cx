@@ -121,8 +121,8 @@ func TestMutationLockSidecar(t *testing.T) {
 			t.Fatalf("sidecar gone after a no-op mutation: %v", err)
 		}
 
-		failingPath := readOnlyDirPath(t)
-		if err := hooks.NewStore(failingPath).Set("k1", "on-resume", "cmd1", hooks.ViaCLI); err == nil {
+		failing, failingPath := seedThenDenyWrites(t, nil)
+		if err := failing.Set("k1", "on-resume", "cmd1", hooks.ViaCLI); err == nil {
 			t.Fatal("expected the read-only fixture to fail the save")
 		}
 		if _, err := os.Stat(failingPath + ".lock"); err != nil {
@@ -253,8 +253,7 @@ func TestMutationLockRelease(t *testing.T) {
 	})
 
 	t.Run("it releases the lock when the save fails", func(t *testing.T) {
-		failingPath := readOnlyDirPath(t)
-		failing := hooks.NewStore(failingPath)
+		failing, failingPath := seedThenDenyWrites(t, nil)
 
 		if err := failing.Set("k0", "on-resume", "cmd0", hooks.ViaCLI); err == nil {
 			t.Fatal("expected the read-only fixture to fail the save")

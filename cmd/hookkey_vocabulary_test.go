@@ -7,6 +7,7 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/leeovery/portal/internal/tmux"
 	"github.com/leeovery/portal/internal/transienttest"
@@ -31,6 +32,21 @@ var (
 	liveSeedB = transienttest.ReapableHookKey(5)
 	liveSeedC = transienttest.ReapableHookKey(6)
 )
+
+// hooksBody renders a hooks.json body registering one on-resume entry per key,
+// so a fixture that cares only about which keys are present says exactly that.
+// With no keys it renders the empty registry: a file that exists and holds
+// nothing.
+func hooksBody(keys ...string) string {
+	if len(keys) == 0 {
+		return "{}"
+	}
+	entries := make([]string, 0, len(keys))
+	for _, key := range keys {
+		entries = append(entries, fmt.Sprintf("  %q: {\"on-resume\": \"echo hi\"}", key))
+	}
+	return "{\n" + strings.Join(entries, ",\n") + "\n}"
+}
 
 // staleHookSeed is one genuinely stale token-shaped entry beside one live one,
 // so a sweep that runs reaps exactly the stale key and is measurably

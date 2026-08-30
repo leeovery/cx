@@ -38,7 +38,7 @@ func TestMaybeRunHookCleanup_DoesNotRunBeforeInterval(t *testing.T) {
 	seed := fmt.Sprintf(`{
   %q: {"on-resume": "cmd-stale"}
 }`, reapableSeedA)
-	store, _ := newTempHooksStore(t, seed)
+	store, _ := newStagedHooksStore(t, hooksStoreStaging{seed: seed})
 	fc := &daemonFakeCommander{panesOut: livePaneRowOut}
 	deps := hookCleanupDeps(fc, store, discardDaemonLogger())
 
@@ -69,7 +69,7 @@ func TestMaybeRunHookCleanup_RunsAndResetsOnceIntervalElapsed(t *testing.T) {
   %q: {"on-resume": "cmd-stale"},
   %q: {"on-resume": "cmd-live"}
 }`, reapableSeedA, liveSeedA)
-	store, _ := newTempHooksStore(t, seed)
+	store, _ := newStagedHooksStore(t, hooksStoreStaging{seed: seed})
 	fc := &daemonFakeCommander{panesOut: livePaneRowOut}
 	deps := hookCleanupDeps(fc, store, discardDaemonLogger())
 
@@ -98,7 +98,7 @@ func TestMaybeRunHookCleanup_FiresAtIntervalBoundary(t *testing.T) {
 	seed := fmt.Sprintf(`{
   %q: {"on-resume": "cmd-stale"}
 }`, reapableSeedA)
-	store, _ := newTempHooksStore(t, seed)
+	store, _ := newStagedHooksStore(t, hooksStoreStaging{seed: seed})
 	fc := &daemonFakeCommander{panesOut: livePaneRowOut}
 	deps := hookCleanupDeps(fc, store, discardDaemonLogger())
 
@@ -149,7 +149,7 @@ func TestMaybeRunHookCleanup_ListPanesErrorSwallowedNoReap(t *testing.T) {
 	seed := fmt.Sprintf(`{
   %q: {"on-resume": "cmd-stale"}
 }`, reapableSeedA)
-	store, _ := newTempHooksStore(t, seed)
+	store, _ := newStagedHooksStore(t, hooksStoreStaging{seed: seed})
 	fc := &daemonFakeCommander{panesErr: errors.New("tmux dead")}
 	logger, sink := newCaptureLoggerForComponent(t, "daemon")
 	deps := hookCleanupDeps(fc, store, logger)
@@ -205,7 +205,7 @@ func TestMaybeRunHookCleanup_ReusesMassDeletionGuard(t *testing.T) {
   %q: {"on-resume": "cmd-a"},
   %q: {"on-resume": "cmd-b"}
 }`, reapableSeedA, reapableSeedB)
-	store, _ := newTempHooksStore(t, seed)
+	store, _ := newStagedHooksStore(t, hooksStoreStaging{seed: seed})
 	fc := &daemonFakeCommander{panesOut: ""}
 	logger, sink := newCaptureLoggerForComponent(t, "daemon")
 	deps := hookCleanupDeps(fc, store, logger)

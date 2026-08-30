@@ -20,7 +20,7 @@ import (
 func lockedSweepFixture(t *testing.T, bound time.Duration) (*hooks.Store, string, func()) {
 	t.Helper()
 	hooks.SetLockTimeoutForTest(t, bound)
-	store, path := newTempHooksStore(t, staleHookSeed)
+	store, path := newStagedHooksStore(t, hooksStoreStaging{seed: staleHookSeed})
 	return store, path, transienttest.HoldHooksSidecar(t, path)
 }
 
@@ -248,7 +248,7 @@ func TestDoctorFixReportsLockedHookPrune(t *testing.T) {
 	// entry is reported as the stale hook it is rather than as a lock problem.
 	t.Run("it reports the un-pruned entry as stale in the same window", func(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, lockBound)
-		store, path := newTempHooksStore(t, staleHookSeed)
+		store, path := newStagedHooksStore(t, hooksStoreStaging{seed: staleHookSeed})
 		transienttest.HoldHooksSidecar(t, path)
 
 		got := checkStaleHooks(&stubStaleSweepReader{rows: tokenRows(liveSeedA)}, store)
@@ -267,7 +267,7 @@ func TestDoctorFixReportsLockedHookPrune(t *testing.T) {
 		// so the post-repair diagnosis finds nothing stale.
 		dir := t.TempDir()
 		seedHealthyStateDir(t, dir)
-		hookStore, hooksPath := seedHooksJSON(t, liveSeedA)
+		hookStore, hooksPath := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(liveSeedA)})
 		transienttest.HoldHooksSidecar(t, hooksPath)
 		projectStore, _ := seedProjectsJSON(t, t.TempDir())
 		deps := staleDeps(dir, &stubStaleSweepReader{rows: tokenRows(liveSeedA)}, hookStore, projectStore)
@@ -283,7 +283,7 @@ func TestDoctorFixReportsLockedHookPrune(t *testing.T) {
 		// The same stand-down with a genuinely failing check still exits non-zero.
 		failingDir := t.TempDir()
 		seedHealthyStateDir(t, failingDir)
-		failingHooks, failingPath := seedHooksJSON(t, liveSeedA)
+		failingHooks, failingPath := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(liveSeedA)})
 		transienttest.HoldHooksSidecar(t, failingPath)
 		failingProjects, _ := seedProjectsJSON(t, t.TempDir())
 		failingDeps := staleDeps(failingDir, &stubStaleSweepReader{rows: tokenRows(liveSeedA)}, failingHooks, failingProjects)

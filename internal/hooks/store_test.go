@@ -27,27 +27,6 @@ func installCapture(t *testing.T) *logtest.Sink {
 	return sink
 }
 
-// readOnlyDirPath returns a path under a 0500 directory, so a write to it fails
-// at the temp-create phase. The sidecar lock file is created while the
-// directory is still writable: a 0500 directory still permits opening an
-// existing file, so without it the mutation would fail at the sidecar instead
-// of at the write the fixture exists to fail.
-func readOnlyDirPath(t *testing.T) string {
-	t.Helper()
-	dir := t.TempDir()
-	roDir := filepath.Join(dir, "ro")
-	if err := os.Mkdir(roDir, 0o700); err != nil {
-		t.Fatalf("failed to create read-only dir: %v", err)
-	}
-	path := filepath.Join(roDir, "hooks.json")
-	transienttest.CreateHooksSidecar(t, path)
-	if err := os.Chmod(roDir, 0o500); err != nil {
-		t.Fatalf("failed to deny writes to dir: %v", err)
-	}
-	t.Cleanup(func() { _ = os.Chmod(roDir, 0o700) })
-	return path
-}
-
 // readFileBytes returns the file's exact bytes, so a test can assert a no-op
 // left the file untouched rather than rewritten to equivalent content.
 func readFileBytes(t *testing.T, path string) []byte {
@@ -70,16 +49,20 @@ func modTime(t *testing.T, path string) time.Time {
 	return info.ModTime()
 }
 
-// seedThenDenyWrites writes body to a hooks.json and only then locks its parent
-// directory to 0500, so a save fails at the temp-create phase over a file that
-// already holds content. The seed write must succeed before the directory is
-// locked, so this cannot use readOnlyDirPath.
+// seedThenDenyWrites stages a hooks.json holding body — a nil body stages no
+// file at all — beside its sidecar, and only then locks the parent directory to
+// 0500, so a save fails at the temp-create phase. The sidecar is created while
+// the directory is still writable: a 0500 directory still permits opening an
+// existing file, so without it the mutation would fail at the sidecar instead
+// of at the write the fixture exists to fail.
 func seedThenDenyWrites(t *testing.T, body []byte) (*hooks.Store, string) {
 	t.Helper()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "hooks.json")
-	if err := os.WriteFile(path, body, 0o600); err != nil {
-		t.Fatalf("seed: %v", err)
+	if body != nil {
+		if err := os.WriteFile(path, body, 0o600); err != nil {
+			t.Fatalf("seed: %v", err)
+		}
 	}
 	transienttest.CreateHooksSidecar(t, path)
 	if err := os.Chmod(dir, 0o500); err != nil {
@@ -1376,8 +1359,7 @@ func TestSetLogging(t *testing.T) {
 	})
 
 	t.Run("emits WARN with error_class=write-failed-temp-create when AtomicWrite fails on Set", func(t *testing.T) {
-		path := readOnlyDirPath(t)
-		store := hooks.NewStore(path)
+		store, _ := seedThenDenyWrites(t, nil)
 		sink := installCapture(t)
 
 		err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI)

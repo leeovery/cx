@@ -154,7 +154,7 @@ func makeDeps(t *testing.T, dir string, fc *daemonFakeCommander) *daemonDeps {
 	if _, err := state.EnsureDir(); err != nil {
 		t.Fatalf("EnsureDir: %v", err)
 	}
-	store, _ := newTempHooksStore(t, "")
+	store, _ := newStagedHooksStore(t, hooksStoreStaging{seed: ""})
 	return &daemonDeps{
 		Dir:          dir,
 		Logger:       slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -553,7 +553,7 @@ func TestDaemonTick_RunsHookCleanupOnIdleTick(t *testing.T) {
   %q: {"on-resume": "cmd-stale"},
   %q: {"on-resume": "cmd-live"}
 }`, reapableSeedA, liveSeedA)
-	store, _ := newTempHooksStore(t, seed)
+	store, _ := newStagedHooksStore(t, hooksStoreStaging{seed: seed})
 
 	// The stale key is absent from panesOut so the cleanup reaps it; no
 	// sessionsOut, because capture must not run on an idle tick.
@@ -589,7 +589,7 @@ func TestDaemonTick_SkipsHookCleanupWhenRestoring(t *testing.T) {
 	seed := fmt.Sprintf(`{
   %q: {"on-resume": "cmd-stale"}
 }`, reapableSeedA)
-	store, _ := newTempHooksStore(t, seed)
+	store, _ := newStagedHooksStore(t, hooksStoreStaging{seed: seed})
 
 	fc := &daemonFakeCommander{
 		optionByName: map[string]string{state.RestoringMarkerName: "1"},
@@ -622,7 +622,7 @@ func TestDaemonTick_SkipsHookCleanupOnDirtyCaptureTick(t *testing.T) {
 	seed := fmt.Sprintf(`{
   %q: {"on-resume": "cmd-stale"}
 }`, reapableSeedA)
-	store, _ := newTempHooksStore(t, seed)
+	store, _ := newStagedHooksStore(t, hooksStoreStaging{seed: seed})
 
 	sess, panes := oneSession()
 	fc := &daemonFakeCommander{sessionsOut: sess, panesOut: panes}
@@ -653,7 +653,7 @@ func TestDaemonTick_SkipsHookCleanupOnMaxGapCaptureTick(t *testing.T) {
 	seed := fmt.Sprintf(`{
   %q: {"on-resume": "cmd-stale"}
 }`, reapableSeedA)
-	store, _ := newTempHooksStore(t, seed)
+	store, _ := newStagedHooksStore(t, hooksStoreStaging{seed: seed})
 
 	sess, panes := oneSession()
 	fc := &daemonFakeCommander{sessionsOut: sess, panesOut: panes}

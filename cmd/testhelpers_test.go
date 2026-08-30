@@ -29,6 +29,17 @@ type hooksStoreStaging struct {
 	dir string
 	// seed is the file's initial content; empty writes no file at all.
 	seed string
+	// sidecarAbsent stages no lock file beside the hooks.json, so a read under
+	// the fixture degrades to an unlocked one. It is off by default because
+	// these fixtures model a written-to install — the steady state, where the
+	// sidecar the first mutation created still sits beside the file it was
+	// created for — and because a fixture that degrades without asking to
+	// leaves a breadcrumb in its sink it never meant to assert on. The absence
+	// is a state an install can hold: nothing creates a sidecar until the first
+	// mutation, and the config-directory migration moves hooks.json without it.
+	// A fixture whose subject is that state, or the degraded read it produces,
+	// asks for the absence here.
+	sidecarAbsent bool
 	// writesDenied strips write permission from dir once staging is complete, so
 	// a mutation takes its lock and reads cleanly but fails at the temp create.
 	writesDenied bool
@@ -50,12 +61,11 @@ func newStagedHooksStore(t *testing.T, staging hooksStoreStaging) (*hooks.Store,
 			t.Fatalf("write seed hooks.json: %v", err)
 		}
 	}
-	// The sidecar stands in for the one a writer establishes on a real install,
-	// so a read under this fixture takes its shared lock rather than degrading
-	// and emitting a load-unlocked breadcrumb the fixture never meant to model.
-	// It is created before any denial, so a denied write fails at the temp
-	// create rather than earlier at the sidecar's own open.
-	transienttest.CreateHooksSidecar(t, path)
+	if !staging.sidecarAbsent {
+		// Created before any denial, so a denied write fails at the temp create
+		// rather than earlier at the sidecar's own open.
+		transienttest.CreateHooksSidecar(t, path)
+	}
 	if staging.writesDenied {
 		if err := os.Chmod(dir, 0o500); err != nil {
 			t.Fatalf("chmod fixture dir: %v", err)
@@ -63,13 +73,6 @@ func newStagedHooksStore(t *testing.T, staging hooksStoreStaging) (*hooks.Store,
 		t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
 	}
 	return hooks.NewStore(path), path
-}
-
-// newTempHooksStore stages a writable seeded hooks.json in a fresh temp
-// directory — the plain case behind newStagedHooksStore.
-func newTempHooksStore(t *testing.T, seed string) (*hooks.Store, string) {
-	t.Helper()
-	return newStagedHooksStore(t, hooksStoreStaging{seed: seed})
 }
 
 // readFileBytes returns nil on ENOENT, so callers can distinguish "file absent"

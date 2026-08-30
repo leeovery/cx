@@ -26,11 +26,7 @@ func TestDoctorStaleHooksDegradedRead(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, 40*time.Millisecond)
 		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA)}
 
-		// The baseline must be a genuinely *locked* read: seedHooksJSON stages no
-		// sidecar, so without this the baseline would itself degrade on ENOENT and
-		// the comparison below would be degraded-against-degraded.
-		unlockedStore, unlockedPath := seedHooksJSON(t, liveSeedA)
-		transienttest.CreateHooksSidecar(t, unlockedPath)
+		unlockedStore, _ := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(liveSeedA)})
 		baseline, err := runDoctorDiagnosis(staleDeps(t.TempDir(), lister, unlockedStore, nil))
 		if err != nil {
 			t.Fatalf("runDoctorDiagnosis: %v", err)
@@ -38,7 +34,7 @@ func TestDoctorStaleHooksDegradedRead(t *testing.T) {
 		want := findCheck(t, baseline, "stale hooks")
 		wantUnhealthy := doctorUnhealthy(baseline)
 
-		heldStore, heldPath := seedHooksJSON(t, liveSeedA)
+		heldStore, heldPath := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(liveSeedA)})
 		transienttest.HoldHooksSidecar(t, heldPath)
 
 		sink := installHooksSink(t)
@@ -124,7 +120,7 @@ func TestSweepPreReadBound(t *testing.T) {
 		hooks.SetSnapshotLockTimeoutForTest(t, short)
 		hooks.SetLockTimeoutForTest(t, 5*time.Second)
 
-		store, path := newTempHooksStore(t, `{"`+reapableSeedA+`": {"on-resume": "cmd-a"}}`)
+		store, path := newStagedHooksStore(t, hooksStoreStaging{seed: `{"` + reapableSeedA + `": {"on-resume": "cmd-a"}}`})
 		transienttest.HoldHooksSidecar(t, path)
 
 		// An empty live set stands the cycle down after the pre-read, so the
@@ -163,4 +159,35 @@ func dirListing(t *testing.T, dir string) []string {
 		names = append(names, e.Name())
 	}
 	return names
+}
+
+// TestStagedHooksStoreSidecar pins the staging field in both directions, so a
+// fixture's sidecar state cannot silently stop being the thing that decides
+// whether its reads degrade.
+func TestStagedHooksStoreSidecar(t *testing.T) {
+	t.Run("a staged fixture reads under its sidecar lock", func(t *testing.T) {
+		hooks.SetLockTimeoutForTest(t, 20*time.Millisecond)
+		store, _ := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(liveSeedA)})
+
+		sink := installHooksSink(t)
+		if _, err := store.Load(hooks.ViaDoctor); err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+
+		if got := transienttest.UnlockedRecords(t, sink); len(got) != 0 {
+			t.Errorf("read degraded despite a staged sidecar: %+v", got)
+		}
+	})
+
+	t.Run("a fixture staged without the sidecar degrades on read", func(t *testing.T) {
+		hooks.SetLockTimeoutForTest(t, 20*time.Millisecond)
+		store, _ := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(liveSeedA), sidecarAbsent: true})
+
+		sink := installHooksSink(t)
+		if _, err := store.Load(hooks.ViaDoctor); err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+
+		transienttest.AssertDegradedRead(t, sink, "doctor")
+	})
 }

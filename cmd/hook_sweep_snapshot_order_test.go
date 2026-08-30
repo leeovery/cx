@@ -17,7 +17,7 @@ import (
 // registration that lands in that window out of the delete set.
 func TestHookSweepSnapshotPrecedesEnumeration(t *testing.T) {
 	t.Run("it retains an entry written during the pane enumeration", func(t *testing.T) {
-		store, path := newTempHooksStore(t, fmt.Sprintf(`{%q: {"on-resume": "cmd-live"}}`, liveSeedA))
+		store, path := newStagedHooksStore(t, hooksStoreStaging{seed: fmt.Sprintf(`{%q: {"on-resume": "cmd-live"}}`, liveSeedA)})
 
 		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA), during: func() {
 			if err := store.Set(reapableSeedA, "on-resume", "cmd-fresh", hooks.ViaCLI); err != nil {
@@ -43,7 +43,7 @@ func TestHookSweepSnapshotPrecedesEnumeration(t *testing.T) {
 	})
 
 	t.Run("it holds no lock while enumerating", func(t *testing.T) {
-		store, path := newTempHooksStore(t, fmt.Sprintf(`{%q: {"on-resume": "cmd-live"}}`, liveSeedA))
+		store, path := newStagedHooksStore(t, hooksStoreStaging{seed: fmt.Sprintf(`{%q: {"on-resume": "cmd-live"}}`, liveSeedA)})
 
 		probed := false
 		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA), during: func() {
@@ -75,7 +75,7 @@ func TestHookSweepSnapshotPrecedesEnumeration(t *testing.T) {
   %q: {"on-resume": "cmd-b"},
   %q: {"on-resume": "cmd-c"}
 }`, liveSeedA, reapableSeedB, reapableSeedC)
-		store, path := newTempHooksStore(t, seed)
+		store, path := newStagedHooksStore(t, hooksStoreStaging{seed: seed})
 
 		// Both mid-cycle windows at once, so the callback is measured against
 		// what this sweep deleted rather than against a file delta the two

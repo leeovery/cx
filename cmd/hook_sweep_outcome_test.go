@@ -32,7 +32,7 @@ func TestHookSweepOutcomeNamesEveryDecline(t *testing.T) {
 		{
 			name: "restore marker set",
 			setup: func(t *testing.T) (staleSweepReader, *hooks.Store) {
-				store, _ := newTempHooksStore(t, staleHookSeed)
+				store, _ := newStagedHooksStore(t, hooksStoreStaging{seed: staleHookSeed})
 				return &stubStaleSweepReader{rows: tokenRows(liveSeedA), restoring: true}, store
 			},
 			want: skipReasonRestoring,
@@ -47,7 +47,7 @@ func TestHookSweepOutcomeNamesEveryDecline(t *testing.T) {
 		{
 			name: "pane enumeration failed",
 			setup: func(t *testing.T) (staleSweepReader, *hooks.Store) {
-				store, _ := newTempHooksStore(t, staleHookSeed)
+				store, _ := newStagedHooksStore(t, hooksStoreStaging{seed: staleHookSeed})
 				return &stubStaleSweepReader{err: errors.New("tmux dead")}, store
 			},
 			want: skipReasonPaneReadFailed,
@@ -55,7 +55,7 @@ func TestHookSweepOutcomeNamesEveryDecline(t *testing.T) {
 		{
 			name: "pane enumeration came back empty",
 			setup: func(t *testing.T) (staleSweepReader, *hooks.Store) {
-				store, _ := newTempHooksStore(t, staleHookSeed)
+				store, _ := newStagedHooksStore(t, hooksStoreStaging{seed: staleHookSeed})
 				return &stubStaleSweepReader{rows: nil}, store
 			},
 			want: skipReasonEmptyPaneRead,
@@ -139,8 +139,8 @@ func TestStaleHookVerdictParity(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			checkStore, _ := seedHooksJSON(t, tc.persisted...)
-			sweepStore, _ := seedHooksJSON(t, tc.persisted...)
+			checkStore, _ := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(tc.persisted...)})
+			sweepStore, _ := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(tc.persisted...)})
 
 			got := checkStaleHooks(tc.lister, checkStore)
 			checkJudgeable := got.status != checkNotEvaluable
