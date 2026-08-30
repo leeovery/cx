@@ -923,13 +923,7 @@ func assertDownServerDeferral(t *testing.T, hooksBefore []byte, hooksPath, proje
 		t.Fatalf("Execute err = %v; want ErrDoctorUnhealthy (server still down post-repair)", err)
 	}
 
-	hooksAfter, readErr := os.ReadFile(hooksPath)
-	if readErr != nil {
-		t.Fatalf("re-read hooks.json: %v", readErr)
-	}
-	if !bytes.Equal(hooksBefore, hooksAfter) {
-		t.Errorf("hooks.json pruned on a down server (user commands must survive)\nbefore: %s\nafter:  %s", hooksBefore, hooksAfter)
-	}
+	assertHooksFileUnchanged(t, hooksPath, hooksBefore, "pruned on a down server (user commands must survive)")
 
 	projectsAfter, readErr := os.ReadFile(projectsPath)
 	if readErr != nil {
@@ -1240,10 +1234,7 @@ func TestDoctorStaleHooksParityWithPredicate(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				dir := t.TempDir()
 				hookStore, hooksPath := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(tc.persisted...)})
-				before, err := os.ReadFile(hooksPath)
-				if err != nil {
-					t.Fatalf("read hooks.json: %v", err)
-				}
+				before := readFileBytes(t, hooksPath)
 				results, err := runDoctorDiagnosis(staleDeps(dir, tc.lister, hookStore, nil))
 				if err != nil {
 					t.Fatalf("runDoctorDiagnosis: %v", err)
@@ -1255,13 +1246,7 @@ func TestDoctorStaleHooksParityWithPredicate(t *testing.T) {
 				if got.detail != tc.wantDetail {
 					t.Errorf("detail = %q, want %q", got.detail, tc.wantDetail)
 				}
-				after, err := os.ReadFile(hooksPath)
-				if err != nil {
-					t.Fatalf("re-read hooks.json: %v", err)
-				}
-				if !bytes.Equal(before, after) {
-					t.Errorf("hooks.json mutated by diagnosis (read-only violated)")
-				}
+				assertHooksFileUnchanged(t, hooksPath, before, "mutated by diagnosis (read-only violated)")
 			})
 		}
 	})
@@ -1435,32 +1420,20 @@ func TestDoctorFixProtectsUserHooksWhenLiveSetEmptyOrErrored(t *testing.T) {
 			dir := t.TempDir()
 			seedHealthyStateDir(t, dir)
 			hookStore, hooksPath := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(reapableSeedA, reapableSeedB)})
-			before, err := os.ReadFile(hooksPath)
-			if err != nil {
-				t.Fatalf("read hooks.json: %v", err)
-			}
+			before := readFileBytes(t, hooksPath)
 
 			if _, _, err := runDoctorFixCmd(t, staleDeps(dir, tc.lister, hookStore, nil)); err != nil {
 				t.Fatalf("Execute err = %v; want nil (healthy runtime, hooks deferred)", err)
 			}
 
-			after, err := os.ReadFile(hooksPath)
-			if err != nil {
-				t.Fatalf("re-read hooks.json: %v", err)
-			}
-			if !bytes.Equal(before, after) {
-				t.Errorf("hooks.json mutated on an empty/errored live set (user commands must survive)\nbefore: %s\nafter:  %s", before, after)
-			}
+			assertHooksFileUnchanged(t, hooksPath, before, "mutated on an empty/errored live set (user commands must survive)")
 		})
 	}
 }
 
 func TestDoctorFixDownServerPrunesProjectsButNotHooks(t *testing.T) {
 	deps, hooksPath, projectsPath, goneDir := downServerDeferFixture(t, t.TempDir())
-	hooksBefore, err := os.ReadFile(hooksPath)
-	if err != nil {
-		t.Fatalf("read hooks.json: %v", err)
-	}
+	hooksBefore := readFileBytes(t, hooksPath)
 
 	outBuf, _, execErr := runDoctorFixCmd(t, deps)
 	assertDownServerDeferral(t, hooksBefore, hooksPath, projectsPath, goneDir, execErr)
@@ -1592,10 +1565,7 @@ func TestDoctorStaleChecksAreReadOnly(t *testing.T) {
 	goneDir := filepath.Join(t.TempDir(), "gone")
 	projectStore, projectsPath := seedProjectsJSON(t, liveDir, goneDir)
 
-	hooksBefore, err := os.ReadFile(hooksPath)
-	if err != nil {
-		t.Fatalf("read hooks.json: %v", err)
-	}
+	hooksBefore := readFileBytes(t, hooksPath)
 	projectsBefore, err := os.ReadFile(projectsPath)
 	if err != nil {
 		t.Fatalf("read projects.json: %v", err)
@@ -1613,17 +1583,11 @@ func TestDoctorStaleChecksAreReadOnly(t *testing.T) {
 		t.Fatalf("stale projects status = %v; want checkFail (setup should be stale)", got.status)
 	}
 
-	hooksAfter, err := os.ReadFile(hooksPath)
-	if err != nil {
-		t.Fatalf("re-read hooks.json: %v", err)
-	}
 	projectsAfter, err := os.ReadFile(projectsPath)
 	if err != nil {
 		t.Fatalf("re-read projects.json: %v", err)
 	}
-	if !bytes.Equal(hooksBefore, hooksAfter) {
-		t.Errorf("hooks.json mutated by diagnosis (read-only violated)\nbefore: %s\nafter:  %s", hooksBefore, hooksAfter)
-	}
+	assertHooksFileUnchanged(t, hooksPath, hooksBefore, "mutated by diagnosis (read-only violated)")
 	if !bytes.Equal(projectsBefore, projectsAfter) {
 		t.Errorf("projects.json mutated by diagnosis (read-only violated)\nbefore: %s\nafter:  %s", projectsBefore, projectsAfter)
 	}
@@ -1705,20 +1669,11 @@ func runDoctorFixWithLister(t *testing.T, lister *stubStaleSweepReader) string {
 	t.Helper()
 
 	deps, hooksPath, _, _, _ := seedStalePruneFixture(t, t.TempDir(), lister)
-	before, err := os.ReadFile(hooksPath)
-	if err != nil {
-		t.Fatalf("read hooks.json: %v", err)
-	}
+	before := readFileBytes(t, hooksPath)
 
 	outBuf, _, _ := runDoctorFixCmd(t, deps)
 
-	after, err := os.ReadFile(hooksPath)
-	if err != nil {
-		t.Fatalf("re-read hooks.json: %v", err)
-	}
-	if !bytes.Equal(before, after) {
-		t.Errorf("hooks.json rewritten on a stand-down\nbefore: %s\nafter:  %s", before, after)
-	}
+	assertHooksFileUnchanged(t, hooksPath, before, "rewritten on a stand-down")
 	return outBuf.String()
 }
 

@@ -24,23 +24,6 @@ func lockedSweepFixture(t *testing.T, bound time.Duration) (*hooks.Store, string
 	return store, path, hookstest.HoldHooksSidecar(t, path)
 }
 
-// lockStandDownRecord asserts the sweep left exactly one WARN and returns it.
-// The degraded pre-read's own DEBUG breadcrumb shares the sink, so the count is
-// taken at WARN rather than over every record.
-func lockStandDownRecord(t *testing.T, sink *logtest.Sink) logtest.Record {
-	t.Helper()
-	warns := sink.RecordsAtOrAboveLevel(slog.LevelWarn)
-	if len(warns) != 1 {
-		t.Fatalf("WARN record count = %d, want exactly 1: %+v", len(warns), warns)
-	}
-	rec := warns[0]
-	assertHooksRecord(t, rec, standDownWant(slog.LevelWarn))
-	if got := rec.AttrString(t, "reason"); got != "lock-timeout" {
-		t.Errorf("reason = %q, want %q", got, "lock-timeout")
-	}
-	return rec
-}
-
 func TestHookSweepStandsDownOnLockTimeout(t *testing.T) {
 	lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA)}
 
@@ -63,7 +46,7 @@ func TestHookSweepStandsDownOnLockTimeout(t *testing.T) {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
-		rec := lockStandDownRecord(t, sink)
+		rec := assertStandDown(t, sink, slog.LevelWarn, "lock-timeout")
 		if got := rec.AttrString(t, "error"); got == "" {
 			t.Errorf("error attr = %q, want the lock error", got)
 		} else if !strings.Contains(got, hooks.ErrLockHeld.Error()) {
@@ -80,7 +63,7 @@ func TestHookSweepStandsDownOnLockTimeout(t *testing.T) {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
-		lockStandDownRecord(t, sink)
+		assertStandDown(t, sink, slog.LevelWarn, "lock-timeout")
 		for _, e := range injected.entries {
 			if e.level == "warn" {
 				t.Errorf("unexpected WARN on the injected logger: %+v", e)
@@ -168,7 +151,7 @@ func TestHookSweepStandsDownOnLockTimeout(t *testing.T) {
 		maybeRunHookCleanup(deps)
 
 		assertHooksFileUnchanged(t, path, before, "rewritten by the daemon under a held lock")
-		lockStandDownRecord(t, sink)
+		assertStandDown(t, sink, slog.LevelWarn, "lock-timeout")
 		if got := countMatching(injected.entries, "warn", "daemon", "hooks stale-cleanup failed"); got != 0 {
 			t.Errorf("daemon generic-failure WARN count = %d, want 0; entries=%+v", got, injected.entries)
 		}

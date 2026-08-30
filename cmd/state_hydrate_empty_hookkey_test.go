@@ -2,14 +2,11 @@ package cmd
 
 import (
 	"bytes"
-	"io"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
-
-	"github.com/leeovery/portal/internal/tmux"
 )
 
 // parseHydrateHookKey runs the real `state hydrate` argv through cobra and
@@ -68,14 +65,12 @@ func TestHydrate_AbsentAndEmptyHookKeyAreEquivalent(t *testing.T) {
 			signalFIFOAsync(t, fifo)
 
 			exec := &stubExecShell{}
-			cfg := hydrateConfig{
+			cfg := hydrateCfg(t, hydrateCfgOpts{
 				FIFO: fifo, File: scrollback, HookKey: hookKey,
-				Stdout:    io.Discard,
-				Client:    tmux.NewClient(&recordingCommander{}),
+				OpenFIFO:  openFIFOWithTimeout,
 				HookStore: store,
 				ExecShell: exec.fn(),
-				OpenFIFO:  openFIFOWithTimeout,
-			}
+			})
 			if err := runHydrate(cfg); err != nil {
 				t.Fatalf("runHydrate: %v", err)
 			}
@@ -113,15 +108,14 @@ func TestHydrate_UnstampedPaneHydratesToBareShell(t *testing.T) {
 		logger, sink := newCaptureLoggerForComponent(t, "hydrate")
 		stdout := new(bytes.Buffer)
 		exec := &stubExecShell{}
-		cfg := hydrateConfig{
+		cfg := hydrateCfg(t, hydrateCfgOpts{
 			FIFO: fifo, File: scrollback, HookKey: "",
+			OpenFIFO:  openFIFOWithTimeout,
 			Stdout:    stdout,
-			Client:    tmux.NewClient(&recordingCommander{}),
 			Logger:    logger,
 			HookStore: store,
 			ExecShell: exec.fn(),
-			OpenFIFO:  openFIFOWithTimeout,
-		}
+		})
 		if err := runHydrate(cfg); err != nil {
 			t.Fatalf("runHydrate: %v", err)
 		}
@@ -149,8 +143,8 @@ func TestHydrateTimeoutLog_EmptyHookKeyRendersEmpty(t *testing.T) {
 		fifo := makeFIFO(t, dir, "hydrate-tw__0.0.fifo")
 
 		logger, sink := newCaptureLoggerForComponent(t, "hydrate")
-		cfg := timeoutCfg(t, fifo, filepath.Join(dir, "sb"), "", io.Discard,
-			&recordingCommander{}, (&stubExecShell{}).fn(), logger)
+		cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "",
+			OpenFIFO: instantTimeoutOpenFIFO, Logger: logger})
 
 		if err := runHydrate(cfg); err != nil {
 			t.Fatalf("runHydrate: %v", err)

@@ -11,8 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/sys/unix"
-
 	"github.com/leeovery/portal/internal/fileutil"
 	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/hookstest"
@@ -31,21 +29,6 @@ func inodeOf(t *testing.T, path string) uint64 {
 		t.Fatalf("stat of %s is not a *syscall.Stat_t: %T", path, info.Sys())
 	}
 	return uint64(st.Ino)
-}
-
-// assertSidecarFree proves the previous operation released its hold: an
-// exclusive non-blocking acquire from a fresh fd fails while any fd holds it.
-func assertSidecarFree(t *testing.T, hooksPath string) {
-	t.Helper()
-	f, err := os.OpenFile(hooksPath+".lock", os.O_RDWR|os.O_CREATE, 0o600)
-	if err != nil {
-		t.Fatalf("open sidecar: %v", err)
-	}
-	defer func() { _ = f.Close() }()
-	if err := unix.Flock(int(f.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
-		t.Fatalf("sidecar still held after the operation returned: %v", err)
-	}
-	_ = unix.Flock(int(f.Fd()), unix.LOCK_UN)
 }
 
 func TestMutationLockSidecar(t *testing.T) {
@@ -224,7 +207,7 @@ func TestMutationLockRelease(t *testing.T) {
 		if err := store.Set("k0", "on-resume", "cmd0", hooks.ViaCLI); err != nil {
 			t.Fatalf("no-op Set: %v", err)
 		}
-		assertSidecarFree(t, path)
+		hookstest.AssertSidecarFree(t, path)
 
 		if err := store.Set("k1", "on-resume", "cmd1", hooks.ViaCLI); err != nil {
 			t.Fatalf("following mutation: %v", err)
@@ -245,7 +228,7 @@ func TestMutationLockRelease(t *testing.T) {
 		if removed {
 			t.Fatal("Remove reported a removal for an absent key")
 		}
-		assertSidecarFree(t, path)
+		hookstest.AssertSidecarFree(t, path)
 
 		if err := store.Set("k1", "on-resume", "cmd1", hooks.ViaCLI); err != nil {
 			t.Fatalf("following mutation: %v", err)
@@ -258,7 +241,7 @@ func TestMutationLockRelease(t *testing.T) {
 		if err := failing.Set("k0", "on-resume", "cmd0", hooks.ViaCLI); err == nil {
 			t.Fatal("expected the read-only fixture to fail the save")
 		}
-		assertSidecarFree(t, failingPath)
+		hookstest.AssertSidecarFree(t, failingPath)
 
 		writable := filepath.Join(t.TempDir(), "hooks.json")
 		if err := hooks.NewStore(writable).Set("k0", "on-resume", "cmd0", hooks.ViaCLI); err != nil {

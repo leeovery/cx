@@ -3,7 +3,6 @@ package cmd
 import (
 	"bytes"
 	"errors"
-	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -18,7 +17,8 @@ func TestHydrateTimeoutLog_EmitsSignalTimeoutTookOnTimeoutPath(t *testing.T) {
 	fifo := makeFIFO(t, dir, "hydrate-stl__0.0.fifo")
 
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
-	cfg := timeoutCfg(t, fifo, filepath.Join(dir, "sb"), "stl:0.0", io.Discard, &recordingCommander{}, (&stubExecShell{}).fn(), logger)
+	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "stl:0.0",
+		OpenFIFO: instantTimeoutOpenFIFO, Logger: logger})
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
@@ -35,7 +35,8 @@ func TestHydrateTimeoutLog_TookAttrIsDurationNotString(t *testing.T) {
 	fifo := makeFIFO(t, dir, "hydrate-dur__0.0.fifo")
 
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
-	cfg := timeoutCfg(t, fifo, filepath.Join(dir, "sb"), "dur:0.0", io.Discard, &recordingCommander{}, (&stubExecShell{}).fn(), logger)
+	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "dur:0.0",
+		OpenFIFO: instantTimeoutOpenFIFO, Logger: logger})
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
@@ -60,7 +61,8 @@ func TestHydrateTimeoutLog_SignalTimeoutPrecedesExecINFO(t *testing.T) {
 
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
 	// A nil HookStore takes the bare-shell exec path, which emits the exec INFO.
-	cfg := timeoutCfg(t, fifo, filepath.Join(dir, "sb"), "ord:0.0", io.Discard, &recordingCommander{}, (&stubExecShell{}).fn(), logger)
+	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "ord:0.0",
+		OpenFIFO: instantTimeoutOpenFIFO, Logger: logger})
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
@@ -86,7 +88,8 @@ func TestHydrateTimeoutLog_PreservesWarnUnlinkAndMarkerUnset(t *testing.T) {
 
 	cmder := &recordingCommander{}
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
-	cfg := timeoutCfg(t, fifo, filepath.Join(dir, "sb"), "pre:0.0", io.Discard, cmder, (&stubExecShell{}).fn(), logger)
+	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "pre:0.0",
+		OpenFIFO: instantTimeoutOpenFIFO, Commander: cmder, Logger: logger})
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)

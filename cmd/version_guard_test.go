@@ -143,7 +143,7 @@ func TestVersionGuard_NotInvokedForExemptCommands(t *testing.T) {
 			t.Setenv("PORTAL_STATE_DIR", t.TempDir())
 			t.Setenv("PORTAL_ALIASES_FILE", t.TempDir()+"/aliases")
 			t.Setenv("PORTAL_PROJECTS_FILE", t.TempDir()+"/projects.json")
-			t.Setenv("PORTAL_HOOKS_FILE", t.TempDir()+"/hooks.json")
+			hooksFileInTempDir(t)
 
 			// uninstall builds a tmux client in its real body.
 			installUninstallDeps(t, &UninstallDeps{

@@ -78,7 +78,7 @@ func TestReadSharedLock(t *testing.T) {
 			t.Fatalf("LookupOnResume: %v", err)
 		}
 
-		assertSidecarFree(t, path)
+		hookstest.AssertSidecarFree(t, path)
 
 		// A mutation follows without contending with a read that already
 		// returned — the sweep's pre-read must not make its own CleanStale wait.

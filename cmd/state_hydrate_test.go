@@ -915,18 +915,53 @@ func instantTimeoutOpenFIFO(_ string, _ time.Duration) (*os.File, error) {
 	return nil, ErrHydrateTimeout
 }
 
-func timeoutCfg(t *testing.T, fifo, scrollback, hookKey string, stdout io.Writer, cmder *recordingCommander, exec func(string, []string), logger *slog.Logger) hydrateConfig {
+// hydrateCfgOpts names the parts a hydrate case varies. Stdout, Commander and
+// ExecShell default when unset — a discarded stdout, a fresh recording
+// commander, and a stub exec whose recordings nobody reads. Logger and HookStore
+// do not: a nil Logger falls through to the package logger, and a nil HookStore
+// is the bare-shell scenario rather than an omission.
+type hydrateCfgOpts struct {
+	FIFO      string
+	File      string
+	HookKey   string
+	OpenFIFO  func(path string, timeout time.Duration) (*os.File, error)
+	Stdout    io.Writer
+	Commander tmux.Commander
+	Logger    *slog.Logger
+	HookStore *hooks.Store
+	ExecShell func(prog string, args []string)
+}
+
+// hydrateCfg builds the config a hydrate case runs against. Both handlers are
+// always wired, so a case names only what it varies: the OpenFIFO seam decides
+// whether the timeout handler fires, and the scrollback File decides whether the
+// file-missing one does.
+func hydrateCfg(t *testing.T, opts hydrateCfgOpts) hydrateConfig {
 	t.Helper()
+	if opts.OpenFIFO == nil {
+		t.Fatal("hydrateCfg: OpenFIFO decides which path the case takes and must be named")
+	}
+	if opts.Stdout == nil {
+		opts.Stdout = io.Discard
+	}
+	if opts.Commander == nil {
+		opts.Commander = &recordingCommander{}
+	}
+	if opts.ExecShell == nil {
+		opts.ExecShell = (&stubExecShell{}).fn()
+	}
 	return hydrateConfig{
-		FIFO:          fifo,
-		File:          scrollback,
-		HookKey:       hookKey,
-		Stdout:        stdout,
-		Client:        tmux.NewClient(cmder),
-		Logger:        logger,
-		ExecShell:     exec,
-		OpenFIFO:      instantTimeoutOpenFIFO,
-		HandleTimeout: handleHydrateTimeout,
+		FIFO:              opts.FIFO,
+		File:              opts.File,
+		HookKey:           opts.HookKey,
+		Stdout:            opts.Stdout,
+		Client:            tmux.NewClient(opts.Commander),
+		Logger:            opts.Logger,
+		HookStore:         opts.HookStore,
+		ExecShell:         opts.ExecShell,
+		OpenFIFO:          opts.OpenFIFO,
+		HandleFileMissing: handleHydrateFileMissing,
+		HandleTimeout:     handleHydrateTimeout,
 	}
 }
 
@@ -935,7 +970,8 @@ func TestHydrate_TimeoutWritesResetPreambleToStdout(t *testing.T) {
 	fifo := makeFIFO(t, dir, "hydrate-tp__0.0.fifo")
 
 	stdout := new(bytes.Buffer)
-	cfg := timeoutCfg(t, fifo, filepath.Join(dir, "sb"), "tp:0.0", stdout, &recordingCommander{}, (&stubExecShell{}).fn(), nil)
+	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "tp:0.0",
+		OpenFIFO: instantTimeoutOpenFIFO, Stdout: stdout})
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
@@ -953,7 +989,8 @@ func TestHydrate_TimeoutWritesNoScrollbackOrPostamble(t *testing.T) {
 	_ = os.WriteFile(scrollback, []byte("SHOULD-NOT-APPEAR"), 0o600)
 
 	stdout := new(bytes.Buffer)
-	cfg := timeoutCfg(t, fifo, scrollback, "tn:0.0", stdout, &recordingCommander{}, (&stubExecShell{}).fn(), nil)
+	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: scrollback, HookKey: "tn:0.0",
+		OpenFIFO: instantTimeoutOpenFIFO, Stdout: stdout})
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
@@ -974,7 +1011,8 @@ func TestHydrate_Timeout_PreservesSettleSleepBeforeExec(t *testing.T) {
 	dir := t.TempDir()
 	fifo := makeFIFO(t, dir, "hydrate-ts__0.0.fifo")
 
-	cfg := timeoutCfg(t, fifo, filepath.Join(dir, "sb"), "ts:0.0", io.Discard, &recordingCommander{}, (&stubExecShell{}).fn(), nil)
+	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "ts:0.0",
+		OpenFIFO: instantTimeoutOpenFIFO})
 
 	start := time.Now()
 	if err := runHydrate(cfg); err != nil {
@@ -991,7 +1029,8 @@ func TestHydrate_TimeoutRemovesFIFO(t *testing.T) {
 	dir := t.TempDir()
 	fifo := makeFIFO(t, dir, "hydrate-tr__0.0.fifo")
 
-	cfg := timeoutCfg(t, fifo, filepath.Join(dir, "sb"), "tr:0.0", io.Discard, &recordingCommander{}, (&stubExecShell{}).fn(), nil)
+	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "tr:0.0",
+		OpenFIFO: instantTimeoutOpenFIFO})
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
@@ -1006,7 +1045,8 @@ func TestHydrate_TimeoutUnsetsSkeletonMarkerWithSetOptionSU(t *testing.T) {
 	fifo := makeFIFO(t, dir, "hydrate-tu__0.0.fifo")
 
 	cmder := &recordingCommander{}
-	cfg := timeoutCfg(t, fifo, filepath.Join(dir, "sb"), "tu:0.0", io.Discard, cmder, (&stubExecShell{}).fn(), nil)
+	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "tu:0.0",
+		OpenFIFO: instantTimeoutOpenFIFO, Commander: cmder})
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
@@ -1031,7 +1071,8 @@ func TestHydrate_TimeoutLogsWarningNamingHookKey(t *testing.T) {
 
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
 
-	cfg := timeoutCfg(t, fifo, filepath.Join(dir, "sb"), "tl:0.0", io.Discard, &recordingCommander{}, (&stubExecShell{}).fn(), logger)
+	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "tl:0.0",
+		OpenFIFO: instantTimeoutOpenFIFO, Logger: logger})
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
@@ -1055,7 +1096,8 @@ func TestHydrate_TimeoutExecsShell(t *testing.T) {
 
 	t.Setenv("SHELL", "/usr/local/bin/myshell")
 	exec := &stubExecShell{}
-	cfg := timeoutCfg(t, fifo, filepath.Join(dir, "sb"), "te:0.0", io.Discard, &recordingCommander{}, exec.fn(), nil)
+	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "te:0.0",
+		OpenFIFO: instantTimeoutOpenFIFO, ExecShell: exec.fn()})
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
@@ -1074,7 +1116,8 @@ func TestHydrate_TimeoutDoesNotReadHooksFile(t *testing.T) {
 
 	fifo := makeFIFO(t, dir, "hydrate-th__0.0.fifo")
 
-	cfg := timeoutCfg(t, fifo, filepath.Join(dir, "sb"), "th:0.0", io.Discard, &recordingCommander{}, (&stubExecShell{}).fn(), nil)
+	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "th:0.0",
+		OpenFIFO: instantTimeoutOpenFIFO})
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
@@ -1088,7 +1131,8 @@ func TestHydrate_TimeoutToleratesMissingFIFOSilently(t *testing.T) {
 	dir := t.TempDir()
 	fifo := filepath.Join(dir, "hydrate-tm__0.0.fifo")
 
-	cfg := timeoutCfg(t, fifo, filepath.Join(dir, "sb"), "tm:0.0", io.Discard, &recordingCommander{}, (&stubExecShell{}).fn(), nil)
+	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "tm:0.0",
+		OpenFIFO: instantTimeoutOpenFIFO})
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v (FIFO os.Remove error must be tolerated)", err)
@@ -1298,7 +1342,8 @@ func TestHydrate_Timeout_FiresHookWhenRegistered(t *testing.T) {
 	})
 
 	exec := &stubExecShell{}
-	cfg := timeoutCfg(t, fifo, filepath.Join(dir, "sb"), "tfh:0.0", io.Discard, &recordingCommander{}, exec.fn(), nil)
+	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "tfh:0.0",
+		OpenFIFO: instantTimeoutOpenFIFO, ExecShell: exec.fn()})
 	cfg.HookStore = store
 
 	if err := runHydrate(cfg); err != nil {
@@ -1323,7 +1368,8 @@ func TestHydrate_Timeout_NoHookStore_ExecsBareShell(t *testing.T) {
 	t.Setenv("SHELL", "/bin/zsh")
 
 	exec := &stubExecShell{}
-	cfg := timeoutCfg(t, fifo, filepath.Join(dir, "sb"), "tnh:0.0", io.Discard, &recordingCommander{}, exec.fn(), nil)
+	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "tnh:0.0",
+		OpenFIFO: instantTimeoutOpenFIFO, ExecShell: exec.fn()})
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
@@ -1347,7 +1393,8 @@ func TestHydrate_Timeout_LookupNotFound_ExecsBareShell(t *testing.T) {
 	store := seedHookStore(t, dir, map[string]map[string]string{})
 
 	exec := &stubExecShell{}
-	cfg := timeoutCfg(t, fifo, filepath.Join(dir, "sb"), "tlnf:0.0", io.Discard, &recordingCommander{}, exec.fn(), nil)
+	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "tlnf:0.0",
+		OpenFIFO: instantTimeoutOpenFIFO, ExecShell: exec.fn()})
 	cfg.HookStore = store
 
 	if err := runHydrate(cfg); err != nil {
@@ -1379,7 +1426,8 @@ func TestHydrate_Timeout_LookupError_ExecsBareShellAndLogsWarning(t *testing.T) 
 
 	t.Setenv("SHELL", "/bin/zsh")
 	exec := &stubExecShell{}
-	cfg := timeoutCfg(t, fifo, filepath.Join(dir, "sb"), "tle:0.0", io.Discard, &recordingCommander{}, exec.fn(), logger)
+	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "tle:0.0",
+		OpenFIFO: instantTimeoutOpenFIFO, Logger: logger, ExecShell: exec.fn()})
 	cfg.HookStore = store
 
 	if err := runHydrate(cfg); err != nil {

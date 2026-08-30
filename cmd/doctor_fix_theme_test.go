@@ -419,10 +419,7 @@ func TestDoctorFix_ExistingRepairsUnchanged(t *testing.T) {
 		deps.ThemesDir = themesDirWith(t, map[string][]byte{
 			"a-missing.theme": sourceMissingTokens(t, "text.primary"),
 		})
-		hooksBefore, err := os.ReadFile(hooksPath)
-		if err != nil {
-			t.Fatalf("read hooks.json: %v", err)
-		}
+		hooksBefore := readFileBytes(t, hooksPath)
 
 		outBuf, _, execErr := runDoctorFixCmd(t, deps)
 		assertDownServerDeferral(t, hooksBefore, hooksPath, projectsPath, goneDir, execErr)

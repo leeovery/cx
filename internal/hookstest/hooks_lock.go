@@ -61,6 +61,21 @@ func HoldHooksSidecarShared(t *testing.T, hooksPath string) {
 	})
 }
 
+// AssertSidecarFree proves the operation under test released its hold: an
+// exclusive non-blocking acquire from a fresh open file description succeeds
+// only when no other fd holds the sidecar. It creates the sidecar if it is
+// absent, so it can never stand in for an assertion that none exists.
+func AssertSidecarFree(t *testing.T, hooksPath string) {
+	t.Helper()
+	f := openSidecar(t, hooksPath)
+	defer func() { _ = f.Close() }()
+	if err := unix.Flock(int(f.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
+		t.Errorf("hookstest.AssertSidecarFree: sidecar is still held: %v", err)
+		return
+	}
+	_ = unix.Flock(int(f.Fd()), unix.LOCK_UN)
+}
+
 func openSidecar(t *testing.T, hooksPath string) *os.File {
 	t.Helper()
 	f, err := os.OpenFile(hooksPath+".lock", os.O_RDWR|os.O_CREATE, 0o600)

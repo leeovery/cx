@@ -3,31 +3,12 @@ package cmd
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/leeovery/portal/internal/tmux"
 )
-
-func replayCfg(t *testing.T, fifo, scrollback, hookKey string, stdout io.Writer, exec func(string, []string), logger *slog.Logger) hydrateConfig {
-	t.Helper()
-	return hydrateConfig{
-		FIFO:              fifo,
-		File:              scrollback,
-		HookKey:           hookKey,
-		Stdout:            stdout,
-		Client:            tmux.NewClient(&recordingCommander{}),
-		Logger:            logger,
-		ExecShell:         exec,
-		OpenFIFO:          openFIFOWithTimeout,
-		HandleFileMissing: handleHydrateFileMissing,
-		HandleTimeout:     handleHydrateTimeout,
-	}
-}
 
 func TestHydrateReplayedLog_EmitsScrollbackReplayedBytesTookOnSuccessPath(t *testing.T) {
 	dir := t.TempDir()
@@ -41,7 +22,8 @@ func TestHydrateReplayedLog_EmitsScrollbackReplayedBytesTookOnSuccessPath(t *tes
 	signalFIFOAsync(t, fifo)
 
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
-	cfg := replayCfg(t, fifo, scrollback, "rep:0.0", io.Discard, (&stubExecShell{}).fn(), logger)
+	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: scrollback, HookKey: "rep:0.0",
+		OpenFIFO: openFIFOWithTimeout, Logger: logger})
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
@@ -70,7 +52,8 @@ func TestHydrateReplayedLog_BytesEqualsCopyCountForPopulatedFile(t *testing.T) {
 	signalFIFOAsync(t, fifo)
 
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
-	cfg := replayCfg(t, fifo, scrollback, "pop:0.0", io.Discard, (&stubExecShell{}).fn(), logger)
+	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: scrollback, HookKey: "pop:0.0",
+		OpenFIFO: openFIFOWithTimeout, Logger: logger})
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
@@ -100,7 +83,8 @@ func TestHydrateReplayedLog_ZeroByteScrollbackEmitsBytesZero(t *testing.T) {
 	signalFIFOAsync(t, fifo)
 
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
-	cfg := replayCfg(t, fifo, scrollback, "zero:0.0", io.Discard, (&stubExecShell{}).fn(), logger)
+	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: scrollback, HookKey: "zero:0.0",
+		OpenFIFO: openFIFOWithTimeout, Logger: logger})
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
@@ -125,7 +109,8 @@ func TestHydrateReplayedLog_FiveMegabyteFileReportsExactByteCount(t *testing.T) 
 	signalFIFOAsync(t, fifo)
 
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
-	cfg := replayCfg(t, fifo, scrollback, "big:0.0", io.Discard, (&stubExecShell{}).fn(), logger)
+	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: scrollback, HookKey: "big:0.0",
+		OpenFIFO: openFIFOWithTimeout, Logger: logger})
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
@@ -148,7 +133,8 @@ func TestHydrateReplayedLog_TookIsDurationAcrossReplayNotSettleSleep(t *testing.
 	signalFIFOAsync(t, fifo)
 
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
-	cfg := replayCfg(t, fifo, scrollback, "dur:0.0", io.Discard, (&stubExecShell{}).fn(), logger)
+	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: scrollback, HookKey: "dur:0.0",
+		OpenFIFO: openFIFOWithTimeout, Logger: logger})
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
@@ -179,7 +165,8 @@ func TestHydrateReplayedLog_PrecedesExecINFOAndFiresOnce(t *testing.T) {
 	signalFIFOAsync(t, fifo)
 
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
-	cfg := replayCfg(t, fifo, scrollback, "ord:0.0", io.Discard, (&stubExecShell{}).fn(), logger)
+	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: scrollback, HookKey: "ord:0.0",
+		OpenFIFO: openFIFOWithTimeout, Logger: logger})
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
@@ -209,7 +196,8 @@ func TestHydrateReplayedLog_NotEmittedOnTimeoutPath(t *testing.T) {
 	fifo := makeFIFO(t, dir, "hydrate-not__0.0.fifo")
 
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
-	cfg := timeoutCfg(t, fifo, filepath.Join(dir, "sb"), "not:0.0", io.Discard, &recordingCommander{}, (&stubExecShell{}).fn(), logger)
+	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "not:0.0",
+		OpenFIFO: instantTimeoutOpenFIFO, Logger: logger})
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
@@ -228,7 +216,8 @@ func TestHydrateReplayedLog_NotEmittedOnFileMissingPath(t *testing.T) {
 	signalFIFOAsync(t, fifo)
 
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
-	cfg := replayCfg(t, fifo, scrollback, "fm:0.0", io.Discard, (&stubExecShell{}).fn(), logger)
+	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: scrollback, HookKey: "fm:0.0",
+		OpenFIFO: openFIFOWithTimeout, Logger: logger})
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)

@@ -789,7 +789,7 @@ func TestStateDaemon_HooksCleanupWiring(t *testing.T) {
 	t.Run("it builds the hook store from loadHookStore at startup", func(t *testing.T) {
 		dir := t.TempDir()
 		t.Setenv("PORTAL_STATE_DIR", dir)
-		t.Setenv("PORTAL_HOOKS_FILE", filepath.Join(t.TempDir(), "hooks.json"))
+		hooksFileInTempDir(t)
 
 		holder := withImmediateRun(t)
 		withDaemonLockFileReset(t)
@@ -810,7 +810,7 @@ func TestStateDaemon_HooksCleanupWiring(t *testing.T) {
 	t.Run("it initialises lastCleanup to a non-zero start time", func(t *testing.T) {
 		dir := t.TempDir()
 		t.Setenv("PORTAL_STATE_DIR", dir)
-		t.Setenv("PORTAL_HOOKS_FILE", filepath.Join(t.TempDir(), "hooks.json"))
+		hooksFileInTempDir(t)
 
 		holder := withImmediateRun(t)
 		withDaemonLockFileReset(t)

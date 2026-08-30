@@ -7,9 +7,8 @@ import (
 	"slices"
 	"testing"
 
-	"golang.org/x/sys/unix"
-
 	"github.com/leeovery/portal/internal/hooks"
+	"github.com/leeovery/portal/internal/hookstest"
 )
 
 // The enumeration is a tmux read outside the lock, so it is always older than
@@ -48,17 +47,8 @@ func TestHookSweepSnapshotPrecedesEnumeration(t *testing.T) {
 		probed := false
 		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA), during: func() {
 			probed = true
-			f, err := os.OpenFile(path+".lock", os.O_RDWR, 0o600)
-			if err != nil {
-				t.Errorf("open sidecar during the enumeration: %v", err)
-				return
-			}
-			defer func() { _ = f.Close() }()
-			if err := unix.Flock(int(f.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
-				t.Errorf("sidecar is held during the enumeration: %v — a tmux read must sit outside the lock", err)
-				return
-			}
-			_ = unix.Flock(int(f.Fd()), unix.LOCK_UN)
+			// A tmux read must sit outside the lock.
+			hookstest.AssertSidecarFree(t, path)
 		}}
 
 		if err := sweepErr(lister, store, nil); err != nil {

@@ -67,6 +67,27 @@ func assertOneLockWarn(t *testing.T, sink *logtest.Sink, wantOp, wantKey string)
 	}
 }
 
+// assertReturnsAtLockBound proves the mutation waits the bound out and returns,
+// rather than blocking forever on a lock it can never take.
+func assertReturnsAtLockBound(t *testing.T, verb string, run func() error) {
+	t.Helper()
+	start := time.Now()
+	err := run()
+	elapsed := time.Since(start)
+
+	if err == nil {
+		t.Fatal("expected a non-zero exit under a held lock, got nil")
+	}
+	if elapsed < lockBound {
+		t.Errorf("hook %s returned after %v — it did not wait out the %v bound", verb, elapsed, lockBound)
+	}
+	// A generous multiple: the assertion separates bounded from unbounded, and
+	// a unit lane under load must not read as a hang.
+	if limit := 20 * lockBound; elapsed > limit {
+		t.Errorf("hook %s took %v against a %v bound (limit %v) — it is not returning at the bound", verb, elapsed, lockBound, limit)
+	}
+}
+
 func TestHookSetLockTimeout(t *testing.T) {
 	t.Run("it exits non-zero from hook set on a lock timeout", func(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, lockBound)
@@ -181,21 +202,10 @@ func TestHookSetLockTimeout(t *testing.T) {
 
 		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}})
 
-		start := time.Now()
-		_, err := runHookSet(t, "claude --resume abc")
-		elapsed := time.Since(start)
-
-		if err == nil {
-			t.Fatal("expected a non-zero exit under a held lock, got nil")
-		}
-		if elapsed < lockBound {
-			t.Errorf("hook set returned after %v — it did not wait out the %v bound", elapsed, lockBound)
-		}
-		// A generous multiple: the assertion separates bounded from unbounded, and
-		// a unit lane under load must not read as a hang.
-		if limit := 20 * lockBound; elapsed > limit {
-			t.Errorf("hook set took %v against a %v bound (limit %v) — it is not returning at the bound", elapsed, lockBound, limit)
-		}
+		assertReturnsAtLockBound(t, "set", func() error {
+			_, err := runHookSet(t, "claude --resume abc")
+			return err
+		})
 	})
 }
 
@@ -247,18 +257,9 @@ func TestHookRmLockTimeout(t *testing.T) {
 
 		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}})
 
-		start := time.Now()
-		_, err := runHookRm(t)
-		elapsed := time.Since(start)
-
-		if err == nil {
-			t.Fatal("expected a non-zero exit under a held lock, got nil")
-		}
-		if elapsed < lockBound {
-			t.Errorf("hook rm returned after %v — it did not wait out the %v bound", elapsed, lockBound)
-		}
-		if limit := 20 * lockBound; elapsed > limit {
-			t.Errorf("hook rm took %v against a %v bound (limit %v) — it is not returning at the bound", elapsed, lockBound, limit)
-		}
+		assertReturnsAtLockBound(t, "rm", func() error {
+			_, err := runHookRm(t)
+			return err
+		})
 	})
 }

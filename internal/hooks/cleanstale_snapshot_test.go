@@ -8,8 +8,6 @@ import (
 	"slices"
 	"testing"
 
-	"golang.org/x/sys/unix"
-
 	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/hookstest"
 	"github.com/leeovery/portal/internal/logtest"
@@ -110,15 +108,10 @@ func TestCleanStaleSnapshotNarrowing(t *testing.T) {
 		probed := false
 		if _, err := store.CleanStale(func(hooks.Snapshot) ([]string, error) {
 			probed = true
-			f, err := os.OpenFile(path+".lock", os.O_RDWR, 0o600)
-			if err != nil {
-				return nil, fmt.Errorf("open sidecar: %w", err)
-			}
-			defer func() { _ = f.Close() }()
-			if err := unix.Flock(int(f.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
-				return nil, fmt.Errorf("sidecar is held during the enumeration: %w", err)
-			}
-			return []string{liveKey}, unix.Flock(int(f.Fd()), unix.LOCK_UN)
+			// The enumeration is the caller's own work: the clean must not be
+			// holding the sidecar while it runs.
+			hookstest.AssertSidecarFree(t, path)
+			return []string{liveKey}, nil
 		}); err != nil {
 			t.Fatalf("CleanStale: %v", err)
 		}

@@ -1,14 +1,12 @@
 package cmd
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
 
@@ -37,10 +35,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
-		after := readFileBytes(t, path)
-		if !reflect.DeepEqual(before, after) {
-			t.Errorf("hooks.json modified by hazard-guard branch: before=%q after=%q", before, after)
-		}
+		assertHooksFileUnchanged(t, path, before, "modified by hazard-guard branch")
 
 		if got := countMatching(logger.entries, "debug", "bootstrap", entryDebugFmt); got != 1 {
 			t.Errorf("entry-point Debug count = %d, want 1; entries=%+v", got, logger.entries)
@@ -70,10 +65,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
-		after := readFileBytes(t, path)
-		if !reflect.DeepEqual(before, after) {
-			t.Errorf("hooks.json materialised under both-sides-empty path: before=%v after=%v", before, after)
-		}
+		assertHooksFileUnchanged(t, path, before, "materialised under both-sides-empty path")
 
 		if got := countMatching(logger.entries, "debug", "bootstrap", entryDebugFmt); got != 1 {
 			t.Errorf("entry-point Debug count = %d, want 1; entries=%+v", got, logger.entries)
@@ -107,10 +99,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 			t.Errorf("DeclineReason = %q, want %q", outcome.DeclineReason, skipReasonPaneReadFailed)
 		}
 
-		after := readFileBytes(t, path)
-		if !reflect.DeepEqual(before, after) {
-			t.Errorf("hooks.json modified on ListAllPanes-error path: before=%q after=%q", before, after)
-		}
+		assertHooksFileUnchanged(t, path, before, "modified on ListAllPanes-error path")
 
 		if got := countMatching(logger.entries, "debug", "bootstrap", entryDebugFmt); got != 0 {
 			t.Errorf("entry-point Debug count = %d, want 0 (must NOT fire on ListAllPanes-error branch); entries=%+v", got, logger.entries)
@@ -140,16 +129,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 			t.Errorf("DeclineReason = %q, want %q", outcome.DeclineReason, skipReasonStoreReadFailed)
 		}
 
-		// The store's own degraded-read breadcrumb shares the sink, so the
-		// stand-down is taken at WARN rather than over every record.
-		warns := sink.RecordsAtOrAboveLevel(slog.LevelWarn)
-		if len(warns) != 1 {
-			t.Fatalf("WARN record count = %d, want exactly 1: %+v", len(warns), warns)
-		}
-		assertHooksRecord(t, warns[0], standDownWant(slog.LevelWarn))
-		if got := warns[0].AttrString(t, "reason"); got != skipReasonStoreReadFailed {
-			t.Errorf("reason = %q, want %q", got, skipReasonStoreReadFailed)
-		}
+		assertStandDown(t, sink, slog.LevelWarn, skipReasonStoreReadFailed)
 
 		if got := countMatching(logger.entries, "debug", "bootstrap", entryDebugFmt); got != 0 {
 			t.Errorf("entry-point Debug count = %d, want 0 on Load-error branch; entries=%+v", got, logger.entries)
@@ -292,10 +272,7 @@ func TestUnjudgeableHookKeyRetention(t *testing.T) {
   %q: {"on-resume": "cmd-old"}
 }`, liveSeedA, retained)
 		store, path := newStagedHooksStore(t, hooksStoreStaging{seed: seed})
-		before, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatalf("read seeded hooks.json: %v", err)
-		}
+		before := readFileBytes(t, path)
 
 		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA)}
 		if err := sweepErr(lister, store, nil); err != nil {
@@ -310,13 +287,7 @@ func TestUnjudgeableHookKeyRetention(t *testing.T) {
 			t.Errorf("non-token-shaped key was swept; got %v", keysOf(postRun))
 		}
 
-		after, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatalf("re-read hooks.json: %v", err)
-		}
-		if !bytes.Equal(before, after) {
-			t.Errorf("hooks.json rewritten with nothing to remove\nbefore: %s\nafter:  %s", before, after)
-		}
+		assertHooksFileUnchanged(t, path, before, "rewritten with nothing to remove")
 	})
 
 	t.Run("it retains a non-token-shaped key across doctor --fix", func(t *testing.T) {
@@ -374,9 +345,7 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
-		if after := readFileBytes(t, path); !bytes.Equal(before, after) {
-			t.Errorf("hooks.json rewritten during a restore\nbefore: %s\nafter:  %s", before, after)
-		}
+		assertHooksFileUnchanged(t, path, before, "rewritten during a restore")
 		if lister.calls != 0 {
 			t.Errorf("ListAllPaneHookKeys call count = %d, want 0 (the sweep must stand down before enumerating)", lister.calls)
 		}
@@ -396,14 +365,12 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
-		if after := readFileBytes(t, path); !bytes.Equal(before, after) {
-			t.Errorf("hooks.json rewritten on a failed marker read\nbefore: %s\nafter:  %s", before, after)
-		}
+		assertHooksFileUnchanged(t, path, before, "rewritten on a failed marker read")
 		if lister.calls != 0 {
 			t.Errorf("ListAllPaneHookKeys call count = %d, want 0 on a failed marker read", lister.calls)
 		}
 
-		rec := standDownRecord(t, sink)
+		rec := assertStandDown(t, sink, slog.LevelDebug, "restoring")
 		if got := rec.AttrString(t, "error"); got != sentinel.Error() {
 			t.Errorf("error attr = %q, want %q", got, sentinel.Error())
 		}
@@ -443,7 +410,7 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
-		rec := standDownRecord(t, sink)
+		rec := assertStandDown(t, sink, slog.LevelDebug, "restoring")
 		if rec.HasAttr("error") {
 			t.Errorf("stand-down record carries an error attr with no read failure: %+v", rec.Attrs)
 		}
@@ -517,21 +484,41 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 	})
 }
 
-// standDownRecord asserts the single captured record is the stand-down line and
-// returns it for per-case attr assertions.
-func standDownRecord(t *testing.T, sink *logtest.Sink) logtest.Record {
+// assertStandDown pins the stand-down breadcrumb at the level the sweep is
+// expected to report it, and returns it for per-case attr assertions. The level
+// picks the record set the count is taken over: a DEBUG stand-down is the only
+// line the sink holds, so anything at WARN or above is itself a failure, while a
+// WARN stand-down shares the sink with the degraded pre-read's own DEBUG
+// breadcrumb and can only be counted among the WARNs.
+func assertStandDown(t *testing.T, sink *logtest.Sink, level slog.Level, reason string) logtest.Record {
 	t.Helper()
 
-	for _, r := range sink.RecordsAtOrAboveLevel(slog.LevelWarn) {
-		t.Errorf("stand-down emitted at %v: %+v", r.Level, r)
+	var rec logtest.Record
+	if level < slog.LevelWarn {
+		for _, r := range sink.RecordsAtOrAboveLevel(slog.LevelWarn) {
+			t.Errorf("stand-down emitted at %v: %+v", r.Level, r)
+		}
+		rec = sink.OnlyRecord(t)
+	} else {
+		at := sink.RecordsAtOrAboveLevel(level)
+		if len(at) != 1 {
+			t.Fatalf("%v record count = %d, want exactly 1: %+v", level, len(at), at)
+		}
+		rec = at[0]
 	}
 
-	rec := sink.OnlyRecord(t)
-	assertHooksRecord(t, rec, standDownWant(slog.LevelDebug))
-	if got := rec.AttrString(t, "reason"); got != "restoring" {
-		t.Errorf("reason = %q, want %q", got, "restoring")
-	}
+	assertStandDownRecord(t, rec, level, reason)
 	return rec
+}
+
+// assertStandDownRecord pins the shape of a stand-down line already selected by
+// its caller, for a case whose own selection is stronger than the level alone.
+func assertStandDownRecord(t *testing.T, rec logtest.Record, level slog.Level, reason string) {
+	t.Helper()
+	assertHooksRecord(t, rec, standDownWant(level))
+	if got := rec.AttrString(t, "reason"); got != reason {
+		t.Errorf("reason = %q, want %q", got, reason)
+	}
 }
 
 // standDownWant is the stand-down's half of the hooks record shape: every
@@ -560,9 +547,7 @@ func TestHookSweepReportsStandDown(t *testing.T) {
 		if len(outcome.Removed) != 0 {
 			t.Errorf("Removed = %v, want none", outcome.Removed)
 		}
-		if after := readFileBytes(t, path); !bytes.Equal(before, after) {
-			t.Errorf("hooks.json rewritten on the restore stand-down\nbefore: %s\nafter:  %s", before, after)
-		}
+		assertHooksFileUnchanged(t, path, before, "rewritten on the restore stand-down")
 	})
 
 	t.Run("it reports the empty-pane-read stand-down to the caller", func(t *testing.T) {
@@ -585,15 +570,10 @@ func TestHookSweepReportsStandDown(t *testing.T) {
 		if len(outcome.Removed) != 0 {
 			t.Errorf("Removed = %v, want none", outcome.Removed)
 		}
-		if after := readFileBytes(t, path); !bytes.Equal(before, after) {
-			t.Errorf("hooks.json rewritten on the empty-pane-read stand-down\nbefore: %s\nafter:  %s", before, after)
-		}
+		assertHooksFileUnchanged(t, path, before, "rewritten on the empty-pane-read stand-down")
 
 		rec := sink.OnlyRecord(t)
-		assertHooksRecord(t, rec, standDownWant(slog.LevelWarn))
-		if got := rec.AttrString(t, "reason"); got != "empty-pane-read" {
-			t.Errorf("reason = %q, want %q", got, "empty-pane-read")
-		}
+		assertStandDownRecord(t, rec, slog.LevelWarn, "empty-pane-read")
 		if got := rec.IntAttr(t, "entries"); got != 2 {
 			t.Errorf("entries = %d, want 2", got)
 		}
@@ -638,10 +618,7 @@ func TestHookSweepReportsStandDown(t *testing.T) {
 			t.Errorf("DeclineReason = %q, want %q", outcome.DeclineReason, skipReasonPaneReadFailed)
 		}
 		rec := sink.OnlyRecord(t)
-		assertHooksRecord(t, rec, standDownWant(slog.LevelWarn))
-		if got := rec.AttrString(t, "reason"); got != skipReasonPaneReadFailed {
-			t.Errorf("reason = %q, want %q", got, skipReasonPaneReadFailed)
-		}
+		assertStandDownRecord(t, rec, slog.LevelWarn, skipReasonPaneReadFailed)
 		if got := rec.AttrString(t, "error"); got != sentinel.Error() {
 			t.Errorf("error attr = %q, want %q", got, sentinel.Error())
 		}
@@ -686,9 +663,7 @@ func TestHookSweepGuardCountsPaneRowsNotTokens(t *testing.T) {
 				t.Errorf("unexpected Warn with rows present and no token: %+v", e)
 			}
 		}
-		if after := readFileBytes(t, path); !bytes.Equal(before, after) {
-			t.Errorf("hooks.json rewritten with only unjudgeable entries present\nbefore: %s\nafter:  %s", before, after)
-		}
+		assertHooksFileUnchanged(t, path, before, "rewritten with only unjudgeable entries present")
 	})
 
 	t.Run("it still deletes a token-shaped key absent from the live token set", func(t *testing.T) {
