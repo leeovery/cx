@@ -59,57 +59,61 @@ func buildHooksTmuxClient() *tmux.Client {
 
 // resolveCurrentPaneKey returns the current pane's hook key alongside the pane
 // it was read from, so a caller that must stamp acts on that same pane.
+//
+// A failed read is surfaced as the resolver phrased it: a gone pane is reported
+// in tmux's own words behind one Portal-authored clause, and restating that
+// clause here would put a second one in front of them.
 func resolveCurrentPaneKey() (hookKey, paneID string, err error) {
 	paneID, err = requireTmuxPane()
 	if err != nil {
 		return "", "", err
 	}
 
-	hookKey, err = buildHookKeyResolver().ResolveHookKey(paneID)
+	hookKey, err = hookSeams().KeyResolver.ResolveHookKey(paneID)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to resolve hook key for current pane: %w", err)
+		return "", "", err
 	}
 
 	return hookKey, paneID, nil
 }
 
-func buildHookKeyResolver() HookKeyResolver {
-	if hooksDeps != nil && hooksDeps.KeyResolver != nil {
-		return hooksDeps.KeyResolver
+// hookSeams returns the seams every hook command runs against: whatever a test
+// injected, with the production default filled in for each seam it left unset.
+// A new seam costs one fill line here rather than a builder of its own.
+func hookSeams() HooksDeps {
+	var seams HooksDeps
+	if hooksDeps != nil {
+		seams = *hooksDeps
 	}
-	return buildHooksTmuxClient()
-}
 
-func buildPaneHookLister() PaneHookLister {
-	if hooksDeps != nil && hooksDeps.PaneLister != nil {
-		return hooksDeps.PaneLister
+	client := buildHooksTmuxClient()
+	if seams.KeyResolver == nil {
+		seams.KeyResolver = client
 	}
-	return buildHooksTmuxClient()
-}
+	if seams.PaneLister == nil {
+		seams.PaneLister = client
+	}
+	if seams.PaneStamper == nil {
+		seams.PaneStamper = client
+	}
+	if seams.TokenMinter == nil {
+		seams.TokenMinter = session.NewPaneToken
+	}
 
-func buildPaneStamper() PaneOptionSetter {
-	if hooksDeps != nil && hooksDeps.PaneStamper != nil {
-		return hooksDeps.PaneStamper
-	}
-	return buildHooksTmuxClient()
-}
-
-func buildTokenMinter() session.IDGenerator {
-	if hooksDeps != nil && hooksDeps.TokenMinter != nil {
-		return hooksDeps.TokenMinter
-	}
-	return session.NewPaneToken
+	return seams
 }
 
 // stampPaneToken mints a token for an un-stamped pane and writes it, returning
 // tmux's own error unaltered so a target naming no pane reads as tmux said it.
 func stampPaneToken(paneID string) (string, error) {
-	token, err := buildTokenMinter()()
+	seams := hookSeams()
+
+	token, err := seams.TokenMinter()
 	if err != nil {
 		return "", fmt.Errorf("failed to mint a pane token: %w", err)
 	}
 
-	if err := buildPaneStamper().SetPaneOption(paneID, state.PortalPaneIDOption, token); err != nil {
+	if err := seams.PaneStamper.SetPaneOption(paneID, state.PortalPaneIDOption, token); err != nil {
 		return "", err
 	}
 
@@ -144,7 +148,7 @@ var hooksListCmd = &cobra.Command{
 			return nil
 		}
 
-		locations := paneLocationsByToken(buildPaneHookLister())
+		locations := paneLocationsByToken(hookSeams().PaneLister)
 
 		for _, h := range list {
 			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\t%s\t%s\n", h.Key, h.Event, h.Command, locations[h.Key]); err != nil {

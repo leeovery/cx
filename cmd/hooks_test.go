@@ -480,11 +480,8 @@ func TestHooksSetCommand(t *testing.T) {
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
-		if !strings.Contains(err.Error(), "resolve") {
-			t.Errorf("error = %q, want it to contain %q", err.Error(), "resolve")
-		}
-		if !strings.Contains(err.Error(), stderr) {
-			t.Errorf("error = %q, want it to carry tmux's own words %q", err.Error(), stderr)
+		if err.Error() != stderr {
+			t.Errorf("error = %q, want tmux's own words %q unaltered", err.Error(), stderr)
 		}
 		var cmdErr *tmux.CommandError
 		if !errors.As(err, &cmdErr) {
@@ -747,8 +744,8 @@ func TestHooksRmCommand(t *testing.T) {
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
-		if !strings.Contains(err.Error(), "resolve") {
-			t.Errorf("error = %q, want it to contain %q", err.Error(), "resolve")
+		if err.Error() != "tmux not responding" {
+			t.Errorf("error = %q, want the read's own words %q unaltered", err.Error(), "tmux not responding")
 		}
 
 		data := readHooksJSON(t, hooksFile)
