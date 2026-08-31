@@ -250,7 +250,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 7,
-          "current_task": "resume-hooks-silently-lost-7-21",
+          "current_task": "resume-hooks-silently-lost-7-22",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -344,7 +344,8 @@
             "resume-hooks-silently-lost-7-17",
             "resume-hooks-silently-lost-7-18",
             "resume-hooks-silently-lost-7-19",
-            "resume-hooks-silently-lost-7-20"
+            "resume-hooks-silently-lost-7-20",
+            "resume-hooks-silently-lost-7-21"
           ],
           "staging": {
             "p1": {
@@ -1252,6 +1253,16 @@
                 ".workflows/resume-hooks-silently-lost/implementation/resume-hooks-silently-lost/analysis-duplication-c2.md",
                 ".workflows/resume-hooks-silently-lost/implementation/resume-hooks-silently-lost/analysis-tasks-c2.md",
                 "internal/hooks/store_shape_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-21",
+              "source": "reviewer",
+              "summary": "The rm-success and rm-empty-store cases still live in two files after this deletion, with one exact cross-file duplicate remaining.",
+              "detail": "cmd/hooks_test.go:617 (removes correct JSON entry from hooks file) and cmd/hooks_rm_exit_test.go:149 (it exits 0 and removes on the resolved-token path) are the same test with different key names — both seed a target plus a sibling, resolve the target, and assert removed-plus-sibling-survives. cmd/hooks_test.go:497 (removes hook for current pane) is a strict subset of :617. cmd/hooks_test.go:590 and cmd/hooks_rm_exit_test.go:116 both pin the no-resume-hook-registered message on the resolved path. Two assertions are genuinely unique and must survive any collapse: the raw-%42-not-used-as-key check at cmd/hooks_test.go:545 and the len(data)==0 last-event cleanup at :686; :590 empty-output check is separately covered from a different angle by cmd/hooks_rm_exit_test.go:334.",
+              "files": [
+                "cmd/hooks_test.go",
+                "cmd/hooks_rm_exit_test.go"
               ]
             }
           ]
