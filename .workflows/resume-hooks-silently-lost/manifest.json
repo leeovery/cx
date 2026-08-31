@@ -250,7 +250,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 7,
-          "current_task": "resume-hooks-silently-lost-7-7",
+          "current_task": "resume-hooks-silently-lost-7-8",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -332,7 +332,8 @@
             "resume-hooks-silently-lost-7-3",
             "resume-hooks-silently-lost-7-4",
             "resume-hooks-silently-lost-7-5",
-            "resume-hooks-silently-lost-7-6"
+            "resume-hooks-silently-lost-7-6",
+            "resume-hooks-silently-lost-7-7"
           ],
           "staging": {
             "p1": {
@@ -794,6 +795,97 @@
               "detail": "cmd/run_hook_stale_cleanup.go:191, :214, :222, :229. Three pre-date task 7-6. A standDown.declinedOutcome() helper would collapse all four if the file is opened again.",
               "files": [
                 "cmd/run_hook_stale_cleanup.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-7",
+              "source": "executor",
+              "summary": "cmd/open.go re-implements the exact-target = prefix by hand, outside the vocabulary and outside the guard package set.",
+              "detail": "cmd/open.go:90 composes []string{\"tmux\", \"attach-session\", \"-t\", \"=\" + name} for the exec handoff. Correct today, but it is the fifth site to hand-roll the rule, and cmd is not one of the three packages the guard scans. It is the only -t composition outside them (verified across cmd, internal/state, internal/spawn), so consolidating is: route it through tmux.ExactSessionTarget and add ../../cmd to targetComposingPackages in internal/tmux/target_composition_guard_test.go:18.",
+              "files": [
+                "cmd/open.go",
+                "internal/tmux/target_composition_guard_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-7",
+              "source": "executor",
+              "summary": "Restore arms panes through the bare tmux.PaneTarget, which the vocabulary excludes and the guard -t rule cannot see.",
+              "detail": "internal/restore/session.go:140 builds liveTarget := tmux.PaneTarget(sess.Name, live.Window, live.Pane) and feeds it to SetPaneOption (:166) and RespawnPane (:149) — the same unpinned-session-name class this task fixed two lines above, reaching the client as a method argument rather than an argv -t. PaneTargetExact is the pinned sibling. Extending the guard to check the target argument of the client target-taking methods (SplitWindow, NewWindow, SendKeys, RespawnPane, CapturePane, SetPaneOption, ResolveHookKey) would catch this class, but it spans those methods callers in cmd and internal/state too.",
+              "files": [
+                "internal/restore/session.go",
+                "internal/tmux/tmux.go",
+                "internal/tmux/target_composition_guard_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-7",
+              "source": "reviewer",
+              "summary": "The exported target vocabulary is split between two naming shapes.",
+              "detail": "ExactSessionTarget/ExactCoordTarget (prefix) beside PaneTargetExact/windowTargetExact (suffix). The naming skill variant convention is a suffix (WithContext, In), which the existing two already follow; SessionTargetExact/SessionCoordTargetExact would unify the family and make the missing member guessable. Worth taking if the guard is edited anyway, since its allow-list is name-keyed.",
+              "files": [
+                "internal/tmux/tmux.go",
+                "internal/tmux/target_composition_guard_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-7",
+              "source": "reviewer",
+              "summary": "The target-composition guard package list is hardcoded to three, so a new package composing targets is unguarded.",
+              "detail": "cmd/open.go:90 is the only -t composition outside them today and is already banked, but nothing stops the next package from starting to compose targets unguarded. Deriving the set (e.g. every package importing internal/tmux) would close that, and belongs with whatever consolidation picks up the banked cmd/open.go site. Also: the \"-t ends its argv\" branch (bareTargetsIn, lines 193-199) has no fixture — the guard split-composition detector is the one part of it that is itself unexercised.",
+              "files": [
+                "internal/tmux/target_composition_guard_test.go",
+                "cmd/open.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-7",
+              "source": "executor",
+              "summary": "The tmux client target-taking methods are pinned by a test-side name list, with no production-side marker.",
+              "detail": "internal/tmux/target_composition_guard_test.go:41 recognises an already-composed target purely by the parameter names target/paneID. A new client method that names its parameter anything else (pane, where, dst) silently leaves its call sites unchecked — the same class of author-discipline gap this task closed one level down, just moved. Consolidating means giving the production side something the guard can read rather than guess: a named type Target string on the client method signatures, which would also make a bare string target a compile error at every call site in cmd, internal/state and internal/restore. That is a signature change across the client whole surface.",
+              "files": [
+                "internal/tmux/tmux.go",
+                "internal/tmux/target_composition_guard_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-7",
+              "source": "reviewer",
+              "summary": "Guard laundering: a bare target reaches the client through a non-method helper whose parameter is named target.",
+              "detail": "targetTakingMethods (internal/tmux/target_composition_guard_test.go:212) skips fn.Recv == nil, and bareTargetArguments (:301-304) only inspects selector calls, while bindParams (:343) exempts the parameter in ANY function. Staged probe confirmed silent: func composeAndSplit(r *SessionRestorer, target, cwd string) error { return r.Client.SplitWindow(target, cwd, \"\") } called with fmt.Sprintf produces no finding — the exemption side is wider than the recognition side. No such function exists today. Verified cheap fix: drop the fn.Recv == nil skip and accept an *ast.Ident callee in bareTargetArguments — prototyped, probe caught, zero new findings on the real tree. Same family as the type Target string entry, which would subsume it.",
+              "files": [
+                "internal/tmux/target_composition_guard_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-7",
+              "source": "reviewer",
+              "summary": "A bare pane target crosses into the client from the daemon capture loop, outside the guard package set.",
+              "detail": "cmd/state_daemon.go:277 composes tmux.PaneTarget(sess.Name, win.Index, pane.Index) — the deliberately unpinned form — and hands it to CapturePane via state.CaptureAndHashPane (internal/state/scrollback.go:62). A session killed between the index build and the capture leaves the read resolving onto a prefix sibling pane, whose scrollback is then written under the gone pane key. Lower stakes than the write paths, same class, outside the three-package scope.",
+              "files": [
+                "cmd/state_daemon.go",
+                "internal/state/scrollback.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-7",
+              "source": "reviewer",
+              "summary": "The wrong-helper subclass — one of the three historical rediscoveries — is still uncaught by the guard.",
+              "detail": "The guard enforces vocabulary membership, not target kind, so list-panes -t ExactSessionTarget(x) (the original saver_pane_pid.go defect: right vocabulary, wrong kind, silently reaching the prefix sibling anyway) passes. A command-to-kind table is derivable for the literal-argv shape, where the tmux verb is elems[0], though not for the method-argument shape. A new rule beyond this task brief.",
+              "files": [
+                "internal/tmux/target_composition_guard_test.go",
+                "internal/tmux/tmux.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-7",
+              "source": "reviewer",
+              "summary": "Name-pressure and staleness residue from the guard rule.",
+              "detail": "stampPaneToken parameter had to be renamed liveTarget -> target purely to satisfy the allow-list, losing the live-vs-saved distinction the old name carried — the concrete cost of a name-based rule. internal/tmux/exact_target_internal_test.go is now an internal test for two exported functions, so the internal in its filename has gone stale. Also: the guard binding is name-based and flow-insensitive (reassignment and branch-dependent assignment both pass, probed); closing that needs dataflow, and the durable answer is the banked type Target string.",
+              "files": [
+                "internal/restore/session.go",
+                "internal/tmux/exact_target_internal_test.go",
+                "internal/tmux/target_composition_guard_test.go"
               ]
             }
           ]
