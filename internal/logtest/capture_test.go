@@ -1,7 +1,10 @@
 package logtest_test
 
 import (
+	"errors"
+	"fmt"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -156,6 +159,42 @@ func TestRecord_IntAttr(t *testing.T) {
 	}
 }
 
+func TestRecord_ErrorAttr(t *testing.T) {
+	sentinel := errors.New("temp file create failed")
+	logger, sink := logtest.NewCaptureLogger(t)
+	logger.Warn("save failed", "error", sentinel, "op", "set")
+
+	r := sink.OnlyRecord(t)
+
+	t.Run("it returns the error carried by the named attr", func(t *testing.T) {
+		if got := r.ErrorAttr(t, "error"); !errors.Is(got, sentinel) {
+			t.Errorf("ErrorAttr(error) = %v, want %v", got, sentinel)
+		}
+	})
+
+	t.Run("it fails when the record carries no attr of that name", func(t *testing.T) {
+		if !expectFail(func(sub logtest.TestingT) { _ = r.ErrorAttr(sub, "cause") }) {
+			t.Errorf("ErrorAttr must fail the test for a missing key")
+		}
+	})
+
+	t.Run("it fails when the attr value is not an error", func(t *testing.T) {
+		if !expectFail(func(sub logtest.TestingT) { _ = r.ErrorAttr(sub, "op") }) {
+			t.Errorf("ErrorAttr must fail for an attr carrying a non-error value")
+		}
+	})
+
+	t.Run("it reports the record's attrs in its failure message", func(t *testing.T) {
+		failed, msg := captureFailure(func(sub logtest.TestingT) { _ = r.ErrorAttr(sub, "cause") })
+		if !failed {
+			t.Fatalf("ErrorAttr(cause) did not fail")
+		}
+		if !strings.Contains(msg, "cause") || !strings.Contains(msg, "op") {
+			t.Errorf("failure message = %q, want it to name the missing key and the record's attrs", msg)
+		}
+	})
+}
+
 func TestRecord_RequireDuration(t *testing.T) {
 	logger, sink := logtest.NewCaptureLogger(t)
 	logger.Info("tick complete", "took", 5*time.Millisecond, "entries", "2")
@@ -291,6 +330,7 @@ func TestRecords_FilterChainCombinesLevelAndComponent(t *testing.T) {
 type fakeT struct {
 	failed bool
 	errors int
+	msg    string
 }
 
 func (f *fakeT) Helper() {}
@@ -299,21 +339,29 @@ func (f *fakeT) Errorf(string, ...any) {
 	f.errors++
 }
 
-func (f *fakeT) Fatalf(string, ...any) {
+func (f *fakeT) Fatalf(format string, args ...any) {
 	f.failed = true
+	f.msg = fmt.Sprintf(format, args...)
 	panic(fakeFatal{})
 }
 
 type fakeFatal struct{}
 
-func expectFail(fn func(logtest.TestingT)) (failed bool) {
+func expectFail(fn func(logtest.TestingT)) bool {
+	failed, _ := captureFailure(fn)
+	return failed
+}
+
+// captureFailure runs fn against a stand-in TestingT, absorbing the panic a
+// Fatalf raises, and reports whether it failed and with what message.
+func captureFailure(fn func(logtest.TestingT)) (failed bool, msg string) {
 	t := &fakeT{}
 	defer func() {
 		_ = recover()
-		failed = t.failed
+		failed, msg = t.failed, t.msg
 	}()
 	fn(t)
-	return t.failed
+	return t.failed, t.msg
 }
 
 func TestRecords_MsgFiltersOnMessageAloneAcrossComponents(t *testing.T) {

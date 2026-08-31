@@ -59,6 +59,20 @@ func (r Record) IntAttr(t TestingT, key string) int64 {
 	return v.Int64()
 }
 
+// ErrorAttr fails the test if the attr is absent or carries a non-error value.
+func (r Record) ErrorAttr(t TestingT, key string) error {
+	t.Helper()
+	v, ok := r.Attrs[key]
+	if !ok {
+		t.Fatalf("record missing attr %q: %+v", key, r.Attrs)
+	}
+	err, ok := v.Any().(error)
+	if !ok {
+		t.Fatalf("attr %q = %+v, want an error value: %+v", key, v, r.Attrs)
+	}
+	return err
+}
+
 // RequireDuration asserts the attr's kind, not its rendering: a rendered
 // Duration is indistinguishable from a stringified one.
 func (r Record) RequireDuration(t TestingT, key string) {

@@ -1021,9 +1021,7 @@ func TestCleanStaleLogging(t *testing.T) {
 		if got := summary.AttrString(t, "via"); got != "internal" {
 			t.Errorf("summary via = %q, want %q", got, "internal")
 		}
-		if _, ok := summary.Attrs["took"]; !ok {
-			t.Errorf("summary missing took attr: %+v", summary.Attrs)
-		}
+		summary.RequireDuration(t, "took")
 	})
 
 	t.Run("it emits an empty value for a removed entry with no on-resume event", func(t *testing.T) {
@@ -1176,17 +1174,8 @@ func TestCleanStaleLogging(t *testing.T) {
 		if got := warn.AttrString(t, "error_class"); got != "write-failed-temp-create" {
 			t.Errorf("error_class = %q, want %q (must be write-failed-*, not unexpected)", got, "write-failed-temp-create")
 		}
-		if _, ok := warn.Attrs["took"]; !ok {
-			t.Errorf("WARN missing took attr: %+v", warn.Attrs)
-		}
-		errVal, ok := warn.Attrs["error"]
-		if !ok {
-			t.Fatalf("WARN record missing error attr: %+v", warn.Attrs)
-		}
-		loggedErr, ok := errVal.Any().(error)
-		if !ok {
-			t.Fatalf("error attr is not an error value: %T", errVal.Any())
-		}
+		warn.RequireDuration(t, "took")
+		loggedErr := warn.ErrorAttr(t, "error")
 		if !errors.Is(loggedErr, fileutil.ErrWriteTempCreate) {
 			t.Errorf("logged error attr does not wrap the temp-create sentinel: %v", loggedErr)
 		}
@@ -1355,14 +1344,7 @@ func TestSetLogging(t *testing.T) {
 		if got := rec.AttrString(t, "error_class"); got != "write-failed-temp-create" {
 			t.Errorf("error_class = %q, want %q", got, "write-failed-temp-create")
 		}
-		errVal, ok := rec.Attrs["error"]
-		if !ok {
-			t.Fatalf("WARN record missing error attr: %+v", rec.Attrs)
-		}
-		loggedErr, ok := errVal.Any().(error)
-		if !ok {
-			t.Fatalf("error attr is not an error value: %T", errVal.Any())
-		}
+		loggedErr := rec.ErrorAttr(t, "error")
 		if !errors.Is(loggedErr, fileutil.ErrWriteTempCreate) {
 			t.Errorf("logged error attr does not wrap the temp-create sentinel: %v", loggedErr)
 		}
@@ -1511,14 +1493,7 @@ func TestRemoveLogging(t *testing.T) {
 		if got := rec.AttrString(t, "error_class"); got != "write-failed-temp-create" {
 			t.Errorf("error_class = %q, want %q", got, "write-failed-temp-create")
 		}
-		errVal, ok := rec.Attrs["error"]
-		if !ok {
-			t.Fatalf("WARN record missing error attr: %+v", rec.Attrs)
-		}
-		loggedErr, ok := errVal.Any().(error)
-		if !ok {
-			t.Fatalf("error attr is not an error value: %T", errVal.Any())
-		}
+		loggedErr := rec.ErrorAttr(t, "error")
 		if !errors.Is(loggedErr, fileutil.ErrWriteTempCreate) {
 			t.Errorf("logged error attr does not wrap the temp-create sentinel: %v", loggedErr)
 		}

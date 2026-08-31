@@ -37,14 +37,7 @@ func assertLockWarn(t *testing.T, sink *logtest.Sink, wantOp, wantKey, wantVia s
 	if got := rec.AttrString(t, "via"); got != wantVia {
 		t.Errorf("via = %q, want %q", got, wantVia)
 	}
-	errVal, ok := rec.Attrs["error"]
-	if !ok {
-		t.Fatalf("WARN record missing error attr: %+v", rec.Attrs)
-	}
-	loggedErr, ok := errVal.Any().(error)
-	if !ok {
-		t.Fatalf("error attr is not an error value: %T", errVal.Any())
-	}
+	loggedErr := rec.ErrorAttr(t, "error")
 	if loggedErr == nil || loggedErr.Error() == "" {
 		t.Error("error attr is empty — the lock failure must be carried")
 	}

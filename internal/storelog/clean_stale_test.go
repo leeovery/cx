@@ -29,13 +29,7 @@ func TestEmitCleanStaleSummary_SuccessInfo(t *testing.T) {
 	if got := rec.AttrString(t, "entries"); got != "2" {
 		t.Errorf("entries = %q, want %q", got, "2")
 	}
-	tookVal, ok := rec.Attrs["took"]
-	if !ok {
-		t.Fatalf("summary missing took attr: %+v", rec.Attrs)
-	}
-	if tookVal.Kind() != slog.KindDuration {
-		t.Errorf("took attr kind = %v, want Duration", tookVal.Kind())
-	}
+	rec.RequireDuration(t, "took")
 	if _, ok := rec.Attrs["error"]; ok {
 		t.Errorf("success summary must omit error attr: %+v", rec.Attrs)
 	}
@@ -65,21 +59,8 @@ func TestEmitCleanStaleSummary_FailureWarn(t *testing.T) {
 	if got := rec.AttrString(t, "error_class"); got != "write-failed-temp-create" {
 		t.Errorf("error_class = %q, want %q", got, "write-failed-temp-create")
 	}
-	tookVal, ok := rec.Attrs["took"]
-	if !ok {
-		t.Fatalf("WARN missing took attr: %+v", rec.Attrs)
-	}
-	if tookVal.Kind() != slog.KindDuration {
-		t.Errorf("took attr kind = %v, want Duration", tookVal.Kind())
-	}
-	errVal, ok := rec.Attrs["error"]
-	if !ok {
-		t.Fatalf("WARN record missing error attr: %+v", rec.Attrs)
-	}
-	loggedErr, ok := errVal.Any().(error)
-	if !ok {
-		t.Fatalf("error attr is not an error value: %T", errVal.Any())
-	}
+	rec.RequireDuration(t, "took")
+	loggedErr := rec.ErrorAttr(t, "error")
 	if loggedErr != saveErr {
 		t.Errorf("logged error attr = %v, want the raw saveErr %v", loggedErr, saveErr)
 	}
