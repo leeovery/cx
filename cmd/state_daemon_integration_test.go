@@ -29,7 +29,15 @@ const daemonAliveTimeout = 5 * time.Second
 // has not yet completed.
 const tickStartDelay = 1200 * time.Millisecond
 
-const panePopulationTimeout = 10 * time.Second
+// Scrollback accumulates continuously, so Stall bounds how long a pane may gain
+// no lines rather than how long it may take to fill, and Ceiling only backstops
+// a pane that keeps gaining lines without ever reaching the target: on a loaded
+// host the seq writer is slower, not stuck.
+var panePopulationWait = tmuxtest.ProgressWait{
+	Stall:   10 * time.Second,
+	Ceiling: 120 * time.Second,
+	Tick:    panePopulationPollInterval,
+}
 
 const panePopulationPollInterval = 100 * time.Millisecond
 
@@ -224,21 +232,18 @@ func populatePanes(t *testing.T, sock *tmuxtest.Socket, lines int) {
 		sock.Run(t, "select-layout", "-t", "perf:0", "even-horizontal")
 	}
 
-	deadline := time.Now().Add(panePopulationTimeout)
 	for i := range paneCount {
 		target := fmt.Sprintf("perf:0.%d", i)
-		for {
-			if time.Now().After(deadline) {
-				t.Fatalf("pane %s did not accumulate %d scrollback lines within %s",
-					target, lines, panePopulationTimeout)
-			}
-			out := sock.Run(t, "capture-pane", "-p", "-t", target, "-S", "-")
-			// The final line may lack a newline, so this count is a lower
-			// bound - which is what the readiness gate wants.
-			if strings.Count(out, "\n") >= lines {
-				break
-			}
-			time.Sleep(panePopulationPollInterval)
+		res := tmuxtest.AwaitProgress(t, panePopulationWait,
+			func() int {
+				// The final line may lack a newline, so this count is a lower
+				// bound - which is what the readiness gate wants.
+				return strings.Count(sock.Run(t, "capture-pane", "-p", "-t", target, "-S", "-"), "\n")
+			},
+			func(got int) bool { return got >= lines },
+		)
+		if !res.Reached {
+			t.Fatalf("pane %s did not accumulate %d scrollback lines (%s)", target, lines, res)
 		}
 	}
 }

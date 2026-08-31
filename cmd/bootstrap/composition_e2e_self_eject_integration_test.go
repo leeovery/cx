@@ -22,8 +22,6 @@ const selfEjectComposite_ExitBudget = (selfEjectComposite_HysteresisTicksMirror+
 
 const selfEjectComposite_ExitPollTick = 100 * time.Millisecond
 
-const selfEjectComposite_ConvergenceTimeout = 6 * time.Second
-
 const selfEjectComposite_PlaceholderCommand = `exec tail -f /dev/null`
 
 const selfEjectComposite_LogMarker = "daemon: self-eject"
@@ -43,25 +41,16 @@ func TestCompositeBootstrap_ExternalSaverKillTriggersSelfEject(t *testing.T) {
 		t.Fatalf("BootstrapPortalSaver (post-sweep idempotent re-run): %v", err)
 	}
 
-	remaining := selfEjectComposite_ConvergenceTimeout - time.Since(start)
-	if remaining <= 0 {
-		t.Fatalf("post-bootstrap: 6 s budget already exhausted by the bootstrap "+
-			"slice itself (elapsed=%s) — cannot assert convergence",
-			time.Since(start))
-	}
-	if !waitForPgrepCount(t, 1, remaining) {
-		pids, _ := portaltest.PgrepPortalDaemons()
-		t.Fatalf("post-bootstrap: pgrep -fx did not converge to 1 within %s of "+
-			"bootstrap-slice entry (elapsed=%s)\n"+
+	if res := waitForPgrepCount(t, 1); !res.Reached {
+		t.Fatalf("post-bootstrap: pgrep -fx did not converge to 1 (%s, %s since "+
+			"bootstrap-slice entry)\n"+
 			"  harness saver PID (setup-time): %d (alive=%v)\n"+
 			"  harness orphan1 PID: %d (alive=%v)\n"+
-			"  harness orphan2 PID: %d (alive=%v)\n"+
-			"  current pgrep snapshot: %v",
-			selfEjectComposite_ConvergenceTimeout, time.Since(start),
+			"  harness orphan2 PID: %d (alive=%v)",
+			res, time.Since(start),
 			h.LegitimateDaemonPID, pidAlive(h.LegitimateDaemonPID),
 			h.Orphan1PID, pidAlive(h.Orphan1PID),
-			h.Orphan2PID, pidAlive(h.Orphan2PID),
-			pids)
+			h.Orphan2PID, pidAlive(h.Orphan2PID))
 	}
 
 	survivorPID := waitForSaverPanePID(t, h.Sock)

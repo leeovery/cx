@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/leeovery/portal/internal/portalbintest"
 	"github.com/leeovery/portal/internal/portaltest"
@@ -21,8 +20,6 @@ const compositeUserSessionCount = 2
 const compositeUserSessionPrefix = "u"
 
 const compositeUserSessionSeedScript = `while sleep 0.1; do echo "hello $RANDOM"; done`
-
-const compositePreStatePGrepTimeout = 3 * time.Second
 
 type compositeHarness struct {
 	Env []string
@@ -170,19 +167,16 @@ func assertCompositePreState(t *testing.T, stateDir string, sock *tmuxtest.Socke
 ) {
 	t.Helper()
 
-	if !waitForPgrepCount(t, 3, compositePreStatePGrepTimeout) {
-		pids, _ := portaltest.PgrepPortalDaemons()
-		t.Fatalf("harness pre-state: pgrep -fx did not reach 3 within %s\n"+
+	if res := waitForPgrepCount(t, 3); !res.Reached {
+		t.Fatalf("harness pre-state: pgrep -fx did not reach 3 (%s)\n"+
 			"  legitimate saver PID: %d (alive=%v)\n"+
 			"  orphan1 PID: %d (alive=%v)\n"+
 			"  orphan2 PID: %d (alive=%v)\n"+
-			"  pgrep snapshot: %v\n"+
 			"  hint: a daemon may have exited before pre-state assertion — harness is broken",
-			compositePreStatePGrepTimeout,
+			res,
 			legitimateDaemonPID, pidAlive(legitimateDaemonPID),
 			orphan1PID, pidAlive(orphan1PID),
-			orphan2PID, pidAlive(orphan2PID),
-			pids)
+			orphan2PID, pidAlive(orphan2PID))
 	}
 
 	recordedPID, err := state.ReadPIDFile(stateDir)

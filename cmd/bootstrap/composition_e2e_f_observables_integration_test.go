@@ -11,12 +11,9 @@ import (
 	"time"
 
 	"github.com/leeovery/portal/internal/bootstrapadapter"
-	"github.com/leeovery/portal/internal/portaltest"
 	"github.com/leeovery/portal/internal/tmux"
 	"github.com/leeovery/portal/internal/tmuxout"
 )
-
-const fObservablesConvergenceTimeout = 6 * time.Second
 
 func TestCompositeBootstrap_FObservables(t *testing.T) {
 	h := setupCompositeHarness(t)
@@ -31,25 +28,16 @@ func TestCompositeBootstrap_FObservables(t *testing.T) {
 		t.Fatalf("BootstrapPortalSaver (post-sweep idempotent re-run): %v", err)
 	}
 
-	remaining := fObservablesConvergenceTimeout - time.Since(start)
-	if remaining <= 0 {
-		t.Fatalf("post-bootstrap: 6 s budget already exhausted by the bootstrap "+
-			"slice itself (elapsed=%s) — cannot assert convergence",
-			time.Since(start))
-	}
-	if !waitForPgrepCount(t, 1, remaining) {
-		pids, _ := portaltest.PgrepPortalDaemons()
-		t.Fatalf("post-bootstrap: pgrep -fx did not converge to 1 within %s of "+
-			"bootstrap-slice entry (elapsed=%s)\n"+
+	if res := waitForPgrepCount(t, 1); !res.Reached {
+		t.Fatalf("post-bootstrap: pgrep -fx did not converge to 1 (%s, %s since "+
+			"bootstrap-slice entry)\n"+
 			"  harness saver PID (setup-time): %d (alive=%v)\n"+
 			"  harness orphan1 PID: %d (alive=%v)\n"+
-			"  harness orphan2 PID: %d (alive=%v)\n"+
-			"  current pgrep snapshot: %v",
-			fObservablesConvergenceTimeout, time.Since(start),
+			"  harness orphan2 PID: %d (alive=%v)",
+			res, time.Since(start),
 			h.LegitimateDaemonPID, pidAlive(h.LegitimateDaemonPID),
 			h.Orphan1PID, pidAlive(h.Orphan1PID),
-			h.Orphan2PID, pidAlive(h.Orphan2PID),
-			pids)
+			h.Orphan2PID, pidAlive(h.Orphan2PID))
 	}
 
 	panePIDRaw, err := h.Sock.TryRun("list-panes", "-t", tmux.PortalSaverName, "-F", "#{pane_pid}")

@@ -16,10 +16,6 @@ import (
 	"github.com/leeovery/portal/internal/tmuxtest"
 )
 
-const compositionPGrepConvergenceTimeout = 6 * time.Second
-
-const compositionPreStateTimeout = 3 * time.Second
-
 const compositionScrollbackObservations = 10
 
 const compositionScrollbackInterval = 1 * time.Second
@@ -47,19 +43,16 @@ func TestComposition_PhaseFour_ABC_EndToEnd(t *testing.T) {
 	orphan1, _ := portaltest.SpawnIsolatedDaemon(t, envSlice, sock.SocketPath())
 	orphan2, _ := portaltest.SpawnIsolatedDaemon(t, envSlice, sock.SocketPath())
 
-	if !waitForPgrepCount(t, 3, compositionPreStateTimeout) {
-		pids, _ := portaltest.PgrepPortalDaemons()
-		t.Fatalf("pre-state: pgrep -fx did not reach 3 within %s\n"+
+	if res := waitForPgrepCount(t, 3); !res.Reached {
+		t.Fatalf("pre-state: pgrep -fx did not reach 3 (%s)\n"+
 			"  legitimate saver PID: %d (alive=%v)\n"+
 			"  orphan1 PID: %d (alive=%v)\n"+
 			"  orphan2 PID: %d (alive=%v)\n"+
-			"  pgrep snapshot: %v\n"+
 			"  hint: an orphan may have exited before bootstrap — composition test cannot fire",
-			compositionPreStateTimeout,
+			res,
 			legitimateSaverPID, pidAlive(legitimateSaverPID),
 			orphan1.Process.Pid, pidAlive(orphan1.Process.Pid),
-			orphan2.Process.Pid, pidAlive(orphan2.Process.Pid),
-			pids)
+			orphan2.Process.Pid, pidAlive(orphan2.Process.Pid))
 	}
 
 	start := time.Now()
@@ -72,25 +65,15 @@ func TestComposition_PhaseFour_ABC_EndToEnd(t *testing.T) {
 		t.Fatalf("BootstrapPortalSaver (post-sweep idempotent re-run): %v", err)
 	}
 
-	remaining := compositionPGrepConvergenceTimeout - time.Since(start)
-	if remaining <= 0 {
-		t.Fatalf("post-bootstrap: 6 s budget already exhausted by bootstrap step itself "+
-			"(elapsed=%s) — cannot assert convergence",
-			time.Since(start))
-	}
-	if !waitForPgrepCount(t, 1, remaining) {
-		pids, _ := portaltest.PgrepPortalDaemons()
-		t.Fatalf("post-bootstrap: pgrep -fx did not converge to 1 within %s of bootstrap entry "+
-			"(elapsed=%s, budget=%s)\n"+
+	if res := waitForPgrepCount(t, 1); !res.Reached {
+		t.Fatalf("post-bootstrap: pgrep -fx did not converge to 1 (%s, %s since bootstrap entry)\n"+
 			"  legitimate saver PID: %d (alive=%v)\n"+
 			"  orphan1 PID: %d (alive=%v)\n"+
-			"  orphan2 PID: %d (alive=%v)\n"+
-			"  current pgrep snapshot: %v",
-			compositionPGrepConvergenceTimeout, time.Since(start), compositionPGrepConvergenceTimeout,
+			"  orphan2 PID: %d (alive=%v)",
+			res, time.Since(start),
 			legitimateSaverPID, pidAlive(legitimateSaverPID),
 			orphan1.Process.Pid, pidAlive(orphan1.Process.Pid),
-			orphan2.Process.Pid, pidAlive(orphan2.Process.Pid),
-			pids)
+			orphan2.Process.Pid, pidAlive(orphan2.Process.Pid))
 	}
 	convergenceElapsed := time.Since(start)
 

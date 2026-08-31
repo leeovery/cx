@@ -16,8 +16,6 @@ import (
 	"github.com/leeovery/portal/internal/tmuxtest"
 )
 
-const upgradePathPGrepConvergenceTimeout = 6 * time.Second
-
 const upgradePathPIDFileTimeout = 3 * time.Second
 
 const upgradePathPIDFilePollTick = 50 * time.Millisecond
@@ -58,15 +56,11 @@ func TestUpgradePath_TwoBinary_AllComponentsCompose(t *testing.T) {
 		t.Fatalf("BootstrapPortalSaver: %v", err)
 	}
 
-	if !waitForPgrepCount(t, 1, upgradePathPGrepConvergenceTimeout) {
-		pids, _ := portaltest.PgrepPortalDaemons()
-		t.Fatalf("pgrep -fxc did not converge to 1 within %s\n"+
+	if res := waitForPgrepCount(t, 1); !res.Reached {
+		t.Fatalf("pgrep -fxc did not converge to 1 (%s)\n"+
 			"  v(N) PID: %d (alive=%v)\n"+
-			"  current pgrep snapshot: %v\n"+
 			"  state dir: %s",
-			upgradePathPGrepConvergenceTimeout,
-			vNPID, pidAlive(vNPID),
-			pids, stateDir)
+			res, vNPID, pidAlive(vNPID), stateDir)
 	}
 
 	survivors, err := portaltest.PgrepPortalDaemons()

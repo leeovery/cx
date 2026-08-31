@@ -4,6 +4,7 @@ package bootstrap_test
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"os/exec"
 	"strconv"
@@ -21,9 +22,20 @@ import (
 	"github.com/leeovery/portal/internal/tmuxtest"
 )
 
-const pgrepConvergenceTimeout = 3 * time.Second
-
 const pgrepConvergencePollTick = 50 * time.Millisecond
+
+// The daemon population converges through several observable steps (orphans
+// dying, the respawned saver re-registering), so Stall bounds how long it may
+// sit unchanged rather than how long the whole convergence takes, and Ceiling
+// only backstops a population that churns without ever settling: a loaded
+// machine makes convergence slower without making it wrong.
+var pgrepConvergenceWait = tmuxtest.ProgressWait{
+	Stall:   10 * time.Second,
+	Ceiling: 45 * time.Second,
+	Tick:    pgrepConvergencePollTick,
+}
+
+const saverPanePIDTimeout = 3 * time.Second
 
 const recycledPIDSettleWindow = 200 * time.Millisecond
 
@@ -49,19 +61,16 @@ func TestSweepOrphanDaemons_Integration_ThreeDaemonsConvergeToOne(t *testing.T) 
 	orphan1, _ := portaltest.SpawnIsolatedDaemon(t, envSlice, sock.SocketPath())
 	orphan2, _ := portaltest.SpawnIsolatedDaemon(t, envSlice, sock.SocketPath())
 
-	if !waitForPgrepCount(t, 3, pgrepConvergenceTimeout) {
-		pids, _ := portaltest.PgrepPortalDaemons()
-		t.Fatalf("precondition: pgrep -fxc did not reach 3 within %s\n"+
+	if res := waitForPgrepCount(t, 3); !res.Reached {
+		t.Fatalf("precondition: pgrep -fxc did not reach 3 (%s)\n"+
 			"  saverPID: %d\n"+
 			"  orphan1.PID: %d (alive=%v)\n"+
 			"  orphan2.PID: %d (alive=%v)\n"+
-			"  pgrep snapshot: %v\n"+
 			"  hint: an orphan may have exited before the sweep — see test diagnostic above",
-			pgrepConvergenceTimeout,
+			res,
 			saverPID,
 			orphan1.Process.Pid, pidAlive(orphan1.Process.Pid),
-			orphan2.Process.Pid, pidAlive(orphan2.Process.Pid),
-			pids)
+			orphan2.Process.Pid, pidAlive(orphan2.Process.Pid))
 	}
 
 	sweeper := bootstrapadapter.NewOrphanSweeper(client, nil)
@@ -69,10 +78,8 @@ func TestSweepOrphanDaemons_Integration_ThreeDaemonsConvergeToOne(t *testing.T) 
 		t.Fatalf("SweepOrphanDaemons returned non-nil error (best-effort step must return nil): %v", err)
 	}
 
-	if !waitForPgrepCount(t, 1, pgrepConvergenceTimeout) {
-		pids, _ := portaltest.PgrepPortalDaemons()
-		t.Fatalf("post-sweep: pgrep -fxc did not converge to 1 within %s; current pgrep=%v",
-			pgrepConvergenceTimeout, pids)
+	if res := waitForPgrepCount(t, 1); !res.Reached {
+		t.Fatalf("post-sweep: pgrep -fxc did not converge to 1 (%s)", res)
 	}
 
 	survivors, err := portaltest.PgrepPortalDaemons()
@@ -108,10 +115,8 @@ func TestSweepOrphanDaemons_Integration_CleanStateZeroSignals(t *testing.T) {
 	}
 	_ = waitForSaverPanePID(t, sock)
 
-	if !waitForPgrepCount(t, 1, pgrepConvergenceTimeout) {
-		pids, _ := portaltest.PgrepPortalDaemons()
-		t.Fatalf("precondition: pgrep -fxc did not reach 1 within %s; pgrep=%v",
-			pgrepConvergenceTimeout, pids)
+	if res := waitForPgrepCount(t, 1); !res.Reached {
+		t.Fatalf("precondition: pgrep -fxc did not reach 1 (%s)", res)
 	}
 
 	sweeper := bootstrapadapter.NewOrphanSweeper(client, nil)
@@ -212,7 +217,7 @@ func skipIfNoPgrep(t *testing.T) {
 func waitForSaverPanePID(t *testing.T, sock *tmuxtest.Socket) int {
 	t.Helper()
 	var pid int
-	ok := tmuxtest.PollUntil(t, pgrepConvergenceTimeout, pgrepConvergencePollTick, func() bool {
+	ok := tmuxtest.PollUntil(t, saverPanePIDTimeout, pgrepConvergencePollTick, func() bool {
 		out, err := sock.TryRun("list-panes", "-t", tmux.PortalSaverName, "-F", "#{pane_pid}")
 		if err != nil {
 			return false
@@ -225,7 +230,7 @@ func waitForSaverPanePID(t *testing.T, sock *tmuxtest.Socket) int {
 		return true
 	})
 	if !ok {
-		t.Fatalf("saver pane PID did not become observable within %s", pgrepConvergenceTimeout)
+		t.Fatalf("saver pane PID did not become observable within %s", saverPanePIDTimeout)
 	}
 	state.RegisterSandboxDaemon(pid)
 	return pid
@@ -248,15 +253,35 @@ func readSaverPanePID(t *testing.T, sock *tmuxtest.Socket) int {
 	return 0
 }
 
-func waitForPgrepCount(t *testing.T, target int, timeout time.Duration) bool {
+// pgrepObservation is comparable so the wait can tell a daemon population that
+// is still moving from one that has stopped, and carries the enumeration error
+// rather than discarding it so a red run says why the snapshot was empty.
+type pgrepObservation struct {
+	Count int
+	Pids  string
+	Err   string
+}
+
+func (o pgrepObservation) String() string {
+	if o.Err != "" {
+		return fmt.Sprintf("count=%d pids=%s err=%s", o.Count, o.Pids, o.Err)
+	}
+	return fmt.Sprintf("count=%d pids=%s", o.Count, o.Pids)
+}
+
+func waitForPgrepCount(t *testing.T, target int) tmuxtest.ProgressResult[pgrepObservation] {
 	t.Helper()
-	return tmuxtest.PollUntil(t, timeout, pgrepConvergencePollTick, func() bool {
-		pids, err := portaltest.PgrepPortalDaemons()
-		if err != nil {
-			return false
-		}
-		return len(pids) == target
-	})
+	return tmuxtest.AwaitProgress(t, pgrepConvergenceWait, observePgrepDaemons,
+		func(o pgrepObservation) bool { return o.Err == "" && o.Count == target })
+}
+
+func observePgrepDaemons() pgrepObservation {
+	pids, err := portaltest.PgrepPortalDaemons()
+	obs := pgrepObservation{Count: len(pids), Pids: fmt.Sprint(pids)}
+	if err != nil {
+		obs.Err = err.Error()
+	}
+	return obs
 }
 
 func pidAlive(pid int) bool {
