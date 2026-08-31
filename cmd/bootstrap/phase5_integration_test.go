@@ -20,8 +20,9 @@ func TestPhase5_RestoreCreatesMissingSession(t *testing.T) {
 
 	binDir := restoretest.BuildPortalBinaryDir(t)
 
+	_, stateDir := newIntegrationStateDir(t)
+
 	ts := tmuxtest.New(t, "ptl-p5-")
-	stateDir := newIntegrationStateDir(t)
 
 	restoretest.SeedSessionsJSON(t, stateDir, "missing-foo")
 
@@ -71,8 +72,9 @@ func TestPhase5_FIFOSweeperRemovesOrphansAfterRestore(t *testing.T) {
 
 	binDir := restoretest.BuildPortalBinaryDir(t)
 
+	_, stateDir := newIntegrationStateDir(t)
+
 	ts := tmuxtest.New(t, "ptl-p5-")
-	stateDir := newIntegrationStateDir(t)
 
 	restoretest.SeedSessionsJSON(t, stateDir, "swept-foo")
 

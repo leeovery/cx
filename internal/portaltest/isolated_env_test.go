@@ -190,3 +190,20 @@ func TestConfigDirPermissions(t *testing.T) {
 		t.Errorf("configDir perm = %#o, want %#o", perm, 0o700)
 	}
 }
+
+func TestPointsHISTFILEAtNullDevice(t *testing.T) {
+	t.Setenv("HISTFILE", "/decoy/should/not/leak")
+
+	env, _ := portaltest.IsolateStateForTest(t)
+
+	if got := os.Getenv("HISTFILE"); got != os.DevNull {
+		t.Errorf("process HISTFILE = %q, want %q", got, os.DevNull)
+	}
+	if got := envCount(env, "HISTFILE"); got != 1 {
+		t.Fatalf("expected exactly 1 HISTFILE entry in the returned env, got %d", got)
+	}
+	got, _ := envValue(env, "HISTFILE")
+	if got != os.DevNull {
+		t.Errorf("returned env HISTFILE = %q, want %q", got, os.DevNull)
+	}
+}

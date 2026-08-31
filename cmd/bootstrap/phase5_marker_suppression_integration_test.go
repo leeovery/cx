@@ -23,8 +23,9 @@ func TestPhase5_RestoringMarkerSuppressesCaptures_NonVacuous(t *testing.T) {
 
 	binDir := restoretest.BuildPortalBinaryDir(t)
 
+	_, stateDir := newIntegrationStateDir(t)
+
 	ts := tmuxtest.New(t, "ptl-p5-")
-	stateDir := newIntegrationStateDir(t)
 
 	probeFile := filepath.Join(t.TempDir(), "session-created.events")
 

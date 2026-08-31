@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/portal/internal/portaltest"
 	"github.com/leeovery/portal/internal/restore"
 	"github.com/leeovery/portal/internal/restoretest"
 	"github.com/leeovery/portal/internal/state"
@@ -19,12 +20,16 @@ func TestPhase3Integration_SaveRestoreRoundTrip(t *testing.T) {
 
 	hydrateExe := restoretest.StagedHydrateExe(t, restoretest.BuildPortalBinaryDir(t))
 
-	ts := tmuxtest.New(t, "ptl-")
-	stateDir := t.TempDir()
+	_, stateDir := portaltest.IsolateStateForTest(t)
 	t.Setenv("PORTAL_STATE_DIR", stateDir)
 	if _, err := state.EnsureDir(); err != nil {
 		t.Fatalf("EnsureDir: %v", err)
 	}
+
+	// LIFO runs this wait between kill-server and the TempDir RemoveAll.
+	portaltest.RegisterStateDirTeardownGuard(t, stateDir)
+
+	ts := tmuxtest.New(t, "ptl-")
 
 	ts.Run(t, "new-session", "-d", "-s", "alpha")
 	ts.WaitForSession(t, "alpha", 2*time.Second)
@@ -98,12 +103,16 @@ func TestPhase3Integration_RestoreUsesLiveIndicesUnderBaseIndexDrift(t *testing.
 
 	hydrateExe := restoretest.StagedHydrateExe(t, restoretest.BuildPortalBinaryDir(t))
 
-	ts := tmuxtest.New(t, "ptl-")
-	stateDir := t.TempDir()
+	_, stateDir := portaltest.IsolateStateForTest(t)
 	t.Setenv("PORTAL_STATE_DIR", stateDir)
 	if _, err := state.EnsureDir(); err != nil {
 		t.Fatalf("EnsureDir: %v", err)
 	}
+
+	// LIFO runs this wait between kill-server and the TempDir RemoveAll.
+	portaltest.RegisterStateDirTeardownGuard(t, stateDir)
+
+	ts := tmuxtest.New(t, "ptl-")
 
 	ts.Run(t, "new-session", "-d", "-s", "alpha")
 	ts.WaitForSession(t, "alpha", 2*time.Second)

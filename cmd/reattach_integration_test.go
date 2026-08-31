@@ -17,6 +17,7 @@ import (
 
 	"github.com/leeovery/portal/cmd/bootstrap"
 	"github.com/leeovery/portal/internal/bootstrapadapter"
+	"github.com/leeovery/portal/internal/portaltest"
 	"github.com/leeovery/portal/internal/resolver"
 	"github.com/leeovery/portal/internal/restoretest"
 	"github.com/leeovery/portal/internal/state"
@@ -77,13 +78,16 @@ func setupReattachEnv(t *testing.T) (*tmuxtest.Socket, *tmux.Client, string) {
 
 	ensurePortalOnPATH(t)
 
-	ts := tmuxtest.New(t, "ptl-reattach-")
-	stateDir := t.TempDir()
+	_, stateDir := portaltest.IsolateStateForTest(t)
 	t.Setenv("PORTAL_STATE_DIR", stateDir)
 	if _, err := state.EnsureDir(); err != nil {
 		t.Fatalf("EnsureDir: %v", err)
 	}
 
+	// LIFO runs this wait between kill-server and the TempDir RemoveAll.
+	portaltest.RegisterStateDirTeardownGuard(t, stateDir)
+
+	ts := tmuxtest.New(t, "ptl-reattach-")
 	client := ts.Client()
 	if _, err := client.EnsureServer(); err != nil {
 		t.Fatalf("EnsureServer: %v", err)

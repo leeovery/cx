@@ -3,7 +3,6 @@
 package cmd
 
 import (
-	"os"
 	"testing"
 	"time"
 
@@ -27,9 +26,6 @@ func setupAbridgedEnv(t *testing.T) (*tmuxtest.Socket, *tmux.Client, string, []s
 
 	envSlice, stateDir := portaltest.IsolateStateForTest(t)
 	t.Setenv("PORTAL_STATE_DIR", stateDir)
-	// Route shell-history writes away from the HOME tempdir so they cannot race
-	// the framework's RemoveAll on teardown. The tmux server inherits this.
-	t.Setenv("HISTFILE", os.DevNull)
 	if _, err := state.EnsureDir(); err != nil {
 		t.Fatalf("EnsureDir: %v", err)
 	}

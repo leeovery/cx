@@ -48,7 +48,7 @@ func runEagerSignalMultiSessionAC1(t *testing.T, binDir string, sessions []strin
 
 	restoretest.PrependPATH(t, binDir)
 
-	stateDir := newIntegrationStateDir(t)
+	_, stateDir := newIntegrationStateDir(t)
 
 	restoretest.SeedSessionsJSON(t, stateDir, sessions...)
 
@@ -109,7 +109,7 @@ func TestPhase1Integration_DaemonResumesCaptureAfterEagerSignal_AC4(t *testing.T
 	binDir := restoretest.BuildPortalBinaryDir(t)
 	restoretest.PrependPATH(t, binDir)
 
-	stateDir := newIntegrationStateDir(t)
+	_, stateDir := newIntegrationStateDir(t)
 
 	sessions := []string{"alpha", "beta"}
 	restoretest.SeedSessionsJSON(t, stateDir, sessions...)
@@ -183,7 +183,7 @@ func TestPhase1Integration_DaemonSkipsCaptureWithoutEagerSignal_AC4NegativeContr
 	binDir := restoretest.BuildPortalBinaryDir(t)
 	restoretest.PrependPATH(t, binDir)
 
-	stateDir := newIntegrationStateDir(t)
+	_, stateDir := newIntegrationStateDir(t)
 
 	sessions := []string{"alpha", "beta"}
 	restoretest.SeedSessionsJSON(t, stateDir, sessions...)

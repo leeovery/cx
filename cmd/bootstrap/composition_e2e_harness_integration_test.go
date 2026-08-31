@@ -42,6 +42,69 @@ type compositeHarness struct {
 	UserSessionNames []string
 }
 
+// saverPaneProbe reads the PID of the live _portal-saver pane, remembering the
+// last one it saw. Its readers want different things from a failed read, so they
+// take different methods: livePID reports only what is live right now, and pid
+// falls back to the remembered one.
+type saverPaneProbe struct {
+	sock *tmuxtest.Socket
+	seen int
+}
+
+// observe records a PID read while the server was live.
+func (p *saverPaneProbe) observe(pid int) { p.seen = pid }
+
+// pid is for the teardown wait, which runs after kill-server when there is no
+// server left to ask — so the remembered PID is what it actually reads.
+func (p *saverPaneProbe) pid() (int, bool) {
+	if pid, ok := p.livePID(); ok {
+		return pid, true
+	}
+	return p.seen, p.seen > 0
+}
+
+// livePID is for the sandbox ownership source, which decides which PIDs an
+// orphan sweep may SIGKILL: it must never name a PID this test no longer owns,
+// so a failed read yields nothing rather than the remembered one. The saver is
+// killed and respawned by the kill-barrier, and the read fails across that gap.
+func (p *saverPaneProbe) livePID() (int, bool) {
+	if p.sock == nil {
+		return 0, false
+	}
+	out, err := p.sock.TryRun("list-panes", "-t", tmux.PortalSaverName, "-F", "#{pane_pid}")
+	if err != nil {
+		return 0, false
+	}
+	pid, convErr := strconv.Atoi(strings.TrimSpace(out))
+	if convErr != nil || pid <= 0 {
+		return 0, false
+	}
+	p.seen = pid
+	return pid, true
+}
+
+// TestSaverPaneProbe_OwnershipReadNeverYieldsRememberedPID guards the divergence
+// between the probe's two reads against a later edit collapsing them into one.
+func TestSaverPaneProbe_OwnershipReadNeverYieldsRememberedPID(t *testing.T) {
+	const remembered = 4242
+
+	// A nil socket is the standing-in shape of a read that cannot answer: the
+	// same branch a killed or respawning server takes.
+	probe := &saverPaneProbe{seen: remembered}
+
+	if pid, ok := probe.livePID(); ok {
+		t.Errorf("livePID() = (%d, true) with no live read available; it feeds the default-deny "+
+			"allowlist that decides which PIDs an orphan sweep may SIGKILL, so it must never "+
+			"name a remembered PID this test may no longer own", pid)
+	}
+
+	pid, ok := probe.pid()
+	if !ok || pid != remembered {
+		t.Errorf("pid() = (%d, %v), want (%d, true); the teardown wait runs after kill-server, "+
+			"so the remembered PID is the only one it can read", pid, ok, remembered)
+	}
+}
+
 func setupCompositeHarness(t *testing.T) *compositeHarness {
 	t.Helper()
 
@@ -54,10 +117,14 @@ func setupCompositeHarness(t *testing.T) *compositeHarness {
 	envSlice, stateDir := portaltest.IsolateStateForTest(t)
 	t.Setenv("PORTAL_STATE_DIR", stateDir)
 
-	// LIFO runs this wait between kill-server and the TempDir RemoveAll.
-	portaltest.RegisterStateDirTeardownGuard(t, stateDir)
+	// LIFO runs this wait between kill-server and the TempDir RemoveAll. Its pid
+	// comes from the probe rather than daemon.pid, which a step below overwrites
+	// with an orphan's.
+	saver := &saverPaneProbe{}
+	portaltest.RegisterStateDirTeardownGuardWithPIDSource(t, stateDir, saver.pid)
 
 	sock := tmuxtest.New(t, "ptl-comp-e2e-")
+	saver.sock = sock
 	client := sock.Client()
 
 	userSessionNames := seedUserSessions(t, client, compositeUserSessionCount)
@@ -66,22 +133,13 @@ func setupCompositeHarness(t *testing.T) *compositeHarness {
 		t.Fatalf("BootstrapPortalSaver (legitimate saver): %v", err)
 	}
 	legitimateDaemonPID := waitForSaverPanePID(t, sock)
+	saver.observe(legitimateDaemonPID)
 	waitForDaemonPID(t, stateDir, legitimateDaemonPID)
 
 	// Own the saver by its live pane PID, not daemon.pid: the step below
 	// overwrites daemon.pid with an orphan's, and a PID-file-based source would
 	// lose sight of the saver at that moment.
-	state.RegisterSandboxDaemonSource(func() (int, bool) {
-		out, err := sock.TryRun("list-panes", "-t", tmux.PortalSaverName, "-F", "#{pane_pid}")
-		if err != nil {
-			return 0, false
-		}
-		p, perr := strconv.Atoi(strings.TrimSpace(out))
-		if perr != nil || p <= 0 {
-			return 0, false
-		}
-		return p, true
-	})
+	state.RegisterSandboxDaemonSource(saver.livePID)
 
 	orphan1, orphan1StateDir := portaltest.SpawnIsolatedDaemon(t, envSlice, sock.SocketPath())
 	waitForDaemonPID(t, orphan1StateDir, orphan1.Process.Pid)

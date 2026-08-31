@@ -15,7 +15,6 @@ import (
 	"github.com/leeovery/portal/cmd/bootstrap"
 	"github.com/leeovery/portal/internal/bootstrapadapter"
 	"github.com/leeovery/portal/internal/hooks"
-	"github.com/leeovery/portal/internal/portaltest"
 	"github.com/leeovery/portal/internal/restoretest"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
@@ -63,9 +62,7 @@ func runRebootRoundTrip(t *testing.T, cfg roundTripCfg) {
 	binDir := restoretest.BuildPortalBinaryDir(t)
 	restoretest.PrependPATH(t, binDir)
 
-	stateDir := newIntegrationStateDir(t)
-
-	env, _ := portaltest.IsolateStateForTest(t)
+	env, stateDir := newIntegrationStateDir(t)
 
 	hooksPath := filepath.Join(t.TempDir(), "hooks.json")
 	t.Setenv("PORTAL_HOOKS_FILE", hooksPath)
@@ -85,9 +82,6 @@ func runRebootRoundTrip(t *testing.T, cfg roundTripCfg) {
 	if err := store.Set(savedHookKey, "on-resume", hookCmd, hooks.ViaCLI); err != nil {
 		t.Fatalf("hooks.Set: %v", err)
 	}
-
-	// LIFO runs this wait between kill-server and the TempDir RemoveAll.
-	portaltest.RegisterStateDirTeardownGuard(t, stateDir)
 
 	ts := tmuxtest.New(t, "ptl-rt-")
 	client := ts.Client()
@@ -456,18 +450,13 @@ func TestPhase5RebootRoundTripBothSessionsHydrateViaSignalHydrateBinary(t *testi
 	binDir := restoretest.BuildPortalBinaryDir(t)
 	restoretest.PrependPATH(t, binDir)
 
-	stateDir := newIntegrationStateDir(t)
-
-	env, _ := portaltest.IsolateStateForTest(t)
+	env, stateDir := newIntegrationStateDir(t)
 
 	hooksPath := filepath.Join(t.TempDir(), "hooks.json")
 	t.Setenv("PORTAL_HOOKS_FILE", hooksPath)
 
 	cwdAlpha := t.TempDir()
 	cwdBeta := t.TempDir()
-
-	// LIFO runs this wait between kill-server and the TempDir RemoveAll.
-	portaltest.RegisterStateDirTeardownGuard(t, stateDir)
 
 	ts := tmuxtest.New(t, "ptl-rt-switch-")
 	client := ts.Client()
@@ -596,17 +585,12 @@ func TestRebootRoundTrip_LeadingDashSessionName(t *testing.T) {
 	binDir := restoretest.BuildPortalBinaryDir(t)
 	restoretest.PrependPATH(t, binDir)
 
-	stateDir := newIntegrationStateDir(t)
-
-	env, _ := portaltest.IsolateStateForTest(t)
+	env, stateDir := newIntegrationStateDir(t)
 
 	hooksPath := filepath.Join(t.TempDir(), "hooks.json")
 	t.Setenv("PORTAL_HOOKS_FILE", hooksPath)
 
 	cwd := t.TempDir()
-
-	// LIFO runs this wait between kill-server and the TempDir RemoveAll.
-	portaltest.RegisterStateDirTeardownGuard(t, stateDir)
 
 	ts := tmuxtest.New(t, "ptl-rt-leadingdash-")
 	client := ts.Client()

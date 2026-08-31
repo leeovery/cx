@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/portal/internal/portaltest"
 	"github.com/leeovery/portal/internal/restore"
 	"github.com/leeovery/portal/internal/restoretest"
 	"github.com/leeovery/portal/internal/state"
@@ -16,7 +17,7 @@ import (
 func TestPhase3Integration_SweepOrphanFIFOs(t *testing.T) {
 	tmuxtest.SkipIfNoTmux(t)
 
-	stateDir := t.TempDir()
+	_, stateDir := portaltest.IsolateStateForTest(t)
 	t.Setenv("PORTAL_STATE_DIR", stateDir)
 	if _, err := state.EnsureDir(); err != nil {
 		t.Fatalf("EnsureDir: %v", err)
@@ -50,12 +51,16 @@ func TestPhase3Integration_SweepOrphanFIFOs(t *testing.T) {
 func TestPhase3Integration_CorruptSessionsJSON(t *testing.T) {
 	tmuxtest.SkipIfNoTmux(t)
 
-	ts := tmuxtest.New(t, "ptl-")
-	stateDir := t.TempDir()
+	_, stateDir := portaltest.IsolateStateForTest(t)
 	t.Setenv("PORTAL_STATE_DIR", stateDir)
 	if _, err := state.EnsureDir(); err != nil {
 		t.Fatalf("EnsureDir: %v", err)
 	}
+
+	// LIFO runs this wait between kill-server and the TempDir RemoveAll.
+	portaltest.RegisterStateDirTeardownGuard(t, stateDir)
+
+	ts := tmuxtest.New(t, "ptl-")
 
 	if err := writeFile(state.SessionsJSON(stateDir), []byte("{not json")); err != nil {
 		t.Fatalf("write sessions.json: %v", err)

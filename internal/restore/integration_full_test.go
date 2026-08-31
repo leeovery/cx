@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/portal/internal/portaltest"
 	"github.com/leeovery/portal/internal/restore"
 	"github.com/leeovery/portal/internal/restoretest"
 	"github.com/leeovery/portal/internal/state"
@@ -37,7 +38,7 @@ func TestPhase3Integration_FullRoundTrip(t *testing.T) {
 	binDir := restoretest.BuildPortalBinaryDir(t)
 	restoretest.PrependPATH(t, binDir)
 
-	stateDir := t.TempDir()
+	_, stateDir := portaltest.IsolateStateForTest(t)
 	t.Setenv("PORTAL_STATE_DIR", stateDir)
 	if _, err := state.EnsureDir(); err != nil {
 		t.Fatalf("EnsureDir: %v", err)
@@ -64,6 +65,9 @@ func TestPhase3Integration_FullRoundTrip(t *testing.T) {
 		activeWin:   0,
 		activePanes: [2]int{0, 0},
 	}
+
+	// LIFO runs this wait between kill-server and the TempDir RemoveAll.
+	portaltest.RegisterStateDirTeardownGuard(t, stateDir)
 
 	ts := tmuxtest.New(t, "ptl-3-13-")
 	client := ts.Client()

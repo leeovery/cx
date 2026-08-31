@@ -27,7 +27,7 @@ func TestPhase2_HookFiresOnNonAttachedSession_AC2(t *testing.T) {
 	binDir := restoretest.BuildPortalBinaryDir(t)
 	restoretest.PrependPATH(t, binDir)
 
-	stateDir := newIntegrationStateDir(t)
+	_, stateDir := newIntegrationStateDir(t)
 
 	hooksPath := filepath.Join(t.TempDir(), "hooks.json")
 	t.Setenv("PORTAL_HOOKS_FILE", hooksPath)

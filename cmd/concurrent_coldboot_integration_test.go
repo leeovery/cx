@@ -36,9 +36,6 @@ func setupConcurrentColdBootEnv(t *testing.T) (*tmuxtest.Socket, *tmux.Client, s
 
 	envSlice, stateDir := portaltest.IsolateStateForTest(t)
 	t.Setenv("PORTAL_STATE_DIR", stateDir)
-	// tmux-spawned shells flush their history file into the isolated HOME on
-	// SIGHUP exit, racing the framework's tempdir RemoveAll. Route it away.
-	t.Setenv("HISTFILE", os.DevNull)
 	if _, err := state.EnsureDir(); err != nil {
 		t.Fatalf("EnsureDir: %v", err)
 	}
@@ -376,8 +373,6 @@ func TestConcurrentColdBoot_WarmUnlatchedOpen_TakesConcurrentDeferredRoute(t *te
 
 	_, stateDir := portaltest.IsolateStateForTest(t)
 	t.Setenv("PORTAL_STATE_DIR", stateDir)
-	// Keeps shell-history writes out of the HOME tempdir on teardown.
-	t.Setenv("HISTFILE", os.DevNull)
 	if _, err := state.EnsureDir(); err != nil {
 		t.Fatalf("EnsureDir: %v", err)
 	}

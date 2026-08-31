@@ -28,6 +28,12 @@ func IsolateStateForTest(t *testing.T) (env []string, stateDir string) {
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("XDG_CONFIG_HOME", "")
 
+	// Shells hosted by a test's tmux server flush their history into HOME as
+	// they exit, racing the framework's RemoveAll of that temp dir. This reaches
+	// the returned env slice through the os.Environ() read below, so it must be
+	// set before it.
+	t.Setenv("HISTFILE", os.DevNull)
+
 	// A failed snapshot is fatal: a silently degraded backstop is worse than none.
 	devStateDir := resolveDevStateDir()
 	var preSnapshot map[string]Fingerprint
