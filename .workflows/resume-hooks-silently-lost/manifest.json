@@ -250,7 +250,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 7,
-          "current_task": "resume-hooks-silently-lost-7-3",
+          "current_task": "resume-hooks-silently-lost-7-4",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -328,7 +328,8 @@
             "resume-hooks-silently-lost-6-24",
             "resume-hooks-silently-lost-6-25",
             "resume-hooks-silently-lost-7-1",
-            "resume-hooks-silently-lost-7-2"
+            "resume-hooks-silently-lost-7-2",
+            "resume-hooks-silently-lost-7-3"
           ],
           "staging": {
             "p1": {
@@ -611,6 +612,87 @@
               "files": [
                 "internal/tmux/saver_pane_pid.go",
                 "internal/tmux/errors.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-3",
+              "source": "executor",
+              "summary": "Two already-isolated restore fixtures discard the isolated state dir and point PORTAL_STATE_DIR at a bare t.TempDir() instead.",
+              "detail": "internal/restore/multipane_legacy_integration_test.go:31-34 and :156-159, and internal/restore/rename_reboot_shared_test.go:58-61, call portaltest.IsolateStateForTest(t) for its side effects only (both return values discarded), then set PORTAL_STATE_DIR to a fresh t.TempDir(). The sandbox registry and the in-process daemon-ownership registration therefore name a directory nothing writes to, while the daemon writes to an unregistered one — so a subprocess orphan sweep cannot recognise the fixture own daemon. They pass the widened guard because they make all three calls; catching this needs a rule about the value PORTAL_STATE_DIR is set to, which is beyond the settled trigger.",
+              "files": [
+                "internal/restore/multipane_legacy_integration_test.go",
+                "internal/restore/rename_reboot_shared_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-3",
+              "source": "executor",
+              "summary": "The isolate + PORTAL_STATE_DIR + EnsureDir + guard prologue is now spelled out verbatim at ~10 sites in internal/restore.",
+              "detail": "armed_restore_integration_test.go:23-32 (x2), integration_test.go:54-63, integration_full_test.go:41-72, exit_closes_pane_integration_test.go:110-124, plus multipane_legacy and rename_reboot_shared — the same six lines each time. cmd/bootstrap already has the extracted form (newIntegrationStateDir). Kept inline deliberately: extracting it into a restore_test arrange would make every one of those files invisible to the coverage guard per-file scoping, so the consolidation needs deciding together with whether the guard should follow calls across a package shared helpers.",
+              "files": [
+                "internal/restore/armed_restore_integration_test.go",
+                "internal/restore/integration_test.go",
+                "internal/restore/integration_full_test.go",
+                "internal/restore/exit_closes_pane_integration_test.go",
+                "cmd/bootstrap/helpers_integration_test.go",
+                "internal/portaltest/teardown_guard_coverage_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-3",
+              "source": "reviewer",
+              "summary": "The fingerprint backstop does not watch the developer real state directory; it watches the scrubbed temp HOME, and the helper own dependency documents the opposite.",
+              "detail": "internal/portaltest/isolated_env.go:28-29 re-points HOME and clears XDG_CONFIG_HOME before resolveDevStateDir() at :38, so devStateDir resolves to <tempHOME>/.config/portal/state. internal/portaltest/fingerprint.go:279-281 states the contract this violates: resolveDevStateDir reads the ambient env, so it must run before any override is installed or it resolves the per-test temp dir instead of the developer install. CLAUDE.md likewise describes the backstop as walking the developer state dir post-test. The current shape still catches a subprocess writing to $HOME/.config/portal/state, so the fix is a decision (reorder the snapshot ahead of the scrub, keep both snapshots, or correct the two docs to the narrower guarantee), not a mechanical edit, and it changes the guarantee every isolated fixture relies on. Both comments predate this diff.",
+              "files": [
+                "internal/portaltest/isolated_env.go",
+                "internal/portaltest/fingerprint.go",
+                "CLAUDE.md"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-3",
+              "source": "reviewer",
+              "summary": "The coverage rule checks call presence, never call order — the exact defect this task fixed by hand three times.",
+              "detail": "internal/portaltest/teardown_guard_coverage_test.go:96-124 records four booleans and auditFixtureCoverage asks only whether Isolates && RegistersGuard. A file that calls IsolateStateForTest and RegisterStateDirTeardownGuard AFTER tmuxtest.New — the inverted-LIFO shape repaired at internal/restore/armed_restore_integration_test.go:23-33, internal/restore/integration_test.go:54-63 and cmd/reattach_integration_test.go:81-91 — passes the rule unchanged. fixtureCallsIn already parses with positions, so comparing the first serverCall position against the isolate/guard positions within a function is feasible; the fix touches the rule shared by every phase-6/7 fixture.",
+              "files": [
+                "internal/portaltest/teardown_guard_coverage_test.go",
+                "internal/portaltest/teardown_guard_coverage_rule_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-3",
+              "source": "reviewer",
+              "summary": "Routing the five cmd/bootstrap fixtures through a shared arrange puts them back outside the rule per-file reach.",
+              "detail": "phase5_integration_test.go, phase5_marker_suppression_integration_test.go, scrollback_resumption_test.go, eager_signal_hydrate_integration_test.go, phase2_hook_fire_integration_test.go and reboot_roundtrip_test.go now name no PORTAL_STATE_DIR and call neither helper directly, so qualifies() is false for all of them; helpers_integration_test.go:27-40 holds the calls but never starts a server, so it does not qualify either. Correct by construction today, invisible tomorrow: a new test in that package calling newIntegrationStateDir after tmuxtest.New reproduces the original defect uncaught. Do-step 5 mandated keeping the per-file scoping; the general fix (teaching the rule about package-local arranges, or the order check) spans the guard and several packages.",
+              "files": [
+                "internal/portaltest/teardown_guard_coverage_test.go",
+                "cmd/bootstrap/helpers_integration_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-3",
+              "source": "reviewer",
+              "summary": "IsolateStateForTest should set PORTAL_STATE_DIR itself, in both the process env and the returned slice.",
+              "detail": "Every caller follows the helper with t.Setenv(\"PORTAL_STATE_DIR\", stateDir) — ~25 sites. Because the helper derives its slice from os.Environ() at internal/portaltest/isolated_env.go:71, before that Setenv runs, the returned slice never carries the real state dir: under cmd/bootstrap it carries the TestMain poison /nonexistent/portal-test-must-isolate-state. Inert today — restoretest.DriveSignalHydrateBinary and SpawnIsolatedDaemon both append their own, last-wins — and a future caller that forgets fails loudly rather than silently. Hoisting the Setenv inside the helper removes the duplication and the trap together, but it reaches every isolated fixture in the tree.",
+              "files": [
+                "internal/portaltest/isolated_env.go",
+                "cmd/bootstrap/helpers_integration_test.go",
+                "cmd/reattach_integration_test.go",
+                "internal/restore/armed_restore_integration_test.go",
+                "internal/restore/integration_test.go",
+                "internal/restore/integration_full_test.go",
+                "internal/restore/exit_closes_pane_integration_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-3",
+              "source": "reviewer",
+              "summary": "The fingerprint backstop is narrower than CLAUDE.md describes — it snapshots the isolated HOME, not the developer real state dir.",
+              "detail": "resolveDevStateDir() (internal/portaltest/fingerprint.go:282) runs after the HOME re-point, so it snapshots the isolated HOME default config path. That is deliberate and argued in-source at isolated_env.go:25-27 (it stops the live host daemon false-tripping the backstop mid-test), so the guarantee is real but narrower than the docs claim: the check catches a process that got the HOME scrub but resolved the default path, not one that escaped the scrub entirely. CLAUDE.md describes it as walking the developer state dir post-test. Reconciling doc and behaviour is a decision, not a mechanical edit.",
+              "files": [
+                "internal/portaltest/fingerprint.go",
+                "internal/portaltest/isolated_env.go",
+                "CLAUDE.md"
               ]
             }
           ]
