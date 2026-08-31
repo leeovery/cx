@@ -250,7 +250,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 7,
-          "current_task": "resume-hooks-silently-lost-7-2",
+          "current_task": "resume-hooks-silently-lost-7-3",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -327,7 +327,8 @@
             "resume-hooks-silently-lost-6-23",
             "resume-hooks-silently-lost-6-24",
             "resume-hooks-silently-lost-6-25",
-            "resume-hooks-silently-lost-7-1"
+            "resume-hooks-silently-lost-7-1",
+            "resume-hooks-silently-lost-7-2"
           ],
           "staging": {
             "p1": {
@@ -500,6 +501,116 @@
                 "internal/tmux/errors.go",
                 "internal/session/naming.go",
                 "internal/state/capture.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-2",
+              "source": "reviewer",
+              "summary": "The prefix-sibling route enumeration omits both saver reads — the omission is why this defect survived to Phase 7.",
+              "detail": "internal/tmux/exact_session_target_realtmux_test.go:89 (TestSessionTargets_GoneSessionDoesNotReachPrefixSibling) and :189 (TestSessionTargets_LiveSessionStillResolves) enumerate eight per-session routes and neither lists SaverPanePID nor SaverPaneID. Folding the two saver routes into that suite — or deriving the case list from the set of per-session reads — makes the next per-session route guarded by construction instead of by a later analysis pass. The new saver_pane_pid_realtmux_test.go is a second, parallel expression of the same guard.",
+              "files": [
+                "internal/tmux/exact_session_target_realtmux_test.go",
+                "internal/tmux/saver_pane_pid_realtmux_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-2",
+              "source": "reviewer",
+              "summary": "Three near-identical isolated-server seed helpers now exist in the package's real-tmux tests.",
+              "detail": "seedSaverServer (saver_pane_pid_realtmux_test.go:21), seedPrefixSiblingServer (exact_session_target_realtmux_test.go:41) and seedHookKeyServer (hookkey_realtmux_shared_test.go:19) each run the same SkipIfNoTmux, tmuxtest.New, EnsureServer, NewSession, WaitForSession sequence, differing only in socket prefix and topology; livePanePID and sessionPaneIDs are a matching near-duplicate pair. Rule of three is reached, and hookkey_realtmux_shared_test.go already exists as the package shared-fixture home.",
+              "files": [
+                "internal/tmux/saver_pane_pid_realtmux_test.go",
+                "internal/tmux/exact_session_target_realtmux_test.go",
+                "internal/tmux/hookkey_realtmux_shared_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-2",
+              "source": "reviewer",
+              "summary": "The saver's own respawn addresses tmux by a bare session name — same defect class, one file over, and it carries -k.",
+              "detail": "internal/tmux/portal_saver.go:300 calls c.RespawnPane(PortalSaverName, portalSaverDaemonCommand), and RespawnPane (tmux.go:674) passes the target straight to respawn-pane -k -t <target>, which tmux parses as a pane target with no = pin, so it prefix-matches. Not exploitable as written — the call is inside the if createdSession branch, so _portal-saver was just created and exact-matches first — but the guard is ordering, not addressing, and the failure mode would be killing and respawning a prefix sibling pane with the daemon command. PaneTargetExact/exactCoordTarget would make it structural.",
+              "files": [
+                "internal/tmux/portal_saver.go",
+                "internal/tmux/tmux.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-2",
+              "source": "reviewer",
+              "summary": "Real-tmux prefix-sibling coverage now lives in two files with two near-identical seed helpers.",
+              "detail": "seedSaverServer (internal/tmux/saver_pane_pid_realtmux_test.go:21-41) duplicates the SkipIfNoTmux, tmuxtest.New, EnsureServer, EvalSymlinks(t.TempDir()), NewSession, wait boilerplate of seedPrefixSiblingServer (internal/tmux/exact_session_target_realtmux_test.go:41-66, produced by task 6-7). The two files also assert the same invariant class — a gone session must not reach the live prefix sibling — under two different fixtures. Either fold the saver reads into 6-7 test pair (its goneSession/prefixSibling fixture works unchanged for an arbitrary session name), or extract the shared seeding into one helper both files call. Genuine tension: source-file-derived test naming argues for keeping a saver_pane_pid_realtmux_test.go, so extraction may be the better half of the trade.",
+              "files": [
+                "internal/tmux/saver_pane_pid_realtmux_test.go",
+                "internal/tmux/exact_session_target_realtmux_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-2",
+              "source": "reviewer",
+              "summary": "tmuxtest.WaitForSession prefix-matches, so it returns on a sibling — every fixture staging a prefix sibling gets a readiness guard that does nothing.",
+              "detail": "internal/tmuxtest/socket.go:110 polls has-session -t name with no = prefix. Measured: with only _portal-saver-old live, has-session -t _portal-saver exits 0. Switching the helper to \"=\"+name closes it for all consumers at once, but touches shared scaffolding used well beyond this task. This is the same prefix-matching defect the task itself fixes, one layer down in the test scaffolding.",
+              "files": [
+                "internal/tmuxtest/socket.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-2",
+              "source": "reviewer",
+              "summary": "ActivePaneCurrentPath doc promises a sentinel the route cannot produce, and its wrap is dead.",
+              "detail": "internal/tmux/tmux.go:246-248 states a session killed mid-read surfaces as errors.Is(err, ErrNoSuchSession). Measured: display-message -p -t \"=gone:\" -F \"#{pane_current_path}\" answers empty at exit 0, so wrapNoSuchSession(err) at :252 never fires and the promise is unreachable. Task 6-7 own test already records the truth (exact_session_target_realtmux_test.go:99-101), so the doc and its test contradict each other. Remedy (correct the doc, drop the dead wrap) lands in 6-7 output.",
+              "files": [
+                "internal/tmux/tmux.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-2",
+              "source": "reviewer",
+              "summary": "Two different classifiers guard the same hazard on per-session ops.",
+              "detail": "ShowEnvironment (internal/tmux/tmux.go:593) classifies through 7-1 wrapSessionTargetErr, which gates on ValidateSessionName first; saverPanePID (internal/tmux/saver_pane_pid.go:15) classifies through the bare wrapNoSuchSession. Unreachable today — every production caller passes the PortalSaverName constant — but SaverPaneID is exported with a free-form sessionName string, and exactCoordTarget(\"a:b\") composes =a:b:, which tmux parses as session a. Deciding which per-session ops carry the unaddressable-name gate is 7-1 territory.",
+              "files": [
+                "internal/tmux/saver_pane_pid.go",
+                "internal/tmux/errors.go",
+                "internal/tmux/tmux.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-2",
+              "source": "executor",
+              "summary": "tmuxtest.WaitForSession waits on a prefix-matching target, so it is inert for any fixture that stages a prefix sibling; this task now carries a local duplicate of the exact-form poll.",
+              "detail": "internal/tmuxtest/socket.go:112 polls has-session -t <name> without the = exact prefix. Measured: with only _portal-saver-old live, that exits 0 for _portal-saver. Every fixture in the repo that seeds a sibling before the session under test silently loses its settle-window guard. Fixing it means editing shared scaffolding consumed across packages, which is why this task carries a local waitForExactSession in internal/tmux/saver_pane_pid_realtmux_test.go — the two should collapse into one exact-form helper.",
+              "files": [
+                "internal/tmuxtest/socket.go",
+                "internal/tmux/saver_pane_pid_realtmux_test.go",
+                "internal/tmux/exact_session_target_realtmux_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-2",
+              "source": "reviewer",
+              "summary": "ActivePaneCurrentPath documents a sentinel its route cannot produce — same defect class, one function away.",
+              "detail": "internal/tmux/tmux.go:246-248 claims a session killed mid-read surfaces as errors.Is(err, ErrNoSuchSession). Measured on 3.7c: display-message -p -t \"=gone:\" -F \"#{pane_current_path}\" exits 0 with empty output, so no error — and therefore no sentinel — is ever produced for a vanished session. Behaviour is still correct because internal/session/dirresolve.go:41-43 handles the empty string, but the contract on the exported method is a lie, and its wrapNoSuchSession call at tmux.go:252 is dead for the case it names. The fix lands in a different function with a different consumer (the TUI grouped render).",
+              "files": [
+                "internal/tmux/tmux.go",
+                "internal/session/dirresolve.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-2",
+              "source": "reviewer",
+              "summary": "The package guard for this exact defect class omits SaverPaneID — the one method that just exhibited it.",
+              "detail": "TestSessionTargetsAreComposedExactly (internal/tmux/exact_session_target_test.go:32-102) enumerates seven *Client methods and their required target form but does not include SaverPaneID. The argv is pinned twice elsewhere (portal_saver_lifecycle_events_test.go:37, saver_pane_pid_test.go:27), so a regression is still caught; the central table simply under-claims. A one-row addition would make it complete.",
+              "files": [
+                "internal/tmux/exact_session_target_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-2",
+              "source": "reviewer",
+              "summary": "saverPanePID classifies through the raw wrapNoSuchSession rather than 7-1 wrapSessionTargetErr, leaving a latent unreachable hole.",
+              "detail": "internal/tmux/saver_pane_pid.go:15. Every live caller passes the _portal-saver constant, so nothing can hit it today — but SaverPanePIDOrAbsent is exported with a free sessionName, and a colon-bearing name would make tmux answer can't find session: <first component> for a session that is alive, which the widened predicate now collapses to absent. Swapping in wrapSessionTargetErr(sessionName, err) is a one-identifier change that closes the latent hole and makes the two tasks machinery uniform.",
+              "files": [
+                "internal/tmux/saver_pane_pid.go",
+                "internal/tmux/errors.go"
               ]
             }
           ]
