@@ -1,5 +1,7 @@
 package session
 
+import "github.com/leeovery/portal/internal/tmux"
+
 type SessionChecker interface {
 	HasSession(name string) bool
 }
@@ -37,6 +39,14 @@ func NewQuickStart(git GitResolver, store ProjectStore, checker SessionChecker, 
 // stamped before attach-session blocks the chain. The name is unique upstream,
 // so plain new-session always creates — -A would attach to an existing session
 // immediately and skip the stamp.
+//
+// The two later steps pin their targets rather than naming the session bare.
+// Should the create not produce the session, a bare name prefix-matches onto a
+// live sibling and the stamp lands on a stranger; that the tmux in hand
+// abandons a ";" chain at its first failure is one version's behaviour, not
+// something a write to someone else's session may rest on. The steps take
+// different target kinds — set-option resolves a pane target to reach a session
+// option, attach-session a session target — so they take different helpers.
 func (qs *QuickStart) Run(path string, command []string) (*QuickStartResult, error) {
 	prepared, err := PrepareSession(path, command, qs.git, qs.store, qs.checker, qs.gen, qs.shell)
 	if err != nil {
@@ -48,8 +58,8 @@ func (qs *QuickStart) Run(path string, command []string) (*QuickStartResult, err
 		execArgs = append(execArgs, prepared.ShellCmd)
 	}
 	execArgs = append(execArgs,
-		";", "set-option", "-t", prepared.SessionName, PortalDirOption, prepared.ResolvedDir,
-		";", "attach-session", "-t", prepared.SessionName,
+		";", "set-option", "-t", tmux.ExactCoordTarget(prepared.SessionName), PortalDirOption, prepared.ResolvedDir,
+		";", "attach-session", "-t", tmux.ExactSessionTarget(prepared.SessionName),
 	)
 
 	return &QuickStartResult{

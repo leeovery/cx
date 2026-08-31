@@ -2,14 +2,14 @@ package tmux
 
 import "testing"
 
-func TestExactTarget(t *testing.T) {
-	if got := exactTarget("foo"); got != "=foo" {
-		t.Errorf("exactTarget(\"foo\") = %q, want \"=foo\"", got)
+func TestExactSessionTarget(t *testing.T) {
+	if got := ExactSessionTarget("foo"); got != "=foo" {
+		t.Errorf("ExactSessionTarget(\"foo\") = %q, want \"=foo\"", got)
 	}
 }
 
 func TestExactCoordTarget(t *testing.T) {
-	if got := exactCoordTarget("foo"); got != "=foo:" {
-		t.Errorf("exactCoordTarget(\"foo\") = %q, want \"=foo:\"", got)
+	if got := ExactCoordTarget("foo"); got != "=foo:" {
+		t.Errorf("ExactCoordTarget(\"foo\") = %q, want \"=foo:\"", got)
 	}
 }

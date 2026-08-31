@@ -24,8 +24,8 @@ func wantExecArgs(name, dir, shellCmd string) []string {
 		args = append(args, shellCmd)
 	}
 	return append(args,
-		";", "set-option", "-t", name, session.PortalDirOption, dir,
-		";", "attach-session", "-t", name,
+		";", "set-option", "-t", "="+name+":", session.PortalDirOption, dir,
+		";", "attach-session", "-t", "="+name,
 	)
 }
 
@@ -75,7 +75,7 @@ func TestQuickStart(t *testing.T) {
 
 		wantSessionName := filepath.Base(gitRoot) + "-abc123"
 		assertContainsSubseq(t, result.ExecArgs, []string{
-			"set-option", "-t", wantSessionName, session.PortalDirOption, gitRoot,
+			"set-option", "-t", "=" + wantSessionName + ":", session.PortalDirOption, gitRoot,
 		})
 		setIdx := indexOf(result.ExecArgs, "set-option")
 		attachIdx := indexOf(result.ExecArgs, "attach-session")
@@ -104,8 +104,8 @@ func TestQuickStart(t *testing.T) {
 		name := filepath.Base(gitRoot) + "-abc123"
 		want := []string{
 			"tmux", "new-session", "-d", "-s", name, "-c", gitRoot,
-			";", "set-option", "-t", name, session.PortalDirOption, gitRoot,
-			";", "attach-session", "-t", name,
+			";", "set-option", "-t", "=" + name + ":", session.PortalDirOption, gitRoot,
+			";", "attach-session", "-t", "=" + name,
 		}
 		if !reflect.DeepEqual(result.ExecArgs, want) {
 			t.Fatalf("result.ExecArgs = %v, want %v", result.ExecArgs, want)

@@ -252,7 +252,7 @@ func TestBootstrapPortalSaver_CreatesOnFreshServer(t *testing.T) {
 		}
 	}
 
-	wantRespawn := "respawn-pane -k -t _portal-saver " + tmux.PortalSaverDaemonCommand
+	wantRespawn := "respawn-pane -k -t " + tmux.ExactCoordTarget(tmux.PortalSaverName) + " " + tmux.PortalSaverDaemonCommand
 	for _, c := range mock.Calls {
 		if c[0] != "respawn-pane" {
 			continue
@@ -2853,7 +2853,7 @@ func TestBootstrapPortalSaver_RecyclesPlaceholderOnlySaverViaNewOrdering(t *test
 		}
 	}
 
-	wantRespawn := "respawn-pane -k -t _portal-saver " + tmux.PortalSaverDaemonCommand
+	wantRespawn := "respawn-pane -k -t " + tmux.ExactCoordTarget(tmux.PortalSaverName) + " " + tmux.PortalSaverDaemonCommand
 	for _, c := range mock.Calls {
 		if c[0] != "respawn-pane" {
 			continue

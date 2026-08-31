@@ -85,7 +85,7 @@ func (c *Client) ServerRunning() bool {
 
 // HasSession is false both for an absent session and for no running server.
 func (c *Client) HasSession(name string) bool {
-	_, err := c.cmd.Run("has-session", "-t", exactTarget(name))
+	_, err := c.cmd.Run("has-session", "-t", ExactSessionTarget(name))
 	return err == nil
 }
 
@@ -94,7 +94,7 @@ func (c *Client) HasSession(name string) bool {
 // fault returns (true, err), so a caller proceeds as if present and logs rather
 // than reporting the session missing.
 func (c *Client) HasSessionProbe(name string) (bool, error) {
-	_, err := c.cmd.Run("has-session", "-t", exactTarget(name))
+	_, err := c.cmd.Run("has-session", "-t", ExactSessionTarget(name))
 	if err == nil {
 		return true, nil
 	}
@@ -247,7 +247,7 @@ func (c *Client) ResolveHookKey(paneID string) (string, error) {
 // a single tmux read. A session killed mid-read surfaces as errors.Is(err,
 // ErrNoSuchSession), which callers can treat as unresolvable rather than fatal.
 func (c *Client) ActivePaneCurrentPath(session string) (string, error) {
-	output, err := c.cmd.Run("display-message", "-p", "-t", exactCoordTarget(session), "-F", "#{pane_current_path}")
+	output, err := c.cmd.Run("display-message", "-p", "-t", ExactCoordTarget(session), "-F", "#{pane_current_path}")
 	if err != nil {
 		return "", fmt.Errorf("failed to read active pane current path for session %q: %w", session, wrapNoSuchSession(err))
 	}
@@ -255,7 +255,7 @@ func (c *Client) ActivePaneCurrentPath(session string) (string, error) {
 }
 
 func (c *Client) KillSession(name string) error {
-	_, err := c.cmd.Run("kill-session", "-t", exactTarget(name))
+	_, err := c.cmd.Run("kill-session", "-t", ExactSessionTarget(name))
 	if err != nil {
 		return fmt.Errorf("failed to kill tmux session %q: %w", name, err)
 	}
@@ -270,7 +270,7 @@ func (c *Client) RenameSession(oldName, newName string) error {
 	if err := ValidateSessionName(newName); err != nil {
 		return fmt.Errorf("failed to rename tmux session %q to %q: %w", oldName, newName, err)
 	}
-	_, err := c.cmd.Run("rename-session", "-t", exactTarget(oldName), newName)
+	_, err := c.cmd.Run("rename-session", "-t", ExactSessionTarget(oldName), newName)
 	if err != nil {
 		return fmt.Errorf("failed to rename tmux session %q to %q: %w", oldName, newName, err)
 	}
@@ -278,7 +278,7 @@ func (c *Client) RenameSession(oldName, newName string) error {
 }
 
 func (c *Client) SwitchClient(name string) error {
-	_, err := c.cmd.Run("switch-client", "-t", exactTarget(name))
+	_, err := c.cmd.Run("switch-client", "-t", ExactSessionTarget(name))
 	if err != nil {
 		return fmt.Errorf("failed to switch to session %q: %w", name, err)
 	}
@@ -308,7 +308,7 @@ func (c *Client) SetPaneOption(target, name, value string) error {
 // route global (-g) options through it: the -t scoping is what keeps the write
 // out of the global namespace.
 func (c *Client) SetSessionOption(session, name, value string) error {
-	_, err := c.cmd.Run("set-option", "-t", exactCoordTarget(session), name, value)
+	_, err := c.cmd.Run("set-option", "-t", ExactCoordTarget(session), name, value)
 	if err != nil {
 		return fmt.Errorf("failed to set session option %s on %s: %w", name, session, err)
 	}
@@ -407,13 +407,13 @@ func PaneTarget(session string, window, pane int) string {
 	return fmt.Sprintf("%s:%d.%d", session, window, pane)
 }
 
-// PaneTargetExact is the pane-level sibling of exactTarget: the "=" exact-match
+// PaneTargetExact is the pane-level sibling of ExactSessionTarget: the "=" exact-match
 // prefix a `-t` needs when its session may be gone. See PaneTarget.
 func PaneTargetExact(session string, window, pane int) string {
 	return fmt.Sprintf("=%s:%d.%d", session, window, pane)
 }
 
-// exactTarget pins a session name for a `-t` that tmux parses as a session
+// ExactSessionTarget pins a session name for a `-t` that tmux parses as a session
 // target (has-session, kill-session, show-environment). tmux otherwise
 // prefix-matches, so `-t foo` silently resolves to a live "foo-2" once "foo"
 // is gone — on the kill path, that destroys the wrong session with no error.
@@ -422,23 +422,27 @@ func PaneTargetExact(session string, window, pane int) string {
 // there a bare "=foo" is read as a window or pane name and misses. list-panes
 // then falls through to the same fuzzy lookup and reaches the prefix sibling
 // anyway; display-message instead returns empty with exit 0 — for a live
-// session as much as a gone one. Route those through exactCoordTarget.
+// session as much as a gone one. Route those through ExactCoordTarget.
 //
 // Which kind a command takes is not always the kind it writes to: set-option
 // writes a session option but resolves a pane target to reach it, so "=foo"
 // fails there even when "foo" is live. Measure a command before choosing.
-func exactTarget(session string) string {
+//
+// Exported alongside ExactCoordTarget so a caller composing a tmux argv the
+// client does not run — an exec chain, say — pins its targets through the same
+// two forms rather than re-deriving the prefix.
+func ExactSessionTarget(session string) string {
 	return "=" + session
 }
 
-// exactCoordTarget pins a session name for a `-t` tmux parses as a window or
+// ExactCoordTarget pins a session name for a `-t` tmux parses as a window or
 // pane target but which Portal addresses by session alone. The trailing ":" is
 // load-bearing: it is what makes tmux read the leading component as a session
 // name, so the "=" applies to it. The empty coordinate half leaves tmux's own
 // default in place — the session's current window, and that window's active
 // pane — which is where a bare session name resolved to already. See
-// exactTarget.
-func exactCoordTarget(session string) string {
+// ExactSessionTarget.
+func ExactCoordTarget(session string) string {
 	return "=" + session + ":"
 }
 
@@ -457,7 +461,7 @@ func windowTargetExact(session string, window int) string {
 // ListPanesInSession returns the coords of every live pane in the session,
 // across all its windows, sorted by window then pane.
 func (c *Client) ListPanesInSession(session string) ([]PaneCoord, error) {
-	out, err := c.cmd.Run("list-panes", "-s", "-t", exactCoordTarget(session), "-F", "#{window_index}:#{pane_index}")
+	out, err := c.cmd.Run("list-panes", "-s", "-t", ExactCoordTarget(session), "-F", "#{window_index}:#{pane_index}")
 	if err != nil {
 		return nil, fmt.Errorf("failed to list panes in session %q: %w", session, err)
 	}
@@ -514,7 +518,7 @@ func (c *Client) ListWindowsAndPanesInSession(session string) ([]WindowGroup, er
 	format := "#{window_index}" + listWindowsAndPanesFieldSep +
 		"#{window_name}" + listWindowsAndPanesFieldSep +
 		"#{pane_index}"
-	out, err := c.cmd.Run("list-panes", "-s", "-t", exactCoordTarget(session), "-F", format)
+	out, err := c.cmd.Run("list-panes", "-s", "-t", ExactCoordTarget(session), "-F", format)
 	if err != nil {
 		return nil, fmt.Errorf("list windows and panes for session %s: %w", session, err)
 	}
@@ -566,7 +570,7 @@ func (c *Client) ListWindowsAndPanesInSession(session string) ([]WindowGroup, er
 // current window: list-panes without -s addresses one window. Unlike pane IDs,
 // these keys survive a server restart.
 func (c *Client) ListPanes(sessionName string) ([]string, error) {
-	output, err := c.cmd.Run("list-panes", "-t", exactCoordTarget(sessionName), "-F", StructuralKeyFormat)
+	output, err := c.cmd.Run("list-panes", "-t", ExactCoordTarget(sessionName), "-F", StructuralKeyFormat)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list panes for session %q: %w", sessionName, err)
 	}
@@ -587,7 +591,7 @@ func (c *Client) ListAllPanesWithFormat(format string) (string, error) {
 // ShowEnvironment returns the session's environment raw, for the caller to
 // parse: one "NAME=value" per line, or "-NAME" for a removed entry.
 func (c *Client) ShowEnvironment(session string) (string, error) {
-	out, err := c.cmd.Run("show-environment", "-t", exactTarget(session))
+	out, err := c.cmd.Run("show-environment", "-t", ExactSessionTarget(session))
 	if err != nil {
 		// Classify before the outer wrap, or the sentinel is unreachable.
 		return "", fmt.Errorf("failed to show environment for session %q: %w", session, wrapSessionTargetErr(session, err))
@@ -776,7 +780,7 @@ func (c *Client) SplitWindow(target, cwd, shellCommand string) error {
 }
 
 func (c *Client) SetSessionEnvironment(session, key, value string) error {
-	_, err := c.cmd.Run("set-environment", "-t", exactTarget(session), key, value)
+	_, err := c.cmd.Run("set-environment", "-t", ExactSessionTarget(session), key, value)
 	if err != nil {
 		return fmt.Errorf("failed to set env %s on %q: %w", key, session, err)
 	}

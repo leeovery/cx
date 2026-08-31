@@ -485,7 +485,7 @@ func TestSessionRestorer_FIFOUsesLivePaneKeyFromListPanesReQuery(t *testing.T) {
 	if len(args) != 5 {
 		t.Fatalf("respawn-pane args = %v, want length 5", args)
 	}
-	wantTarget := "work:5.5"
+	wantTarget := "=work:5.5"
 	if args[3] != wantTarget {
 		t.Errorf("respawn-pane target = %q, want %q (live coords)", args[3], wantTarget)
 	}
@@ -701,8 +701,8 @@ func TestSessionRestorer_ArmPanesWarnsAndArmsOnlyPairedPanesWhenLiveCountExceeds
 	}
 	if len(respawnIdxs) >= 1 {
 		args := mock.Calls[respawnIdxs[0]]
-		if len(args) >= 4 && args[3] != "work:0.0" {
-			t.Errorf("respawn-pane target = %q, want %q (first live pane)", args[3], "work:0.0")
+		if len(args) >= 4 && args[3] != "=work:0.0" {
+			t.Errorf("respawn-pane target = %q, want %q (first live pane)", args[3], "=work:0.0")
 		}
 	}
 
@@ -765,7 +765,7 @@ func TestSessionRestorer_ArmPanesReturnsWrappedErrorOnRespawnPaneFailure(t *test
 			if len(args) > 0 && args[0] == "list-panes" {
 				return "0:0\n0:1\n0:2", nil
 			}
-			if len(args) >= 4 && args[0] == "respawn-pane" && args[3] == "work:0.1" {
+			if len(args) >= 4 && args[0] == "respawn-pane" && args[3] == "=work:0.1" {
 				return "", errors.New("respawn boom")
 			}
 			return "", nil
@@ -896,8 +896,8 @@ func TestSessionRestorer_ReStampsSavedPaneToken(t *testing.T) {
 		if len(stamps) != 2 {
 			t.Fatalf("set-option -p calls = %d, want 2; calls: %v", len(stamps), mock.Calls)
 		}
-		assertPaneTokenStamp(t, stamps[0], "work:0.0", "tokA")
-		assertPaneTokenStamp(t, stamps[1], "work:0.1", "tokB")
+		assertPaneTokenStamp(t, stamps[0], "=work:0.0", "tokA")
+		assertPaneTokenStamp(t, stamps[1], "=work:0.1", "tokB")
 	})
 
 	t.Run("it stamps before it arms the pane", func(t *testing.T) {
@@ -944,7 +944,7 @@ func TestSessionRestorer_ReStampsSavedPaneToken(t *testing.T) {
 	})
 
 	t.Run("it warns and continues when the stamp fails", func(t *testing.T) {
-		mock := &mockCommander{RunFunc: failOnPaneOptionTarget("0:0", "work:0.0")}
+		mock := &mockCommander{RunFunc: failOnPaneOptionTarget("0:0", "=work:0.0")}
 		logger, sink := newCaptureLogger(t)
 		r := &restore.SessionRestorer{Client: tmux.NewClient(mock), StateDir: t.TempDir(), Logger: logger}
 
@@ -981,7 +981,7 @@ func TestSessionRestorer_ReStampsSavedPaneToken(t *testing.T) {
 	})
 
 	t.Run("it names the live structural key in pane_key", func(t *testing.T) {
-		mock := &mockCommander{RunFunc: failOnPaneOptionTarget("5:5", "work:5.5")}
+		mock := &mockCommander{RunFunc: failOnPaneOptionTarget("5:5", "=work:5.5")}
 		logger, sink := newCaptureLogger(t)
 		r := &restore.SessionRestorer{Client: tmux.NewClient(mock), StateDir: t.TempDir(), Logger: logger}
 
@@ -1010,7 +1010,7 @@ func TestSessionRestorer_ReStampsSavedPaneToken(t *testing.T) {
 	})
 
 	t.Run("it keeps stamping the remaining panes after one fails", func(t *testing.T) {
-		mock := &mockCommander{RunFunc: failOnPaneOptionTarget("0:0\n0:1", "work:0.0")}
+		mock := &mockCommander{RunFunc: failOnPaneOptionTarget("0:0\n0:1", "=work:0.0")}
 		logger, _ := newCaptureLogger(t)
 		r := &restore.SessionRestorer{Client: tmux.NewClient(mock), StateDir: t.TempDir(), Logger: logger}
 
@@ -1029,7 +1029,7 @@ func TestSessionRestorer_ReStampsSavedPaneToken(t *testing.T) {
 		if len(stamps) != 2 {
 			t.Fatalf("set-option -p calls = %d, want 2 (the second is still attempted); calls: %v", len(stamps), mock.Calls)
 		}
-		assertPaneTokenStamp(t, stamps[1], "work:0.1", "tokB")
+		assertPaneTokenStamp(t, stamps[1], "=work:0.1", "tokB")
 	})
 
 	t.Run("it stamps only the paired prefix when more live panes than saved", func(t *testing.T) {
@@ -1052,10 +1052,10 @@ func TestSessionRestorer_ReStampsSavedPaneToken(t *testing.T) {
 		if len(stamps) != 2 {
 			t.Fatalf("set-option -p calls = %d, want 2; calls: %v", len(stamps), mock.Calls)
 		}
-		assertPaneTokenStamp(t, stamps[0], "work:0.0", "tokA")
-		assertPaneTokenStamp(t, stamps[1], "work:0.1", "tokB")
+		assertPaneTokenStamp(t, stamps[0], "=work:0.0", "tokA")
+		assertPaneTokenStamp(t, stamps[1], "=work:0.1", "tokB")
 		for _, c := range stamps {
-			if c[3] == "work:0.2" {
+			if c[3] == "=work:0.2" {
 				t.Errorf("unpaired live pane work:0.2 was stamped: %v", c)
 			}
 		}
@@ -1082,8 +1082,8 @@ func TestSessionRestorer_ReStampsSavedPaneToken(t *testing.T) {
 		if len(stamps) != 2 {
 			t.Fatalf("set-option -p calls = %d, want 2; calls: %v", len(stamps), mock.Calls)
 		}
-		assertPaneTokenStamp(t, stamps[0], "work:0.0", "tokA")
-		assertPaneTokenStamp(t, stamps[1], "work:0.1", "tokB")
+		assertPaneTokenStamp(t, stamps[0], "=work:0.0", "tokA")
+		assertPaneTokenStamp(t, stamps[1], "=work:0.1", "tokB")
 		for _, c := range stamps {
 			if c[5] == "tokC" {
 				t.Errorf("unpaired saved token tokC was stamped: %v", c)

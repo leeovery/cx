@@ -82,9 +82,11 @@ func (r *SessionRestorer) createSkeleton(sess state.Session) error {
 
 	r.applyEnvironment(sess)
 
-	// `<session>:` is the session's active window, always the most recently
-	// created one, so splits land correctly with no predicted window index.
-	target := fmt.Sprintf("%s:", sess.Name)
+	// The empty coordinate half is the session's active window, always the most
+	// recently created one, so splits land correctly with no predicted window
+	// index. Pinning the session half keeps a create that produced nothing from
+	// pouring the whole skeleton into a live prefix sibling.
+	target := tmux.ExactCoordTarget(sess.Name)
 
 	for pj := 1; pj < len(sess.Windows[0].Panes); pj++ {
 		p := sess.Windows[0].Panes[pj]
@@ -135,7 +137,7 @@ func (r *SessionRestorer) armPanes(sess state.Session, armInfos []savedPaneArmIn
 		info := armInfos[i]
 
 		liveKey := state.SanitizePaneKey(sess.Name, live.Window, live.Pane)
-		liveTarget := tmux.PaneTarget(sess.Name, live.Window, live.Pane)
+		liveTarget := tmux.PaneTargetExact(sess.Name, live.Window, live.Pane)
 		fifo := state.FIFOPath(r.StateDir, liveKey)
 		if err := state.CreateFIFO(fifo); err != nil {
 			return nil, fmt.Errorf("session %q: %w", sess.Name, err)
@@ -157,11 +159,11 @@ func (r *SessionRestorer) armPanes(sess state.Session, armInfos []savedPaneArmIn
 // is skipped rather than written: a stamped "" reads back indistinguishably
 // from absence. A failure costs that pane its hook rather than its session, so
 // it degrades to a WARN instead of aborting the restore.
-func (r *SessionRestorer) stampPaneToken(sessionName, liveKey, liveTarget, token string) {
+func (r *SessionRestorer) stampPaneToken(sessionName, liveKey, target, token string) {
 	if token == "" {
 		return
 	}
-	if err := r.Client.SetPaneOption(liveTarget, state.PortalPaneIDOption, token); err != nil {
+	if err := r.Client.SetPaneOption(target, state.PortalPaneIDOption, token); err != nil {
 		r.logger().Warn("set pane token failed", "session", sessionName, "pane_key", liveKey, "error", err)
 	}
 }
