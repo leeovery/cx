@@ -250,7 +250,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 7,
-          "current_task": "resume-hooks-silently-lost-7-11",
+          "current_task": "resume-hooks-silently-lost-7-12",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -336,7 +336,8 @@
             "resume-hooks-silently-lost-7-7",
             "resume-hooks-silently-lost-7-8",
             "resume-hooks-silently-lost-7-9",
-            "resume-hooks-silently-lost-7-10"
+            "resume-hooks-silently-lost-7-10",
+            "resume-hooks-silently-lost-7-11"
           ],
           "staging": {
             "p1": {
@@ -1015,6 +1016,39 @@
               "detail": "With integration test files visible to the linter, the unused check treats a production symbol referenced only from an integration test as live. Nothing was masked here (the pre-change unit-lane baseline was 0 issues), but it is the flip side of the same single-configuration property and worth knowing before trusting a future clean unused run.",
               "files": [
                 ".golangci.yml"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-11",
+              "source": "executor",
+              "summary": "internal/restore captureSink is the last survivor of a wrapper pattern three other packages have already dropped.",
+              "detail": "internal/restore/logging_capture_test.go:10-27 embeds *logtest.Sink in a local captureSink with a recordsWithMessage helper that predates logtest.Records.Msg (internal/logtest/capture.go:96). Collapsing it to a direct *logtest.Sink plus the chain filter would finish the consolidation cmd, cmd/bootstrap and internal/state already completed, and would let the CLAUDE.md logtest row lose its trailing exception clause.",
+              "files": [
+                "internal/restore/logging_capture_test.go",
+                "internal/restore/session_hydrate_exe_test.go",
+                "internal/logtest/capture.go",
+                "CLAUDE.md"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-11",
+              "source": "reviewer",
+              "summary": "SPEC IS NOW STALE where CLAUDE.md is right: the spec still describes the snapshot as a call-site read.",
+              "detail": "specification.md:355,357,365 describes the snapshot as a call-site read taken by runHookStaleCleanup, whereas CleanStale sequences both reads itself (internal/hooks/store.go:302-315). The invariant the spec argues for is unchanged and preserved, so only the prose location is wrong — but no corrigendum records the move, and the next reader of the lock sections will be misdirected. Needs a corrigendum at the phase boundary.",
+              "files": [
+                ".workflows/resume-hooks-silently-lost/specification/resume-hooks-silently-lost/specification.md",
+                "internal/hooks/store.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-11",
+              "source": "reviewer",
+              "summary": "The CLAUDE.md last-one-left clause is coupled to the banked captureSink consolidation.",
+              "detail": "Whoever lands the internal/restore captureSink bank item must delete the \"internal/restore is the last one left\" clause from the logtest row in the same edit, or the file acquires a fresh false claim of exactly the kind task 7-11 existed to remove. Also minor: NewCaptureLogger(t) returns (*slog.Logger, *Sink) and the row hands-back sentence does not mention the returned sink — harmless (a call site written from it fails to compile immediately), a one-word fix if the row is touched again.",
+              "files": [
+                "CLAUDE.md",
+                "internal/restore/logging_capture_test.go",
+                "internal/logtest/capture.go"
               ]
             }
           ]
