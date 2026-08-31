@@ -250,7 +250,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 7,
-          "current_task": "resume-hooks-silently-lost-7-18",
+          "current_task": "resume-hooks-silently-lost-7-19",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -341,7 +341,8 @@
             "resume-hooks-silently-lost-7-12",
             "resume-hooks-silently-lost-7-14",
             "resume-hooks-silently-lost-7-16",
-            "resume-hooks-silently-lost-7-17"
+            "resume-hooks-silently-lost-7-17",
+            "resume-hooks-silently-lost-7-18"
           ],
           "staging": {
             "p1": {
@@ -1206,6 +1207,19 @@
               "files": [
                 "cmd/doctor_test.go",
                 "internal/hookstest/hooks_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-18",
+              "source": "reviewer",
+              "summary": "The same three-drivers-one-argv-element shape survives untouched in the state command family and its siblings.",
+              "detail": "runStateCommitNow (cmd/state_commit_now_test.go:18-29), runStateDaemon (cmd/state_daemon_test.go:21-32) and runStateNotify (cmd/state_notify_test.go:16-27) are three literally identical twelve-line bodies — same t.Helper(), two buffers, resetRootCmd() + resetStateCmdFlags(), SetOut/SetErr, Execute — differing only in the second argv element (commit-now / daemon / notify). runUninstall (cmd/uninstall_test.go:88-99) is the same body again with the variadic-args form task 7-18 just introduced, minus the state-flag reset. A runRootCmd(t, args ...string) would absorb all four (resetStateCmdFlags() is the only genuine divergence and could fold into resetRootCmd alongside the flag resets already there). Reaches into three other commands test files; nothing in the backlog covers it.",
+              "files": [
+                "cmd/state_commit_now_test.go",
+                "cmd/state_daemon_test.go",
+                "cmd/state_notify_test.go",
+                "cmd/uninstall_test.go",
+                "cmd/root_test.go"
               ]
             }
           ]
