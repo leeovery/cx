@@ -142,13 +142,43 @@ type sweepOutcome struct {
 	DeclineReason string
 }
 
-// The answers an enumeration gives that are not failures: a cycle that declined
-// on a guard, and a store holding nothing to sweep. Both abort the clean with
-// the file untouched, which is the point of returning them as errors.
-var (
-	errCycleDeclined    = errors.New("hook staleness cycle declined")
-	errNothingPersisted = errors.New("no hook entries to sweep")
-)
+// A store holding nothing to sweep is an answer, not a failure: it aborts the
+// clean with the file untouched, which is the point of returning it as an error.
+var errNothingPersisted = errors.New("no hook entries to sweep")
+
+// declinedError is a stand-down in transit — the reason its guard decided on,
+// carried by the very error that aborts the clean, so a decline names its
+// reason at the site that returns it rather than in a variable beside it.
+type declinedError struct {
+	standDown
+}
+
+func (e declinedError) Error() string {
+	return "hook staleness cycle declined: " + e.reason
+}
+
+// liveTokenEnumeration answers the clean with the live token set persisted keys
+// are judged against, or with the stand-down that forbids judging them at all.
+func liveTokenEnumeration(reader PaneHookLister, logger *slog.Logger) func(hooks.Snapshot) ([]string, error) {
+	return func(snapshot hooks.Snapshot) ([]string, error) {
+		view := judgeAgainstLivePanes(reader, len(snapshot))
+		if view.Enumerated {
+			logger.Debug("stale-hook cleanup counts", "panes", view.PaneRows, "entries", len(snapshot))
+		}
+		if view.Decline.declined() {
+			return nil, declinedError{view.Decline}
+		}
+		// Nothing persisted is nothing to sweep, and the deletion that would
+		// follow is not free: it creates the config directory, creates the
+		// sidecar and takes an exclusive hold. An install that has never
+		// registered a hook would otherwise pay all three on every cycle, in
+		// every `hook set`'s way.
+		if len(snapshot) == 0 {
+			return nil, errNothingPersisted
+		}
+		return view.LiveTokens, nil
+	}
+}
 
 func runHookStaleCleanup(reader staleSweepReader, store *hooks.Store, logger *slog.Logger) (sweepOutcome, error) {
 	if logger == nil {
@@ -162,28 +192,9 @@ func runHookStaleCleanup(reader staleSweepReader, store *hooks.Store, logger *sl
 		return sweepOutcome{DeclineReason: decline.reason}, nil
 	}
 
-	var decline standDown
-	removed, err := store.CleanStale(func(snapshot hooks.Snapshot) ([]string, error) {
-		view := judgeAgainstLivePanes(reader, len(snapshot))
-		if view.Enumerated {
-			logger.Debug("stale-hook cleanup counts", "panes", view.PaneRows, "entries", len(snapshot))
-		}
-		if view.Decline.declined() {
-			decline = view.Decline
-			return nil, errCycleDeclined
-		}
-		// Nothing persisted is nothing to sweep, and the deletion that would
-		// follow is not free: it creates the config directory, creates the
-		// sidecar and takes an exclusive hold. An install that has never
-		// registered a hook would otherwise pay all three on every cycle, in
-		// every `hook set`'s way.
-		if len(snapshot) == 0 {
-			return nil, errNothingPersisted
-		}
-		return view.LiveTokens, nil
-	})
+	removed, err := store.CleanStale(liveTokenEnumeration(reader, logger))
 	if err != nil {
-		return declinedSweep(decline, err)
+		return declinedSweep(err)
 	}
 
 	logger.Debug("stale-hook cleanup removed", "reaped", len(removed))
@@ -194,13 +205,14 @@ func runHookStaleCleanup(reader staleSweepReader, store *hooks.Store, logger *sl
 // declinedSweep renders the outcome of a clean that wrote nothing. A guard's
 // own stand-down carries the reason it decided on; the store's own failure
 // modes are named here because only this cycle knows what they cost it.
-func declinedSweep(decline standDown, err error) (sweepOutcome, error) {
+func declinedSweep(err error) (sweepOutcome, error) {
+	var declined declinedError
 	switch {
 	case errors.Is(err, errNothingPersisted):
 		return sweepOutcome{}, nil
-	case errors.Is(err, errCycleDeclined):
-		decline.emit()
-		return sweepOutcome{DeclineReason: decline.reason}, nil
+	case errors.As(err, &declined):
+		declined.emit()
+		return sweepOutcome{DeclineReason: declined.reason}, nil
 	case errors.Is(err, hooks.ErrLockHeld):
 		// Another writer held the sidecar past the bound: nothing was written
 		// and nothing is wrong, so the cycle stands down rather than reporting a
