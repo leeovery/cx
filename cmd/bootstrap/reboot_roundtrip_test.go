@@ -153,12 +153,12 @@ func runRebootRoundTrip(t *testing.T, cfg roundTripCfg) {
 			[]string{"alpha", "beta"})
 	}
 
-	restoretest.WaitForSkeletonMarkersCleared(t, client, 10*time.Second, 50*time.Millisecond)
+	restoretest.WaitForSkeletonMarkersCleared(t, client, restoretest.HydrateBudget, restoretest.HydrateTick)
 
 	verifyANSIScrollback(t, ts, "alpha",
 		cfg.restoreBase+0, cfg.restorePaneBase+0)
 
-	verifyHookFiredOnce(t, hookFireFile)
+	restoretest.AssertMarkerCount(t, hookFireFile, "HOOK_FIRED", 1)
 
 	verifyNoPredictedVsLiveWarns(t, filepath.Join(stateDir, "portal.log"))
 }
@@ -428,19 +428,6 @@ func verifyANSIScrollback(t *testing.T, ts *tmuxtest.Socket, session string, win
 	}
 }
 
-func verifyHookFiredOnce(t *testing.T, hookFireFile string) {
-	t.Helper()
-	data, err := os.ReadFile(hookFireFile)
-	if err != nil {
-		t.Fatalf("read hook fire file %s: %v", hookFireFile, err)
-	}
-	count := strings.Count(string(data), "HOOK_FIRED")
-	if count != 1 {
-		t.Errorf("hook fired %d times; want exactly 1\nfile contents:\n%s",
-			count, data)
-	}
-}
-
 func TestPhase5RebootRoundTripBothSessionsHydrateViaSignalHydrateBinary(t *testing.T) {
 	if testing.Short() {
 		t.Skip("integration test; -short")
@@ -524,7 +511,7 @@ func TestPhase5RebootRoundTripBothSessionsHydrateViaSignalHydrateBinary(t *testi
 	restoretest.DriveSignalHydrateBinary(t, binDir, ts.SocketPath(),
 		stateDir, hooksPath, []string{"beta"}, env)
 
-	restoretest.WaitForSkeletonMarkersCleared(t, client, 10*time.Second, 50*time.Millisecond)
+	restoretest.WaitForSkeletonMarkersCleared(t, client, restoretest.HydrateBudget, restoretest.HydrateTick)
 
 	verifySwitchClientLiveStructure(t, ts)
 }
@@ -643,7 +630,7 @@ func TestRebootRoundTrip_LeadingDashSessionName(t *testing.T) {
 	restoretest.DriveSignalHydrateBinary(t, binDir, ts.SocketPath(),
 		stateDir, hooksPath, []string{sessionName}, env)
 
-	restoretest.WaitForSkeletonMarkersCleared(t, client, 10*time.Second, 50*time.Millisecond)
+	restoretest.WaitForSkeletonMarkersCleared(t, client, restoretest.HydrateBudget, restoretest.HydrateTick)
 
 	verifyNoHydrateTimeoutWarns(t, filepath.Join(stateDir, "portal.log"), sessionName)
 

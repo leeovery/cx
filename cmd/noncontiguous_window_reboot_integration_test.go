@@ -29,9 +29,6 @@ const (
 
 	divergentFirstMarker = "FIRST_WINDOW_HOOK_FIRED"
 	divergentLastMarker  = "LAST_WINDOW_HOOK_FIRED"
-
-	divergentHydrateBudget = 15 * time.Second
-	divergentPollTick      = 50 * time.Millisecond
 )
 
 // divergentPane names one pane of the fixture by role rather than by
@@ -399,9 +396,9 @@ func (fx *divergentRebootFixture) reboot(t *testing.T) {
 func (fx *divergentRebootFixture) hydrate(t *testing.T) {
 	t.Helper()
 	restoretest.DriveSignalHydrate(t, fx.client, fx.stateDir, []string{divergentSessionName})
-	restoretest.WaitForSkeletonMarkersCleared(t, fx.client, divergentHydrateBudget, divergentPollTick)
+	restoretest.WaitForSkeletonMarkersCleared(t, fx.client, restoretest.HydrateBudget, restoretest.HydrateTick)
 	for _, p := range fx.stamped {
-		restoretest.WaitForFileExists(t, p.markerFile, divergentHydrateBudget, divergentPollTick)
+		restoretest.WaitForFileExists(t, p.markerFile, restoretest.HydrateBudget, restoretest.HydrateTick)
 	}
 }
 

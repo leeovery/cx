@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/portal/internal/restoretest"
 	"github.com/leeovery/portal/internal/tmux"
 	"github.com/leeovery/portal/internal/tmuxtest"
 )
@@ -84,5 +85,5 @@ func runRenameRebootFire(t *testing.T, rename func(t *testing.T, ts *tmuxtest.So
 		t.Fatalf("rebootAndHydrate: %v", err)
 	}
 
-	assertMarkerCount(t, fx.hookFireFile, hookFiredMarker, 1)
+	restoretest.AssertMarkerCount(t, fx.hookFireFile, hookFiredMarker, 1)
 }

@@ -29,7 +29,7 @@ func TestRenameRebootHook_DurableAcrossRepeatedReboots(t *testing.T) {
 	if err := fx.rebootAndHydrate(t); err != nil {
 		t.Fatalf("cycle 1 rebootAndHydrate: %v", err)
 	}
-	assertMarkerCount(t, fx.hookFireFile, hookFiredMarker, 1)
+	restoretest.AssertMarkerCount(t, fx.hookFireFile, hookFiredMarker, 1)
 
 	nextIdx, err := state.CaptureStructure(fx.client, nil, nil, nil)
 	if err != nil {
@@ -61,6 +61,6 @@ func TestRenameRebootHook_DurableAcrossRepeatedReboots(t *testing.T) {
 	}
 
 	t.Run("it fires the resume hook again on a second reboot cycle", func(t *testing.T) {
-		assertMarkerCount(t, fx.hookFireFile, hookFiredMarker, 2)
+		restoretest.AssertMarkerCount(t, fx.hookFireFile, hookFiredMarker, 2)
 	})
 }

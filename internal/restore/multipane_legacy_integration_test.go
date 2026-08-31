@@ -136,12 +136,12 @@ func TestMultiPaneLegacy_PerPaneHookRouting(t *testing.T) {
 	}
 
 	restoretest.DriveSignalHydrate(t, client, stateDir, []string{renameNewName})
-	restoretest.WaitForSkeletonMarkersCleared(t, client, 10*time.Second, 50*time.Millisecond)
+	restoretest.WaitForSkeletonMarkersCleared(t, client, restoretest.HydrateBudget, restoretest.HydrateTick)
 
-	assertMarkerCount(t, pane0File, pane0Marker, 1)
-	assertMarkerCount(t, pane1File, pane1Marker, 1)
-	assertMarkerCount(t, pane0File, pane1Marker, 0)
-	assertMarkerCount(t, pane1File, pane0Marker, 0)
+	restoretest.AssertMarkerCount(t, pane0File, pane0Marker, 1)
+	restoretest.AssertMarkerCount(t, pane1File, pane1Marker, 1)
+	restoretest.AssertMarkerCount(t, pane0File, pane1Marker, 0)
+	restoretest.AssertMarkerCount(t, pane1File, pane0Marker, 0)
 }
 
 func TestMultiPaneLegacy_UnstampedNoHookLandsOnBareShell(t *testing.T) {
@@ -206,7 +206,7 @@ func TestMultiPaneLegacy_UnstampedNoHookLandsOnBareShell(t *testing.T) {
 	}
 
 	restoretest.DriveSignalHydrate(t, client, stateDir, []string{legacyName})
-	restoretest.WaitForSkeletonMarkersCleared(t, client, 10*time.Second, 50*time.Millisecond)
+	restoretest.WaitForSkeletonMarkersCleared(t, client, restoretest.HydrateBudget, restoretest.HydrateTick)
 
 	if _, err := ts.TryRun("has-session", "-t", "="+legacyName); err != nil {
 		t.Fatalf("un-stamped no-hook session %q not restored: %v", legacyName, err)

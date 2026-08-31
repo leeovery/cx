@@ -24,11 +24,6 @@ const (
 	// hookFiredMarker is what the fixture's hook echoes, and so what a fired
 	// hook is counted by.
 	hookFiredMarker = "HOOK_FIRED"
-
-	// hydrateBudget bounds a wait for a restored pane's helper to clear its
-	// skeleton marker, and for the hook it then fires to land.
-	hydrateBudget = 10 * time.Second
-	hydrateTick   = 50 * time.Millisecond
 )
 
 // renameRebootFixture is one stamped pane under its pre-rename name, with a
@@ -133,7 +128,7 @@ func (fx *renameRebootFixture) rebootAndHydrate(t *testing.T) error {
 	}
 
 	restoretest.DriveSignalHydrate(t, fx.client, fx.stateDir, []string{renameNewName})
-	restoretest.WaitForSkeletonMarkersCleared(t, fx.client, hydrateBudget, hydrateTick)
+	restoretest.WaitForSkeletonMarkersCleared(t, fx.client, restoretest.HydrateBudget, restoretest.HydrateTick)
 	return nil
 }
 
