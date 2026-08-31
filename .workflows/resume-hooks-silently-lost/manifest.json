@@ -249,8 +249,8 @@
             ".claude/skills/golang-spf13-cobra",
             ".claude/skills/golang-dependency-management"
           ],
-          "current_phase": 6,
-          "current_task": null,
+          "current_phase": 7,
+          "current_task": "resume-hooks-silently-lost-7-2",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -326,7 +326,8 @@
             "resume-hooks-silently-lost-6-22",
             "resume-hooks-silently-lost-6-23",
             "resume-hooks-silently-lost-6-24",
-            "resume-hooks-silently-lost-6-25"
+            "resume-hooks-silently-lost-6-25",
+            "resume-hooks-silently-lost-7-1"
           ],
           "staging": {
             "p1": {
@@ -466,7 +467,42 @@
                 "5": "approved staging.c2.tasks.6=approved staging.c2.tasks.7=approved staging.c2.tasks.8=approved staging.c2.tasks.9=approved staging.c2.tasks.10=approved staging.c2.tasks.11=approved staging.c2.tasks.12=approved staging.c2.tasks.13=approved staging.c2.tasks.14=approved staging.c2.tasks.15=approved staging.c2.tasks.16=approved staging.c2.tasks.17=approved staging.c2.tasks.18=approved staging.c2.tasks.19=approved staging.c2.tasks.20=approved staging.c2.tasks.21=approved staging.c2.tasks.22=approved staging.c2.tasks.23=approved staging.c2.tasks.24=approved staging.c2.tasks.25=approved staging.c2.tasks.26=approved staging.c2.tasks.27=approved staging.c2.tasks.28=approved staging.c2.tasks.29=approved staging.c2.tasks.30=approved staging.c2.tasks.31=approved staging.c2.tasks.32=approved staging.c2.tasks.33=approved staging.c2.tasks.34=approved staging.c2.tasks.35=approved"
               }
             }
-          }
+          },
+          "bank": [
+            {
+              "task": "resume-hooks-silently-lost-7-1",
+              "source": "executor",
+              "summary": "Every other per-session tmux op carries the same colon blind spot; only ShowEnvironment is now classified.",
+              "detail": "wrapSessionTargetErr is wired into ShowEnvironment alone (internal/tmux/tmux.go:590) because that is the one the capture loop classifies against. HasSession (tmux.go:88,97), KillSession (tmux.go:258), SwitchClient (tmux.go:276), SetSessionEnvironment (tmux.go:774), ListClients (internal/tmux/clients.go:19) and SaverPanePIDOrAbsent (internal/tmux/saver_pane_pid.go:13,37) all compose exactTarget and will report a live colon-named session as absent, indistinguishably from a real one. Routing them through the same wrapper is a single mechanical pass, but it changes error classification for callers across cmd, internal/restore and internal/spawn.",
+              "files": [
+                "internal/tmux/tmux.go",
+                "internal/tmux/clients.go",
+                "internal/tmux/saver_pane_pid.go",
+                "internal/tmux/errors.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-1",
+              "source": "executor",
+              "summary": "Two independent definitions of \"a colon may not appear in a session name\" now exist.",
+              "detail": "internal/session/naming.go:21 strips : (and .) at generation time via its own strings.NewReplacer, with no reference to the target grammar; tmux.ValidateSessionName (internal/tmux/errors.go) is the new recognition side. They agree today by coincidence, not by construction — the same generation/recognition drift the pane-token work consolidated into internal/nanoid. Deriving the generator sanitiser from the client predicate would close it, but the internal/session to internal/tmux import direction and the . case (a coord separator, not a session one) need deciding first.",
+              "files": [
+                "internal/session/naming.go",
+                "internal/tmux/errors.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-1",
+              "source": "reviewer",
+              "summary": "A session name beginning with $ is unaddressable by name at all and still routes to natural churn — the same silent loss, a different character.",
+              "detail": "Measured on tmux 3.7c, isolated -S socket, with $foo as the only session: both show-environment -t \"$foo\" and -t \"=$foo\" fail with no such session (tmux reads a leading $ as a session-ID prefix). Unlike the colon this is NOT a regression from the exact-target change — the bare form fails identically — but the end state is the one this work unit exists to remove: tmux.ValidateSessionName returns nil for it, so wrapSessionTargetErr falls through to wrapNoSuchSession and capture.go logs a vanished session and drops a live one. internal/session/naming.go:20 already sanitises a wider set than the new predicate (periods and colons), so the repo holds two disagreeing definitions of an unwritable name. Also measured: . alone is fine (a.b resolves bare and exact), so a period is not itself a target-grammar break.",
+              "files": [
+                "internal/tmux/errors.go",
+                "internal/session/naming.go",
+                "internal/state/capture.go"
+              ]
+            }
+          ]
         }
       }
     }
