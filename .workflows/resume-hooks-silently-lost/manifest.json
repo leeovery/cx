@@ -141,7 +141,43 @@
             "resume-hooks-silently-lost-6-22": "tick-1edef2",
             "resume-hooks-silently-lost-6-23": "tick-b0fc73",
             "resume-hooks-silently-lost-6-24": "tick-2ca858",
-            "resume-hooks-silently-lost-6-25": "tick-5c5992"
+            "resume-hooks-silently-lost-6-25": "tick-5c5992",
+            "resume-hooks-silently-lost-7": "tick-0fbfdc",
+            "resume-hooks-silently-lost-7-1": "tick-932552",
+            "resume-hooks-silently-lost-7-2": "tick-f258f5",
+            "resume-hooks-silently-lost-7-3": "tick-f52ba9",
+            "resume-hooks-silently-lost-7-4": "tick-2b5d0a",
+            "resume-hooks-silently-lost-7-5": "tick-4d5019",
+            "resume-hooks-silently-lost-7-6": "tick-2e9622",
+            "resume-hooks-silently-lost-7-7": "tick-af68d2",
+            "resume-hooks-silently-lost-7-8": "tick-fa9542",
+            "resume-hooks-silently-lost-7-9": "tick-4351fc",
+            "resume-hooks-silently-lost-7-10": "tick-52617a",
+            "resume-hooks-silently-lost-7-11": "tick-e9cfa9",
+            "resume-hooks-silently-lost-7-12": "tick-7a0ed0",
+            "resume-hooks-silently-lost-7-13": "tick-79f063",
+            "resume-hooks-silently-lost-7-14": "tick-9ddf57",
+            "resume-hooks-silently-lost-7-15": "tick-c0096e",
+            "resume-hooks-silently-lost-7-16": "tick-98759a",
+            "resume-hooks-silently-lost-7-17": "tick-a9812a",
+            "resume-hooks-silently-lost-7-18": "tick-e89f34",
+            "resume-hooks-silently-lost-7-19": "tick-e1b5be",
+            "resume-hooks-silently-lost-7-20": "tick-8dcb6a",
+            "resume-hooks-silently-lost-7-21": "tick-9e5629",
+            "resume-hooks-silently-lost-7-22": "tick-06dd49",
+            "resume-hooks-silently-lost-7-23": "tick-99dc58",
+            "resume-hooks-silently-lost-7-24": "tick-f341b2",
+            "resume-hooks-silently-lost-7-25": "tick-23f964",
+            "resume-hooks-silently-lost-7-26": "tick-ce0cd9",
+            "resume-hooks-silently-lost-7-27": "tick-0ec089",
+            "resume-hooks-silently-lost-7-28": "tick-0887b8",
+            "resume-hooks-silently-lost-7-29": "tick-de3a3a",
+            "resume-hooks-silently-lost-7-30": "tick-9da212",
+            "resume-hooks-silently-lost-7-31": "tick-2446ab",
+            "resume-hooks-silently-lost-7-32": "tick-c5daef",
+            "resume-hooks-silently-lost-7-33": "tick-5154eb",
+            "resume-hooks-silently-lost-7-34": "tick-a5eb5e",
+            "resume-hooks-silently-lost-7-35": "tick-608dfc"
           },
           "storage_paths": [
             ".tick/"
@@ -178,7 +214,7 @@
           "status": "in-progress",
           "task_gate_mode": "auto",
           "fix_gate_mode": "auto",
-          "analysis_gate_mode": "gated",
+          "analysis_gate_mode": "auto",
           "consolidation_gate_mode": "gated",
           "fix_attempts": 0,
           "analysis_cycle_total": 2,
@@ -371,10 +407,10 @@
             },
             "c2": {
               "tasks": {
-                "1": "pending",
-                "2": "pending",
-                "3": "pending",
-                "4": "pending",
+                "1": "approved",
+                "2": "approved",
+                "3": "approved",
+                "4": "approved",
                 "5": "pending",
                 "6": "pending",
                 "7": "pending",
@@ -403,7 +439,9 @@
                 "30": "pending",
                 "31": "pending",
                 "32": "pending",
-                "33": "pending"
+                "33": "pending",
+                "34": "pending",
+                "35": "pending"
               }
             }
           },
@@ -421,7 +459,14 @@
             4,
             5,
             6
-          ]
+          ],
+          " staging": {
+            "c2": {
+              "tasks": {
+                "5": "approved staging.c2.tasks.6=approved staging.c2.tasks.7=approved staging.c2.tasks.8=approved staging.c2.tasks.9=approved staging.c2.tasks.10=approved staging.c2.tasks.11=approved staging.c2.tasks.12=approved staging.c2.tasks.13=approved staging.c2.tasks.14=approved staging.c2.tasks.15=approved staging.c2.tasks.16=approved staging.c2.tasks.17=approved staging.c2.tasks.18=approved staging.c2.tasks.19=approved staging.c2.tasks.20=approved staging.c2.tasks.21=approved staging.c2.tasks.22=approved staging.c2.tasks.23=approved staging.c2.tasks.24=approved staging.c2.tasks.25=approved staging.c2.tasks.26=approved staging.c2.tasks.27=approved staging.c2.tasks.28=approved staging.c2.tasks.29=approved staging.c2.tasks.30=approved staging.c2.tasks.31=approved staging.c2.tasks.32=approved staging.c2.tasks.33=approved staging.c2.tasks.34=approved staging.c2.tasks.35=approved"
+              }
+            }
+          }
         }
       }
     }
