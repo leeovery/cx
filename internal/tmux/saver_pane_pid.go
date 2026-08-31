@@ -10,7 +10,7 @@ import (
 // Unexported deliberately: callers outside the package must come through
 // SaverPanePIDOrAbsent's absence collapse.
 func saverPanePID(c *Client, sessionName string) (int, error) {
-	out, err := c.cmd.Run("list-panes", "-t", exactTarget(sessionName), "-F", "#{pane_pid}")
+	out, err := c.cmd.Run("list-panes", "-t", exactCoordTarget(sessionName), "-F", "#{pane_pid}")
 	if err != nil {
 		wrapped := wrapNoSuchSession(err)
 		return 0, fmt.Errorf("list-panes -t %s: %w", sessionName, wrapped)
@@ -34,7 +34,7 @@ func saverPanePID(c *Client, sessionName string) (int, error) {
 // SaverPaneID returns the tmux pane id of the first pane in the named session,
 // or ErrEmptyPaneList when the session lists no pane.
 func (c *Client) SaverPaneID(sessionName string) (string, error) {
-	out, err := c.cmd.Run("list-panes", "-t", exactTarget(sessionName), "-F", "#{pane_id}")
+	out, err := c.cmd.Run("list-panes", "-t", exactCoordTarget(sessionName), "-F", "#{pane_id}")
 	if err != nil {
 		return "", fmt.Errorf("list-panes -t %s -F #{pane_id}: %w", sessionName, err)
 	}
@@ -47,9 +47,9 @@ func (c *Client) SaverPaneID(sessionName string) (string, error) {
 }
 
 // SaverPanePIDOrAbsent returns the pid of the named session's first pane.
-// A missing session and an empty pane list are both legitimate absences and
-// collapse to (0, false, nil); any other failure returns (0, false, err) for
-// the caller to apply its own policy to.
+// A missing session (ErrNoSuchSession) and an empty pane list (ErrEmptyPaneList)
+// are both legitimate absences and collapse to (0, false, nil); any other
+// failure returns (0, false, err) for the caller to apply its own policy to.
 func SaverPanePIDOrAbsent(c *Client, sessionName string) (pid int, present bool, err error) {
 	pid, err = saverPanePID(c, sessionName)
 	if err != nil {

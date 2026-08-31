@@ -3,6 +3,7 @@ package tmux
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/leeovery/portal/internal/tmuxerr"
@@ -25,9 +26,15 @@ var ErrEmptyPaneList = errors.New("empty pane list")
 // pane pid.
 var ErrPanePIDParse = errors.New("pane pid parse")
 
-// Case-sensitive on purpose: tmux emits the lowercase form, and a loose match
+// tmux words one absence two ways — "no such session" and "can't find session" —
+// and which one a command emits belongs to that command's own lookup path, not
+// to the kind of target it takes: show-environment says the first, list-panes
+// and kill-session the second. Both report the addressed session not existing,
+// so both must reach ErrNoSuchSession. "can't find window" is deliberately
+// absent — a missing window inside a live session is not a session absence.
+// Case-sensitive on purpose: tmux emits the lowercase forms, and a loose match
 // would absorb unrelated phrasings from tools layered on top.
-const noSuchSessionStderrSubstr = "no such session"
+var noSuchSessionStderrSubstrs = []string{"no such session", "can't find session"}
 
 // The multi-%w wrap is required: it keeps both the sentinel and the original
 // *CommandError reachable on the same error value.
@@ -36,10 +43,16 @@ func wrapNoSuchSession(err error) error {
 		return nil
 	}
 	var cmdErr *CommandError
-	if errors.As(err, &cmdErr) && strings.Contains(cmdErr.Stderr, noSuchSessionStderrSubstr) {
+	if errors.As(err, &cmdErr) && reportsNoSuchSession(cmdErr.Stderr) {
 		return fmt.Errorf("%w: %w", ErrNoSuchSession, err)
 	}
 	return err
+}
+
+func reportsNoSuchSession(stderr string) bool {
+	return slices.ContainsFunc(noSuchSessionStderrSubstrs, func(substr string) bool {
+		return strings.Contains(stderr, substr)
+	})
 }
 
 // ErrUnaddressableSessionName reports a session name that Portal's exact-match

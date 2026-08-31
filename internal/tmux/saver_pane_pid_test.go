@@ -24,15 +24,15 @@ func TestSaverPanePID(t *testing.T) {
 			t.Fatalf("Calls = %d, want 1", len(mock.Calls))
 		}
 		got := mock.Calls[0]
-		want := []string{"list-panes", "-t", "=_portal-saver", "-F", "#{pane_pid}"}
+		want := []string{"list-panes", "-t", "=_portal-saver:", "-F", "#{pane_pid}"}
 		if !equalStringSlice(got, want) {
 			t.Errorf("Run args = %v, want %v", got, want)
 		}
 	})
 
-	t.Run("it wraps ErrNoSuchSession when stderr contains 'no such session'", func(t *testing.T) {
+	t.Run("it wraps ErrNoSuchSession when stderr reports the session cannot be found", func(t *testing.T) {
 		mock := &MockCommander{Err: &tmux.CommandError{
-			Stderr: "no such session: _portal-saver",
+			Stderr: "can't find session: _portal-saver",
 			Err:    errors.New("exit status 1"),
 		}}
 		client := tmux.NewClient(mock)
@@ -115,6 +115,46 @@ func TestSaverPanePID(t *testing.T) {
 		}
 		if errors.Is(err, tmux.ErrPanePIDParse) {
 			t.Errorf("errors.Is(err, ErrPanePIDParse) = true, want false; err = %v", err)
+		}
+		if !errors.Is(err, genericErr) {
+			t.Errorf("errors.Is(err, genericErr) = false, want true; err = %v", err)
+		}
+	})
+}
+
+func TestSaverPanePIDOrAbsent(t *testing.T) {
+	t.Run("it collapses an empty pane list to present=false", func(t *testing.T) {
+		client := tmux.NewClient(&MockCommander{Output: ""})
+
+		pid, present, err := tmux.SaverPanePIDOrAbsent(client, "_portal-saver")
+		if pid != 0 || present || err != nil {
+			t.Errorf("SaverPanePIDOrAbsent = %d, %t, %v; want 0, false, nil", pid, present, err)
+		}
+	})
+
+	t.Run("it does not read a missing window inside a live session as session absence", func(t *testing.T) {
+		cmdErr := &tmux.CommandError{
+			Stderr: "can't find window: _portal-saver",
+			Err:    errors.New("exit status 1"),
+		}
+		client := tmux.NewClient(&MockCommander{Err: cmdErr})
+
+		pid, present, err := tmux.SaverPanePIDOrAbsent(client, "_portal-saver")
+		if errors.Is(err, tmux.ErrNoSuchSession) {
+			t.Errorf("errors.Is(err, ErrNoSuchSession) = true, want false; err = %v", err)
+		}
+		if pid != 0 || present || err == nil {
+			t.Errorf("SaverPanePIDOrAbsent = %d, %t, %v; want 0, false, a non-nil error", pid, present, err)
+		}
+	})
+
+	t.Run("it passes a non-absence error through to the caller", func(t *testing.T) {
+		genericErr := fmt.Errorf("exec lookup failed")
+		client := tmux.NewClient(&MockCommander{Err: genericErr})
+
+		pid, present, err := tmux.SaverPanePIDOrAbsent(client, "_portal-saver")
+		if pid != 0 || present {
+			t.Errorf("SaverPanePIDOrAbsent = %d, %t; want 0, false", pid, present)
 		}
 		if !errors.Is(err, genericErr) {
 			t.Errorf("errors.Is(err, genericErr) = false, want true; err = %v", err)

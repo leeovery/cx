@@ -34,7 +34,7 @@ func TestSaverPaneID_ReturnsTrimmedFirstLine(t *testing.T) {
 		t.Errorf("SaverPaneID = %q, want %q", got, "%42")
 	}
 
-	want := "list-panes -t =_portal-saver -F #{pane_id}"
+	want := "list-panes -t =_portal-saver: -F #{pane_id}"
 	if joined := strings.Join(observed, " "); joined != want {
 		t.Errorf("list-panes argv = %q, want %q", joined, want)
 	}
