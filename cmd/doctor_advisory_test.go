@@ -208,7 +208,7 @@ func TestAdvisories_SuffixSuppressedAtZero(t *testing.T) {
 
 func TestAdvisories_NeverDriveExitCode(t *testing.T) {
 	deps := healthyDoctorDeps(t)
-	if _, _, err := runDoctorCmd(t, deps); err != nil {
+	if _, _, err := runDoctorWith(t, deps); err != nil {
 		t.Fatalf("Execute err = %v; want nil over an all-passing catalog", err)
 	}
 
@@ -234,7 +234,7 @@ func TestAdvisories_FailingCheckAndAdvisoriesShareOneSummary(t *testing.T) {
 	deps := healthyDoctorDeps(t)
 	deps.SaverPresent = func() (bool, error) { return false, nil }
 
-	if _, _, err := runDoctorCmd(t, deps); err != ErrDoctorUnhealthy {
+	if _, _, err := runDoctorWith(t, deps); err != ErrDoctorUnhealthy {
 		t.Fatalf("Execute err = %v; want ErrDoctorUnhealthy with a failing saver check", err)
 	}
 

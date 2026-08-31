@@ -480,7 +480,7 @@ func TestPersistedThemeAdvisory_TolerantOnDegeneratePrefs(t *testing.T) {
 	t.Run("a corrupt file never aborts the diagnosis", func(t *testing.T) {
 		setPrefsFile(t, `{"theme":`)
 
-		outBuf, _, err := runDoctorCmd(t, healthyDoctorDeps(t))
+		outBuf, _, err := runDoctorWith(t, healthyDoctorDeps(t))
 		if err != nil {
 			t.Fatalf("Execute err = %v; a corrupt prefs.json must never abort the diagnosis", err)
 		}
@@ -503,7 +503,7 @@ func TestPersistedThemeAdvisory_UsesNonMigratingRead(t *testing.T) {
 			t.Fatalf("the migrating read computes pending=%t slug=%q over this fixture; it would translate nothing, so the assertions below would be vacuous", load.TranslationPending, load.TranslatedSlug)
 		}
 
-		if _, _, err := runDoctorCmd(t, healthyDoctorDeps(t)); err != nil {
+		if _, _, err := runDoctorWith(t, healthyDoctorDeps(t)); err != nil {
 			t.Fatalf("Execute err = %v; want nil over a healthy catalog", err)
 		}
 
@@ -524,7 +524,7 @@ func TestPersistedThemeAdvisory_UsesNonMigratingRead(t *testing.T) {
 		const seeded = `{"appearance":"dark","theme":"nord-lee"}`
 		path := setPrefsFile(t, seeded)
 
-		outBuf, _, err := runDoctorCmd(t, healthyDoctorDeps(t))
+		outBuf, _, err := runDoctorWith(t, healthyDoctorDeps(t))
 		if err != nil {
 			t.Fatalf("Execute err = %v; an unresolvable persisted theme must never drive the exit code", err)
 		}
@@ -702,7 +702,7 @@ func TestPersistedThemeAdvisory_EmitsNoThemeRecords(t *testing.T) {
 		sink := &logtest.Sink{}
 		log.SetTestHandler(t, sink)
 
-		outBuf, _, err := runDoctorCmd(t, healthyDoctorDeps(t))
+		outBuf, _, err := runDoctorWith(t, healthyDoctorDeps(t))
 		if err != nil {
 			t.Fatalf("Execute err = %v; theme advisories never drive the exit code", err)
 		}

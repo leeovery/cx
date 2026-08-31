@@ -226,7 +226,7 @@ func TestDoctorFixReportsLockedHookPrune(t *testing.T) {
 		hookstest.HoldHooksSidecar(t, hooksPath)
 		before := readFileBytes(t, hooksPath)
 
-		outBuf, _, _ := runDoctorFixCmd(t, deps)
+		outBuf, _, _ := runDoctorWith(t, deps, "--fix")
 
 		assertSkippedPruneLine(t, outBuf.String(), "Skipped stale hook prune: hooks.json is locked")
 		assertHooksFileUnchanged(t, hooksPath, before, "rewritten on a lock stand-down")
@@ -260,7 +260,7 @@ func TestDoctorFixReportsLockedHookPrune(t *testing.T) {
 		projectStore, _ := seedProjectsJSON(t, t.TempDir())
 		deps := staleDeps(dir, &stubStaleSweepReader{rows: tokenRows(liveSeedA)}, hookStore, projectStore)
 
-		outBuf, _, err := runDoctorFixCmd(t, deps)
+		outBuf, _, err := runDoctorWith(t, deps, "--fix")
 		if err != nil {
 			t.Fatalf("Execute err = %v; want nil over a healthy post-repair diagnosis\n%s", err, outBuf.String())
 		}
@@ -277,7 +277,7 @@ func TestDoctorFixReportsLockedHookPrune(t *testing.T) {
 		failingDeps := staleDeps(failingDir, &stubStaleSweepReader{rows: tokenRows(liveSeedA)}, failingHooks, failingProjects)
 		failingDeps.SaverPresent = func() (bool, error) { return false, nil }
 
-		failBuf, _, failErr := runDoctorFixCmd(t, failingDeps)
+		failBuf, _, failErr := runDoctorWith(t, failingDeps, "--fix")
 		if !errors.Is(failErr, ErrDoctorUnhealthy) {
 			t.Fatalf("Execute err = %v; want ErrDoctorUnhealthy with a failing check\n%s", failErr, failBuf.String())
 		}

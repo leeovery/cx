@@ -72,7 +72,7 @@ func TestThemeAdvisoryUnion_PersistedLineWins(t *testing.T) {
 		}))
 		setPrefsFile(t, `{"theme_dark":"nord-lee"}`)
 
-		outBuf, _, err := runDoctorCmd(t, healthyDoctorDeps(t))
+		outBuf, _, err := runDoctorWith(t, healthyDoctorDeps(t))
 		if err != nil {
 			t.Fatalf("Execute err = %v; a theme advisory must never drive the exit code", err)
 		}

@@ -23,7 +23,7 @@ func healthyDoctorDeps(t *testing.T) *DoctorDeps {
 }
 
 func TestDoctorSummary_AllChecksPassed(t *testing.T) {
-	outBuf, _, err := runDoctorCmd(t, healthyDoctorDeps(t))
+	outBuf, _, err := runDoctorWith(t, healthyDoctorDeps(t))
 	if err != nil {
 		t.Fatalf("Execute err = %v; want nil when every check passes", err)
 	}
@@ -38,7 +38,7 @@ func TestDoctorSummary_PartialForm(t *testing.T) {
 	deps := healthyDoctorDeps(t)
 	deps.SaverPresent = func() (bool, error) { return false, nil }
 
-	outBuf, _, err := runDoctorCmd(t, deps)
+	outBuf, _, err := runDoctorWith(t, deps)
 	if err != ErrDoctorUnhealthy {
 		t.Fatalf("Execute err = %v; want ErrDoctorUnhealthy with a failing saver check", err)
 	}
@@ -70,7 +70,7 @@ func TestDoctorSummary_NotEvaluableOutsideCounts(t *testing.T) {
 	deps := healthyDoctorDeps(t)
 	deps.SaverPresent = func() (bool, error) { return false, errors.New("tmux transient") }
 
-	outBuf, _, err := runDoctorCmd(t, deps)
+	outBuf, _, err := runDoctorWith(t, deps)
 	if err != nil {
 		t.Fatalf("Execute err = %v; want nil — a not-evaluable check must not drive the exit code", err)
 	}
@@ -174,7 +174,7 @@ func TestDoctorSummary_FixPathRendersTwo(t *testing.T) {
 	projectStore, _ := seedProjectsJSON(t, t.TempDir())
 	deps := staleDeps(dir, &stubStaleSweepReader{rows: tokenRows(liveSeedB)}, hookStore, projectStore)
 
-	outBuf, _, err := runDoctorFixCmd(t, deps)
+	outBuf, _, err := runDoctorWith(t, deps, "--fix")
 	if err != nil {
 		t.Fatalf("Execute err = %v; want nil (healthy post-repair)", err)
 	}

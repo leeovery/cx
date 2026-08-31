@@ -93,7 +93,7 @@ func TestDoctorFixReportsStandDownOnReadFailures(t *testing.T) {
 	t.Run("it prints the skipped-prune line when the pane enumeration fails", func(t *testing.T) {
 		deps, _, _, _, _ := seedStalePruneFixture(t, t.TempDir(), &stubStaleSweepReader{err: errors.New("tmux transient")})
 
-		outBuf, _, _ := runDoctorFixCmd(t, deps)
+		outBuf, _, _ := runDoctorWith(t, deps, "--fix")
 
 		assertSkippedPruneLine(t, outBuf.String(), "Skipped stale hook prune: could not read live panes")
 	})
@@ -105,7 +105,7 @@ func TestDoctorFixReportsStandDownOnReadFailures(t *testing.T) {
 		unreadableHooks, _ := hookstest.StageStore(t, hookstest.Staging{Unreadable: true})
 		deps := staleDeps(dir, staleHookLister(), unreadableHooks, projectStore)
 
-		outBuf, _, _ := runDoctorFixCmd(t, deps)
+		outBuf, _, _ := runDoctorWith(t, deps, "--fix")
 
 		assertSkippedPruneLine(t, outBuf.String(), "Skipped stale hook prune: could not read hooks.json")
 	})
@@ -156,7 +156,7 @@ func TestStaleHookVerdictParity(t *testing.T) {
 func TestDoctorFixRestoreStandDownCopy(t *testing.T) {
 	deps, _, _, _, _ := seedStalePruneFixture(t, t.TempDir(), restoringHookLister())
 
-	outBuf, _, _ := runDoctorFixCmd(t, deps)
+	outBuf, _, _ := runDoctorWith(t, deps, "--fix")
 
 	const want = "Skipped stale hook prune: restore in progress"
 	assertSkippedPruneLine(t, outBuf.String(), want)

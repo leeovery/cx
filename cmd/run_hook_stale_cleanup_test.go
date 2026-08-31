@@ -284,7 +284,7 @@ func TestUnjudgeableHookKeyRetention(t *testing.T) {
 		projectStore, _ := seedProjectsJSON(t, t.TempDir())
 		deps := staleDeps(dir, &stubStaleSweepReader{rows: tokenRows(liveSeedA)}, hookStore, projectStore)
 
-		outBuf, _, err := runDoctorFixCmd(t, deps)
+		outBuf, _, err := runDoctorWith(t, deps, "--fix")
 		if err != nil {
 			t.Fatalf("Execute err = %v; want nil (nothing to repair)", err)
 		}
@@ -308,7 +308,7 @@ func TestUnjudgeableHookKeyRetention(t *testing.T) {
 		projectStore, _ := seedProjectsJSON(t, t.TempDir())
 		deps := staleDeps(dir, &stubStaleSweepReader{rows: tokenRows(liveSeedA)}, hookStore, projectStore)
 
-		outBuf, _, err := runDoctorCmd(t, deps)
+		outBuf, _, err := runDoctorWith(t, deps)
 		if err != nil {
 			t.Fatalf("Execute err = %v; want nil (retained entries are not a failing check)", err)
 		}
@@ -430,7 +430,7 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 		deps, hooksPath, _, _, _ := seedStalePruneFixture(t, t.TempDir(), restoringHookLister())
 
 		// The exit code is the diagnosis's business, not the prune's.
-		outBuf, _, _ := runDoctorFixCmd(t, deps)
+		outBuf, _, _ := runDoctorWith(t, deps, "--fix")
 
 		after, err := os.ReadFile(hooksPath)
 		if err != nil {

@@ -69,7 +69,7 @@ func TestDoctorFix_AdvisoriesInBothPasses(t *testing.T) {
 		"c-valid.theme":   validThemeSource(t),
 	})
 
-	outBuf, _, err := runDoctorFixCmd(t, deps)
+	outBuf, _, err := runDoctorWith(t, deps, "--fix")
 	if err != nil {
 		t.Fatalf("Execute err = %v; a broken drop-in must never drive the exit code", err)
 	}
@@ -87,7 +87,7 @@ func TestDoctorFix_SuffixInBothSummaries(t *testing.T) {
 		"b-colour.theme":  sourceBadColours(t, themeOverride{"canvas", "blue"}),
 	})
 
-	outBuf, _, err := runDoctorFixCmd(t, deps)
+	outBuf, _, err := runDoctorWith(t, deps, "--fix")
 	if err != nil {
 		t.Fatalf("Execute err = %v; a broken drop-in must never drive the exit code", err)
 	}
@@ -110,7 +110,7 @@ func TestDoctorFix_SuffixInBothSummaries(t *testing.T) {
 			"b-colour.theme":  sourceBadColours(t, themeOverride{"canvas", "blue"}),
 		})
 
-		outBuf, _, err := runDoctorFixCmd(t, deps)
+		outBuf, _, err := runDoctorWith(t, deps, "--fix")
 		if err != nil {
 			t.Fatalf("Execute err = %v; want nil — the repaired catalog is healthy and an advisory never moves the exit code", err)
 		}
@@ -138,7 +138,7 @@ func TestDoctorFix_AdvisoryOnlyExitsZero(t *testing.T) {
 		"b-colour.theme":  sourceBadColours(t, themeOverride{"canvas", "blue"}),
 	})
 
-	outBuf, _, err := runDoctorFixCmd(t, deps)
+	outBuf, _, err := runDoctorWith(t, deps, "--fix")
 	if err != nil {
 		t.Fatalf("Execute err = %v; want nil — a run whose only findings are advisories is a healthy run", err)
 	}
@@ -194,7 +194,7 @@ func TestDoctorFix_ThemeStateUntouched(t *testing.T) {
 		t.Fatalf("read prefs.json: %v", err)
 	}
 
-	outBuf, _, err := runDoctorFixCmd(t, healthyDoctorDeps(t))
+	outBuf, _, err := runDoctorWith(t, healthyDoctorDeps(t), "--fix")
 	if err != nil {
 		t.Fatalf("Execute err = %v; broken drop-ins must never drive the exit code", err)
 	}
@@ -231,7 +231,7 @@ func TestDoctorFix_ThemeStateUntouched(t *testing.T) {
 		absent := filepath.Join(t.TempDir(), "themes")
 		t.Setenv("PORTAL_THEMES_DIR", absent)
 
-		if _, _, err := runDoctorFixCmd(t, healthyDoctorDeps(t)); err != nil {
+		if _, _, err := runDoctorWith(t, healthyDoctorDeps(t), "--fix"); err != nil {
 			t.Fatalf("Execute err = %v; an absent themes directory is silent, not unhealthy", err)
 		}
 		if _, err := os.Stat(absent); !os.IsNotExist(err) {
@@ -319,7 +319,7 @@ func TestDoctorFix_EmitsNoThemeRecords(t *testing.T) {
 	})
 
 	assertNoThemeRecords(t, func() {
-		outBuf, _, err := runDoctorFixCmd(t, deps)
+		outBuf, _, err := runDoctorWith(t, deps, "--fix")
 		if err != nil {
 			t.Fatalf("Execute err = %v; broken drop-ins must never drive the exit code", err)
 		}
@@ -347,7 +347,7 @@ func TestDoctorFix_RemainsBootstrapExempt(t *testing.T) {
 			"a-missing.theme": sourceMissingTokens(t, "text.primary"),
 		})
 
-		outBuf, _, err := runDoctorFixCmd(t, deps)
+		outBuf, _, err := runDoctorWith(t, deps, "--fix")
 		if err != nil {
 			t.Fatalf("Execute err = %v; broken drop-ins must never drive the exit code", err)
 		}
@@ -393,7 +393,7 @@ func TestDoctorFix_ExistingRepairsUnchanged(t *testing.T) {
 			t.Fatalf("seed stale rotated log: %v", err)
 		}
 
-		outBuf, _, err := runDoctorFixCmd(t, deps)
+		outBuf, _, err := runDoctorWith(t, deps, "--fix")
 		if err != nil {
 			t.Fatalf("Execute err = %v; want nil (healthy post-repair)", err)
 		}
@@ -422,7 +422,7 @@ func TestDoctorFix_ExistingRepairsUnchanged(t *testing.T) {
 		})
 		hooksBefore := readFileBytes(t, hooksPath)
 
-		outBuf, _, execErr := runDoctorFixCmd(t, deps)
+		outBuf, _, execErr := runDoctorWith(t, deps, "--fix")
 		assertDownServerDeferral(t, hooksBefore, hooksPath, projectsPath, goneDir, execErr)
 
 		const advisory = "  ⚠ theme a-missing: missing tokens — missing text.primary\n"

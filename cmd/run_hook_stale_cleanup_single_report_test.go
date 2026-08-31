@@ -50,7 +50,7 @@ func TestHookSweepReportsAStoreReadStandDownOnce(t *testing.T) {
 		projectStore, _ := seedProjectsJSON(t, t.TempDir())
 		deps := staleDeps(dir, staleHookLister(), hookStore, projectStore)
 
-		outBuf, _, err := runDoctorFixCmd(t, deps)
+		outBuf, _, err := runDoctorWith(t, deps, "--fix")
 		if err != nil {
 			t.Fatalf("Execute err = %v\n%s", err, outBuf.String())
 		}
@@ -67,7 +67,7 @@ func TestHookSweepReportsAStoreReadStandDownOnce(t *testing.T) {
 		projectStore, _ := seedProjectsJSON(t, t.TempDir())
 		deps := staleDeps(dir, staleHookLister(), hookStore, projectStore)
 
-		outBuf, _, err := runDoctorFixCmd(t, deps)
+		outBuf, _, err := runDoctorWith(t, deps, "--fix")
 		if err != nil {
 			t.Fatalf("Execute err = %v; want nil over a healthy post-repair diagnosis\n%s", err, outBuf.String())
 		}
@@ -83,7 +83,7 @@ func TestHookSweepReportsAStoreReadStandDownOnce(t *testing.T) {
 		failingDeps := staleDeps(failingDir, staleHookLister(), failingHooks, failingProjects)
 		failingDeps.SaverPresent = func() (bool, error) { return false, nil }
 
-		failBuf, _, failErr := runDoctorFixCmd(t, failingDeps)
+		failBuf, _, failErr := runDoctorWith(t, failingDeps, "--fix")
 		if !errors.Is(failErr, ErrDoctorUnhealthy) {
 			t.Fatalf("Execute err = %v; want ErrDoctorUnhealthy with a failing check\n%s", failErr, failBuf.String())
 		}

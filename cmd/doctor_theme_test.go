@@ -225,7 +225,7 @@ func TestThemeAdvisories_UnresolvedDirDegrades(t *testing.T) {
 		deps := healthyDoctorDeps(t)
 		unresolvableThemesDir(t)
 
-		outBuf, _, err := runDoctorCmd(t, deps)
+		outBuf, _, err := runDoctorWith(t, deps)
 		if err != nil {
 			t.Fatalf("Execute err = %v; an unresolvable themes directory must never abort the diagnosis", err)
 		}
@@ -427,7 +427,7 @@ func TestThemeAdvisories_ReachTheDoctorReport(t *testing.T) {
 		"c-valid.theme":   validThemeSource(t),
 	})
 
-	outBuf, _, err := runDoctorCmd(t, deps)
+	outBuf, _, err := runDoctorWith(t, deps)
 	if err != nil {
 		t.Fatalf("Execute err = %v; a broken drop-in must never drive the exit code", err)
 	}
@@ -448,7 +448,7 @@ func TestThemeAdvisories_ReachTheDoctorReport(t *testing.T) {
 
 		// No ThemesDir on the deps: the field can only arrive through the
 		// production resolution.
-		outBuf, _, err := runDoctorCmd(t, healthyDoctorDeps(t))
+		outBuf, _, err := runDoctorWith(t, healthyDoctorDeps(t))
 		if err != nil {
 			t.Fatalf("Execute err = %v; a broken drop-in must never drive the exit code", err)
 		}

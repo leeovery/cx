@@ -111,20 +111,7 @@ func seedHealthyStateDir(t *testing.T, dir string) {
 
 func runDoctor(t *testing.T, dir string) (*bytes.Buffer, *bytes.Buffer, error) {
 	t.Helper()
-	// The deps resolution reads terminals.json eagerly; isolate it so Execute
-	// never touches the developer's real config file.
-	isolateTerminalsFile(t)
-	doctorDeps = withHealthyRuntime(&DoctorDeps{StateDir: dir})
-	t.Cleanup(func() { doctorDeps = nil })
-
-	outBuf := new(bytes.Buffer)
-	errBuf := new(bytes.Buffer)
-	resetRootCmd()
-	rootCmd.SetOut(outBuf)
-	rootCmd.SetErr(errBuf)
-	rootCmd.SetArgs([]string{"doctor"})
-	err := rootCmd.Execute()
-	return outBuf, errBuf, err
+	return runDoctorWith(t, withHealthyRuntime(&DoctorDeps{StateDir: dir}))
 }
 
 func findCheck(t *testing.T, results []checkResult, name string) checkResult {
@@ -404,11 +391,7 @@ func TestDoctorRejectsArgs(t *testing.T) {
 	seedDaemonVersion(t, dir, "v9.9.9")
 	seedValidSessionsJSON(t, dir, 1)
 
-	doctorDeps = &DoctorDeps{StateDir: dir}
-	t.Cleanup(func() { doctorDeps = nil })
-	resetRootCmd()
-	rootCmd.SetArgs([]string{"doctor", "unexpected"})
-	if err := rootCmd.Execute(); err == nil {
+	if _, _, err := runDoctorWith(t, &DoctorDeps{StateDir: dir}, "unexpected"); err == nil {
 		t.Error("Execute returned nil for `doctor unexpected`; want a NoArgs error")
 	}
 }
@@ -1146,7 +1129,7 @@ func TestDoctorStaleHooksCheck(t *testing.T) {
 		projectStore, _ := seedProjectsJSON(t, t.TempDir())
 		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedB), restoring: true}
 
-		outBuf, _, err := runDoctorCmd(t, staleDeps(dir, lister, hookStore, projectStore))
+		outBuf, _, err := runDoctorWith(t, staleDeps(dir, lister, hookStore, projectStore))
 		if err != nil {
 			t.Fatalf("Execute err = %v; want nil (not-evaluable never drives the exit code)\n%s", err, outBuf.String())
 		}
@@ -1311,10 +1294,13 @@ func TestDoctorStaleProjectsParityWithPredicate(t *testing.T) {
 	})
 }
 
-// Unlike runDoctor, the caller wires exactly the seams the scenario needs.
-func runDoctorFixCmd(t *testing.T, deps *DoctorDeps) (*bytes.Buffer, *bytes.Buffer, error) {
+// runDoctorWith executes `portal doctor` with the given args against caller-wired
+// seams, returning its stdout and stderr. Unlike runDoctor, the caller wires
+// exactly the seams the scenario needs.
+func runDoctorWith(t *testing.T, deps *DoctorDeps, args ...string) (*bytes.Buffer, *bytes.Buffer, error) {
 	t.Helper()
-	// terminals.json is read eagerly when the deps resolve; isolate it.
+	// terminals.json is read eagerly when the deps resolve; isolate it so
+	// Execute never touches the developer's real config file.
 	isolateTerminalsFile(t)
 	doctorDeps = deps
 	t.Cleanup(func() { doctorDeps = nil })
@@ -1324,24 +1310,7 @@ func runDoctorFixCmd(t *testing.T, deps *DoctorDeps) (*bytes.Buffer, *bytes.Buff
 	resetRootCmd()
 	rootCmd.SetOut(outBuf)
 	rootCmd.SetErr(errBuf)
-	rootCmd.SetArgs([]string{"doctor", "--fix"})
-	err := rootCmd.Execute()
-	return outBuf, errBuf, err
-}
-
-func runDoctorCmd(t *testing.T, deps *DoctorDeps) (*bytes.Buffer, *bytes.Buffer, error) {
-	t.Helper()
-	// terminals.json is read eagerly when the deps resolve; isolate it.
-	isolateTerminalsFile(t)
-	doctorDeps = deps
-	t.Cleanup(func() { doctorDeps = nil })
-
-	outBuf := new(bytes.Buffer)
-	errBuf := new(bytes.Buffer)
-	resetRootCmd()
-	rootCmd.SetOut(outBuf)
-	rootCmd.SetErr(errBuf)
-	rootCmd.SetArgs([]string{"doctor"})
+	rootCmd.SetArgs(append([]string{"doctor"}, args...))
 	err := rootCmd.Execute()
 	return outBuf, errBuf, err
 }
@@ -1357,7 +1326,7 @@ func TestDoctorExecuteStaleEntryReturnsUnhealthy(t *testing.T) {
 	goneDir := filepath.Join(t.TempDir(), "gone")
 	projectStore, _ := seedProjectsJSON(t, goneDir)
 
-	outBuf, errBuf, err := runDoctorCmd(t, staleDeps(dir, lister, hookStore, projectStore))
+	outBuf, errBuf, err := runDoctorWith(t, staleDeps(dir, lister, hookStore, projectStore))
 	if err != ErrDoctorUnhealthy {
 		t.Fatalf("Execute err = %v; want ErrDoctorUnhealthy on a stale hook/project over a healthy runtime", err)
 	}
@@ -1386,7 +1355,7 @@ func TestDoctorExecuteStaleEntryReturnsUnhealthy(t *testing.T) {
 func TestDoctorFixPrunesStaleEntriesThenRediagnosesClean(t *testing.T) {
 	deps, hooksPath, projectsPath, liveDir, goneDir := seedStalePruneFixture(t, t.TempDir(), staleHookLister())
 
-	outBuf, _, err := runDoctorFixCmd(t, deps)
+	outBuf, _, err := runDoctorWith(t, deps, "--fix")
 	if err != nil {
 		t.Fatalf("Execute err = %v; want nil (healthy post-repair)", err)
 	}
@@ -1426,7 +1395,7 @@ func TestDoctorFixProtectsUserHooksWhenLiveSetEmptyOrErrored(t *testing.T) {
 			hookStore, hooksPath := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(reapableSeedA, reapableSeedB)})
 			before := readFileBytes(t, hooksPath)
 
-			if _, _, err := runDoctorFixCmd(t, staleDeps(dir, tc.lister, hookStore, nil)); err != nil {
+			if _, _, err := runDoctorWith(t, staleDeps(dir, tc.lister, hookStore, nil), "--fix"); err != nil {
 				t.Fatalf("Execute err = %v; want nil (healthy runtime, hooks deferred)", err)
 			}
 
@@ -1439,7 +1408,7 @@ func TestDoctorFixDownServerPrunesProjectsButNotHooks(t *testing.T) {
 	deps, hooksPath, projectsPath, goneDir := downServerDeferFixture(t, t.TempDir())
 	hooksBefore := readFileBytes(t, hooksPath)
 
-	outBuf, _, execErr := runDoctorFixCmd(t, deps)
+	outBuf, _, execErr := runDoctorWith(t, deps, "--fix")
 	assertDownServerDeferral(t, hooksBefore, hooksPath, projectsPath, goneDir, execErr)
 
 	out := outBuf.String()
@@ -1471,7 +1440,7 @@ func TestDoctorFixLogSweepNeverDrivesExit(t *testing.T) {
 	// nil stores leave the log-sweep as the only repair action, isolating its
 	// effect on the exit code.
 	deps := withHealthyRuntime(&DoctorDeps{StateDir: dir})
-	outBuf, _, err := runDoctorFixCmd(t, deps)
+	outBuf, _, err := runDoctorWith(t, deps, "--fix")
 	if err != nil {
 		t.Fatalf("Execute err = %v; want nil — a log-sweep must never drive the exit code", err)
 	}
@@ -1621,7 +1590,7 @@ func TestDoctorFixReportsSkippedHookPrune(t *testing.T) {
 		projectStore, _ := seedProjectsJSON(t, t.TempDir())
 		deps := staleDeps(dir, restoringHookLister(), hookStore, projectStore)
 
-		outBuf, _, err := runDoctorFixCmd(t, deps)
+		outBuf, _, err := runDoctorWith(t, deps, "--fix")
 		if err != nil {
 			t.Fatalf("Execute err = %v; want nil over a healthy post-repair diagnosis\n%s", err, outBuf.String())
 		}
@@ -1637,7 +1606,7 @@ func TestDoctorFixReportsSkippedHookPrune(t *testing.T) {
 		failingDeps := staleDeps(failingDir, restoringHookLister(), failingHooks, failingProjects)
 		failingDeps.SaverPresent = func() (bool, error) { return false, nil }
 
-		failBuf, _, failErr := runDoctorFixCmd(t, failingDeps)
+		failBuf, _, failErr := runDoctorWith(t, failingDeps, "--fix")
 		if !errors.Is(failErr, ErrDoctorUnhealthy) {
 			t.Fatalf("Execute err = %v; want ErrDoctorUnhealthy with a failing check\n%s", failErr, failBuf.String())
 		}
@@ -1653,7 +1622,7 @@ func runDoctorFixWithLister(t *testing.T, lister *stubStaleSweepReader) string {
 	deps, hooksPath, _, _, _ := seedStalePruneFixture(t, t.TempDir(), lister)
 	before := readFileBytes(t, hooksPath)
 
-	outBuf, _, _ := runDoctorFixCmd(t, deps)
+	outBuf, _, _ := runDoctorWith(t, deps, "--fix")
 
 	assertHooksFileUnchanged(t, hooksPath, before, "rewritten on a stand-down")
 	return outBuf.String()
