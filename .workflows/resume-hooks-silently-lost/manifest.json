@@ -250,7 +250,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 7,
-          "current_task": "resume-hooks-silently-lost-7-17",
+          "current_task": "resume-hooks-silently-lost-7-18",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -340,7 +340,8 @@
             "resume-hooks-silently-lost-7-11",
             "resume-hooks-silently-lost-7-12",
             "resume-hooks-silently-lost-7-14",
-            "resume-hooks-silently-lost-7-16"
+            "resume-hooks-silently-lost-7-16",
+            "resume-hooks-silently-lost-7-17"
           ],
           "staging": {
             "p1": {
@@ -1170,6 +1171,41 @@
                 "cmd/state_hydrate_exec_log_test.go",
                 "cmd/state_hydrate_empty_hookkey_test.go",
                 "internal/hookstest/staging.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-17",
+              "source": "reviewer",
+              "summary": "The stand-in TestingT recorder is now written twice, in two packages, with the working version in the older copy.",
+              "detail": "internal/logtest/capture_test.go:329-362 (fakeT/fakeFatal/expectFail/captureFailure, correct named-result recover) and the new internal/hookstest/hooks_test.go:57-80 (recordingT/recordedFatal/captureAssert). Neither is importable by the other because the original lives in a _test.go file. An exported capture helper in internal/logtest beside TestingT would serve both and remove the class of defect the broken captureAssert is an instance of. Open task 7-15 targets the logtest surface and would be a natural carrier. Secondary: internal/hookstest now imports internal/logtest solely to borrow TestingT, a general testing seam living in the log-capture package.",
+              "files": [
+                "internal/logtest/capture.go",
+                "internal/logtest/capture_test.go",
+                "internal/hookstest/hooks.go",
+                "internal/hookstest/hooks_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-17",
+              "source": "reviewer",
+              "summary": "Three near-identical stand-in testing.T recorders with panic-absorbing drivers now exist across three test packages.",
+              "detail": "internal/logtest/capture_test.go:330-365 (fakeT + captureFailure), internal/restoretest/marker_count_test.go:20-31 (recordingReporter + run), internal/restoretest/waitfor_file_exists_test.go:19-22 (fakeFataller), and now internal/hookstest/hooks_test.go:58-84 (recordingT + captureAssert). Related: logtest.TestingT (internal/logtest/capture.go:23) is now used cross-package for a non-logging purpose, while its doc comment still scopes it to the failing-path accessors of that package. A neutral home for the interface plus one shared recorder would collapse all four; the fix necessarily edits logtest and restoretest.",
+              "files": [
+                "internal/logtest/capture.go",
+                "internal/logtest/capture_test.go",
+                "internal/restoretest/marker_count_test.go",
+                "internal/restoretest/waitfor_file_exists_test.go",
+                "internal/hookstest/hooks_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-17",
+              "source": "reviewer",
+              "summary": "A third converted read leans on a neighbouring positive assertion for its non-vacuity, and the hookstest suite hand-rolls two staging axes its own package owns.",
+              "detail": "cmd/doctor_test.go:869 — the projects half of assertStalePrunesApplied is the one converted read with no existence precondition. Not vacuous today: the next assertion is positive (!Contains(projectsAfter, liveDir) -> error), so a wipe fails — but it fails as live project wrongly pruned, misattributing a deleted file, and deleting or weakening that neighbour silently reopens the vacuity. Separately: internal/hookstest/hooks_test.go:86 (stageHooksFile) and :155 (os.Mkdir at the hooks.json path) hand-roll Staging{Seed} and Staging{Unreadable} — two axes 7-16 consolidated into this package own StageStore. Defensible (a test of one helper should not be built on a sibling it is not testing) but the duplication sits in the package owning the canonical stager. Also: the failure-message subtests assert by substring where the message is fully deterministic, so swapping the before/after arguments would go unnoticed.",
+              "files": [
+                "cmd/doctor_test.go",
+                "internal/hookstest/hooks_test.go"
               ]
             }
           ]
