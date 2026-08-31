@@ -250,7 +250,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 7,
-          "current_task": "resume-hooks-silently-lost-7-4",
+          "current_task": "resume-hooks-silently-lost-7-5",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -329,7 +329,8 @@
             "resume-hooks-silently-lost-6-25",
             "resume-hooks-silently-lost-7-1",
             "resume-hooks-silently-lost-7-2",
-            "resume-hooks-silently-lost-7-3"
+            "resume-hooks-silently-lost-7-3",
+            "resume-hooks-silently-lost-7-4"
           ],
           "staging": {
             "p1": {
@@ -693,6 +694,74 @@
                 "internal/portaltest/fingerprint.go",
                 "internal/portaltest/isolated_env.go",
                 "CLAUDE.md"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-4",
+              "source": "executor",
+              "summary": "cmd/bootstrap exported RecordingLogger is a third structural twin of logtest.Sink.",
+              "detail": "RecordingLogger + recordingLoggerHandler at cmd/bootstrap/bootstrap_test.go:96-140 reproduce the same shared/bound/owner() + WithAttrs/WithGroup re-binding as the two handlers task 7-4 deleted. It is exported and asserted against from cmd/bootstrap/orphan_sweep_integration_test.go:270, so migrating it touches a package outside that task named surface and both its test files at once.",
+              "files": [
+                "cmd/bootstrap/bootstrap_test.go",
+                "cmd/bootstrap/orphan_sweep_integration_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-4",
+              "source": "executor",
+              "summary": "cmd/open_test.go capturingHandler is a fourth capture twin with its own record/attr shape.",
+              "detail": "capturingHandler (cmd/open_test.go:2880-2925) plus the capturedRecord struct, snapshot(), filterExecRecords and recordComponent re-implement Sink.Records, Record.Attrs and a component+message filter. warnBypassHandler shares capturedRecord with it, so a migration has to split the shared shape from the level-filtering handler that legitimately stays (its Enabled level filter is the subject under test).",
+              "files": [
+                "cmd/open_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-4",
+              "source": "executor",
+              "summary": "Two single-purpose slog handlers that logtest.Sink already subsumes.",
+              "detail": "main_panic_test.go:15-42 captureHandler is a plain records-and-message-filter twin (Sink + the new Records.Msg covers it verbatim). cmd/state_daemon_capture_logging_test.go:10-42 errorAttrRecorder retains one WARN live error attr — Sink stores slog.Value, so rec.Attrs[\"error\"].Any().(error) gives the same live error with no handler of its own.",
+              "files": [
+                "main_panic_test.go",
+                "cmd/state_daemon_capture_logging_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-4",
+              "source": "reviewer",
+              "summary": "A level-filtered chain has no terminal single-record accessor, so every caller re-authors the fatal-on-not-1 check (~20 sites, four packages).",
+              "detail": "Sink.OnlyRecord / OnlyRecordWith (internal/logtest/capture.go:214-232) apply no level filter, which is why task 7-4 had to inline the check at cmd/run_hook_stale_cleanup_test.go:704-711. The same if len(x) != 1 { t.Fatalf(...) } idiom over a filtered Records now appears at ~20 sites across cmd, cmd/bootstrap and internal/tmux (cmd/hooks_test.go:919, cmd/state_daemon_cycle_summary_test.go:223,263, internal/tmux/portal_saver_lifecycle_events_test.go:472,654,657, internal/tmux/portal_saver_test.go:2319). A Records.Only(t, description) terminal would absorb all of them and let the level predicate survive.",
+              "files": [
+                "internal/logtest/capture.go",
+                "cmd/run_hook_stale_cleanup_test.go",
+                "cmd/hooks_test.go",
+                "cmd/state_daemon_cycle_summary_test.go",
+                "internal/tmux/portal_saver_lifecycle_events_test.go",
+                "internal/tmux/portal_saver_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-4",
+              "source": "reviewer",
+              "summary": "A non-fatal attr accessor is re-authored per package because logtest.Record only offers the fatal one.",
+              "detail": "Record.AttrString fatals on absence, so every caller that wants a comparable empty string writes its own. Task 7-4 added attrOrEmpty (internal/tmux/portal_saver_test.go:1152); recordComponent (cmd/open_test.go:2955) is the same function; raw rec.Attrs[\"component\"] reads recur at cmd/state_daemon_cycle_summary_test.go:226,266,333,363, cmd/bootstrap/latch_test.go:139 and cmd/bootstrap/eager_signal_hydrate_test.go:249. A Record.AttrOrEmpty(key) or Record.Component() collapses all of them. Overlaps the capturingHandler entry; the accessor is the wider duplication and outlives that migration.",
+              "files": [
+                "internal/logtest/capture.go",
+                "internal/tmux/portal_saver_test.go",
+                "cmd/open_test.go",
+                "cmd/state_daemon_cycle_summary_test.go",
+                "cmd/bootstrap/latch_test.go",
+                "cmd/bootstrap/eager_signal_hydrate_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-4",
+              "source": "reviewer",
+              "summary": "Naming residue from 7-4: Records.Msg collides with the Record.Msg field, and barrierLog shadows its own type at nine sites.",
+              "detail": "Records.Msg (internal/logtest/capture.go:96) shares its name with the Record.Msg string field one type away, so the same identifier is a field on Record and a filter on Records; WithMsg would be unambiguous and parallel to With(component, msg) — four call sites. Separately, barrierLog := &barrierLog{} shadows the type with a variable at nine sites in internal/tmux/portal_saver_lifecycle_events_test.go (298, 336, 373, 398, 430, 513, 550, 596, 637); it compiles and lints clean but the type name is then unusable for the rest of each function. Also attrOrEmpty is declared in portal_saver_test.go but consumed by migrationLine in hooks_register_test.go — a generic record helper homed in the saver file.",
+              "files": [
+                "internal/logtest/capture.go",
+                "internal/tmux/portal_saver_lifecycle_events_test.go",
+                "internal/tmux/portal_saver_test.go"
               ]
             }
           ]
