@@ -3,8 +3,10 @@ package session_test
 import (
 	"fmt"
 	"regexp"
+	"strings"
 	"testing"
 
+	"github.com/leeovery/portal/internal/nanoid"
 	"github.com/leeovery/portal/internal/session"
 )
 
@@ -163,6 +165,37 @@ func TestGenerateSessionName(t *testing.T) {
 		_, err := session.GenerateSessionName("portal", gen, exists)
 		if err == nil {
 			t.Fatal("expected error, got nil")
+		}
+	})
+}
+
+// The pane-token width is hooks.json's key-recognition contract; the
+// session-name suffix is not classified by anything and draws on the
+// general-purpose generator, so the two must be free to move apart.
+func TestGenerateSessionName_SuffixDrawsOnTheGeneralPurposeGenerator(t *testing.T) {
+	t.Run("it leaves session-name suffix width independent of the pane-token width", func(t *testing.T) {
+		gen := nanoid.NewGenerator()
+
+		name, err := session.GenerateSessionName("portal", gen, func(string) bool { return false })
+		if err != nil {
+			t.Fatalf("GenerateSessionName: %v", err)
+		}
+		_, suffix, found := strings.Cut(name, "-")
+		if !found {
+			t.Fatalf("GenerateSessionName produced %q, want a {project}-{id} name", name)
+		}
+
+		id, err := gen()
+		if err != nil {
+			t.Fatalf("mint a general-purpose id: %v", err)
+		}
+		if len(suffix) != len(id) {
+			t.Errorf("session-name suffix %q is %d bytes, want the general-purpose id width of %d", suffix, len(suffix), len(id))
+		}
+		for i := range len(suffix) {
+			if !strings.ContainsRune(nanoid.Alphabet, rune(suffix[i])) {
+				t.Errorf("session-name suffix %q carries %q, which is outside the generated-id alphabet", suffix, suffix[i])
+			}
 		}
 	})
 }

@@ -5,15 +5,30 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/nanoid"
 )
 
-// reapableSeedPrefix keeps a reapable seed key legible in test output while
-// leaving room for the n disambiguator inside the token width.
+// reapableSeedPrefix keeps a reapable seed key legible in test output. It is
+// fitted to whatever room the token width leaves beside the n disambiguator.
 const reapableSeedPrefix = "reap"
+
+// disambiguatorWidth is the number of trailing bytes ReapableHookKey spends on
+// distinguishing one seed key from the next.
+const disambiguatorWidth = 2
+
+// paneTokenWidth is taken from the mint rather than declared here, so a seed
+// key is authored at whatever width recognition reads.
+var paneTokenWidth = sync.OnceValue(func() int {
+	token, err := nanoid.NewPaneTokenGenerator()()
+	if err != nil {
+		panic(fmt.Sprintf("hookstest: mint a pane token to size the seed vocabulary: %v", err))
+	}
+	return len(token)
+})
 
 // ResolveHooksFilePathFromEnv resolves hooks.json the way production does, but
 // against a supplied env slice rather than os.Getenv: PORTAL_HOOKS_FILE wins,
@@ -75,15 +90,16 @@ func HooksJSONBytes(t *testing.T, env []string) []byte {
 
 // ReapableHookKey returns a seed hook key the staleness rule can judge, so an
 // entry under it is reaped once it is absent from the live pane set. The
-// returned value is asserted token-shaped: a change to the token width or
-// charset panics here rather than silently turning a reap fixture into a
-// retention one. n only disambiguates — distinct n give distinct keys.
+// returned value is authored at the pane-token width and asserted token-shaped,
+// so a change to the id charset panics here rather than silently turning a reap
+// fixture into a retention one. n only disambiguates — distinct n give distinct
+// keys.
 func ReapableHookKey(n int) string {
 	radix := len(nanoid.Alphabet)
 	if n < 0 || n >= radix*radix {
 		panic(fmt.Sprintf("hookstest.ReapableHookKey: n = %d out of range [0,%d)", n, radix*radix))
 	}
-	key := reapableSeedPrefix + string([]byte{
+	key := fitPrefix(paneTokenWidth()-disambiguatorWidth) + string([]byte{
 		nanoid.Alphabet[n/radix],
 		nanoid.Alphabet[n%radix],
 	})
@@ -91,6 +107,18 @@ func ReapableHookKey(n int) string {
 		panic(fmt.Sprintf("hookstest.ReapableHookKey: %q is not token-shaped — the seed vocabulary has drifted from nanoid.IsTokenShaped", key))
 	}
 	return key
+}
+
+// fitPrefix returns the legible seed prefix as exactly width bytes, padded from
+// the alphabet when the token width leaves more room than the prefix fills.
+func fitPrefix(width int) string {
+	if width < 1 {
+		panic(fmt.Sprintf("hookstest: a pane token of %d bytes leaves no room for a legible seed prefix", paneTokenWidth()))
+	}
+	if width <= len(reapableSeedPrefix) {
+		return reapableSeedPrefix[:width]
+	}
+	return reapableSeedPrefix + strings.Repeat(string(nanoid.Alphabet[0]), width-len(reapableSeedPrefix))
 }
 
 // UnjudgeableHookKey returns a seed hook key of the legacy `<name>:window.pane`

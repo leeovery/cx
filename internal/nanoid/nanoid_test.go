@@ -37,24 +37,11 @@ func TestNewGenerator(t *testing.T) {
 	})
 }
 
-func TestIsTokenShaped_AcceptsAGeneratedID(t *testing.T) {
+func TestIsTokenShaped_Accepts(t *testing.T) {
 	t.Run("it accepts a six-character alphanumeric key as token-shaped", func(t *testing.T) {
 		for _, key := range []string{"abc123", "AbCdEf", "000000", "zZ9aQ0"} {
 			if !nanoid.IsTokenShaped(key) {
 				t.Errorf("IsTokenShaped(%q) = false, want true", key)
-			}
-		}
-	})
-
-	t.Run("it accepts every id the generator mints", func(t *testing.T) {
-		gen := nanoid.NewGenerator()
-		for range 200 {
-			id, err := gen()
-			if err != nil {
-				t.Fatalf("generate id: %v", err)
-			}
-			if !nanoid.IsTokenShaped(id) {
-				t.Fatalf("IsTokenShaped(%q) = false for a generated id, want true", id)
 			}
 		}
 	})
@@ -104,6 +91,47 @@ func TestIsTokenShaped_Rejects(t *testing.T) {
 			if nanoid.IsTokenShaped(key) {
 				t.Errorf("IsTokenShaped(%q) = true, want false", key)
 			}
+		}
+	})
+}
+
+func TestNewPaneTokenGenerator(t *testing.T) {
+	t.Run("it recognises every token the pane-token mint produces", func(t *testing.T) {
+		gen := nanoid.NewPaneTokenGenerator()
+		for range 200 {
+			token, err := gen()
+			if err != nil {
+				t.Fatalf("mint pane token: %v", err)
+			}
+			if !nanoid.IsTokenShaped(token) {
+				t.Fatalf("IsTokenShaped(%q) = false for a minted pane token, want true", token)
+			}
+		}
+	})
+
+	t.Run("it rejects a key one byte short of the pane-token width", func(t *testing.T) {
+		gen := nanoid.NewPaneTokenGenerator()
+		token, err := gen()
+		if err != nil {
+			t.Fatalf("mint pane token: %v", err)
+		}
+		if short := token[:len(token)-1]; nanoid.IsTokenShaped(short) {
+			t.Errorf("IsTokenShaped(%q) = true for a token one byte short, want false", short)
+		}
+	})
+
+	t.Run("it mints a distinct token per call", func(t *testing.T) {
+		gen := nanoid.NewPaneTokenGenerator()
+		seen := map[string]struct{}{}
+		for range 200 {
+			token, err := gen()
+			if err != nil {
+				t.Fatalf("mint pane token: %v", err)
+			}
+			if _, dup := seen[token]; dup {
+				t.Fatalf("pane-token mint produced %q twice in 200 calls", token)
+			}
+			seen[token] = struct{}{}
 		}
 	})
 }

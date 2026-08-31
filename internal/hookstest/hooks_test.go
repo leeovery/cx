@@ -16,6 +16,18 @@ func TestHookKeySeedVocabulary(t *testing.T) {
 		}
 	})
 
+	t.Run("it authors a reapable key at the pane-token width", func(t *testing.T) {
+		token, err := nanoid.NewPaneTokenGenerator()()
+		if err != nil {
+			t.Fatalf("mint a pane token: %v", err)
+		}
+		for n := range 4 {
+			if got := hookstest.ReapableHookKey(n); len(got) != len(token) {
+				t.Errorf("ReapableHookKey(%d) = %q (%d bytes), want the pane-token width of %d", n, got, len(got), len(token))
+			}
+		}
+	})
+
 	t.Run("an unjudgeable key is not token-shaped", func(t *testing.T) {
 		for n := range 4 {
 			if got := hookstest.UnjudgeableHookKey(n); nanoid.IsTokenShaped(got) {
