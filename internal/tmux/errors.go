@@ -41,3 +41,41 @@ func wrapNoSuchSession(err error) error {
 	}
 	return err
 }
+
+// ErrUnaddressableSessionName reports a session name that Portal's exact-match
+// target form cannot express; discriminate with errors.Is. It is identity-equal
+// to tmuxerr.ErrUnaddressableSessionName, which lives in a leaf package so
+// internal/state can classify against it without an import cycle.
+var ErrUnaddressableSessionName = tmuxerr.ErrUnaddressableSessionName
+
+// targetSeparator divides the session component of a tmux target from its window
+// and pane components. tmux offers no escape for one inside a session name, so a
+// name carrying it cannot be addressed exactly at all — quoting, backslashes and
+// a trailing separator were measured and all fail identically.
+const targetSeparator = ":"
+
+// ValidateSessionName reports whether a session name can be addressed by the
+// exact-match target every per-session operation composes. The returned error
+// wraps ErrUnaddressableSessionName and names the offending character, so a
+// caller can surface the refusal verbatim.
+func ValidateSessionName(name string) error {
+	if strings.Contains(name, targetSeparator) {
+		return fmt.Errorf("%w: %q contains %q, which tmux reserves as a target separator",
+			ErrUnaddressableSessionName, name, targetSeparator)
+	}
+	return nil
+}
+
+// wrapSessionTargetErr classifies a failed per-session operation. The name check
+// must come first: tmux answers an unaddressable name with the same "no such
+// session" stderr a vanished one produces, and wrapNoSuchSession would hand the
+// capture loop a live session dressed as natural churn.
+func wrapSessionTargetErr(session string, err error) error {
+	if err == nil {
+		return nil
+	}
+	if nameErr := ValidateSessionName(session); nameErr != nil {
+		return fmt.Errorf("%w: %w", nameErr, err)
+	}
+	return wrapNoSuchSession(err)
+}

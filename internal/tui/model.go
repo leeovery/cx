@@ -2662,6 +2662,14 @@ func (m Model) updateRenameModal(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if newName == "" {
 				return m, nil
 			}
+			// Closed, not held open: the modal blanks the page it would be
+			// reported on, so the band can only be read once the modal is gone.
+			if tmux.ValidateSessionName(newName) != nil {
+				m.modal = modalNone
+				m.renameTarget = ""
+				(&m).setFlash(renameColonRefusedFlash)
+				return m, flashTickCmd(m.flashGen)
+			}
 			oldName := m.renameTarget
 			m.modal = modalNone
 			m.renameTarget = ""

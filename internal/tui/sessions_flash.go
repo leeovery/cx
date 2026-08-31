@@ -49,3 +49,7 @@ func isActionableKey(msg tea.KeyPressMsg) bool {
 func formatSessionGoneFlash(name string) string {
 	return fmt.Sprintf(`session "%s" no longer exists`, name)
 }
+
+// renameColonRefusedFlash explains a refused rename in the band's own voice. It
+// carries no ⚠ glyph — the warning band prepends one.
+const renameColonRefusedFlash = `":" isn't allowed in a session name — tmux reads it as a separator`
