@@ -250,7 +250,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 7,
-          "current_task": "resume-hooks-silently-lost-7-9",
+          "current_task": "resume-hooks-silently-lost-7-10",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -334,7 +334,8 @@
             "resume-hooks-silently-lost-7-5",
             "resume-hooks-silently-lost-7-6",
             "resume-hooks-silently-lost-7-7",
-            "resume-hooks-silently-lost-7-8"
+            "resume-hooks-silently-lost-7-8",
+            "resume-hooks-silently-lost-7-9"
           ],
           "staging": {
             "p1": {
@@ -926,6 +927,73 @@
               "detail": "internal/restoretest/marker_count_test.go:187 writes the marker at 100ms, so any budget above ~150ms passes. It still pins something real (the exported entry polls rather than reading once, and a zero budget would fail it). Moving the write past the probe budget (e.g. 500ms) would make the name true for ~0.4s more runtime.",
               "files": [
                 "internal/restoretest/marker_count_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-9",
+              "source": "executor",
+              "summary": "PRODUCT DEFECT (not test hygiene): a saver respawn can leave no daemon at all — the new daemon stands down against a lock the outgoing one releases 1ms later, never retries, and its exit destroys the saver pane.",
+              "detail": "Measured during task 7-9. The TestCompositeBootstrap_* failures are NOT near-miss timing failures: with the stall widened to 60s the outcome is strictly bimodal — convergence in 36-42ms, or never (3 of 24 runs sat at count=0, changes=0 for a full 60s). The 6.05-6.12s cluster was an artefact of the 6s budget. From the failing run portal.log: daemon 72243 acquires the lock; the saver respawn starts daemon 72292 while 72243 is still mid-SIGHUP-shutdown and still holding daemon.lock; 72292 logs \"another daemon holds the lock; exiting\" 4ms in and exits code=0 — 1ms BEFORE 72243 releases it — and never retries. Its exit takes the saver pane process with it, so tmux destroys the pane and the session. End state: list-panes -t _portal-saver returns can not find window, list-sessions shows no saver, and daemon.pid still names the killed orphan. Nothing brings a daemon back. This is being logged as its own bugfix work unit; recorded here so the phase boundary sees it.",
+              "files": [
+                "cmd/state_daemon.go",
+                "internal/tmux/portal_saver.go",
+                "internal/state/daemon_lock.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-9",
+              "source": "executor",
+              "summary": "Daemon race — the two source sites the ordering sits between (refines the earlier entry).",
+              "detail": "(1) internal/tmux/portal_saver.go:300 — BootstrapPortalSaver RespawnPane(ExactCoordTarget(PortalSaverName), portalSaverDaemonCommand) launches the new portal state daemon with no wait for the outgoing daemon to have released daemon.lock. Its follow-up readiness barrier waitForSaverDaemonReady (same file, :226) is 2s and WARN-only — it returns nil — so the vanished daemon never becomes an error at the bootstrap layer. (2) cmd/state_daemon.go:113-119 — defaultDaemonRun single-shot acquireDaemonLock; the state.ErrDaemonLockHeld branch WARNs and returns nil, terminating the process with no retry and no backoff (AcquireDaemonLock itself is internal/state/daemon_lock.go:36; its retry loop covers the inode race, not a held lock). The stand-down at site 2 is correct in isolation — it is the singleton invariant. The defect is that site 1 can spawn into a lock milliseconds from release, and treats the resulting empty saver session as success. Reproduction: go test -tags integration -p 1 -count=N -v ./cmd/bootstrap -run TestCompositeBootstrap_FObservables under load; ~1 in 8. Bimodal: convergence in 36-42ms or never (3 of 14 runs sat at count=0 changes=0 for a full 60s).",
+              "files": [
+                "internal/tmux/portal_saver.go",
+                "cmd/state_daemon.go",
+                "internal/state/daemon_lock.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-9",
+              "source": "reviewer",
+              "summary": "Fifteen fixed-budget PollUntil sites in the same daemon-lifecycle suites are the identical flake class this task fixed for seven others.",
+              "detail": "saverPanePIDTimeout (3s) at cmd/bootstrap/orphan_sweep_integration_test.go:219, upgradePathPIDFileTimeout (3s) at upgrade_path_integration_test.go:183,204, daemonAliveTimeout (5s) at cmd/state_daemon_integration_test.go:273, daemonReadyBudget/hookCleanupObservationBudget at cmd/state_daemon_hook_cleanup_integration_test.go:133,190, and eight more across internal/tmux/portal_saver_integration_test.go:217,224,231,296,314, portal_saver_endstate_integration_test.go:60,126, kill_barrier_escalation_no_final_flush_integration_test.go:87,137. Each polls a monotonic observable against a fixed wall-clock budget on a machine with no CI, so each is the next cliff to trip. The fix reaches across cmd, cmd/bootstrap and internal/tmux.",
+              "files": [
+                "cmd/bootstrap/orphan_sweep_integration_test.go",
+                "cmd/bootstrap/upgrade_path_integration_test.go",
+                "cmd/state_daemon_integration_test.go",
+                "cmd/state_daemon_hook_cleanup_integration_test.go",
+                "internal/tmux/portal_saver_integration_test.go",
+                "internal/tmux/portal_saver_endstate_integration_test.go",
+                "internal/tmux/kill_barrier_escalation_no_final_flush_integration_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-9",
+              "source": "reviewer",
+              "summary": "Residual weakness in the daemon-race evidence, to carry into the follow-up investigation.",
+              "detail": "The pgrep sandbox is default-deny keyed on <stateDir>/daemon.pid, so a live-but-unregistered daemon would also read as count=0. The executor excludes that with independent tmux evidence (list-panes says can not find window, no saver in list-sessions), but only for the one run whose portal.log was traced. The changes=0 shape is established across ~45 runs; the mechanism on one. That is enough for not-a-timing-failure, which is all the settled direction rests on, but the follow-up should widen the mechanism evidence. Also: the composite tests previously bounded SweepOrphanDaemons + BootstrapPortalSaver wall time at 6s from entry via the remaining := budget - time.Since(start) structure; that bound is now gone, so nothing catches a bootstrap slice regressing from 0.6s to 30s. Intended, not a defect.",
+              "files": [
+                "internal/state/pgrep_sandbox.go",
+                "cmd/bootstrap/orphan_sweep_integration_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-9",
+              "source": "reviewer",
+              "summary": "AwaitProgress/PollUntil are tmux-agnostic polling helpers living in a tmux-named package the 15-site follow-up would make a three-package shared home.",
+              "detail": "internal/tmuxtest/progress.go and poll.go reference nothing tmux-related; the rest of the package (socket.go, stamp.go) does. Task 7-9 correctly put AwaitProgress beside PollUntil as directed — moving one without the other would be worse. The question is whether the pair belongs in a neutral test-helper home once three packages depend on them, and it should be decided together with the banked fifteen fixed-budget PollUntil sites item, not separately. No cycle blocks it: internal/tmux integration tests are package tmux_test, so they may import internal/tmuxtest even though it imports internal/tmux.",
+              "files": [
+                "internal/tmuxtest/progress.go",
+                "internal/tmuxtest/poll.go",
+                "internal/tmuxtest/socket.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-9",
+              "source": "reviewer",
+              "summary": "progress_test.go:55 asserts a fixed wall-clock upper bound — the same class of assertion this task exists to remove, now in the unit lane.",
+              "detail": "got.Elapsed > wait.Ceiling+300ms. The margin is 33% of a 900ms budget rather than the 2% that caused the original problem, so risk is much lower, and it is partly redundant: !Reached && !Stalled two assertions above already proves the ceiling branch fired. Its remaining value is catching a mis-derived ceiling (e.g. start.Add(w.Ceiling*10)), which a tolerance of 2*wait.Ceiling would catch just as well with far more scheduler headroom. Also worth one line: TestAwaitProgress_ReportsTheLastObservationInItsFailureMessage already drives the three/two/two sequence — the A-B-B shape that pins Changes == 1, closing the repeat-does-not-increment gap.",
+              "files": [
+                "internal/tmuxtest/progress_test.go"
               ]
             }
           ]
