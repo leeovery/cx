@@ -250,7 +250,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 7,
-          "current_task": "resume-hooks-silently-lost-7-19",
+          "current_task": "resume-hooks-silently-lost-7-20",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -342,7 +342,8 @@
             "resume-hooks-silently-lost-7-14",
             "resume-hooks-silently-lost-7-16",
             "resume-hooks-silently-lost-7-17",
-            "resume-hooks-silently-lost-7-18"
+            "resume-hooks-silently-lost-7-18",
+            "resume-hooks-silently-lost-7-19"
           ],
           "staging": {
             "p1": {
@@ -1220,6 +1221,25 @@
                 "cmd/state_notify_test.go",
                 "cmd/uninstall_test.go",
                 "cmd/root_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-19",
+              "source": "reviewer",
+              "summary": "TestHookRmLockTimeout hand-rolls the staging shape runRmCase now owns, twice.",
+              "detail": "cmd/hooks_write_lock_test.go:211-246 — both subtests repeat hooksFileInTempDir + t.Setenv(TMUX_PANE) + seedHooksFile + withHooksDeps, and the second repeats paneKeyPathSeams() + assertNoPaneTmuxCalls + assertHooksFileUnchanged, i.e. the exact sequence cmd/hooks_rm_exit_test.go:37-64 now encapsulates. They differ only by holding the sidecar lock and by needing the captured stdout, so routing them through runRmCase needs rmCase to gain a lock-hold flag and rmOutcome to carry out. Different file, and the change reshapes the shared struct other tables depend on.",
+              "files": [
+                "cmd/hooks_write_lock_test.go",
+                "cmd/hooks_rm_exit_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-19",
+              "source": "reviewer",
+              "summary": "Residual non-blocking trap in the new rmCase row struct: two field combinations are silently meaningless or panic.",
+              "detail": "cmd/hooks_rm_exit_test.go:44-47 — a row that sets paneKeyPath: true AND a resolver has the resolver silently discarded, and a row that sets neither passes a typed-nil *mockKeyResolver through the interface, which panics inside the mock rather than falling back to the production default. Neither can produce a false pass (the first combination is meaningless on a path whose subject is that the resolver is never called, the second fails loudly) and the field comment documents the convention. Recorded so a later touch of the struct can close it.",
+              "files": [
+                "cmd/hooks_rm_exit_test.go"
               ]
             }
           ]
