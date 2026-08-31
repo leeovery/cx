@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/leeovery/portal/internal/hooks"
+	"github.com/leeovery/portal/internal/hookstest"
 	"github.com/leeovery/portal/internal/tmuxtest"
 )
 
@@ -52,7 +53,7 @@ func TestRenameRestoreCleanupSurvival_KeepsRestoredTokenKeyedHook(t *testing.T) 
   "` + liveSeedA + `": {"on-resume": "echo restored"},
   "` + staleKey + `": {"on-resume": "echo gone"}
 }`
-	store, path := newStagedHooksStore(t, hooksStoreStaging{seed: seed})
+	store, path := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 
 	preRun, err := store.Load(hooks.ViaInternal)
 	if err != nil {

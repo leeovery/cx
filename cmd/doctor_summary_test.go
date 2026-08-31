@@ -7,6 +7,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/leeovery/portal/internal/hookstest"
 )
 
 // The live-pane set must be non-empty: an empty one trips the mass-deletion
@@ -15,7 +17,7 @@ func healthyDoctorDeps(t *testing.T) *DoctorDeps {
 	t.Helper()
 	dir := t.TempDir()
 	seedHealthyStateDir(t, dir)
-	hookStore, _ := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody()})
+	hookStore, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody()})
 	projectStore, _ := seedProjectsJSON(t, t.TempDir())
 	return staleDeps(dir, &stubStaleSweepReader{rows: tokenRows(liveSeedA)}, hookStore, projectStore)
 }
@@ -168,7 +170,7 @@ func TestDoctorSummary_IsTheLastLine(t *testing.T) {
 func TestDoctorSummary_FixPathRendersTwo(t *testing.T) {
 	dir := t.TempDir()
 	seedHealthyStateDir(t, dir)
-	hookStore, _ := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(reapableSeedA)})
+	hookStore, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(reapableSeedA)})
 	projectStore, _ := seedProjectsJSON(t, t.TempDir())
 	deps := staleDeps(dir, &stubStaleSweepReader{rows: tokenRows(liveSeedB)}, hookStore, projectStore)
 

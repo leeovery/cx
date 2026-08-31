@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/hooks"
+	"github.com/leeovery/portal/internal/hookstest"
 	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 )
@@ -35,7 +36,7 @@ func TestHookSweepDeclineReasonTravelsWithTheError(t *testing.T) {
 	})
 
 	t.Run("it leaves DeclineReason empty for a cycle that ran and removed nothing", func(t *testing.T) {
-		store, _ := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(liveSeedA, liveSeedB)})
+		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(liveSeedA, liveSeedB)})
 		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA, liveSeedB)}
 
 		sink := &logtest.Sink{}
@@ -59,7 +60,7 @@ func TestHookSweepDeclineReasonTravelsWithTheError(t *testing.T) {
 	})
 
 	t.Run("it still returns nothing-persisted without a stand-down line", func(t *testing.T) {
-		store, _ := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody()})
+		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody()})
 		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA)}
 
 		sink := &logtest.Sink{}

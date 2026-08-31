@@ -2,24 +2,12 @@ package cmd
 
 import (
 	"errors"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/leeovery/portal/internal/hooks"
+	"github.com/leeovery/portal/internal/hookstest"
 )
-
-// bogusHooksStore points a store at a directory, so every read of it fails:
-// malformed JSON would decode to an empty map instead of erroring.
-func bogusHooksStore(t *testing.T) *hooks.Store {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "hooks.json")
-	if err := os.MkdirAll(path, 0o755); err != nil {
-		t.Fatalf("mkdir bogus hooks path: %v", err)
-	}
-	return hooks.NewStore(path)
-}
 
 // A cycle that declined and a cycle that found nothing to do are the same
 // silence to a caller, so every way of declining has to name itself.
@@ -32,7 +20,7 @@ func TestHookSweepOutcomeNamesEveryDecline(t *testing.T) {
 		{
 			name: "restore marker set",
 			setup: func(t *testing.T) (staleSweepReader, *hooks.Store) {
-				store, _ := newStagedHooksStore(t, hooksStoreStaging{seed: staleHookSeed})
+				store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: staleHookSeed})
 				return &stubStaleSweepReader{rows: tokenRows(liveSeedA), restoring: true}, store
 			},
 			want: skipReasonRestoring,
@@ -40,14 +28,15 @@ func TestHookSweepOutcomeNamesEveryDecline(t *testing.T) {
 		{
 			name: "hooks.json unreadable",
 			setup: func(t *testing.T) (staleSweepReader, *hooks.Store) {
-				return &stubStaleSweepReader{rows: tokenRows(liveSeedA)}, bogusHooksStore(t)
+				store, _ := hookstest.StageStore(t, hookstest.Staging{Unreadable: true})
+				return &stubStaleSweepReader{rows: tokenRows(liveSeedA)}, store
 			},
 			want: skipReasonStoreReadFailed,
 		},
 		{
 			name: "pane enumeration failed",
 			setup: func(t *testing.T) (staleSweepReader, *hooks.Store) {
-				store, _ := newStagedHooksStore(t, hooksStoreStaging{seed: staleHookSeed})
+				store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: staleHookSeed})
 				return &stubStaleSweepReader{err: errors.New("tmux dead")}, store
 			},
 			want: skipReasonPaneReadFailed,
@@ -55,7 +44,7 @@ func TestHookSweepOutcomeNamesEveryDecline(t *testing.T) {
 		{
 			name: "pane enumeration came back empty",
 			setup: func(t *testing.T) (staleSweepReader, *hooks.Store) {
-				store, _ := newStagedHooksStore(t, hooksStoreStaging{seed: staleHookSeed})
+				store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: staleHookSeed})
 				return &stubStaleSweepReader{rows: nil}, store
 			},
 			want: skipReasonEmptyPaneRead,
@@ -113,7 +102,8 @@ func TestDoctorFixReportsStandDownOnReadFailures(t *testing.T) {
 		dir := t.TempDir()
 		seedHealthyStateDir(t, dir)
 		projectStore, _ := seedProjectsJSON(t, t.TempDir())
-		deps := staleDeps(dir, staleHookLister(), bogusHooksStore(t), projectStore)
+		unreadableHooks, _ := hookstest.StageStore(t, hookstest.Staging{Unreadable: true})
+		deps := staleDeps(dir, staleHookLister(), unreadableHooks, projectStore)
 
 		outBuf, _, _ := runDoctorFixCmd(t, deps)
 
@@ -139,8 +129,8 @@ func TestStaleHookVerdictParity(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			checkStore, _ := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(tc.persisted...)})
-			sweepStore, _ := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(tc.persisted...)})
+			checkStore, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(tc.persisted...)})
+			sweepStore, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(tc.persisted...)})
 
 			got := checkStaleHooks(tc.lister, checkStore)
 			checkJudgeable := got.status != checkNotEvaluable

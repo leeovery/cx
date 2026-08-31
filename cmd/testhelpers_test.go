@@ -13,67 +13,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/hookstest"
 )
 
 // lockBound is the lowered acquisition bound the lock-timeout suites drive the
 // timeout through, so no case waits out the production figure.
 const lockBound = 60 * time.Millisecond
-
-// hooksStoreStaging describes how newStagedHooksStore stages a hooks.json.
-type hooksStoreStaging struct {
-	// dir holds the hooks.json; empty stages it in a fresh temp directory. A
-	// named directory that does not exist yet is created, so a caller can choose
-	// a name that then appears in the paths a failing write reports.
-	dir string
-	// seed is the file's initial content; empty writes no file at all.
-	seed string
-	// sidecarAbsent stages no lock file beside the hooks.json, so a read under
-	// the fixture degrades to an unlocked one. It is off by default because
-	// these fixtures model a written-to install — the steady state, where the
-	// sidecar the first mutation created still sits beside the file it was
-	// created for — and because a fixture that degrades without asking to
-	// leaves a breadcrumb in its sink it never meant to assert on. The absence
-	// is a state an install can hold: nothing creates a sidecar until the first
-	// mutation, and the config-directory migration moves hooks.json without it.
-	// A fixture whose subject is that state, or the degraded read it produces,
-	// asks for the absence here.
-	sidecarAbsent bool
-	// writesDenied strips write permission from dir once staging is complete, so
-	// a mutation takes its lock and reads cleanly but fails at the temp create.
-	writesDenied bool
-}
-
-// newStagedHooksStore stages a hooks.json to the given description and returns
-// a store over it alongside its path.
-func newStagedHooksStore(t *testing.T, staging hooksStoreStaging) (*hooks.Store, string) {
-	t.Helper()
-	dir := staging.dir
-	if dir == "" {
-		dir = t.TempDir()
-	} else if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatalf("mkdir fixture dir: %v", err)
-	}
-	path := filepath.Join(dir, "hooks.json")
-	if staging.seed != "" {
-		if err := os.WriteFile(path, []byte(staging.seed), 0o644); err != nil {
-			t.Fatalf("write seed hooks.json: %v", err)
-		}
-	}
-	if !staging.sidecarAbsent {
-		// Created before any denial, so a denied write fails at the temp create
-		// rather than earlier at the sidecar's own open.
-		hookstest.CreateHooksSidecar(t, path)
-	}
-	if staging.writesDenied {
-		if err := os.Chmod(dir, 0o500); err != nil {
-			t.Fatalf("chmod fixture dir: %v", err)
-		}
-		t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
-	}
-	return hooks.NewStore(path), path
-}
 
 // withHooksDeps installs deps as the package-level hooks seam for the rest of
 // the test and registers the restore in the same breath. The seam outlives the
@@ -109,13 +54,22 @@ func readFileBytes(t *testing.T, path string) []byte {
 }
 
 // hooksFileInTempDir points PORTAL_HOOKS_FILE at a hooks.json inside a fresh
-// temp directory. The directory is returned alongside the file because several
-// callers stage siblings of the hooks file in it.
+// temp directory, and stages the sidecar beside it. It is the second of the two
+// staging routes: this one leaves the path to the command body's own
+// resolution, where hookstest.StageStore hands a store straight to a seam. A
+// case whose subject is the sidecar's absence stages its own file through
+// hookstest.StageStore rather than reaching for this route.
+//
+// The directory is returned alongside the file because several callers stage
+// siblings of the hooks file in it.
 func hooksFileInTempDir(t *testing.T) (dir, hooksFile string) {
 	t.Helper()
 	dir = t.TempDir()
 	hooksFile = filepath.Join(dir, "hooks.json")
 	t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
+	// Created while the directory still permits it: a fixture that strips the
+	// directory's permissions afterwards could not stage it.
+	hookstest.CreateHooksSidecar(t, hooksFile)
 	return dir, hooksFile
 }
 

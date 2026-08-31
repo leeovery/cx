@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/portal/internal/hookstest"
 	"github.com/leeovery/portal/internal/logtest"
 )
 
@@ -16,7 +17,7 @@ import (
 // its own over the sweep's own line makes one decline look like two.
 func TestHookSweepReportsAStoreReadStandDownOnce(t *testing.T) {
 	t.Run("it emits one WARN for an unreadable hooks.json on the daemon path", func(t *testing.T) {
-		store := bogusHooksStore(t)
+		store, _ := hookstest.StageStore(t, hookstest.Staging{Unreadable: true})
 
 		sink := logtest.Install(t)
 		injected, injectedSink := newCaptureLoggerForComponent(t, "daemon")
@@ -32,7 +33,7 @@ func TestHookSweepReportsAStoreReadStandDownOnce(t *testing.T) {
 	})
 
 	t.Run("it emits one WARN for an unreadable hooks.json on the doctor --fix path", func(t *testing.T) {
-		store := bogusHooksStore(t)
+		store, _ := hookstest.StageStore(t, hookstest.Staging{Unreadable: true})
 		deps := staleDeps(t.TempDir(), staleHookLister(), store, nil)
 
 		sink := logtest.Install(t)
@@ -45,7 +46,7 @@ func TestHookSweepReportsAStoreReadStandDownOnce(t *testing.T) {
 	t.Run("it still prints the skipped-prune line for a store-read stand-down", func(t *testing.T) {
 		dir := t.TempDir()
 		seedHealthyStateDir(t, dir)
-		hookStore := bogusHooksStore(t)
+		hookStore, _ := hookstest.StageStore(t, hookstest.Staging{Unreadable: true})
 		projectStore, _ := seedProjectsJSON(t, t.TempDir())
 		deps := staleDeps(dir, staleHookLister(), hookStore, projectStore)
 
@@ -62,7 +63,7 @@ func TestHookSweepReportsAStoreReadStandDownOnce(t *testing.T) {
 		// otherwise healthy install still exits zero over the stand-down.
 		dir := t.TempDir()
 		seedHealthyStateDir(t, dir)
-		hookStore := bogusHooksStore(t)
+		hookStore, _ := hookstest.StageStore(t, hookstest.Staging{Unreadable: true})
 		projectStore, _ := seedProjectsJSON(t, t.TempDir())
 		deps := staleDeps(dir, staleHookLister(), hookStore, projectStore)
 
@@ -77,7 +78,7 @@ func TestHookSweepReportsAStoreReadStandDownOnce(t *testing.T) {
 		// The same stand-down with a genuinely failing check still exits non-zero.
 		failingDir := t.TempDir()
 		seedHealthyStateDir(t, failingDir)
-		failingHooks := bogusHooksStore(t)
+		failingHooks, _ := hookstest.StageStore(t, hookstest.Staging{Unreadable: true})
 		failingProjects, _ := seedProjectsJSON(t, t.TempDir())
 		failingDeps := staleDeps(failingDir, staleHookLister(), failingHooks, failingProjects)
 		failingDeps.SaverPresent = func() (bool, error) { return false, nil }
@@ -111,7 +112,7 @@ func TestHookSweepReportsAStoreReadStandDownOnce(t *testing.T) {
 // process handler.
 func TestHookSweepCountsLogger(t *testing.T) {
 	t.Run("it emits the count lines under the component the signature names", func(t *testing.T) {
-		store, _ := newStagedHooksStore(t, hooksStoreStaging{seed: staleHookSeed})
+		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: staleHookSeed})
 		injected, injectedSink := newCaptureLoggerForComponent(t, "daemon")
 
 		outcome, err := runHookStaleCleanup(&stubStaleSweepReader{rows: tokenRows(liveSeedA)}, store, injected)
@@ -133,7 +134,7 @@ func TestHookSweepCountsLogger(t *testing.T) {
 	})
 
 	t.Run("it emits no stand-down under the injected component", func(t *testing.T) {
-		store, _ := newStagedHooksStore(t, hooksStoreStaging{seed: staleHookSeed})
+		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: staleHookSeed})
 		sink := logtest.Install(t)
 		injected, injectedSink := newCaptureLoggerForComponent(t, "daemon")
 

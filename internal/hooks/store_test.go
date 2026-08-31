@@ -42,29 +42,6 @@ func modTime(t *testing.T, path string) time.Time {
 	return info.ModTime()
 }
 
-// seedThenDenyWrites stages a hooks.json holding body — a nil body stages no
-// file at all — beside its sidecar, and only then locks the parent directory to
-// 0500, so a save fails at the temp-create phase. The sidecar is created while
-// the directory is still writable: a 0500 directory still permits opening an
-// existing file, so without it the mutation would fail at the sidecar instead
-// of at the write the fixture exists to fail.
-func seedThenDenyWrites(t *testing.T, body []byte) (*hooks.Store, string) {
-	t.Helper()
-	dir := t.TempDir()
-	path := filepath.Join(dir, "hooks.json")
-	if body != nil {
-		if err := os.WriteFile(path, body, 0o600); err != nil {
-			t.Fatalf("seed: %v", err)
-		}
-	}
-	hookstest.CreateHooksSidecar(t, path)
-	if err := os.Chmod(dir, 0o500); err != nil {
-		t.Fatalf("chmod parent dir: %v", err)
-	}
-	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
-	return hooks.NewStore(path), path
-}
-
 func TestLoad(t *testing.T) {
 	t.Run("returns empty map when file does not exist", func(t *testing.T) {
 		dir := t.TempDir()
@@ -528,7 +505,7 @@ func TestRemove(t *testing.T) {
 	})
 
 	t.Run("it reports no removal when the save fails", func(t *testing.T) {
-		store, _ := seedThenDenyWrites(t, []byte(`{"my-session:0.0":{"on-resume":"claude --resume abc123"}}`))
+		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: `{"my-session:0.0":{"on-resume":"claude --resume abc123"}}`, WritesDenied: true})
 
 		removed, err := store.Remove("my-session:0.0", "on-resume", hooks.ViaCLI)
 		if err == nil {
@@ -1072,8 +1049,8 @@ func TestCleanStaleLogging(t *testing.T) {
 	})
 
 	t.Run("it emits no per-key lines and warns in the summary when the save fails", func(t *testing.T) {
-		body := fmt.Appendf(nil, `{%q:{"on-resume":"cmdA"}}`, reapableSeedA)
-		store, seeded := seedThenDenyWrites(t, body)
+		body := fmt.Sprintf(`{%q:{"on-resume":"cmdA"}}`, reapableSeedA)
+		store, seeded := hookstest.StageStore(t, hookstest.Staging{Seed: body, WritesDenied: true})
 		sink := logtest.Install(t)
 
 		if _, err := store.CleanStale(enumerating("my-session:0.0")); err == nil {
@@ -1099,7 +1076,7 @@ func TestCleanStaleLogging(t *testing.T) {
 		}
 
 		after := readFileBytes(t, seeded)
-		if !bytes.Equal(after, body) {
+		if string(after) != body {
 			t.Errorf("hooks.json changed on a failed save\nbefore: %s\nafter:  %s", body, after)
 		}
 	})
@@ -1137,7 +1114,7 @@ func TestCleanStaleLogging(t *testing.T) {
 	})
 
 	t.Run("emits WARN with write-failed-* error_class (not unexpected) when the batched Save fails", func(t *testing.T) {
-		store, _ := seedThenDenyWrites(t, fmt.Appendf(nil, `{%q:{"on-resume":"x"},%q:{"on-resume":"y"}}`, reapableSeedA, reapableSeedB))
+		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: fmt.Sprintf(`{%q:{"on-resume":"x"},%q:{"on-resume":"y"}}`, reapableSeedA, reapableSeedB), WritesDenied: true})
 		sink := logtest.Install(t)
 
 		_, err := store.CleanStale(enumerating())
@@ -1317,7 +1294,7 @@ func TestSetLogging(t *testing.T) {
 	})
 
 	t.Run("emits WARN with error_class=write-failed-temp-create when AtomicWrite fails on Set", func(t *testing.T) {
-		store, _ := seedThenDenyWrites(t, nil)
+		store, _ := hookstest.StageStore(t, hookstest.Staging{WritesDenied: true})
 		sink := logtest.Install(t)
 
 		err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI)
@@ -1463,7 +1440,7 @@ func TestRemoveLogging(t *testing.T) {
 	})
 
 	t.Run("emits WARN with error_class=write-failed-temp-create when AtomicWrite fails on Remove", func(t *testing.T) {
-		store, _ := seedThenDenyWrites(t, []byte(`{"my-session:0.0":{"on-resume":"claude --resume abc123"}}`))
+		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: `{"my-session:0.0":{"on-resume":"claude --resume abc123"}}`, WritesDenied: true})
 		sink := logtest.Install(t)
 
 		removed, err := store.Remove("my-session:0.0", "on-resume", hooks.ViaCLI)

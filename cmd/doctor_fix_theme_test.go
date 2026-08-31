@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/portal/internal/hookstest"
 	"github.com/spf13/cobra"
 )
 
@@ -101,7 +102,7 @@ func TestDoctorFix_SuffixInBothSummaries(t *testing.T) {
 		seedHealthyStateDir(t, dir)
 		// A stale hook entry makes the two summaries carry different checks
 		// halves and the same suffix.
-		hookStore, _ := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(reapableSeedA)})
+		hookStore, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(reapableSeedA)})
 		projectStore, _ := seedProjectsJSON(t, t.TempDir())
 		deps := staleDeps(dir, &stubStaleSweepReader{rows: tokenRows(liveSeedB)}, hookStore, projectStore)
 		deps.ThemesDir = themesDirWith(t, map[string][]byte{

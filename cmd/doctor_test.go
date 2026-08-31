@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/leeovery/portal/internal/hooks"
+	"github.com/leeovery/portal/internal/hookstest"
 	"github.com/leeovery/portal/internal/project"
 	"github.com/leeovery/portal/internal/spawn"
 	"github.com/leeovery/portal/internal/state"
@@ -831,7 +832,7 @@ func seedStalePruneFixture(t *testing.T, stateDir string, lister *stubStaleSweep
 	t.Helper()
 
 	seedHealthyStateDir(t, stateDir)
-	hookStore, hooksPath := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(reapableSeedA)})
+	hookStore, hooksPath := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(reapableSeedA)})
 	liveDir = t.TempDir()
 	goneDir = filepath.Join(t.TempDir(), "gone")
 	projectStore, projectsPath := seedProjectsJSON(t, liveDir, goneDir)
@@ -900,7 +901,7 @@ func downServerDeferFixture(t *testing.T, stateDir string) (deps *DoctorDeps, ho
 
 	// Token-shaped, so it is the hazard guard rather than the shape rule that
 	// spares the entry.
-	hookStore, hooksPath := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(reapableSeedA)})
+	hookStore, hooksPath := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(reapableSeedA)})
 	goneDir = filepath.Join(t.TempDir(), "gone")
 	projectStore, projectsPath := seedProjectsJSON(t, goneDir)
 
@@ -937,7 +938,7 @@ func assertDownServerDeferral(t *testing.T, hooksBefore []byte, hooksPath, proje
 func TestDoctorStaleHooksCheck(t *testing.T) {
 	t.Run("persisted key with no live pane fails", func(t *testing.T) {
 		dir := t.TempDir()
-		hookStore, _ := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(reapableSeedA)})
+		hookStore, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(reapableSeedA)})
 		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedB)}
 		results, err := runDoctorDiagnosis(staleDeps(dir, lister, hookStore, nil))
 		if err != nil {
@@ -954,7 +955,7 @@ func TestDoctorStaleHooksCheck(t *testing.T) {
 
 	t.Run("multiple stale entries use the plural count copy", func(t *testing.T) {
 		dir := t.TempDir()
-		hookStore, _ := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(reapableSeedA, reapableSeedB)})
+		hookStore, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(reapableSeedA, reapableSeedB)})
 		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedC)}
 		results, err := runDoctorDiagnosis(staleDeps(dir, lister, hookStore, nil))
 		if err != nil {
@@ -971,7 +972,7 @@ func TestDoctorStaleHooksCheck(t *testing.T) {
 
 	t.Run("zero live panes with hooks present is not-evaluable, never all-stale", func(t *testing.T) {
 		dir := t.TempDir()
-		hookStore, _ := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(reapableSeedA, reapableSeedB)})
+		hookStore, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(reapableSeedA, reapableSeedB)})
 		lister := &stubStaleSweepReader{rows: tokenRows()}
 		results, err := runDoctorDiagnosis(staleDeps(dir, lister, hookStore, nil))
 		if err != nil {
@@ -991,7 +992,7 @@ func TestDoctorStaleHooksCheck(t *testing.T) {
 	// rather than stand down on an empty token set.
 	t.Run("it evaluates when rows are present and no pane is stamped", func(t *testing.T) {
 		dir := t.TempDir()
-		hookStore, _ := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(reapableSeedA)})
+		hookStore, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(reapableSeedA)})
 		lister := &stubStaleSweepReader{rows: unstampedRows(3)}
 		results, err := runDoctorDiagnosis(staleDeps(dir, lister, hookStore, nil))
 		if err != nil {
@@ -1008,7 +1009,7 @@ func TestDoctorStaleHooksCheck(t *testing.T) {
 
 	t.Run("it does not reach the no-hooks door with unstamped rows present", func(t *testing.T) {
 		dir := t.TempDir()
-		hookStore, _ := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody()})
+		hookStore, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody()})
 		lister := &stubStaleSweepReader{rows: unstampedRows(3)}
 		results, err := runDoctorDiagnosis(staleDeps(dir, lister, hookStore, nil))
 		if err != nil {
@@ -1025,7 +1026,7 @@ func TestDoctorStaleHooksCheck(t *testing.T) {
 
 	t.Run("live-pane enumeration error is not-evaluable", func(t *testing.T) {
 		dir := t.TempDir()
-		hookStore, _ := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(reapableSeedA)})
+		hookStore, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(reapableSeedA)})
 		lister := &stubStaleSweepReader{err: errors.New("tmux transient")}
 		results, err := runDoctorDiagnosis(staleDeps(dir, lister, hookStore, nil))
 		if err != nil {
@@ -1042,7 +1043,7 @@ func TestDoctorStaleHooksCheck(t *testing.T) {
 
 	t.Run("both empty passes as no hooks", func(t *testing.T) {
 		dir := t.TempDir()
-		hookStore, _ := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody()})
+		hookStore, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody()})
 		lister := &stubStaleSweepReader{rows: tokenRows()}
 		results, err := runDoctorDiagnosis(staleDeps(dir, lister, hookStore, nil))
 		if err != nil {
@@ -1059,7 +1060,7 @@ func TestDoctorStaleHooksCheck(t *testing.T) {
 
 	t.Run("all persisted keys live passes", func(t *testing.T) {
 		dir := t.TempDir()
-		hookStore, _ := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(liveSeedA, liveSeedB)})
+		hookStore, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(liveSeedA, liveSeedB)})
 		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA, liveSeedB, liveSeedC)}
 		results, err := runDoctorDiagnosis(staleDeps(dir, lister, hookStore, nil))
 		if err != nil {
@@ -1078,7 +1079,7 @@ func TestDoctorStaleHooksCheck(t *testing.T) {
 	// here would report every token-shaped key on the machine as lost.
 	t.Run("it reports not evaluable while the restore marker is set", func(t *testing.T) {
 		dir := t.TempDir()
-		hookStore, _ := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(reapableSeedA)})
+		hookStore, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(reapableSeedA)})
 		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedB), restoring: true}
 		got := staleHooksCheckResult(t, dir, lister, hookStore)
 		assertRestoreWindowResult(t, got)
@@ -1086,7 +1087,7 @@ func TestDoctorStaleHooksCheck(t *testing.T) {
 
 	t.Run("it treats a failed marker read as a set marker", func(t *testing.T) {
 		dir := t.TempDir()
-		hookStore, _ := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(reapableSeedA)})
+		hookStore, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(reapableSeedA)})
 		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedB), restoringErr: errors.New("tmux transient")}
 		got := staleHooksCheckResult(t, dir, lister, hookStore)
 		assertRestoreWindowResult(t, got)
@@ -1094,7 +1095,7 @@ func TestDoctorStaleHooksCheck(t *testing.T) {
 
 	t.Run("it reads the marker before the empty-live-set branch", func(t *testing.T) {
 		dir := t.TempDir()
-		hookStore, _ := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(reapableSeedA, reapableSeedB)})
+		hookStore, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(reapableSeedA, reapableSeedB)})
 		lister := &stubStaleSweepReader{rows: tokenRows(), restoring: true}
 		got := staleHooksCheckResult(t, dir, lister, hookStore)
 		assertRestoreWindowResult(t, got)
@@ -1105,7 +1106,7 @@ func TestDoctorStaleHooksCheck(t *testing.T) {
 	// that merely overrode a count already computed.
 	t.Run("it reads the marker before counting", func(t *testing.T) {
 		dir := t.TempDir()
-		hookStore, _ := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(reapableSeedA)})
+		hookStore, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(reapableSeedA)})
 		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedB), restoring: true}
 		got := staleHooksCheckResult(t, dir, lister, hookStore)
 		assertRestoreWindowResult(t, got)
@@ -1116,7 +1117,7 @@ func TestDoctorStaleHooksCheck(t *testing.T) {
 
 	t.Run("it reports not evaluable with no server running", func(t *testing.T) {
 		dir := t.TempDir()
-		hookStore, _ := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(reapableSeedA)})
+		hookStore, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(reapableSeedA)})
 		down := errors.New("no server running on /tmp/tmux-501/default")
 		deps := staleDeps(dir, &stubStaleSweepReader{err: down, restoringErr: down}, hookStore, nil)
 		deps.ServerRunning = func() bool { return false }
@@ -1130,7 +1131,7 @@ func TestDoctorStaleHooksCheck(t *testing.T) {
 
 	t.Run("it still fails on a genuinely stale token-shaped key alongside retained non-token-shaped entries", func(t *testing.T) {
 		dir := t.TempDir()
-		hookStore, _ := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(reapableSeedA, unjudgeableSeedA, unjudgeableSeedB)})
+		hookStore, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(reapableSeedA, unjudgeableSeedA, unjudgeableSeedB)})
 		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedB)}
 		got := staleHooksCheckResult(t, dir, lister, hookStore)
 		if got.status != checkFail {
@@ -1144,7 +1145,7 @@ func TestDoctorStaleHooksCheck(t *testing.T) {
 	t.Run("it keeps portal doctor at exit 0 in a restore window", func(t *testing.T) {
 		dir := t.TempDir()
 		seedHealthyStateDir(t, dir)
-		hookStore, _ := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(reapableSeedA)})
+		hookStore, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(reapableSeedA)})
 		projectStore, _ := seedProjectsJSON(t, t.TempDir())
 		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedB), restoring: true}
 
@@ -1194,7 +1195,7 @@ func TestDoctorStaleHooksParityWithPredicate(t *testing.T) {
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
 				dir := t.TempDir()
-				hookStore, _ := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(tc.persisted...)})
+				hookStore, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(tc.persisted...)})
 				lister := &stubStaleSweepReader{rows: tokenRows(tc.live...)}
 				results, err := runDoctorDiagnosis(staleDeps(dir, lister, hookStore, nil))
 				if err != nil {
@@ -1239,7 +1240,7 @@ func TestDoctorStaleHooksParityWithPredicate(t *testing.T) {
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
 				dir := t.TempDir()
-				hookStore, hooksPath := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(tc.persisted...)})
+				hookStore, hooksPath := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(tc.persisted...)})
 				before := readFileBytes(t, hooksPath)
 				results, err := runDoctorDiagnosis(staleDeps(dir, tc.lister, hookStore, nil))
 				if err != nil {
@@ -1354,7 +1355,7 @@ func TestDoctorExecuteStaleEntryReturnsUnhealthy(t *testing.T) {
 
 	// A persisted hook key with no matching live pane, against a non-empty live
 	// set, is genuinely stale.
-	hookStore, _ := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(reapableSeedA)})
+	hookStore, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(reapableSeedA)})
 	lister := &stubStaleSweepReader{rows: tokenRows(liveSeedB)}
 	goneDir := filepath.Join(t.TempDir(), "gone")
 	projectStore, _ := seedProjectsJSON(t, goneDir)
@@ -1425,7 +1426,7 @@ func TestDoctorFixProtectsUserHooksWhenLiveSetEmptyOrErrored(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
 			seedHealthyStateDir(t, dir)
-			hookStore, hooksPath := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(reapableSeedA, reapableSeedB)})
+			hookStore, hooksPath := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(reapableSeedA, reapableSeedB)})
 			before := readFileBytes(t, hooksPath)
 
 			if _, _, err := runDoctorFixCmd(t, staleDeps(dir, tc.lister, hookStore, nil)); err != nil {
@@ -1566,7 +1567,7 @@ func TestDoctorStaleProjectsCheck(t *testing.T) {
 
 func TestDoctorStaleChecksAreReadOnly(t *testing.T) {
 	dir := t.TempDir()
-	hookStore, hooksPath := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(reapableSeedA)})
+	hookStore, hooksPath := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(reapableSeedA)})
 	liveDir := t.TempDir()
 	goneDir := filepath.Join(t.TempDir(), "gone")
 	projectStore, projectsPath := seedProjectsJSON(t, liveDir, goneDir)
@@ -1626,7 +1627,7 @@ func TestDoctorFixReportsSkippedHookPrune(t *testing.T) {
 	t.Run("it leaves the doctor --fix exit code to the post-repair diagnosis", func(t *testing.T) {
 		dir := t.TempDir()
 		seedHealthyStateDir(t, dir)
-		hookStore, _ := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody()})
+		hookStore, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody()})
 		projectStore, _ := seedProjectsJSON(t, t.TempDir())
 		deps := staleDeps(dir, restoringHookLister(), hookStore, projectStore)
 
@@ -1641,7 +1642,7 @@ func TestDoctorFixReportsSkippedHookPrune(t *testing.T) {
 		// The same stand-down with a genuinely failing check still exits non-zero.
 		failingDir := t.TempDir()
 		seedHealthyStateDir(t, failingDir)
-		failingHooks, _ := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody()})
+		failingHooks, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody()})
 		failingProjects, _ := seedProjectsJSON(t, t.TempDir())
 		failingDeps := staleDeps(failingDir, restoringHookLister(), failingHooks, failingProjects)
 		failingDeps.SaverPresent = func() (bool, error) { return false, nil }

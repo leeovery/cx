@@ -3,7 +3,6 @@ package hooks_test
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"slices"
 	"testing"
 
@@ -12,24 +11,13 @@ import (
 	"github.com/leeovery/portal/internal/logtest"
 )
 
-// seedHooksFile writes the raw on-disk map so a fixture can hold an arbitrary
-// key, including the empty one.
-func seedHooksFile(t *testing.T, contents string) (*hooks.Store, string) {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "hooks.json")
-	if err := os.WriteFile(path, []byte(contents), 0o644); err != nil {
-		t.Fatalf("seed hooks file: %v", err)
-	}
-	return hooks.NewStore(path), path
-}
-
 func TestCleanStaleShapeAwareness(t *testing.T) {
 	liveKey := hookstest.ReapableHookKey(0)
 	staleKey := hookstest.ReapableHookKey(1)
 	retainedKey := hookstest.UnjudgeableHookKey(0)
 
 	t.Run("it retains a non-token-shaped key absent from the live set", func(t *testing.T) {
-		store, path := seedHooksFile(t, fmt.Sprintf(`{%q:{"on-resume":"old"},%q:{"on-resume":"live"}}`, retainedKey, liveKey))
+		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: fmt.Sprintf(`{%q:{"on-resume":"old"},%q:{"on-resume":"live"}}`, retainedKey, liveKey)})
 
 		before, err := os.ReadFile(path)
 		if err != nil {
@@ -63,7 +51,7 @@ func TestCleanStaleShapeAwareness(t *testing.T) {
 	})
 
 	t.Run("it deletes a token-shaped key absent from the live set", func(t *testing.T) {
-		store, _ := seedHooksFile(t, fmt.Sprintf(`{%q:{"on-resume":"live"},%q:{"on-resume":"gone"}}`, liveKey, staleKey))
+		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: fmt.Sprintf(`{%q:{"on-resume":"live"},%q:{"on-resume":"gone"}}`, liveKey, staleKey)})
 
 		removed, err := store.CleanStale(enumerating(liveKey))
 		if err != nil {
@@ -86,7 +74,7 @@ func TestCleanStaleShapeAwareness(t *testing.T) {
 	})
 
 	t.Run("it deletes an empty key", func(t *testing.T) {
-		store, _ := seedHooksFile(t, fmt.Sprintf(`{"":{"on-resume":"malformed"},%q:{"on-resume":"live"}}`, liveKey))
+		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: fmt.Sprintf(`{"":{"on-resume":"malformed"},%q:{"on-resume":"live"}}`, liveKey)})
 
 		removed, err := store.CleanStale(enumerating(liveKey))
 		if err != nil {
@@ -106,7 +94,7 @@ func TestCleanStaleShapeAwareness(t *testing.T) {
 	})
 
 	t.Run("it writes no file and emits no summary when every candidate is retained", func(t *testing.T) {
-		store, path := seedHooksFile(t, fmt.Sprintf(`{%q:{"on-resume":"a"},%q:{"on-resume":"b"}}`, hookstest.UnjudgeableHookKey(1), hookstest.UnjudgeableHookKey(2)))
+		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: fmt.Sprintf(`{%q:{"on-resume":"a"},%q:{"on-resume":"b"}}`, hookstest.UnjudgeableHookKey(1), hookstest.UnjudgeableHookKey(2))})
 
 		before, err := os.ReadFile(path)
 		if err != nil {

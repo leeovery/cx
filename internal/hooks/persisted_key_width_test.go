@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/hooks"
+	"github.com/leeovery/portal/internal/hookstest"
 	"github.com/leeovery/portal/internal/nanoid"
 )
 
@@ -23,7 +24,7 @@ func TestPersistedKeyAuthoredAtThePaneTokenWidth(t *testing.T) {
 	})
 
 	t.Run("it reaps a persisted key authored at the pane-token width when the pane is gone", func(t *testing.T) {
-		store, _ := seedHooksFile(t, fmt.Sprintf(`{%q:{"on-resume":"gone"}}`, persistedKey))
+		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: fmt.Sprintf(`{%q:{"on-resume":"gone"}}`, persistedKey)})
 
 		removed, err := store.CleanStale(enumerating())
 		if err != nil {

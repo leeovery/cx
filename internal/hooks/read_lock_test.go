@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -15,27 +14,20 @@ import (
 	"github.com/leeovery/portal/internal/logtest"
 )
 
-// seedReadFixture stages hooks.json holding entries keys plus the sidecar
-// beside it, so a read has both a file to return and a lock to contend for.
-func seedReadFixture(t *testing.T, entries int) (*hooks.Store, string) {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "hooks.json")
-	pairs := make([]string, 0, entries)
-	for i := range entries {
-		pairs = append(pairs, fmt.Sprintf(`%q:{"on-resume":"cmd%02d"}`, fmt.Sprintf("k%02d", i), i))
+// numberedEntries names n hooks, so a read fixture that only cares how many
+// entries come back need not author them.
+func numberedEntries(n int) map[string]string {
+	entries := make(map[string]string, n)
+	for i := range n {
+		entries[fmt.Sprintf("k%02d", i)] = fmt.Sprintf("cmd%02d", i)
 	}
-	body := "{" + strings.Join(pairs, ",") + "}"
-	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
-		t.Fatalf("seed hooks.json: %v", err)
-	}
-	hookstest.CreateHooksSidecar(t, path)
-	return hooks.NewStore(path), path
+	return entries
 }
 
 func TestReadSharedLock(t *testing.T) {
 	t.Run("it takes a shared lock for a read", func(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, 2*time.Second)
-		store, path := seedReadFixture(t, 2)
+		store, path := hookstest.StageStore(t, hookstest.Staging{Entries: numberedEntries(2)})
 		hookstest.HoldHooksSidecarShared(t, path)
 
 		sink := logtest.Install(t)
@@ -61,7 +53,7 @@ func TestReadSharedLock(t *testing.T) {
 		// Repeated reads would each leak a held fd, so an exclusive acquire
 		// afterwards is granted only if every one of them released.
 		hooks.SetLockTimeoutForTest(t, 2*time.Second)
-		store, path := seedReadFixture(t, 1)
+		store, path := hookstest.StageStore(t, hookstest.Staging{Entries: numberedEntries(1)})
 
 		for range 3 {
 			if _, err := store.Load(hooks.ViaCLI); err != nil {
@@ -92,7 +84,7 @@ func TestReadSharedLock(t *testing.T) {
 		// granted alongside it, so neither can reach the (low) bound. An
 		// exclusive read would block out against the hold and degrade.
 		hooks.SetLockTimeoutForTest(t, 300*time.Millisecond)
-		store, path := seedReadFixture(t, 4)
+		store, path := hookstest.StageStore(t, hookstest.Staging{Entries: numberedEntries(4)})
 		hookstest.HoldHooksSidecarShared(t, path)
 
 		sink := logtest.Install(t)
@@ -135,7 +127,7 @@ func TestReadSharedLock(t *testing.T) {
 	t.Run("it reads anyway when the lock cannot be taken", func(t *testing.T) {
 		bound := 60 * time.Millisecond
 		hooks.SetLockTimeoutForTest(t, bound)
-		store, path := seedReadFixture(t, 3)
+		store, path := hookstest.StageStore(t, hookstest.Staging{Entries: numberedEntries(3)})
 		hookstest.HoldHooksSidecar(t, path)
 
 		sink := logtest.Install(t)
@@ -157,7 +149,7 @@ func TestReadSharedLock(t *testing.T) {
 
 	t.Run("it logs one DEBUG per degraded read", func(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, 20*time.Millisecond)
-		store, path := seedReadFixture(t, 42)
+		store, path := hookstest.StageStore(t, hookstest.Staging{Entries: numberedEntries(42)})
 		hookstest.HoldHooksSidecar(t, path)
 
 		sink := logtest.Install(t)
@@ -173,11 +165,10 @@ func TestReadSharedLock(t *testing.T) {
 
 	t.Run("it degrades when the sidecar is absent", func(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, 20*time.Millisecond)
-		path := filepath.Join(t.TempDir(), "hooks.json")
-		if err := os.WriteFile(path, []byte(`{"k0":{"on-resume":"cmd0"}}`), 0o600); err != nil {
-			t.Fatalf("seed hooks.json: %v", err)
-		}
-		store := hooks.NewStore(path)
+		store, path := hookstest.StageStore(t, hookstest.Staging{
+			Entries:       map[string]string{"k0": "cmd0"},
+			SidecarAbsent: true,
+		})
 
 		sink := logtest.Install(t)
 		h, err := store.Load(hooks.ViaCLI)
@@ -232,7 +223,7 @@ func TestReadSharedLockBoundSelection(t *testing.T) {
 		short := 60 * time.Millisecond
 		hooks.SetSnapshotLockTimeoutForTest(t, short)
 		hooks.SetLockTimeoutForTest(t, 5*time.Second)
-		store, path := seedReadFixture(t, 2)
+		store, path := hookstest.StageStore(t, hookstest.Staging{Entries: numberedEntries(2)})
 		hookstest.HoldHooksSidecar(t, path)
 
 		sink := logtest.Install(t)
@@ -267,7 +258,7 @@ func TestReadSharedLockBoundSelection(t *testing.T) {
 		hooks.SetSnapshotLockTimeoutForTest(t, short)
 		bound := 120 * time.Millisecond
 		hooks.SetLockTimeoutForTest(t, bound)
-		store, path := seedReadFixture(t, 1)
+		store, path := hookstest.StageStore(t, hookstest.Staging{Entries: numberedEntries(1)})
 		hookstest.HoldHooksSidecar(t, path)
 
 		start := time.Now()
@@ -283,7 +274,7 @@ func TestReadSharedLockBoundSelection(t *testing.T) {
 		hooks.SetSnapshotLockTimeoutForTest(t, time.Millisecond)
 		bound := 120 * time.Millisecond
 		hooks.SetLockTimeoutForTest(t, bound)
-		store, path := seedReadFixture(t, 1)
+		store, path := hookstest.StageStore(t, hookstest.Staging{Entries: numberedEntries(1)})
 		hookstest.HoldHooksSidecar(t, path)
 
 		reads := map[string]func() error{
@@ -333,7 +324,7 @@ func TestReadSharedLockVia(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			hooks.SetLockTimeoutForTest(t, 20*time.Millisecond)
 			hooks.SetSnapshotLockTimeoutForTest(t, 20*time.Millisecond)
-			store, path := seedReadFixture(t, 1)
+			store, path := hookstest.StageStore(t, hookstest.Staging{Entries: numberedEntries(1)})
 			hookstest.HoldHooksSidecar(t, path)
 
 			sink := logtest.Install(t)
@@ -348,15 +339,13 @@ func TestReadSharedLockVia(t *testing.T) {
 func TestLookupOnResumeUnderHeldLock(t *testing.T) {
 	t.Run("it returns the hook for a hydrating pane while a mutation holds the lock", func(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, 40*time.Millisecond)
-		path := filepath.Join(t.TempDir(), "hooks.json")
-		if err := os.WriteFile(path, []byte(`{"tok01":{"on-resume":"claude --resume abc"}}`), 0o600); err != nil {
-			t.Fatalf("seed hooks.json: %v", err)
-		}
-		hookstest.CreateHooksSidecar(t, path)
+		store, path := hookstest.StageStore(t, hookstest.Staging{Entries: map[string]string{
+			"tok01": "claude --resume abc",
+		}})
 		hookstest.HoldHooksSidecar(t, path)
 
 		sink := logtest.Install(t)
-		cmd, ok, err := hooks.LookupOnResume(hooks.NewStore(path), "tok01")
+		cmd, ok, err := hooks.LookupOnResume(store, "tok01")
 		if err != nil {
 			t.Fatalf("LookupOnResume returned an error under a held lock: %v", err)
 		}
@@ -368,7 +357,7 @@ func TestLookupOnResumeUnderHeldLock(t *testing.T) {
 
 	t.Run("an empty key takes no lock and logs nothing", func(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, time.Second)
-		store, path := seedReadFixture(t, 1)
+		store, path := hookstest.StageStore(t, hookstest.Staging{Entries: numberedEntries(1)})
 		hookstest.HoldHooksSidecar(t, path)
 
 		sink := logtest.Install(t)

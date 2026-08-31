@@ -18,7 +18,7 @@ func TestDoctorStaleHooksDegradedRead(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, 40*time.Millisecond)
 		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA)}
 
-		unlockedStore, _ := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(liveSeedA)})
+		unlockedStore, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(liveSeedA)})
 		baseline, err := runDoctorDiagnosis(staleDeps(t.TempDir(), lister, unlockedStore, nil))
 		if err != nil {
 			t.Fatalf("runDoctorDiagnosis: %v", err)
@@ -26,7 +26,7 @@ func TestDoctorStaleHooksDegradedRead(t *testing.T) {
 		want := findCheck(t, baseline, "stale hooks")
 		wantUnhealthy := doctorUnhealthy(baseline)
 
-		heldStore, heldPath := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(liveSeedA)})
+		heldStore, heldPath := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(liveSeedA)})
 		hookstest.HoldHooksSidecar(t, heldPath)
 
 		sink := logtest.Install(t)
@@ -77,10 +77,13 @@ func TestHookListDegradedRead(t *testing.T) {
 			{Token: "aaa111", Location: "proj:0.0"},
 		}}})
 
+		sink := logtest.Install(t)
 		want := runHookList(t)
+		if degraded := hookstest.UnlockedRecords(t, sink); len(degraded) != 0 {
+			t.Fatalf("the baseline read degraded: %+v", degraded)
+		}
 
 		hookstest.HoldHooksSidecar(t, hooksFile)
-		sink := logtest.Install(t)
 		got := runHookList(t)
 
 		if got != want {
@@ -90,8 +93,12 @@ func TestHookListDegradedRead(t *testing.T) {
 	})
 
 	t.Run("it takes no tmux read and creates nothing on a fresh install", func(t *testing.T) {
+		// A fresh install: the directory holds neither hooks.json nor the
+		// sidecar, so a read that created either would show up as a new entry.
 		hooks.SetLockTimeoutForTest(t, 20*time.Millisecond)
-		configDir, _ := hooksFileInTempDir(t)
+		_, hooksFile := hookstest.StageStore(t, hookstest.Staging{SidecarAbsent: true})
+		t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
+		configDir := filepath.Dir(hooksFile)
 		withHooksDeps(t, HooksDeps{PaneLister: &loudPaneHookLister{t: t}})
 
 		before := dirListing(t, configDir)
@@ -110,7 +117,7 @@ func TestSweepPreReadBound(t *testing.T) {
 		hooks.SetSnapshotLockTimeoutForTest(t, short)
 		hooks.SetLockTimeoutForTest(t, 5*time.Second)
 
-		store, path := newStagedHooksStore(t, hooksStoreStaging{seed: `{"` + reapableSeedA + `": {"on-resume": "cmd-a"}}`})
+		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: `{"` + reapableSeedA + `": {"on-resume": "cmd-a"}}`})
 		hookstest.HoldHooksSidecar(t, path)
 
 		// An empty live set stands the cycle down after the pre-read, so the
@@ -149,35 +156,4 @@ func dirListing(t *testing.T, dir string) []string {
 		names = append(names, e.Name())
 	}
 	return names
-}
-
-// TestStagedHooksStoreSidecar pins the staging field in both directions, so a
-// fixture's sidecar state cannot silently stop being the thing that decides
-// whether its reads degrade.
-func TestStagedHooksStoreSidecar(t *testing.T) {
-	t.Run("a staged fixture reads under its sidecar lock", func(t *testing.T) {
-		hooks.SetLockTimeoutForTest(t, 20*time.Millisecond)
-		store, _ := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(liveSeedA)})
-
-		sink := logtest.Install(t)
-		if _, err := store.Load(hooks.ViaDoctor); err != nil {
-			t.Fatalf("Load: %v", err)
-		}
-
-		if got := hookstest.UnlockedRecords(t, sink); len(got) != 0 {
-			t.Errorf("read degraded despite a staged sidecar: %+v", got)
-		}
-	})
-
-	t.Run("a fixture staged without the sidecar degrades on read", func(t *testing.T) {
-		hooks.SetLockTimeoutForTest(t, 20*time.Millisecond)
-		store, _ := newStagedHooksStore(t, hooksStoreStaging{seed: hooksBody(liveSeedA), sidecarAbsent: true})
-
-		sink := logtest.Install(t)
-		if _, err := store.Load(hooks.ViaDoctor); err != nil {
-			t.Fatalf("Load: %v", err)
-		}
-
-		hookstest.AssertDegradedRead(t, sink, "doctor")
-	})
 }

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/leeovery/portal/internal/hooks"
+	"github.com/leeovery/portal/internal/hookstest"
 	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/tmux"
@@ -37,7 +38,7 @@ func TestMaybeRunHookCleanup_DoesNotRunBeforeInterval(t *testing.T) {
 	seed := fmt.Sprintf(`{
   %q: {"on-resume": "cmd-stale"}
 }`, reapableSeedA)
-	store, _ := newStagedHooksStore(t, hooksStoreStaging{seed: seed})
+	store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 	fc := &daemonFakeCommander{panesOut: livePaneRowOut}
 	deps := hookCleanupDeps(fc, store, discardDaemonLogger())
 
@@ -68,7 +69,7 @@ func TestMaybeRunHookCleanup_RunsAndResetsOnceIntervalElapsed(t *testing.T) {
   %q: {"on-resume": "cmd-stale"},
   %q: {"on-resume": "cmd-live"}
 }`, reapableSeedA, liveSeedA)
-	store, _ := newStagedHooksStore(t, hooksStoreStaging{seed: seed})
+	store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 	fc := &daemonFakeCommander{panesOut: livePaneRowOut}
 	deps := hookCleanupDeps(fc, store, discardDaemonLogger())
 
@@ -97,7 +98,7 @@ func TestMaybeRunHookCleanup_FiresAtIntervalBoundary(t *testing.T) {
 	seed := fmt.Sprintf(`{
   %q: {"on-resume": "cmd-stale"}
 }`, reapableSeedA)
-	store, _ := newStagedHooksStore(t, hooksStoreStaging{seed: seed})
+	store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 	fc := &daemonFakeCommander{panesOut: livePaneRowOut}
 	deps := hookCleanupDeps(fc, store, discardDaemonLogger())
 
@@ -121,10 +122,10 @@ func TestMaybeRunHookCleanup_LogsWarnAndSwallowsCleanupError(t *testing.T) {
 	// A denied write is a failure the sweep returns rather than standing down
 	// on: the mutation takes its lock and reads cleanly, then fails at the temp
 	// create.
-	store, _ := newStagedHooksStore(t, hooksStoreStaging{
-		dir:          filepath.Join(t.TempDir(), "write-denied"),
-		seed:         staleHookSeed,
-		writesDenied: true,
+	store, _ := hookstest.StageStore(t, hookstest.Staging{
+		Dir:          filepath.Join(t.TempDir(), "write-denied"),
+		Seed:         staleHookSeed,
+		WritesDenied: true,
 	})
 
 	// Non-empty panesOut keeps the mass-deletion guard off the path, so the
@@ -151,7 +152,7 @@ func TestMaybeRunHookCleanup_ListPanesErrorSwallowedNoReap(t *testing.T) {
 	seed := fmt.Sprintf(`{
   %q: {"on-resume": "cmd-stale"}
 }`, reapableSeedA)
-	store, _ := newStagedHooksStore(t, hooksStoreStaging{seed: seed})
+	store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 	fc := &daemonFakeCommander{panesErr: errors.New("tmux dead")}
 	logger, sink := newCaptureLoggerForComponent(t, "daemon")
 	deps := hookCleanupDeps(fc, store, logger)
@@ -207,7 +208,7 @@ func TestMaybeRunHookCleanup_ReusesMassDeletionGuard(t *testing.T) {
   %q: {"on-resume": "cmd-a"},
   %q: {"on-resume": "cmd-b"}
 }`, reapableSeedA, reapableSeedB)
-	store, _ := newStagedHooksStore(t, hooksStoreStaging{seed: seed})
+	store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 	fc := &daemonFakeCommander{panesOut: ""}
 	logger, sink := newCaptureLoggerForComponent(t, "daemon")
 	deps := hookCleanupDeps(fc, store, logger)

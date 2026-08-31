@@ -3,8 +3,6 @@ package hooks_test
 import (
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"slices"
 	"testing"
 
@@ -30,7 +28,7 @@ func TestCleanStaleSnapshotNarrowing(t *testing.T) {
 	unjudgeableKey := hookstest.UnjudgeableHookKey(0)
 
 	t.Run("it deletes a key present in the file, in the snapshot and absent from the live set", func(t *testing.T) {
-		store, _ := seedHooksFile(t, fmt.Sprintf(`{%q:{"on-resume":"live"},%q:{"on-resume":"gone"}}`, liveKey, staleKey))
+		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: fmt.Sprintf(`{%q:{"on-resume":"live"},%q:{"on-resume":"gone"}}`, liveKey, staleKey)})
 
 		removed, err := store.CleanStale(enumerating(liveKey))
 		if err != nil {
@@ -53,7 +51,7 @@ func TestCleanStaleSnapshotNarrowing(t *testing.T) {
 	})
 
 	t.Run("it retains a key written after the snapshot", func(t *testing.T) {
-		store, path := seedHooksFile(t, fmt.Sprintf(`{%q:{"on-resume":"gone"}}`, staleKey))
+		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: fmt.Sprintf(`{%q:{"on-resume":"gone"}}`, staleKey)})
 
 		// The registration that lands while the enumeration runs: token-shaped,
 		// absent from the live set, and therefore reapable on shape alone.
@@ -80,7 +78,7 @@ func TestCleanStaleSnapshotNarrowing(t *testing.T) {
 	})
 
 	t.Run("it hands the enumeration the file as it stood before it ran", func(t *testing.T) {
-		store, _ := seedHooksFile(t, fmt.Sprintf(`{%q:{"on-resume":"gone"}}`, staleKey))
+		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: fmt.Sprintf(`{%q:{"on-resume":"gone"}}`, staleKey)})
 
 		var seen []string
 		if _, err := store.CleanStale(func(snapshot hooks.Snapshot) ([]string, error) {
@@ -99,10 +97,11 @@ func TestCleanStaleSnapshotNarrowing(t *testing.T) {
 	})
 
 	t.Run("it holds no lock while the enumeration runs", func(t *testing.T) {
-		store, path := seedHooksFile(t, fmt.Sprintf(`{%q:{"on-resume":"gone"}}`, staleKey))
-		// A mutation stages the sidecar, which no read creates.
+		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: fmt.Sprintf(`{%q:{"on-resume":"gone"}}`, staleKey)})
+		// A live entry beside the stale one, so the delete set is narrower than
+		// the file.
 		if err := store.Set(liveKey, "on-resume", "live", hooks.ViaCLI); err != nil {
-			t.Fatalf("stage the sidecar: %v", err)
+			t.Fatalf("register the live entry: %v", err)
 		}
 
 		probed := false
@@ -121,11 +120,12 @@ func TestCleanStaleSnapshotNarrowing(t *testing.T) {
 	})
 
 	t.Run("an enumeration error aborts the clean untouched", func(t *testing.T) {
-		store, path := seedHooksFile(t, fmt.Sprintf(`{%q:{"on-resume":"gone"}}`, staleKey))
-		// A mutation stages the sidecar, so the clean's own pre-read has a lock
-		// to take and nothing it says can be mistaken for the deletion's lines.
+		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: fmt.Sprintf(`{%q:{"on-resume":"gone"}}`, staleKey)})
+		// A live entry beside the stale one, registered before the sink is
+		// installed so its own breadcrumb is not counted against the aborted
+		// clean, which must emit nothing at all.
 		if err := store.Set(liveKey, "on-resume", "live", hooks.ViaCLI); err != nil {
-			t.Fatalf("stage the sidecar: %v", err)
+			t.Fatalf("register the live entry: %v", err)
 		}
 		before := string(readFileBytes(t, path))
 
@@ -148,7 +148,7 @@ func TestCleanStaleSnapshotNarrowing(t *testing.T) {
 	})
 
 	t.Run("it derives the delete set from the file under the lock, not from the snapshot", func(t *testing.T) {
-		store, path := seedHooksFile(t, fmt.Sprintf(`{%q:{"on-resume":"gone"},%q:{"on-resume":"also-gone"}}`, staleKey, lateKey))
+		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: fmt.Sprintf(`{%q:{"on-resume":"gone"},%q:{"on-resume":"also-gone"}}`, staleKey, lateKey)})
 
 		// Another writer removes a key the snapshot holds and the clean would
 		// otherwise have reaped, so it must not be named as removed.
@@ -175,7 +175,7 @@ func TestCleanStaleSnapshotNarrowing(t *testing.T) {
 	})
 
 	t.Run("it still retains a non-token-shaped key", func(t *testing.T) {
-		store, path := seedHooksFile(t, fmt.Sprintf(`{%q:{"on-resume":"old"}}`, unjudgeableKey))
+		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: fmt.Sprintf(`{%q:{"on-resume":"old"}}`, unjudgeableKey)})
 		before := string(readFileBytes(t, path))
 
 		removed, err := store.CleanStale(enumerating())
@@ -191,7 +191,7 @@ func TestCleanStaleSnapshotNarrowing(t *testing.T) {
 	})
 
 	t.Run("it still deletes an empty key present in both the file and the snapshot", func(t *testing.T) {
-		store, _ := seedHooksFile(t, fmt.Sprintf(`{"":{"on-resume":"malformed"},%q:{"on-resume":"live"}}`, liveKey))
+		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: fmt.Sprintf(`{"":{"on-resume":"malformed"},%q:{"on-resume":"live"}}`, liveKey)})
 
 		removed, err := store.CleanStale(enumerating(liveKey))
 		if err != nil {
@@ -213,7 +213,7 @@ func TestCleanStaleSnapshotNarrowing(t *testing.T) {
 	t.Run("an unreadable file aborts before the enumeration", func(t *testing.T) {
 		// A directory at the hooks.json path is what makes the read fail:
 		// malformed JSON decodes to an empty map instead of erroring.
-		path := seedHooksDirectory(t)
+		_, path := hookstest.StageStore(t, hookstest.Staging{Unreadable: true})
 		enumerated := false
 
 		removed, err := hooks.NewStore(path).CleanStale(func(hooks.Snapshot) ([]string, error) {
@@ -230,17 +230,6 @@ func TestCleanStaleSnapshotNarrowing(t *testing.T) {
 			t.Errorf("removed = %v, want none", removed)
 		}
 	})
-}
-
-// seedHooksDirectory stages a directory where hooks.json belongs, so every read
-// of it fails.
-func seedHooksDirectory(t *testing.T) string {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "hooks.json")
-	if err := os.MkdirAll(path, 0o755); err != nil {
-		t.Fatalf("mkdir bogus hooks path: %v", err)
-	}
-	return path
 }
 
 func keysOf(h map[string]map[string]string) []string {

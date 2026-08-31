@@ -7,18 +7,8 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/hooks"
+	"github.com/leeovery/portal/internal/hookstest"
 )
-
-// storeWithContent stages a hooks.json holding content in a fresh temp
-// directory and returns a store over it.
-func storeWithContent(t *testing.T, content string) *hooks.Store {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "hooks.json")
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatalf("seed hooks.json: %v", err)
-	}
-	return hooks.NewStore(path)
-}
 
 // assertNoHook pins the whole no-hook answer: the lookup degrades rather than
 // erroring, reports no hit, and yields no command.
@@ -44,28 +34,28 @@ func TestLookupOnResume(t *testing.T) {
 	})
 
 	t.Run("returns no-hook when hooks.json is malformed JSON", func(t *testing.T) {
-		store := storeWithContent(t, "{not json")
+		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: "{not json"})
 
 		cmd, ok, err := hooks.LookupOnResume(store, "session:0.0")
 		assertNoHook(t, cmd, ok, err)
 	})
 
 	t.Run("returns no-hook when the hook-key is absent", func(t *testing.T) {
-		store := storeWithContent(t, `{"other-session:0.0":{"on-resume":"echo hi"}}`)
+		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: `{"other-session:0.0":{"on-resume":"echo hi"}}`})
 
 		cmd, ok, err := hooks.LookupOnResume(store, "missing-session:0.0")
 		assertNoHook(t, cmd, ok, err)
 	})
 
 	t.Run("returns no-hook when the key has no on-resume event", func(t *testing.T) {
-		store := storeWithContent(t, `{"session:0.0":{"on-attach":"echo attached"}}`)
+		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: `{"session:0.0":{"on-attach":"echo attached"}}`})
 
 		cmd, ok, err := hooks.LookupOnResume(store, "session:0.0")
 		assertNoHook(t, cmd, ok, err)
 	})
 
 	t.Run("returns no-hook when the on-resume command is empty string", func(t *testing.T) {
-		store := storeWithContent(t, `{"session:0.0":{"on-resume":""}}`)
+		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: `{"session:0.0":{"on-resume":""}}`})
 
 		cmd, ok, err := hooks.LookupOnResume(store, "session:0.0")
 		assertNoHook(t, cmd, ok, err)
@@ -73,7 +63,7 @@ func TestLookupOnResume(t *testing.T) {
 
 	t.Run("returns the command verbatim when on-resume is registered", func(t *testing.T) {
 		const want = "echo hello world; ls -la"
-		store := storeWithContent(t, `{"session:0.0":{"on-resume":"echo hello world; ls -la"}}`)
+		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: `{"session:0.0":{"on-resume":"echo hello world; ls -la"}}`})
 
 		cmd, ok, err := hooks.LookupOnResume(store, "session:0.0")
 		if err != nil {
@@ -89,7 +79,7 @@ func TestLookupOnResume(t *testing.T) {
 
 	t.Run("round-trips hook keys containing colons in the session name", func(t *testing.T) {
 		const want = "ls"
-		store := storeWithContent(t, `{"work:foo:0.0":{"on-resume":"ls"}}`)
+		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: `{"work:foo:0.0":{"on-resume":"ls"}}`})
 
 		cmd, ok, err := hooks.LookupOnResume(store, "work:foo:0.0")
 		if err != nil {
@@ -104,7 +94,7 @@ func TestLookupOnResume(t *testing.T) {
 	})
 
 	t.Run("returns no hook for an empty key even when hooks.json holds an empty-key entry", func(t *testing.T) {
-		store := storeWithContent(t, `{"":{"on-resume":"rm -rf /"}}`)
+		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: `{"":{"on-resume":"rm -rf /"}}`})
 
 		cmd, ok, err := hooks.LookupOnResume(store, "")
 		assertNoHook(t, cmd, ok, err)
@@ -124,7 +114,7 @@ func TestLookupOnResume(t *testing.T) {
 	})
 
 	t.Run("does not trim a whitespace-only key", func(t *testing.T) {
-		store := storeWithContent(t, `{"":{"on-resume":"rm -rf /"}}`)
+		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: `{"":{"on-resume":"rm -rf /"}}`})
 
 		cmd, ok, err := hooks.LookupOnResume(store, " ")
 		if err != nil {
@@ -134,7 +124,7 @@ func TestLookupOnResume(t *testing.T) {
 			t.Errorf("got cmd=%q ok=%v, want a miss: a whitespace key must not collapse to the empty key", cmd, ok)
 		}
 
-		seeded := storeWithContent(t, `{" ":{"on-resume":"echo spaced"}}`)
+		seeded, _ := hookstest.StageStore(t, hookstest.Staging{Seed: `{" ":{"on-resume":"echo spaced"}}`})
 		cmd, ok, err = hooks.LookupOnResume(seeded, " ")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
