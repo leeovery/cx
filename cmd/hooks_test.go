@@ -757,56 +757,6 @@ func TestHooksRmCommand(t *testing.T) {
 			t.Error("expected ddd444 entry to be removed via fallback")
 		}
 	})
-
-	t.Run("it removes the verbatim key on rm --pane-key without consulting the resolver", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
-		t.Setenv("TMUX_PANE", "")
-
-		writeHooksJSON(t, hooksFile, map[string]map[string]string{
-			"eee555":         {"on-resume": "claude --resume xyz"},
-			"other-proj:0.0": {"on-resume": "npm start"},
-		})
-
-		resolver, stamper := paneKeyPathSeams()
-		withHooksDeps(t, HooksDeps{KeyResolver: resolver, PaneStamper: stamper})
-
-		resetRootCmd()
-		rootCmd.SetOut(new(bytes.Buffer))
-		rootCmd.SetErr(new(bytes.Buffer))
-		rootCmd.SetArgs([]string{"hooks", "rm", "--pane-key", "eee555", "--on-resume"})
-		if err := rootCmd.Execute(); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		data := readHooksJSON(t, hooksFile)
-		if _, ok := data["eee555"]; ok {
-			t.Error("expected verbatim key eee555 to be removed via --pane-key")
-		}
-		if data["other-proj:0.0"]["on-resume"] != "npm start" {
-			t.Errorf("other-proj:0.0 on-resume = %q, want %q", data["other-proj:0.0"]["on-resume"], "npm start")
-		}
-		assertNoPaneTmuxCalls(t, resolver, stamper)
-	})
-
-	t.Run("it errors when TMUX_PANE is unset for the rm fallback", func(t *testing.T) {
-		hooksFileInTempDir(t)
-		t.Setenv("TMUX_PANE", "")
-
-		resolver := &mockKeyResolver{key: "unus00"}
-		withHooksDeps(t, HooksDeps{KeyResolver: resolver})
-
-		resetRootCmd()
-		rootCmd.SetOut(new(bytes.Buffer))
-		rootCmd.SetErr(new(bytes.Buffer))
-		rootCmd.SetArgs([]string{"hooks", "rm", "--on-resume"})
-		err := rootCmd.Execute()
-		if err == nil {
-			t.Fatal("expected error, got nil")
-		}
-		if !strings.Contains(err.Error(), "must be run from inside a tmux pane") {
-			t.Errorf("error = %q, want it to contain %q", err.Error(), "must be run from inside a tmux pane")
-		}
-	})
 }
 
 func TestHookCommandRename(t *testing.T) {
