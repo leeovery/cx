@@ -250,7 +250,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 7,
-          "current_task": "resume-hooks-silently-lost-7-8",
+          "current_task": "resume-hooks-silently-lost-7-9",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -333,7 +333,8 @@
             "resume-hooks-silently-lost-7-4",
             "resume-hooks-silently-lost-7-5",
             "resume-hooks-silently-lost-7-6",
-            "resume-hooks-silently-lost-7-7"
+            "resume-hooks-silently-lost-7-7",
+            "resume-hooks-silently-lost-7-8"
           ],
           "staging": {
             "p1": {
@@ -886,6 +887,45 @@
                 "internal/restore/session.go",
                 "internal/tmux/exact_target_internal_test.go",
                 "internal/tmux/target_composition_guard_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-8",
+              "source": "executor",
+              "summary": "Two more raw 10s/50ms hydrate-wait literals survive in internal/restore, outside this task four named sites.",
+              "detail": "internal/restore/integration_full_test.go:143 and internal/restore/exit_closes_pane_integration_test.go:184 both call restoretest.WaitForSkeletonMarkersCleared with the literal pair rather than restoretest.HydrateBudget / restoretest.HydrateTick. Mechanical, but they are the last two holdouts of the declared-once invariant this task establishes.",
+              "files": [
+                "internal/restore/integration_full_test.go",
+                "internal/restore/exit_closes_pane_integration_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-8",
+              "source": "executor",
+              "summary": "The hydrate helper marker-unset-before-exec ordering makes every assert-a-hook-side-effect-right-after-markers-clear shape racy, not just the one fixed here.",
+              "detail": "cmd/state_hydrate.go:143 (unsetSkeletonMarkerOrLog) precedes execShellOrHookAndExit at :147, so any test treating marker-clear as the hook has run is racing the hook own runtime. cmd/noncontiguous_window_reboot_integration_test.go:399-402 currently uses WaitForFileExists on each marker file, which is safe against absence but does not pin a count — a cross-fire (marker written twice, or the wrong pane marker) would pass. Converting it to the polled count assertion would close that, but it is a behavioural strengthening beyond this task remit.",
+              "files": [
+                "cmd/state_hydrate.go",
+                "cmd/noncontiguous_window_reboot_integration_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-8",
+              "source": "reviewer",
+              "summary": "The hook-fire wait family in cmd/bootstrap carries its own raw 2s/50ms literal pair, outside the declared-once invariant this task established.",
+              "detail": "cmd/bootstrap/phase2_hook_fire_integration_test.go:84 (WaitForFileExists(..., 2*time.Second, 50*time.Millisecond)) and cmd/bootstrap/eager_signal_hydrate_integration_test.go:88,149,159,243 use a deliberately shorter budget than HydrateBudget. They are not the racy shape, so routing them through the shared pair would change behaviour — the consolidation pass should decide once whether a second named short-wait pair is warranted or the locals stay, rather than leaving the invariant half-applied.",
+              "files": [
+                "cmd/bootstrap/phase2_hook_fire_integration_test.go",
+                "cmd/bootstrap/eager_signal_hydrate_integration_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-8",
+              "source": "reviewer",
+              "summary": "TestAssertMarkerCount_ExportedEntryPointUsesTheSharedBudget does not distinguish the shared budget from the probe budget, so its name overclaims.",
+              "detail": "internal/restoretest/marker_count_test.go:187 writes the marker at 100ms, so any budget above ~150ms passes. It still pins something real (the exported entry polls rather than reading once, and a zero budget would fail it). Moving the write past the probe budget (e.g. 500ms) would make the name true for ~0.4s more runtime.",
+              "files": [
+                "internal/restoretest/marker_count_test.go"
               ]
             }
           ]
