@@ -250,7 +250,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 7,
-          "current_task": "resume-hooks-silently-lost-7-6",
+          "current_task": "resume-hooks-silently-lost-7-7",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -331,7 +331,8 @@
             "resume-hooks-silently-lost-7-2",
             "resume-hooks-silently-lost-7-3",
             "resume-hooks-silently-lost-7-4",
-            "resume-hooks-silently-lost-7-5"
+            "resume-hooks-silently-lost-7-5",
+            "resume-hooks-silently-lost-7-6"
           ],
           "staging": {
             "p1": {
@@ -763,6 +764,36 @@
                 "internal/logtest/capture.go",
                 "internal/tmux/portal_saver_lifecycle_events_test.go",
                 "internal/tmux/portal_saver_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-6",
+              "source": "reviewer",
+              "summary": "The sweep stand-down assertions are spread across three files with overlapping fixtures and per-reason coverage asserted twice.",
+              "detail": "TestHookSweepOutcomeNamesEveryDecline (cmd/run_hook_stale_cleanup_outcome_test.go:26-99) already tables all five decline reasons with a one-reason-per-path uniqueness check, while cmd/run_hook_stale_cleanup_test.go separately pins four of the same five one at a time (:81-103 pane-read-failed, :105-133 store-read-failed, :396-411 restoring, :547-574 empty-pane-read) and cmd/run_hook_stale_cleanup_lock_timeout_test.go the fifth. The per-reason tests carry assertions the table does not (log level, attrs, hooks.json untouched) and vice versa; a consolidation pass could give each reason one home carrying both halves.",
+              "files": [
+                "cmd/run_hook_stale_cleanup_test.go",
+                "cmd/run_hook_stale_cleanup_outcome_test.go",
+                "cmd/run_hook_stale_cleanup_lock_timeout_test.go",
+                "cmd/run_hook_stale_cleanup_decline_error_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-6",
+              "source": "reviewer",
+              "summary": "liveTokenEnumeration calls logger.Debug while the nil-logger default stays behind in runHookStaleCleanup.",
+              "detail": "cmd/run_hook_stale_cleanup.go:184-186. Production is safe (single caller, defaulted), but an in-package caller passing nil now panics where the inline closure made that unreachable. log.OrDiscard inside the factory would close it if the function ever grows a second caller.",
+              "files": [
+                "cmd/run_hook_stale_cleanup.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-6",
+              "source": "reviewer",
+              "summary": "emit() followed by return sweepOutcome{DeclineReason: ...} now appears at four sites in one file.",
+              "detail": "cmd/run_hook_stale_cleanup.go:191, :214, :222, :229. Three pre-date task 7-6. A standDown.declinedOutcome() helper would collapse all four if the file is opened again.",
+              "files": [
+                "cmd/run_hook_stale_cleanup.go"
               ]
             }
           ]
