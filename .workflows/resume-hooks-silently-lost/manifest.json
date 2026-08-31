@@ -250,7 +250,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 7,
-          "current_task": "resume-hooks-silently-lost-7-13",
+          "current_task": "resume-hooks-silently-lost-7-16",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -338,7 +338,8 @@
             "resume-hooks-silently-lost-7-9",
             "resume-hooks-silently-lost-7-10",
             "resume-hooks-silently-lost-7-11",
-            "resume-hooks-silently-lost-7-12"
+            "resume-hooks-silently-lost-7-12",
+            "resume-hooks-silently-lost-7-14"
           ],
           "staging": {
             "p1": {
@@ -1100,6 +1101,41 @@
               "files": [
                 "cmd/doctor.go",
                 "cmd/run_hook_stale_cleanup.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-14",
+              "source": "executor",
+              "summary": "Four error-attr hand-rolls outside this task five files could now route through the new Record.ErrorAttr.",
+              "detail": "The same index-then-type-assert block survives at cmd/bootstrap/eager_signal_hydrate_test.go:119-127 and internal/state/signal_hydrate_test.go:152-160 (both errAttr, ok := rec.Attrs[\"error\"] then .Any().(error)), and internal/tmux/hooks_register_warn_test.go:26-27,125 does the lossy gotErr, _ := ...Any().(error) variant that silently yields nil on a wrong kind. Folding them in would finish the accessor adoption and remove the last silent-nil variant.",
+              "files": [
+                "cmd/bootstrap/eager_signal_hydrate_test.go",
+                "internal/state/signal_hydrate_test.go",
+                "internal/tmux/hooks_register_warn_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-14",
+              "source": "reviewer",
+              "summary": "Three Attrs[took] hand-rolls survive in cmd; two want a still-missing DurationAttr value accessor.",
+              "detail": "cmd/state_daemon_cycle_summary_test.go:95-101 is a bare absent+kind check that RequireDuration reproduces exactly. cmd/state_hydrate_replayed_log_test.go:143-152 and cmd/state_hydrate_timeout_log_test.go:45-54 additionally assert the duration VALUE, so they need a kind-checked DurationAttr(t, key) time.Duration — the same one-member-of-the-family-never-added shape task 7-14 just closed for errors.",
+              "files": [
+                "cmd/state_daemon_cycle_summary_test.go",
+                "cmd/state_hydrate_replayed_log_test.go",
+                "cmd/state_hydrate_timeout_log_test.go",
+                "internal/logtest/capture.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-14",
+              "source": "reviewer",
+              "summary": "Attr-absence assertions hand-roll the index that Record.HasAttr already owns.",
+              "detail": "if _, ok := rec.Attrs[\"error\"]; ok at internal/storelog/clean_stale_test.go:33 and internal/hooks/store_test.go:1094, and if _, ok := w.Attrs[\"error\"]; !ok at internal/state/fifo_sweep_summary_test.go:133, all re-derive Record.HasAttr. Correctly out of scope for 7-14 (not among the nine), but the fix spans that task files plus internal/state. Also cosmetic: ErrorAttr wrong-kind message prints the offending value and then the whole attrs map, so the value appears twice; IntAttr prints key+kind+value and no map.",
+              "files": [
+                "internal/storelog/clean_stale_test.go",
+                "internal/hooks/store_test.go",
+                "internal/state/fifo_sweep_summary_test.go",
+                "internal/logtest/capture.go"
               ]
             }
           ]
