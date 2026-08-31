@@ -5,41 +5,26 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/tmux"
 )
 
 const showHooksWarnMessage = "show-hooks failed"
 
-func showHooksWarnRecords(recs []slog.Record) []slog.Record {
-	var out []slog.Record
-	for _, r := range recs {
-		if r.Level == slog.LevelWarn && r.Message == showHooksWarnMessage {
-			out = append(out, r)
-		}
-	}
-	return out
+func showHooksWarnRecords(sink *logtest.Sink) logtest.Records {
+	return sink.RecordsAtExactLevel(slog.LevelWarn).Msg(showHooksWarnMessage)
 }
 
-func assertShowHooksWarnShape(t *testing.T, rec slog.Record, wantErr error) {
+func assertShowHooksWarnShape(t *testing.T, rec logtest.Record, wantErr error) {
 	t.Helper()
-	var gotComponent, gotErrorClass string
-	var gotErr error
-	var sawError, sawErrorClass bool
-	rec.Attrs(func(a slog.Attr) bool {
-		switch a.Key {
-		case "component":
-			gotComponent = a.Value.String()
-		case "error_class":
-			gotErrorClass = a.Value.String()
-			sawErrorClass = true
-		case "error":
-			sawError = true
-			if e, ok := a.Value.Any().(error); ok {
-				gotErr = e
-			}
-		}
-		return true
-	})
+	gotComponent := ""
+	if v, ok := rec.Attrs["component"]; ok {
+		gotComponent = v.String()
+	}
+	errorClass, sawErrorClass := rec.Attrs["error_class"]
+	gotErrorClass := errorClass.String()
+	errorValue, sawError := rec.Attrs["error"]
+	gotErr, _ := errorValue.Any().(error)
 	if gotComponent != "bootstrap" {
 		t.Errorf("WARN component = %q, want %q", gotComponent, "bootstrap")
 	}
@@ -67,8 +52,8 @@ func TestRegisterPortalHooks_HydrationReadFailureEmitsCanonicalWarn(t *testing.T
 	}
 	client := tmux.NewClient(mock)
 
-	rec := &recordingSlogHandler{}
-	err := tmux.RegisterPortalHooks(client, slog.New(rec).With("component", "bootstrap"))
+	sink := &logtest.Sink{}
+	err := tmux.RegisterPortalHooks(client, slog.New(sink).With("component", "bootstrap"))
 
 	if err == nil {
 		t.Fatal("expected error from RegisterPortalHooks, got nil")
@@ -79,9 +64,9 @@ func TestRegisterPortalHooks_HydrationReadFailureEmitsCanonicalWarn(t *testing.T
 
 	assertNoSetHookCalls(t, mock.Calls)
 
-	warns := showHooksWarnRecords(rec.records)
+	warns := showHooksWarnRecords(sink)
 	if len(warns) == 0 {
-		t.Fatalf("expected at least one %q WARN, got none: %v", showHooksWarnMessage, rec.records)
+		t.Fatalf("expected at least one %q WARN, got none: %v", showHooksWarnMessage, sink.Records())
 	}
 	assertShowHooksWarnShape(t, warns[0], sentinel)
 }
@@ -92,8 +77,8 @@ func TestRegisterPortalHooks_SessionClosedReadFailureEmitsCanonicalWarn(t *testi
 		map[string]error{"session-closed": sentinel}, nil)}
 	client := tmux.NewClient(mock)
 
-	rec := &recordingSlogHandler{}
-	err := tmux.RegisterPortalHooks(client, slog.New(rec).With("component", "bootstrap"))
+	sink := &logtest.Sink{}
+	err := tmux.RegisterPortalHooks(client, slog.New(sink).With("component", "bootstrap"))
 
 	if err == nil {
 		t.Fatal("expected aggregate error wrapping the session-closed sentinel, got nil")
@@ -102,9 +87,9 @@ func TestRegisterPortalHooks_SessionClosedReadFailureEmitsCanonicalWarn(t *testi
 		t.Errorf("error %v does not wrap sentinel %v", err, sentinel)
 	}
 
-	warns := showHooksWarnRecords(rec.records)
+	warns := showHooksWarnRecords(sink)
 	if len(warns) != 1 {
-		t.Fatalf("expected exactly 1 %q WARN (session-closed), got %d: %v", showHooksWarnMessage, len(warns), rec.records)
+		t.Fatalf("expected exactly 1 %q WARN (session-closed), got %d: %v", showHooksWarnMessage, len(warns), sink.Records())
 	}
 	assertShowHooksWarnShape(t, warns[0], sentinel)
 
@@ -127,25 +112,17 @@ func TestShowHooksWarn_ErrorAttrCarriesCommandErrorChain(t *testing.T) {
 	}
 	client := tmux.NewClient(mock)
 
-	rec := &recordingSlogHandler{}
-	if err := tmux.RegisterPortalHooks(client, slog.New(rec).With("component", "bootstrap")); err == nil {
+	sink := &logtest.Sink{}
+	if err := tmux.RegisterPortalHooks(client, slog.New(sink).With("component", "bootstrap")); err == nil {
 		t.Fatal("expected error, got nil")
 	}
 
-	warns := showHooksWarnRecords(rec.records)
+	warns := showHooksWarnRecords(sink)
 	if len(warns) != 1 {
-		t.Fatalf("expected exactly 1 %q WARN (only session-created's read fails), got %d: %v", showHooksWarnMessage, len(warns), rec.records)
+		t.Fatalf("expected exactly 1 %q WARN (only session-created's read fails), got %d: %v", showHooksWarnMessage, len(warns), sink.Records())
 	}
 
-	var gotErr error
-	warns[0].Attrs(func(a slog.Attr) bool {
-		if a.Key == "error" {
-			if e, ok := a.Value.Any().(error); ok {
-				gotErr = e
-			}
-		}
-		return true
-	})
+	gotErr, _ := warns[0].Attrs["error"].Any().(error)
 	if gotErr == nil {
 		t.Fatal("WARN error attr is not an error value (was passed .Error()?)")
 	}
@@ -165,8 +142,8 @@ func TestRegisterPortalHooks_ShowHooksFailureLoggedExactlyOnce(t *testing.T) {
 	}
 	client := tmux.NewClient(mock)
 
-	rec := &recordingSlogHandler{}
-	injected := slog.New(rec).With("component", "bootstrap")
+	sink := &logtest.Sink{}
+	injected := slog.New(sink).With("component", "bootstrap")
 
 	err := tmux.RegisterPortalHooks(client, injected)
 	if err == nil {
@@ -179,10 +156,10 @@ func TestRegisterPortalHooks_ShowHooksFailureLoggedExactlyOnce(t *testing.T) {
 	assertNoSetHookCalls(t, mock.Calls)
 
 	wantSiblingFailures := expectedManagedEventCount
-	warns := showHooksWarnRecords(rec.records)
+	warns := showHooksWarnRecords(sink)
 	if len(warns) != wantSiblingFailures {
 		t.Fatalf("expected exactly %d %q WARNs (one per managed event, no aggregate double-log), got %d: %v",
-			wantSiblingFailures, showHooksWarnMessage, len(warns), rec.records)
+			wantSiblingFailures, showHooksWarnMessage, len(warns), sink.Records())
 	}
 	for i, w := range warns {
 		t.Run("warn-"+string(rune('0'+i)), func(t *testing.T) {

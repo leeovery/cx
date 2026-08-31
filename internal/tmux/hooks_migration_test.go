@@ -40,7 +40,7 @@ func TestRegisterPortalHooks_HydrationConvergesUnSeparatedToDashForm(t *testing.
 	}
 	installStaleHooks(t, client)
 
-	log := &recordingMigrationLogger{}
+	log := &migrationLog{}
 	if err := tmux.RegisterPortalHooks(client, log.Logger().With("component", "bootstrap")); err != nil {
 		t.Fatalf("RegisterPortalHooks: %v", err)
 	}
@@ -76,12 +76,12 @@ func TestRegisterPortalHooks_HydrationSecondBootstrapIsSilentNoOp(t *testing.T) 
 	}
 	installStaleHooks(t, client)
 
-	first := &recordingMigrationLogger{}
+	first := &migrationLog{}
 	if err := tmux.RegisterPortalHooks(client, first.Logger().With("component", "bootstrap")); err != nil {
 		t.Fatalf("first RegisterPortalHooks: %v", err)
 	}
 
-	second := &recordingMigrationLogger{}
+	second := &migrationLog{}
 	if err := tmux.RegisterPortalHooks(client, second.Logger().With("component", "bootstrap")); err != nil {
 		t.Fatalf("second RegisterPortalHooks: %v", err)
 	}
@@ -110,7 +110,7 @@ func TestRegisterPortalHooks_HydrationFreshInstallIsSilentAndInstallsFixed(t *te
 		t.Fatalf("EnsureServer: %v", err)
 	}
 
-	log := &recordingMigrationLogger{}
+	log := &migrationLog{}
 	if err := tmux.RegisterPortalHooks(client, log.Logger().With("component", "bootstrap")); err != nil {
 		t.Fatalf("RegisterPortalHooks: %v", err)
 	}
@@ -148,7 +148,7 @@ func TestRegisterPortalHooks_HydrationCollapsesMultipleStaleEntriesOnOneEvent(t 
 		t.Fatalf("AppendGlobalHook[client-session-changed]: %v", err)
 	}
 
-	log := &recordingMigrationLogger{}
+	log := &migrationLog{}
 	if err := tmux.RegisterPortalHooks(client, log.Logger().With("component", "bootstrap")); err != nil {
 		t.Fatalf("RegisterPortalHooks: %v", err)
 	}
@@ -183,7 +183,7 @@ func TestRegisterPortalHooks_HydrationPreservesUserHookLackingFingerprint(t *tes
 		t.Fatalf("AppendGlobalHook(user): %v", err)
 	}
 
-	log := &recordingMigrationLogger{}
+	log := &migrationLog{}
 	if err := tmux.RegisterPortalHooks(client, log.Logger().With("component", "bootstrap")); err != nil {
 		t.Fatalf("RegisterPortalHooks: %v", err)
 	}
@@ -211,7 +211,7 @@ func TestRegisterPortalHooks_HydrationPerIndexEvictFailureWarnsAndContinues(t *t
 		map[string]error{failingTarget: sentinel})}
 	client := tmux.NewClient(mock)
 
-	log := &recordingMigrationLogger{}
+	log := &migrationLog{}
 	if err := tmux.RegisterPortalHooks(client, log.Logger().With("component", "bootstrap")); err != nil {
 		t.Fatalf("RegisterPortalHooks returned err: %v (per-index migration failures must not error)", err)
 	}
@@ -242,7 +242,7 @@ func TestRegisterPortalHooks_HydrationScansEveryRuntimeTriggerEvent(t *testing.T
 	mock := &MockCommander{RunFunc: perEventDispatch(t, raw.String(), nil)}
 	client := tmux.NewClient(mock)
 
-	log := &recordingMigrationLogger{}
+	log := &migrationLog{}
 	if err := tmux.RegisterPortalHooks(client, log.Logger().With("component", "bootstrap")); err != nil {
 		t.Fatalf("RegisterPortalHooks: %v", err)
 	}
@@ -272,7 +272,7 @@ func TestRegisterPortalHooks_HydrationReadFailureWrapsErrorAndSkipsSetHook(t *te
 	}
 	client := tmux.NewClient(mock)
 
-	log := &recordingMigrationLogger{}
+	log := &migrationLog{}
 	err := tmux.RegisterPortalHooks(client, log.Logger().With("component", "bootstrap"))
 
 	if err == nil {

@@ -92,11 +92,16 @@ func (rs Records) AtOrAboveLevel(minLevel slog.Level) Records {
 	return rs.filter(func(r Record) bool { return r.Level >= minLevel })
 }
 
+// Msg keeps the records carrying message msg, whatever component emitted them.
+func (rs Records) Msg(msg string) Records {
+	return rs.filter(func(r Record) bool { return r.Msg == msg })
+}
+
 // With keeps the records emitted under component carrying message msg.
 func (rs Records) With(component, msg string) Records {
-	return rs.filter(func(r Record) bool {
+	return rs.Msg(msg).filter(func(r Record) bool {
 		c, ok := r.Attrs["component"]
-		return ok && c.String() == component && r.Msg == msg
+		return ok && c.String() == component
 	})
 }
 

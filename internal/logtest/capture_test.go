@@ -315,3 +315,25 @@ func expectFail(fn func(logtest.TestingT)) (failed bool) {
 	fn(t)
 	return t.failed
 }
+
+func TestRecords_MsgFiltersOnMessageAloneAcrossComponents(t *testing.T) {
+	logger, sink := logtest.NewCaptureLogger(t)
+	logger.With("component", "bootstrap").Warn("show-hooks failed")
+	logger.With("component", "saver").Warn("show-hooks failed")
+	logger.With("component", "bootstrap").Warn("something else")
+	logger.Info("show-hooks failed")
+
+	got := sink.Records().Msg("show-hooks failed")
+	if len(got) != 3 {
+		t.Fatalf("Msg(show-hooks failed) returned %d records, want 3: %+v", len(got), got)
+	}
+
+	warns := sink.RecordsAtExactLevel(slog.LevelWarn).Msg("show-hooks failed")
+	if len(warns) != 2 {
+		t.Fatalf("chained level+message filter returned %d records, want 2: %+v", len(warns), warns)
+	}
+
+	if none := sink.Records().Msg("never emitted"); none != nil {
+		t.Errorf("Msg on an unemitted message = %+v, want nil", none)
+	}
+}

@@ -58,17 +58,15 @@ func TestHookSweepStandsDownOnLockTimeout(t *testing.T) {
 	t.Run("it emits exactly one WARN per stood-down cycle", func(t *testing.T) {
 		store, _, _ := lockedSweepFixture(t, lockBound)
 		sink := logtest.Install(t)
-		injected := &recordingLogger{}
+		injected, injectedSink := newCaptureLoggerForComponent(t, "daemon")
 
-		if err := sweepErr(lister, store, injected.Logger().With("component", "daemon")); err != nil {
+		if err := sweepErr(lister, store, injected); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
 		assertStandDown(t, sink, slog.LevelWarn, "lock-timeout")
-		for _, e := range injected.entries {
-			if e.level == "warn" {
-				t.Errorf("unexpected WARN on the injected logger: %+v", e)
-			}
+		for _, rec := range injectedSink.RecordsAtExactLevel(slog.LevelWarn) {
+			t.Errorf("unexpected WARN on the injected logger: %+v", rec)
 		}
 	})
 
@@ -144,17 +142,17 @@ func TestHookSweepStandsDownOnLockTimeout(t *testing.T) {
 		before := readFileBytes(t, path)
 
 		sink := logtest.Install(t)
-		injected := &recordingLogger{}
+		injected, injectedSink := newCaptureLoggerForComponent(t, "daemon")
 		fc := &daemonFakeCommander{panesOut: livePaneRowOut}
-		deps := hookCleanupDeps(fc, store, injected.Logger().With("component", "daemon"))
+		deps := hookCleanupDeps(fc, store, injected)
 		deps.lastCleanup = time.Now().Add(-2 * hookCleanupInterval)
 
 		maybeRunHookCleanup(deps)
 
 		assertHooksFileUnchanged(t, path, before, "rewritten by the daemon under a held lock")
 		assertStandDown(t, sink, slog.LevelWarn, "lock-timeout")
-		if got := countMatching(injected.entries, "warn", "daemon", "hooks stale-cleanup failed"); got != 0 {
-			t.Errorf("daemon generic-failure WARN count = %d, want 0; entries=%+v", got, injected.entries)
+		if got := len(injectedSink.RecordsWith("daemon", "hooks stale-cleanup failed").AtExactLevel(slog.LevelWarn)); got != 0 {
+			t.Errorf("daemon generic-failure WARN count = %d, want 0; entries=%+v", got, injectedSink.Records())
 		}
 	})
 }

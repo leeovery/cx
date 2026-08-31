@@ -28,29 +28,27 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		store, path := newStagedHooksStore(t, hooksStoreStaging{seed: seed})
 		before := readFileBytes(t, path)
 
-		logger := &recordingLogger{}
+		logger, loggerSink := newCaptureLoggerForComponent(t, "bootstrap")
 		lister := &stubStaleSweepReader{rows: tokenRows(), err: nil}
 
-		if err := sweepErr(lister, store, logger.Logger().With("component", "bootstrap")); err != nil {
+		if err := sweepErr(lister, store, logger); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
 		assertHooksFileUnchanged(t, path, before, "modified by hazard-guard branch")
 
-		if got := countMatching(logger.entries, "debug", "bootstrap", entryDebugFmt); got != 1 {
-			t.Errorf("entry-point Debug count = %d, want 1; entries=%+v", got, logger.entries)
+		if got := len(loggerSink.RecordsWith("bootstrap", entryDebugFmt).AtExactLevel(slog.LevelDebug)); got != 1 {
+			t.Errorf("entry-point Debug count = %d, want 1; entries=%+v", got, loggerSink.Records())
 		}
 
 		// The guard's own WARN rides the hooks component, not the injected
 		// bootstrap/daemon logger.
-		for _, e := range logger.entries {
-			if e.level == "warn" {
-				t.Errorf("unexpected Warn on the injected logger under the hazard guard: %+v", e)
-			}
+		for _, rec := range loggerSink.RecordsAtExactLevel(slog.LevelWarn) {
+			t.Errorf("unexpected Warn on the injected logger under the hazard guard: %+v", rec)
 		}
 
-		if got := countMatching(logger.entries, "debug", "bootstrap", completionDebugFmt); got != 0 {
-			t.Errorf("completion Debug count = %d, want 0 (must NOT fire on hazard branch); entries=%+v", got, logger.entries)
+		if got := len(loggerSink.RecordsWith("bootstrap", completionDebugFmt).AtExactLevel(slog.LevelDebug)); got != 0 {
+			t.Errorf("completion Debug count = %d, want 0 (must NOT fire on hazard branch); entries=%+v", got, loggerSink.Records())
 		}
 	})
 
@@ -58,27 +56,25 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		store, path := newStagedHooksStore(t, hooksStoreStaging{seed: ""})
 		before := readFileBytes(t, path)
 
-		logger := &recordingLogger{}
+		logger, loggerSink := newCaptureLoggerForComponent(t, "bootstrap")
 		lister := &stubStaleSweepReader{rows: tokenRows(), err: nil}
 
-		if err := sweepErr(lister, store, logger.Logger().With("component", "bootstrap")); err != nil {
+		if err := sweepErr(lister, store, logger); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
 		assertHooksFileUnchanged(t, path, before, "materialised under both-sides-empty path")
 
-		if got := countMatching(logger.entries, "debug", "bootstrap", entryDebugFmt); got != 1 {
-			t.Errorf("entry-point Debug count = %d, want 1; entries=%+v", got, logger.entries)
+		if got := len(loggerSink.RecordsWith("bootstrap", entryDebugFmt).AtExactLevel(slog.LevelDebug)); got != 1 {
+			t.Errorf("entry-point Debug count = %d, want 1; entries=%+v", got, loggerSink.Records())
 		}
 
-		for _, e := range logger.entries {
-			if e.level == "warn" {
-				t.Errorf("unexpected Warn under both-sides-empty: %+v", e)
-			}
+		for _, rec := range loggerSink.RecordsAtExactLevel(slog.LevelWarn) {
+			t.Errorf("unexpected Warn under both-sides-empty: %+v", rec)
 		}
 
-		if got := countMatching(logger.entries, "debug", "bootstrap", completionDebugFmt); got != 0 {
-			t.Errorf("completion Debug count = %d, want 0; entries=%+v", got, logger.entries)
+		if got := len(loggerSink.RecordsWith("bootstrap", completionDebugFmt).AtExactLevel(slog.LevelDebug)); got != 0 {
+			t.Errorf("completion Debug count = %d, want 0; entries=%+v", got, loggerSink.Records())
 		}
 	})
 
@@ -88,10 +84,10 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		before := readFileBytes(t, path)
 
 		sentinel := errors.New("tmux dead")
-		logger := &recordingLogger{}
+		logger, loggerSink := newCaptureLoggerForComponent(t, "bootstrap")
 		lister := &stubStaleSweepReader{rows: nil, err: sentinel}
 
-		outcome, err := runHookStaleCleanup(lister, store, logger.Logger().With("component", "bootstrap"))
+		outcome, err := runHookStaleCleanup(lister, store, logger)
 		if err != nil {
 			t.Fatalf("runHookStaleCleanup on ListAllPanes error: want nil, got %v", err)
 		}
@@ -101,8 +97,8 @@ func TestRunHookStaleCleanup(t *testing.T) {
 
 		assertHooksFileUnchanged(t, path, before, "modified on ListAllPanes-error path")
 
-		if got := countMatching(logger.entries, "debug", "bootstrap", entryDebugFmt); got != 0 {
-			t.Errorf("entry-point Debug count = %d, want 0 (must NOT fire on ListAllPanes-error branch); entries=%+v", got, logger.entries)
+		if got := len(loggerSink.RecordsWith("bootstrap", entryDebugFmt).AtExactLevel(slog.LevelDebug)); got != 0 {
+			t.Errorf("entry-point Debug count = %d, want 0 (must NOT fire on ListAllPanes-error branch); entries=%+v", got, loggerSink.Records())
 		}
 	})
 
@@ -116,12 +112,12 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		}
 		store := hooks.NewStore(bogusPath)
 
-		logger := &recordingLogger{}
+		logger, loggerSink := newCaptureLoggerForComponent(t, "bootstrap")
 		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA), err: nil}
 
 		sink := logtest.Install(t)
 
-		outcome, err := runHookStaleCleanup(lister, store, logger.Logger().With("component", "bootstrap"))
+		outcome, err := runHookStaleCleanup(lister, store, logger)
 		if err == nil {
 			t.Fatalf("runHookStaleCleanup: want Load error, got nil")
 		}
@@ -131,8 +127,8 @@ func TestRunHookStaleCleanup(t *testing.T) {
 
 		assertStandDown(t, sink, slog.LevelWarn, skipReasonStoreReadFailed)
 
-		if got := countMatching(logger.entries, "debug", "bootstrap", entryDebugFmt); got != 0 {
-			t.Errorf("entry-point Debug count = %d, want 0 on Load-error branch; entries=%+v", got, logger.entries)
+		if got := len(loggerSink.RecordsWith("bootstrap", entryDebugFmt).AtExactLevel(slog.LevelDebug)); got != 0 {
+			t.Errorf("entry-point Debug count = %d, want 0 on Load-error branch; entries=%+v", got, loggerSink.Records())
 		}
 	})
 
@@ -145,10 +141,10 @@ func TestRunHookStaleCleanup(t *testing.T) {
 }`, liveSeedA, reapableSeedB, reapableSeedC, reapableSeedD)
 		store, _ := newStagedHooksStore(t, hooksStoreStaging{seed: seed})
 
-		logger := &recordingLogger{}
+		logger, _ := newCaptureLoggerForComponent(t, "bootstrap")
 		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA), err: nil}
 
-		outcome, err := runHookStaleCleanup(lister, store, logger.Logger().With("component", "bootstrap"))
+		outcome, err := runHookStaleCleanup(lister, store, logger)
 		if err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
@@ -175,10 +171,10 @@ func TestRunHookStaleCleanup(t *testing.T) {
 }`, liveSeedA, liveSeedB, liveSeedC, reapableSeedD)
 		store, _ := newStagedHooksStore(t, hooksStoreStaging{seed: seed})
 
-		logger := &recordingLogger{}
+		logger, loggerSink := newCaptureLoggerForComponent(t, "bootstrap")
 		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA, liveSeedB, liveSeedC), err: nil}
 
-		if err := sweepErr(lister, store, logger.Logger().With("component", "bootstrap")); err != nil {
+		if err := sweepErr(lister, store, logger); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
@@ -194,18 +190,16 @@ func TestRunHookStaleCleanup(t *testing.T) {
 			t.Errorf("post-run hooks still contains stale key %s; got %v", reapableSeedD, keysOf(postRun))
 		}
 
-		if got := countMatching(logger.entries, "debug", "bootstrap", entryDebugFmt); got != 1 {
-			t.Errorf("entry-point Debug count = %d, want 1; entries=%+v", got, logger.entries)
+		if got := len(loggerSink.RecordsWith("bootstrap", entryDebugFmt).AtExactLevel(slog.LevelDebug)); got != 1 {
+			t.Errorf("entry-point Debug count = %d, want 1; entries=%+v", got, loggerSink.Records())
 		}
 
-		if got := countMatching(logger.entries, "debug", "bootstrap", completionDebugFmt); got != 1 {
-			t.Errorf("completion Debug count = %d, want 1; entries=%+v", got, logger.entries)
+		if got := len(loggerSink.RecordsWith("bootstrap", completionDebugFmt).AtExactLevel(slog.LevelDebug)); got != 1 {
+			t.Errorf("completion Debug count = %d, want 1; entries=%+v", got, loggerSink.Records())
 		}
 
-		for _, e := range logger.entries {
-			if e.level == "warn" {
-				t.Errorf("unexpected Warn on normal-removal path: %+v", e)
-			}
+		for _, rec := range loggerSink.RecordsAtExactLevel(slog.LevelWarn) {
+			t.Errorf("unexpected Warn on normal-removal path: %+v", rec)
 		}
 	})
 
@@ -223,10 +217,10 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		seed := fmt.Sprintf(`{%q: {"on-resume": "cmd-a"}}`, liveSeedA)
 		store, _ := newStagedHooksStore(t, hooksStoreStaging{seed: seed})
 
-		logger := &recordingLogger{}
+		logger, _ := newCaptureLoggerForComponent(t, "bootstrap")
 		rec := &stubStaleSweepReader{rows: tokenRows(liveSeedA)}
 
-		if err := sweepErr(rec, store, logger.Logger().With("component", "bootstrap")); err != nil {
+		if err := sweepErr(rec, store, logger); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
@@ -242,10 +236,10 @@ func TestRunHookStaleCleanup(t *testing.T) {
 }`, liveSeedA, reapableSeedA)
 		store, _ := newStagedHooksStore(t, hooksStoreStaging{seed: seed})
 
-		logger := &recordingLogger{}
+		logger, _ := newCaptureLoggerForComponent(t, "bootstrap")
 		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA), err: nil}
 
-		if err := sweepErr(lister, store, logger.Logger().With("component", "bootstrap")); err != nil {
+		if err := sweepErr(lister, store, logger); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
@@ -558,8 +552,8 @@ func TestHookSweepReportsStandDown(t *testing.T) {
 		sink := &logtest.Sink{}
 		log.SetTestHandler(t, sink)
 
-		injected := &recordingLogger{}
-		outcome, err := runHookStaleCleanup(lister, store, injected.Logger().With("component", "bootstrap"))
+		injected, _ := newCaptureLoggerForComponent(t, "bootstrap")
+		outcome, err := runHookStaleCleanup(lister, store, injected)
 		if err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
@@ -586,8 +580,8 @@ func TestHookSweepReportsStandDown(t *testing.T) {
 		sink := &logtest.Sink{}
 		log.SetTestHandler(t, sink)
 
-		injected := &recordingLogger{}
-		outcome, err := runHookStaleCleanup(lister, store, injected.Logger().With("component", "bootstrap"))
+		injected, _ := newCaptureLoggerForComponent(t, "bootstrap")
+		outcome, err := runHookStaleCleanup(lister, store, injected)
 		if err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
@@ -608,8 +602,8 @@ func TestHookSweepReportsStandDown(t *testing.T) {
 		sink := &logtest.Sink{}
 		log.SetTestHandler(t, sink)
 
-		injected := &recordingLogger{}
-		outcome, err := runHookStaleCleanup(lister, store, injected.Logger().With("component", "bootstrap"))
+		injected, injectedSink := newCaptureLoggerForComponent(t, "bootstrap")
+		outcome, err := runHookStaleCleanup(lister, store, injected)
 		if err != nil {
 			t.Fatalf("runHookStaleCleanup on an enumeration error: want nil, got %v", err)
 		}
@@ -622,10 +616,8 @@ func TestHookSweepReportsStandDown(t *testing.T) {
 		if got := rec.AttrString(t, "error"); got != sentinel.Error() {
 			t.Errorf("error attr = %q, want %q", got, sentinel.Error())
 		}
-		for _, e := range injected.entries {
-			if e.level == "warn" {
-				t.Errorf("stand-down emitted on the injected logger as well as the hooks component: %+v", e)
-			}
+		for _, rec := range injectedSink.RecordsAtExactLevel(slog.LevelWarn) {
+			t.Errorf("stand-down emitted on the injected logger as well as the hooks component: %+v", rec)
 		}
 	})
 }
@@ -645,9 +637,9 @@ func TestHookSweepGuardCountsPaneRowsNotTokens(t *testing.T) {
 		sink := &logtest.Sink{}
 		log.SetTestHandler(t, sink)
 
-		injected := &recordingLogger{}
+		injected, injectedSink := newCaptureLoggerForComponent(t, "bootstrap")
 		outcome, err := runHookStaleCleanup(&stubStaleSweepReader{rows: unstampedRows(3)}, store,
-			injected.Logger().With("component", "bootstrap"))
+			injected)
 		if err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
@@ -658,10 +650,8 @@ func TestHookSweepGuardCountsPaneRowsNotTokens(t *testing.T) {
 		if recs := sink.Records(); len(recs) != 0 {
 			t.Errorf("hooks-component records = %+v, want none (no hazard exists at zero stamped panes)", recs)
 		}
-		for _, e := range injected.entries {
-			if e.level == "warn" {
-				t.Errorf("unexpected Warn with rows present and no token: %+v", e)
-			}
+		for _, rec := range injectedSink.RecordsAtExactLevel(slog.LevelWarn) {
+			t.Errorf("unexpected Warn with rows present and no token: %+v", rec)
 		}
 		assertHooksFileUnchanged(t, path, before, "rewritten with only unjudgeable entries present")
 	})
@@ -708,14 +698,19 @@ func TestHookSweepGuardCountsPaneRowsNotTokens(t *testing.T) {
 	t.Run("it counts the rows, not the tokens, on the counts line", func(t *testing.T) {
 		store, _ := newStagedHooksStore(t, hooksStoreStaging{seed: fmt.Sprintf(`{%q: {"on-resume": "cmd-live"}}`, unjudgeableSeedB)})
 
-		logger := &recordingLogger{}
+		logger, loggerSink := newCaptureLoggerForComponent(t, "bootstrap")
 		lister := &stubStaleSweepReader{rows: unstampedRows(4)}
-		if err := sweepErr(lister, store, logger.Logger().With("component", "bootstrap")); err != nil {
+		if err := sweepErr(lister, store, logger); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
-		rec := onlyMatching(t, logger.entries, "debug", "bootstrap", "stale-hook cleanup counts")
-		if got := rec.intAttr(t, "panes"); got != 4 {
+		counts := loggerSink.RecordsWith("bootstrap", "stale-hook cleanup counts").AtExactLevel(slog.LevelDebug)
+		if len(counts) != 1 {
+			t.Fatalf("records matching debug/bootstrap/%q = %d, want 1; records=%+v",
+				"stale-hook cleanup counts", len(counts), loggerSink.Records())
+		}
+		rec := counts[0]
+		if got := rec.IntAttr(t, "panes"); got != 4 {
 			t.Errorf("panes = %d, want 4 (the count is of live panes; none of these carries a token)", got)
 		}
 	})

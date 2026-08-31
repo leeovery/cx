@@ -1,7 +1,6 @@
 package tmux_test
 
 import (
-	"context"
 	"errors"
 	"io/fs"
 	"log/slog"
@@ -13,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leeovery/portal/internal/log"
+	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
 )
@@ -1148,52 +1147,29 @@ func TestEnsurePortalSaverVersion_DoesNotWriteDaemonVersionOnKillPath(t *testing
 	}
 }
 
-type recordingBarrierLogger struct {
-	warns  []string
-	shared *recordingBarrierLogger
-	bound  []slog.Attr
+// attrOrEmpty reads an attr as a string, standing in for the absent attr with
+// the empty string so an assertion on the value reports the mismatch itself.
+func attrOrEmpty(rec logtest.Record, key string) string {
+	v, ok := rec.Attrs[key]
+	if !ok {
+		return ""
+	}
+	return v.String()
 }
 
-func (r *recordingBarrierLogger) Logger() *slog.Logger { return slog.New(r) }
-
-func (r *recordingBarrierLogger) Enabled(_ context.Context, _ slog.Level) bool { return true }
-
-func (r *recordingBarrierLogger) WithAttrs(attrs []slog.Attr) slog.Handler {
-	next := make([]slog.Attr, 0, len(r.bound)+len(attrs))
-	next = append(next, r.bound...)
-	next = append(next, attrs...)
-	return &recordingBarrierLogger{shared: r.owner(), bound: next}
+// barrierLog captures the kill-barrier's WARN lines as "<component> | <message>".
+type barrierLog struct {
+	sink logtest.Sink
 }
 
-func (r *recordingBarrierLogger) WithGroup(_ string) slog.Handler {
-	return &recordingBarrierLogger{shared: r.owner(), bound: r.bound}
-}
+func (b *barrierLog) Logger() *slog.Logger { return slog.New(&b.sink) }
 
-func (r *recordingBarrierLogger) owner() *recordingBarrierLogger {
-	if r.shared != nil {
-		return r.shared
+func (b *barrierLog) warns() []string {
+	var out []string
+	for _, rec := range b.sink.RecordsAtExactLevel(slog.LevelWarn) {
+		out = append(out, attrOrEmpty(rec, "component")+" | "+rec.Msg)
 	}
-	return r
-}
-
-func (r *recordingBarrierLogger) Handle(_ context.Context, rec slog.Record) error {
-	if rec.Level != slog.LevelWarn {
-		return nil
-	}
-	component := ""
-	read := func(a slog.Attr) bool {
-		if a.Key == "component" {
-			component = a.Value.String()
-		}
-		return true
-	}
-	for _, a := range r.bound {
-		read(a)
-	}
-	rec.Attrs(read)
-	owner := r.owner()
-	owner.warns = append(owner.warns, component+" | "+rec.Message)
-	return nil
+	return out
 }
 
 func swapSeam[T any](t *testing.T, ptr *T, v T) {
@@ -1223,7 +1199,7 @@ func installBarrierTimeout(t *testing.T, d time.Duration) {
 	swapSeam(t, tmux.BarrierTimeoutSeam(), d)
 }
 
-func installBarrierLogger(t *testing.T, log *recordingBarrierLogger) {
+func installBarrierLogger(t *testing.T, log *barrierLog) {
 	t.Helper()
 	swapSeam(t, tmux.BarrierLoggerSeam(), log.Logger().With("component", "bootstrap"))
 }
@@ -1261,7 +1237,7 @@ func TestKillSaverAndWaitForDaemon_ReturnsNilWithNoWarnWhenPriorPIDDiesBeforeTim
 		}
 		return calls < 3
 	})
-	log := &recordingBarrierLogger{}
+	log := &barrierLog{}
 	installBarrierLogger(t, log)
 
 	script := &portalSaverScript{
@@ -1277,8 +1253,8 @@ func TestKillSaverAndWaitForDaemon_ReturnsNilWithNoWarnWhenPriorPIDDiesBeforeTim
 	if got := countCalls(mock.Calls, "kill-session"); got != 1 {
 		t.Errorf("expected exactly 1 kill-session call, got %d (calls: %v)", got, mock.Calls)
 	}
-	if len(log.warns) != 0 {
-		t.Errorf("expected 0 WARN lines on clean exit, got %d: %v", len(log.warns), log.warns)
+	if len(log.warns()) != 0 {
+		t.Errorf("expected 0 WARN lines on clean exit, got %d: %v", len(log.warns()), log.warns())
 	}
 }
 
@@ -1287,7 +1263,7 @@ func TestKillSaverAndWaitForDaemon_EmitsOneWarnAndReturnsNilWhenPriorPIDNeverDie
 	installBarrierTimeout(t, 20*time.Millisecond)
 	installBarrierReadPID(t, func(string) (int, error) { return 4321, nil })
 	installBarrierIsAlive(t, func(int) bool { return true })
-	log := &recordingBarrierLogger{}
+	log := &barrierLog{}
 	installBarrierLogger(t, log)
 
 	script := &portalSaverScript{
@@ -1305,8 +1281,8 @@ func TestKillSaverAndWaitForDaemon_EmitsOneWarnAndReturnsNilWhenPriorPIDNeverDie
 	if got := countCalls(mock.Calls, "kill-session"); got != 1 {
 		t.Errorf("expected exactly 1 kill-session call, got %d", got)
 	}
-	if len(log.warns) != 1 {
-		t.Errorf("expected exactly 1 WARN line on timeout, got %d: %v", len(log.warns), log.warns)
+	if len(log.warns()) != 1 {
+		t.Errorf("expected exactly 1 WARN line on timeout, got %d: %v", len(log.warns()), log.warns())
 	}
 	if elapsed > 1*time.Second {
 		t.Errorf("barrier exceeded wall-time budget: elapsed=%v (timeout=20ms)", elapsed)
@@ -1323,7 +1299,7 @@ func TestKillSaverAndWaitForDaemon_SkipsPollingWhenPIDFileAbsent(t *testing.T) {
 		aliveCalls++
 		return true
 	})
-	log := &recordingBarrierLogger{}
+	log := &barrierLog{}
 	installBarrierLogger(t, log)
 
 	script := &portalSaverScript{
@@ -1342,8 +1318,8 @@ func TestKillSaverAndWaitForDaemon_SkipsPollingWhenPIDFileAbsent(t *testing.T) {
 	if aliveCalls != 0 {
 		t.Errorf("expected 0 IsProcessAlive probes when PID file absent, got %d", aliveCalls)
 	}
-	if len(log.warns) != 0 {
-		t.Errorf("expected 0 WARN lines when PID file absent, got %d: %v", len(log.warns), log.warns)
+	if len(log.warns()) != 0 {
+		t.Errorf("expected 0 WARN lines when PID file absent, got %d: %v", len(log.warns()), log.warns())
 	}
 }
 
@@ -1359,7 +1335,7 @@ func TestKillSaverAndWaitForDaemon_SkipsPollingWhenPIDFileCorrupted(t *testing.T
 		aliveCalls++
 		return true
 	})
-	log := &recordingBarrierLogger{}
+	log := &barrierLog{}
 	installBarrierLogger(t, log)
 
 	script := &portalSaverScript{
@@ -1378,8 +1354,8 @@ func TestKillSaverAndWaitForDaemon_SkipsPollingWhenPIDFileCorrupted(t *testing.T
 	if aliveCalls != 0 {
 		t.Errorf("expected 0 IsProcessAlive probes on parse error, got %d", aliveCalls)
 	}
-	if len(log.warns) != 0 {
-		t.Errorf("expected 0 WARN lines on parse error, got %d: %v", len(log.warns), log.warns)
+	if len(log.warns()) != 0 {
+		t.Errorf("expected 0 WARN lines on parse error, got %d: %v", len(log.warns()), log.warns())
 	}
 }
 
@@ -1395,7 +1371,7 @@ func TestKillSaverAndWaitForDaemon_SkipsPollingWhenPIDFileUnreadable(t *testing.
 		aliveCalls++
 		return true
 	})
-	log := &recordingBarrierLogger{}
+	log := &barrierLog{}
 	installBarrierLogger(t, log)
 
 	script := &portalSaverScript{
@@ -1414,8 +1390,8 @@ func TestKillSaverAndWaitForDaemon_SkipsPollingWhenPIDFileUnreadable(t *testing.
 	if aliveCalls != 0 {
 		t.Errorf("expected 0 IsProcessAlive probes on read error, got %d", aliveCalls)
 	}
-	if len(log.warns) != 0 {
-		t.Errorf("expected 0 WARN lines on read error, got %d: %v", len(log.warns), log.warns)
+	if len(log.warns()) != 0 {
+		t.Errorf("expected 0 WARN lines on read error, got %d: %v", len(log.warns()), log.warns())
 	}
 }
 
@@ -1429,7 +1405,7 @@ func TestKillSaverAndWaitForDaemon_SkipsPollingWhenPriorPIDAlreadyDead(t *testin
 		aliveCalls++
 		return false
 	})
-	log := &recordingBarrierLogger{}
+	log := &barrierLog{}
 	installBarrierLogger(t, log)
 
 	script := &portalSaverScript{
@@ -1448,8 +1424,8 @@ func TestKillSaverAndWaitForDaemon_SkipsPollingWhenPriorPIDAlreadyDead(t *testin
 	if aliveCalls != 1 {
 		t.Errorf("expected exactly 1 IsProcessAlive probe (then short-circuit), got %d", aliveCalls)
 	}
-	if len(log.warns) != 0 {
-		t.Errorf("expected 0 WARN lines when prior PID already dead, got %d: %v", len(log.warns), log.warns)
+	if len(log.warns()) != 0 {
+		t.Errorf("expected 0 WARN lines when prior PID already dead, got %d: %v", len(log.warns()), log.warns())
 	}
 }
 
@@ -1458,7 +1434,7 @@ func TestKillSaverAndWaitForDaemon_ToleratesFailingKillSession(t *testing.T) {
 	installBarrierTimeout(t, 50*time.Millisecond)
 	installBarrierReadPID(t, func(string) (int, error) { return 4321, nil })
 	installBarrierIsAlive(t, func(int) bool { return false })
-	log := &recordingBarrierLogger{}
+	log := &barrierLog{}
 	installBarrierLogger(t, log)
 
 	script := &portalSaverScript{
@@ -1476,8 +1452,8 @@ func TestKillSaverAndWaitForDaemon_ToleratesFailingKillSession(t *testing.T) {
 	if got := countCalls(mock.Calls, "kill-session"); got != 1 {
 		t.Errorf("expected exactly 1 kill-session call even when it errors, got %d", got)
 	}
-	if len(log.warns) != 0 {
-		t.Errorf("expected 0 WARN lines on tolerated kill error, got %d: %v", len(log.warns), log.warns)
+	if len(log.warns()) != 0 {
+		t.Errorf("expected 0 WARN lines on tolerated kill error, got %d: %v", len(log.warns()), log.warns())
 	}
 }
 
@@ -1487,7 +1463,7 @@ func TestKillSaverAndWaitForDaemon_DoesNotMutateStateDirectory(t *testing.T) {
 	installBarrierReadPID(t, func(string) (int, error) { return 4321, nil })
 	installBarrierIsAlive(t, func(int) bool { return true })
 
-	log := &recordingBarrierLogger{}
+	log := &barrierLog{}
 	installBarrierLogger(t, log)
 
 	dir := t.TempDir()
@@ -1749,7 +1725,7 @@ func TestBootstrapPortalSaver_ToleratesBarrierWarnOnTimeoutPath(t *testing.T) {
 	installBarrierIsAlive(t, func(int) bool { return true })
 	installBarrierPollInterval(t, 1*time.Millisecond)
 	installBarrierTimeout(t, 10*time.Millisecond)
-	log := &recordingBarrierLogger{}
+	log := &barrierLog{}
 	installBarrierLogger(t, log)
 
 	dir := t.TempDir()
@@ -1768,8 +1744,8 @@ func TestBootstrapPortalSaver_ToleratesBarrierWarnOnTimeoutPath(t *testing.T) {
 		t.Fatalf("BootstrapPortalSaver must tolerate barrier WARN-on-timeout, got: %v", err)
 	}
 
-	if len(log.warns) != 1 {
-		t.Errorf("expected exactly 1 WARN on timeout, got %d: %v", len(log.warns), log.warns)
+	if len(log.warns()) != 1 {
+		t.Errorf("expected exactly 1 WARN on timeout, got %d: %v", len(log.warns()), log.warns())
 	}
 	if got := countCalls(mock.Calls, "new-session"); got != 1 {
 		t.Errorf("expected new-session to proceed after barrier timeout, got %d new-session calls", got)
@@ -1781,7 +1757,7 @@ func TestSetBarrierLogger_RoutesWarnOnTimeoutThroughInstalledLogger(t *testing.T
 	prevLogger := *loggerSeam
 	t.Cleanup(func() { *loggerSeam = prevLogger })
 
-	recorder := &recordingBarrierLogger{}
+	recorder := &barrierLog{}
 	tmux.SetBarrierLogger(recorder.Logger().With("component", "bootstrap"))
 
 	installBarrierPollInterval(t, 1*time.Millisecond)
@@ -1799,11 +1775,11 @@ func TestSetBarrierLogger_RoutesWarnOnTimeoutThroughInstalledLogger(t *testing.T
 		t.Fatalf("KillSaverAndWaitForDaemon returned error: %v", err)
 	}
 
-	if len(recorder.warns) != 1 {
-		t.Fatalf("expected exactly 1 WARN routed through SetBarrierLogger, got %d: %v", len(recorder.warns), recorder.warns)
+	if len(recorder.warns()) != 1 {
+		t.Fatalf("expected exactly 1 WARN routed through SetBarrierLogger, got %d: %v", len(recorder.warns()), recorder.warns())
 	}
-	if !strings.HasPrefix(recorder.warns[0], "bootstrap"+" | ") {
-		t.Errorf("WARN component prefix = %q, want %q", recorder.warns[0], "bootstrap"+" | ")
+	if !strings.HasPrefix(recorder.warns()[0], "bootstrap"+" | ") {
+		t.Errorf("WARN component prefix = %q, want %q", recorder.warns()[0], "bootstrap"+" | ")
 	}
 }
 
@@ -1812,7 +1788,7 @@ func TestSetBarrierLogger_IgnoresNilLogger(t *testing.T) {
 	prevLogger := *loggerSeam
 	t.Cleanup(func() { *loggerSeam = prevLogger })
 
-	recorder := &recordingBarrierLogger{}
+	recorder := &barrierLog{}
 	installed := recorder.Logger().With("component", "bootstrap")
 	tmux.SetBarrierLogger(installed)
 	tmux.SetBarrierLogger(nil)
@@ -2322,45 +2298,11 @@ func TestEnsurePortalSaverVersion_Alive_CurrentDev_DoesNotInvokeDefensiveWrite(t
 	}
 }
 
-type recordingSlogHandler struct {
-	records []slog.Record
-	shared  *recordingSlogHandler
-	bound   []slog.Attr
-}
-
-func (h *recordingSlogHandler) owner() *recordingSlogHandler {
-	if h.shared != nil {
-		return h.shared
-	}
-	return h
-}
-
-func (h *recordingSlogHandler) Enabled(_ context.Context, _ slog.Level) bool { return true }
-
-func (h *recordingSlogHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
-	next := make([]slog.Attr, 0, len(h.bound)+len(attrs))
-	next = append(next, h.bound...)
-	next = append(next, attrs...)
-	return &recordingSlogHandler{shared: h.owner(), bound: next}
-}
-
-func (h *recordingSlogHandler) WithGroup(_ string) slog.Handler {
-	return &recordingSlogHandler{shared: h.owner(), bound: h.bound}
-}
-
-func (h *recordingSlogHandler) Handle(_ context.Context, r slog.Record) error {
-	rec := r.Clone()
-	rec.AddAttrs(h.bound...)
-	owner := h.owner()
-	owner.records = append(owner.records, rec)
-	return nil
-}
-
 func TestSetVersionWriterLogger_BootstrapWrapperEmitsDebugBreadcrumb(t *testing.T) {
 	dir := t.TempDir()
 
-	rec := &recordingSlogHandler{}
-	lg := slog.New(rec).With("component", "daemon")
+	sink := &logtest.Sink{}
+	lg := slog.New(sink).With("component", "daemon")
 
 	loggerSeam := tmux.VersionWriterLoggerSeam()
 	prev := *loggerSeam
@@ -2373,29 +2315,16 @@ func TestSetVersionWriterLogger_BootstrapWrapperEmitsDebugBreadcrumb(t *testing.
 		t.Fatalf("portalSaverWriteVersionFile: %v", err)
 	}
 
-	var breadcrumbs []slog.Record
-	for _, r := range rec.records {
-		if r.Message == "daemon.version write" {
-			breadcrumbs = append(breadcrumbs, r)
-		}
-	}
+	breadcrumbs := sink.Records().Msg("daemon.version write")
 	if len(breadcrumbs) != 1 {
-		t.Fatalf("expected exactly 1 'daemon.version write' breadcrumb, got %d: %v", len(breadcrumbs), rec.records)
+		t.Fatalf("expected exactly 1 'daemon.version write' breadcrumb, got %d: %v", len(breadcrumbs), sink.Records())
 	}
 	b := breadcrumbs[0]
 	if b.Level != slog.LevelDebug {
 		t.Errorf("breadcrumb level = %v, want DEBUG", b.Level)
 	}
-	var gotComponent, gotPath string
-	b.Attrs(func(a slog.Attr) bool {
-		switch a.Key {
-		case "component":
-			gotComponent = a.Value.String()
-		case "path":
-			gotPath = a.Value.String()
-		}
-		return true
-	})
+	gotComponent := attrOrEmpty(b, "component")
+	gotPath := attrOrEmpty(b, "path")
 	if gotComponent != "daemon" {
 		t.Errorf("breadcrumb component = %q, want %q", gotComponent, "daemon")
 	}
@@ -2406,7 +2335,7 @@ func TestSetVersionWriterLogger_BootstrapWrapperEmitsDebugBreadcrumb(t *testing.
 }
 
 func TestSetVersionWriterLogger_IgnoresNilLogger(t *testing.T) {
-	lg := slog.New(&recordingSlogHandler{}).With("component", "daemon")
+	lg := slog.New(&logtest.Sink{}).With("component", "daemon")
 
 	loggerSeam := tmux.VersionWriterLoggerSeam()
 	prev := *loggerSeam
@@ -2496,7 +2425,7 @@ func TestWaitForSaverDaemonReady_ReturnsNilImmediatelyWhenPIDPresentAndIdentifie
 		}
 		return state.IdentifyIsPortalDaemon, nil
 	})
-	log := &recordingBarrierLogger{}
+	log := &barrierLog{}
 	installBarrierLogger(t, log)
 
 	if err := tmux.WaitForSaverDaemonReady(t.TempDir()); err != nil {
@@ -2509,8 +2438,8 @@ func TestWaitForSaverDaemonReady_ReturnsNilImmediatelyWhenPIDPresentAndIdentifie
 	if identifyCalls != 1 {
 		t.Errorf("expected exactly 1 IdentifyDaemon call on immediate success, got %d", identifyCalls)
 	}
-	if len(log.warns) != 0 {
-		t.Errorf("expected 0 WARN lines on immediate success, got %d: %v", len(log.warns), log.warns)
+	if len(log.warns()) != 0 {
+		t.Errorf("expected 0 WARN lines on immediate success, got %d: %v", len(log.warns()), log.warns())
 	}
 }
 
@@ -2529,7 +2458,7 @@ func TestWaitForSaverDaemonReady_RetriesWhilePIDFileAbsentThenSucceeds(t *testin
 	installReadinessIdentify(t, func(int) (state.IdentifyResult, error) {
 		return state.IdentifyIsPortalDaemon, nil
 	})
-	log := &recordingBarrierLogger{}
+	log := &barrierLog{}
 	installBarrierLogger(t, log)
 
 	if err := tmux.WaitForSaverDaemonReady(t.TempDir()); err != nil {
@@ -2539,8 +2468,8 @@ func TestWaitForSaverDaemonReady_RetriesWhilePIDFileAbsentThenSucceeds(t *testin
 	if readCall < 3 {
 		t.Errorf("expected at least 3 ReadPIDFile calls (2 absent + 1 success), got %d", readCall)
 	}
-	if len(log.warns) != 0 {
-		t.Errorf("expected 0 WARN lines on eventual success, got %d: %v", len(log.warns), log.warns)
+	if len(log.warns()) != 0 {
+		t.Errorf("expected 0 WARN lines on eventual success, got %d: %v", len(log.warns()), log.warns())
 	}
 }
 
@@ -2558,7 +2487,7 @@ func TestWaitForSaverDaemonReady_RetriesOnTransientIdentifyDaemonPSFailure(t *te
 		}
 		return state.IdentifyIsPortalDaemon, nil
 	})
-	log := &recordingBarrierLogger{}
+	log := &barrierLog{}
 	installBarrierLogger(t, log)
 
 	if err := tmux.WaitForSaverDaemonReady(t.TempDir()); err != nil {
@@ -2568,8 +2497,8 @@ func TestWaitForSaverDaemonReady_RetriesOnTransientIdentifyDaemonPSFailure(t *te
 	if identifyCall < 3 {
 		t.Errorf("expected at least 3 IdentifyDaemon calls (2 transient + 1 success), got %d", identifyCall)
 	}
-	if len(log.warns) != 0 {
-		t.Errorf("expected 0 WARN lines on eventual success, got %d: %v", len(log.warns), log.warns)
+	if len(log.warns()) != 0 {
+		t.Errorf("expected 0 WARN lines on eventual success, got %d: %v", len(log.warns()), log.warns())
 	}
 }
 
@@ -2586,7 +2515,7 @@ func TestWaitForSaverDaemonReady_RetriesOnIdentifyDeadUntilNextPIDWrite(t *testi
 		}
 		return state.IdentifyIsPortalDaemon, nil
 	})
-	log := &recordingBarrierLogger{}
+	log := &barrierLog{}
 	installBarrierLogger(t, log)
 
 	if err := tmux.WaitForSaverDaemonReady(t.TempDir()); err != nil {
@@ -2596,8 +2525,8 @@ func TestWaitForSaverDaemonReady_RetriesOnIdentifyDeadUntilNextPIDWrite(t *testi
 	if identifyCall < 3 {
 		t.Errorf("expected at least 3 IdentifyDaemon calls (2 dead + 1 success), got %d", identifyCall)
 	}
-	if len(log.warns) != 0 {
-		t.Errorf("expected 0 WARN lines on eventual success, got %d: %v", len(log.warns), log.warns)
+	if len(log.warns()) != 0 {
+		t.Errorf("expected 0 WARN lines on eventual success, got %d: %v", len(log.warns()), log.warns())
 	}
 }
 
@@ -2614,7 +2543,7 @@ func TestWaitForSaverDaemonReady_RetriesOnIdentifyNotPortalDaemon(t *testing.T) 
 		}
 		return state.IdentifyIsPortalDaemon, nil
 	})
-	log := &recordingBarrierLogger{}
+	log := &barrierLog{}
 	installBarrierLogger(t, log)
 
 	if err := tmux.WaitForSaverDaemonReady(t.TempDir()); err != nil {
@@ -2624,8 +2553,8 @@ func TestWaitForSaverDaemonReady_RetriesOnIdentifyNotPortalDaemon(t *testing.T) 
 	if identifyCall < 3 {
 		t.Errorf("expected at least 3 IdentifyDaemon calls (2 not-portal + 1 success), got %d", identifyCall)
 	}
-	if len(log.warns) != 0 {
-		t.Errorf("expected 0 WARN lines on eventual success, got %d: %v", len(log.warns), log.warns)
+	if len(log.warns()) != 0 {
+		t.Errorf("expected 0 WARN lines on eventual success, got %d: %v", len(log.warns()), log.warns())
 	}
 }
 
@@ -2637,19 +2566,19 @@ func TestWaitForSaverDaemonReady_TimesOutAndEmitsWarnWhenDaemonNeverIdentifies(t
 	installReadinessIdentify(t, func(int) (state.IdentifyResult, error) {
 		return state.IdentifyDead, nil
 	})
-	log := &recordingBarrierLogger{}
+	log := &barrierLog{}
 	installBarrierLogger(t, log)
 
 	if err := tmux.WaitForSaverDaemonReady(t.TempDir()); err != nil {
 		t.Fatalf("WaitForSaverDaemonReady returned error: %v", err)
 	}
 
-	if len(log.warns) != 1 {
-		t.Fatalf("expected exactly 1 WARN line on timeout, got %d: %v", len(log.warns), log.warns)
+	if len(log.warns()) != 1 {
+		t.Fatalf("expected exactly 1 WARN line on timeout, got %d: %v", len(log.warns()), log.warns())
 	}
 	want := "bootstrap" + " | saver respawn: daemon did not come up"
-	if !strings.HasPrefix(log.warns[0], want) {
-		t.Errorf("WARN line %q must begin with %q", log.warns[0], want)
+	if !strings.HasPrefix(log.warns()[0], want) {
+		t.Errorf("WARN line %q must begin with %q", log.warns()[0], want)
 	}
 }
 
@@ -2661,7 +2590,7 @@ func TestWaitForSaverDaemonReady_WallClockBoundedByTimeoutSeam(t *testing.T) {
 	installReadinessIdentify(t, func(int) (state.IdentifyResult, error) {
 		return state.IdentifyDead, nil
 	})
-	log := &recordingBarrierLogger{}
+	log := &barrierLog{}
 	installBarrierLogger(t, log)
 
 	start := time.Now()
@@ -2675,8 +2604,8 @@ func TestWaitForSaverDaemonReady_WallClockBoundedByTimeoutSeam(t *testing.T) {
 	if elapsed > 1*time.Second {
 		t.Errorf("readiness barrier exceeded wall-time budget: elapsed=%v (timeout=20ms)", elapsed)
 	}
-	if len(log.warns) != 1 {
-		t.Errorf("expected exactly 1 WARN on timeout, got %d: %v", len(log.warns), log.warns)
+	if len(log.warns()) != 1 {
+		t.Errorf("expected exactly 1 WARN on timeout, got %d: %v", len(log.warns()), log.warns())
 	}
 }
 
@@ -2695,7 +2624,7 @@ func TestWaitForSaverDaemonReady_TreatsTransientReadPIDErrorAsNotReady(t *testin
 	installReadinessIdentify(t, func(int) (state.IdentifyResult, error) {
 		return state.IdentifyIsPortalDaemon, nil
 	})
-	log := &recordingBarrierLogger{}
+	log := &barrierLog{}
 	installBarrierLogger(t, log)
 
 	if err := tmux.WaitForSaverDaemonReady(t.TempDir()); err != nil {
@@ -2705,8 +2634,8 @@ func TestWaitForSaverDaemonReady_TreatsTransientReadPIDErrorAsNotReady(t *testin
 	if readCall < 3 {
 		t.Errorf("expected at least 3 ReadPIDFile calls (2 transient + 1 success), got %d", readCall)
 	}
-	if len(log.warns) != 0 {
-		t.Errorf("expected 0 WARN lines on eventual success, got %d: %v", len(log.warns), log.warns)
+	if len(log.warns()) != 0 {
+		t.Errorf("expected 0 WARN lines on eventual success, got %d: %v", len(log.warns()), log.warns())
 	}
 }
 
@@ -2829,7 +2758,7 @@ func TestWaitForSaverDaemonReady_DeadlineComputedOnceAtEntry(t *testing.T) {
 			return state.IdentifyNotPortalDaemon, nil
 		}
 	})
-	log := &recordingBarrierLogger{}
+	log := &barrierLog{}
 	installBarrierLogger(t, log)
 
 	start := time.Now()
@@ -2839,8 +2768,8 @@ func TestWaitForSaverDaemonReady_DeadlineComputedOnceAtEntry(t *testing.T) {
 	if elapsed > 500*time.Millisecond {
 		t.Errorf("deadline appears to reset on transient errors: elapsed=%v (timeout=15ms)", elapsed)
 	}
-	if len(log.warns) != 1 {
-		t.Errorf("expected exactly 1 WARN on timeout, got %d: %v", len(log.warns), log.warns)
+	if len(log.warns()) != 1 {
+		t.Errorf("expected exactly 1 WARN on timeout, got %d: %v", len(log.warns()), log.warns())
 	}
 }
 
@@ -3166,7 +3095,7 @@ func TestKillSaverAndWaitForDaemon_Escalation_IdentityChecksAsPortalDaemonThenSI
 		return killCalls == 0
 	})
 
-	log := &recordingBarrierLogger{}
+	log := &barrierLog{}
 	installBarrierLogger(t, log)
 
 	script := &portalSaverScript{
@@ -3188,8 +3117,8 @@ func TestKillSaverAndWaitForDaemon_Escalation_IdentityChecksAsPortalDaemonThenSI
 	if killedPID != 4321 {
 		t.Errorf("SIGKILL seam called with pid=%d, want 4321", killedPID)
 	}
-	if len(log.warns) != 0 {
-		t.Errorf("expected 0 WARN lines on clean escalation, got %d: %v", len(log.warns), log.warns)
+	if len(log.warns()) != 0 {
+		t.Errorf("expected 0 WARN lines on clean escalation, got %d: %v", len(log.warns()), log.warns())
 	}
 }
 
@@ -3210,7 +3139,7 @@ func TestKillSaverAndWaitForDaemon_Escalation_IdentifyDead_SkipsSIGKILL_WarnsAnd
 		return nil
 	})
 
-	log := &recordingBarrierLogger{}
+	log := &barrierLog{}
 	installBarrierLogger(t, log)
 
 	script := &portalSaverScript{
@@ -3226,8 +3155,8 @@ func TestKillSaverAndWaitForDaemon_Escalation_IdentifyDead_SkipsSIGKILL_WarnsAnd
 	if killCalls != 0 {
 		t.Errorf("expected 0 SIGKILL seam calls on IdentifyDead, got %d", killCalls)
 	}
-	if len(log.warns) != 1 {
-		t.Fatalf("expected exactly 1 WARN on IdentifyDead, got %d: %v", len(log.warns), log.warns)
+	if len(log.warns()) != 1 {
+		t.Fatalf("expected exactly 1 WARN on IdentifyDead, got %d: %v", len(log.warns()), log.warns())
 	}
 }
 
@@ -3248,7 +3177,7 @@ func TestKillSaverAndWaitForDaemon_Escalation_IdentifyNotPortalDaemon_SkipsSIGKI
 		return nil
 	})
 
-	log := &recordingBarrierLogger{}
+	log := &barrierLog{}
 	installBarrierLogger(t, log)
 
 	script := &portalSaverScript{
@@ -3264,8 +3193,8 @@ func TestKillSaverAndWaitForDaemon_Escalation_IdentifyNotPortalDaemon_SkipsSIGKI
 	if killCalls != 0 {
 		t.Errorf("expected 0 SIGKILL seam calls on IdentifyNotPortalDaemon, got %d", killCalls)
 	}
-	if len(log.warns) != 1 {
-		t.Fatalf("expected exactly 1 WARN on IdentifyNotPortalDaemon, got %d: %v", len(log.warns), log.warns)
+	if len(log.warns()) != 1 {
+		t.Fatalf("expected exactly 1 WARN on IdentifyNotPortalDaemon, got %d: %v", len(log.warns()), log.warns())
 	}
 }
 
@@ -3286,7 +3215,7 @@ func TestKillSaverAndWaitForDaemon_Escalation_TransientIdentityError_SkipsSIGKIL
 		return nil
 	})
 
-	log := &recordingBarrierLogger{}
+	log := &barrierLog{}
 	installBarrierLogger(t, log)
 
 	script := &portalSaverScript{
@@ -3302,8 +3231,8 @@ func TestKillSaverAndWaitForDaemon_Escalation_TransientIdentityError_SkipsSIGKIL
 	if killCalls != 0 {
 		t.Errorf("expected 0 SIGKILL seam calls on transient identity error, got %d", killCalls)
 	}
-	if len(log.warns) != 1 {
-		t.Fatalf("expected exactly 1 WARN on transient identity error, got %d: %v", len(log.warns), log.warns)
+	if len(log.warns()) != 1 {
+		t.Fatalf("expected exactly 1 WARN on transient identity error, got %d: %v", len(log.warns()), log.warns())
 	}
 }
 
@@ -3332,7 +3261,7 @@ func TestKillSaverAndWaitForDaemon_Escalation_SIGKILLSucceedsAndProcessExitsWith
 		return postKillProbes < 2
 	})
 
-	log := &recordingBarrierLogger{}
+	log := &barrierLog{}
 	installBarrierLogger(t, log)
 
 	script := &portalSaverScript{
@@ -3348,8 +3277,8 @@ func TestKillSaverAndWaitForDaemon_Escalation_SIGKILLSucceedsAndProcessExitsWith
 	if killCalls != 1 {
 		t.Errorf("expected exactly 1 SIGKILL seam call, got %d", killCalls)
 	}
-	if len(log.warns) != 0 {
-		t.Errorf("expected 0 WARN lines when process exits within window, got %d: %v", len(log.warns), log.warns)
+	if len(log.warns()) != 0 {
+		t.Errorf("expected 0 WARN lines when process exits within window, got %d: %v", len(log.warns()), log.warns())
 	}
 }
 
@@ -3370,7 +3299,7 @@ func TestKillSaverAndWaitForDaemon_Escalation_SIGKILLSucceedsButProcessSurvives_
 		return nil
 	})
 
-	log := &recordingBarrierLogger{}
+	log := &barrierLog{}
 	installBarrierLogger(t, log)
 
 	script := &portalSaverScript{
@@ -3386,8 +3315,8 @@ func TestKillSaverAndWaitForDaemon_Escalation_SIGKILLSucceedsButProcessSurvives_
 	if killCalls != 1 {
 		t.Errorf("expected exactly 1 SIGKILL seam call, got %d", killCalls)
 	}
-	if len(log.warns) != 1 {
-		t.Errorf("expected exactly 1 WARN on persistent aliveness post-SIGKILL, got %d: %v", len(log.warns), log.warns)
+	if len(log.warns()) != 1 {
+		t.Errorf("expected exactly 1 WARN on persistent aliveness post-SIGKILL, got %d: %v", len(log.warns()), log.warns())
 	}
 }
 
@@ -3426,7 +3355,7 @@ func TestKillSaverAndWaitForDaemon_Escalation_IdentityCheckIsImmediatelyPrecedin
 		return err
 	}
 
-	log := &recordingBarrierLogger{}
+	log := &barrierLog{}
 	installBarrierLogger(t, log)
 
 	script := &portalSaverScript{
@@ -3492,7 +3421,7 @@ func TestKillSaverAndWaitForDaemon_Escalation_NeverSendsSIGTERM(t *testing.T) {
 		return postKillProbes < 2
 	})
 
-	log := &recordingBarrierLogger{}
+	log := &barrierLog{}
 	installBarrierLogger(t, log)
 
 	script := &portalSaverScript{
@@ -3537,7 +3466,7 @@ func TestKillSaverAndWaitForDaemon_Escalation_PriorPIDDiesDuringSessionKillPoll_
 		return nil
 	})
 
-	log := &recordingBarrierLogger{}
+	log := &barrierLog{}
 	installBarrierLogger(t, log)
 
 	script := &portalSaverScript{
@@ -3556,8 +3485,8 @@ func TestKillSaverAndWaitForDaemon_Escalation_PriorPIDDiesDuringSessionKillPoll_
 	if killCalls != 0 {
 		t.Errorf("expected 0 SIGKILL seam calls when PID dies during session-kill poll, got %d", killCalls)
 	}
-	if len(log.warns) != 0 {
-		t.Errorf("expected 0 WARN lines when PID dies during session-kill poll, got %d: %v", len(log.warns), log.warns)
+	if len(log.warns()) != 0 {
+		t.Errorf("expected 0 WARN lines when PID dies during session-kill poll, got %d: %v", len(log.warns()), log.warns())
 	}
 }
 
@@ -3579,7 +3508,7 @@ func TestKillSaverAndWaitForDaemon_Escalation_NoPIDFile_EscalationNeverRuns(t *t
 		return nil
 	})
 
-	log := &recordingBarrierLogger{}
+	log := &barrierLog{}
 	installBarrierLogger(t, log)
 
 	script := &portalSaverScript{
@@ -3598,21 +3527,15 @@ func TestKillSaverAndWaitForDaemon_Escalation_NoPIDFile_EscalationNeverRuns(t *t
 	if killCalls != 0 {
 		t.Errorf("expected 0 SIGKILL seam calls when PID file absent, got %d", killCalls)
 	}
-	if len(log.warns) != 0 {
-		t.Errorf("expected 0 WARN lines when PID file absent, got %d: %v", len(log.warns), log.warns)
+	if len(log.warns()) != 0 {
+		t.Errorf("expected 0 WARN lines when PID file absent, got %d: %v", len(log.warns()), log.warns())
 	}
 }
 
 const escalationBreadcrumbMessage = "kill-barrier escalating to SIGKILL"
 
-func escalationDebugRecords(recs []slog.Record) []slog.Record {
-	var out []slog.Record
-	for _, r := range recs {
-		if r.Message == escalationBreadcrumbMessage {
-			out = append(out, r)
-		}
-	}
-	return out
+func escalationDebugRecords(sink *logtest.Sink) logtest.Records {
+	return sink.Records().Msg(escalationBreadcrumbMessage)
 }
 
 func TestEscalateKillToSIGKILL_EmitsDebugBreadcrumbWithTargetPIDOnEscalationBranch(t *testing.T) {
@@ -3633,8 +3556,7 @@ func TestEscalateKillToSIGKILL_EmitsDebugBreadcrumbWithTargetPIDOnEscalationBran
 
 	installBarrierIsAlive(t, func(int) bool { return killCalls == 0 })
 
-	rec := &recordingSlogHandler{}
-	log.SetTestHandler(t, rec)
+	sink := logtest.Install(t)
 
 	script := &portalSaverScript{
 		killSession: func(int) (string, error) { return "", nil },
@@ -3646,36 +3568,25 @@ func TestEscalateKillToSIGKILL_EmitsDebugBreadcrumbWithTargetPIDOnEscalationBran
 		t.Fatalf("KillSaverAndWaitForDaemon returned error: %v", err)
 	}
 
-	breadcrumbs := escalationDebugRecords(rec.records)
+	breadcrumbs := escalationDebugRecords(sink)
 	if len(breadcrumbs) != 1 {
-		t.Fatalf("expected exactly 1 %q breadcrumb, got %d: %v", escalationBreadcrumbMessage, len(breadcrumbs), rec.records)
+		t.Fatalf("expected exactly 1 %q breadcrumb, got %d: %v", escalationBreadcrumbMessage, len(breadcrumbs), sink.Records())
 	}
 	b := breadcrumbs[0]
 	if b.Level != slog.LevelDebug {
 		t.Errorf("breadcrumb level = %v, want DEBUG", b.Level)
 	}
 
-	var gotComponent string
-	var gotTargetPID int64
-	var sawTargetPID bool
-	b.Attrs(func(a slog.Attr) bool {
-		switch a.Key {
-		case "component":
-			gotComponent = a.Value.String()
-		case "target_pid":
-			gotTargetPID = a.Value.Int64()
-			sawTargetPID = true
-		}
-		return true
-	})
+	gotComponent := attrOrEmpty(b, "component")
+	targetPID, sawTargetPID := b.Attrs["target_pid"]
 	if gotComponent != "saver" {
 		t.Errorf("breadcrumb component = %q, want %q", gotComponent, "saver")
 	}
 	if !sawTargetPID {
 		t.Fatalf("breadcrumb missing target_pid attr: %v", b)
 	}
-	if gotTargetPID != 4321 {
-		t.Errorf("breadcrumb target_pid = %d, want 4321 (the SIGKILL'd PID)", gotTargetPID)
+	if got := targetPID.Int64(); got != 4321 {
+		t.Errorf("breadcrumb target_pid = %d, want 4321 (the SIGKILL'd PID)", got)
 	}
 }
 
@@ -3707,8 +3618,7 @@ func TestEscalateKillToSIGKILL_NoBreadcrumbOnSkipBranch(t *testing.T) {
 				return nil
 			})
 
-			rec := &recordingSlogHandler{}
-			log.SetTestHandler(t, rec)
+			sink := logtest.Install(t)
 
 			script := &portalSaverScript{
 				killSession: func(int) (string, error) { return "", nil },
@@ -3723,7 +3633,7 @@ func TestEscalateKillToSIGKILL_NoBreadcrumbOnSkipBranch(t *testing.T) {
 			if killCalls != 0 {
 				t.Errorf("expected 0 SIGKILL seam calls on skip branch, got %d", killCalls)
 			}
-			if got := escalationDebugRecords(rec.records); len(got) != 0 {
+			if got := escalationDebugRecords(sink); len(got) != 0 {
 				t.Errorf("expected 0 escalation breadcrumbs on skip branch, got %d: %v", len(got), got)
 			}
 		})
@@ -3740,13 +3650,12 @@ func TestEscalateKillToSIGKILL_BreadcrumbEmittedBeforeSIGKILL(t *testing.T) {
 		return state.IdentifyIsPortalDaemon, nil
 	})
 
-	rec := &recordingSlogHandler{}
-	log.SetTestHandler(t, rec)
+	sink := logtest.Install(t)
 
 	killCalls := 0
 	breadcrumbsAtKillTime := -1
 	installBarrierSendSIGKILL(t, func(int) error {
-		breadcrumbsAtKillTime = len(escalationDebugRecords(rec.records))
+		breadcrumbsAtKillTime = len(escalationDebugRecords(sink))
 		killCalls++
 		return nil
 	})

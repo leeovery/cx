@@ -294,14 +294,14 @@ func TestRegisterPortalHooks_SecondRegistrationIsChurnFree(t *testing.T) {
 		t.Fatalf("EnsureServer: %v", err)
 	}
 
-	r1 := &recordingMigrationLogger{}
+	r1 := &migrationLog{}
 	if err := tmux.RegisterPortalHooks(client, r1.Logger().With("component", "bootstrap")); err != nil {
 		t.Fatalf("first RegisterPortalHooks: %v", err)
 	}
 
 	before := snapshotEventIndices(t, client)
 
-	r2 := &recordingMigrationLogger{}
+	r2 := &migrationLog{}
 	if err := tmux.RegisterPortalHooks(client, r2.Logger().With("component", "bootstrap")); err != nil {
 		t.Fatalf("second RegisterPortalHooks: %v", err)
 	}

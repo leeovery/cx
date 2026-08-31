@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/tmux"
 )
 
@@ -219,7 +220,7 @@ func TestRegisterPortalHooks_IdempotentFastPath(t *testing.T) {
 	mock := &MockCommander{RunFunc: perEventDispatch(t, convergedTable(), nil)}
 	client := tmux.NewClient(mock)
 
-	logger := &recordingMigrationLogger{}
+	logger := &migrationLog{}
 	if err := tmux.RegisterPortalHooks(client, logger.Logger().With("component", "bootstrap")); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -511,7 +512,7 @@ func TestRegisterPortalHooks_PerEventReadFailureFolds(t *testing.T) {
 		map[string]error{"session-renamed": sentinel}, nil)}
 	client := tmux.NewClient(mock)
 
-	logger := &recordingMigrationLogger{}
+	logger := &migrationLog{}
 	err := tmux.RegisterPortalHooks(client, logger.Logger().With("component", "bootstrap"))
 
 	if err == nil {
@@ -564,7 +565,7 @@ func TestRegisterPortalHooks_PerIndexUnsetFailureWarnsAndContinues(t *testing.T)
 		map[string]error{"pane-focus-out[1]": sentinel})}
 	client := tmux.NewClient(mock)
 
-	logger := &recordingMigrationLogger{}
+	logger := &migrationLog{}
 	if err := tmux.RegisterPortalHooks(client, logger.Logger().With("component", "bootstrap")); err != nil {
 		t.Fatalf("unexpected error from RegisterPortalHooks: %v", err)
 	}
@@ -604,7 +605,7 @@ func TestRegisterPortalHooks_SingleReapedInfoOnEviction(t *testing.T) {
 	mock := &MockCommander{RunFunc: perEventDispatch(t, b.String(), nil)}
 	client := tmux.NewClient(mock)
 
-	logger := &recordingMigrationLogger{}
+	logger := &migrationLog{}
 	if err := tmux.RegisterPortalHooks(client, logger.Logger().With("component", "bootstrap")); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -626,7 +627,7 @@ func TestRegisterPortalHooks_NoReapedInfoOnZeroEviction(t *testing.T) {
 		mock := &MockCommander{RunFunc: perEventDispatch(t, "", nil)}
 		client := tmux.NewClient(mock)
 
-		logger := &recordingMigrationLogger{}
+		logger := &migrationLog{}
 		if err := tmux.RegisterPortalHooks(client, logger.Logger().With("component", "bootstrap")); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -639,7 +640,7 @@ func TestRegisterPortalHooks_NoReapedInfoOnZeroEviction(t *testing.T) {
 		mock := &MockCommander{RunFunc: perEventDispatch(t, convergedTable(), nil)}
 		client := tmux.NewClient(mock)
 
-		logger := &recordingMigrationLogger{}
+		logger := &migrationLog{}
 		if err := tmux.RegisterPortalHooks(client, logger.Logger().With("component", "bootstrap")); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -699,60 +700,45 @@ func TestRegisterPortalHooks_NoMigrateRename(t *testing.T) {
 	}
 }
 
-type recordingMigrationLogger struct {
-	recordingSlogHandler
+// migrationLog captures the hook-convergence lines, rendered as
+// "[<component>] <message>" so a caller asserts on the component binding and
+// the message together.
+type migrationLog struct {
+	sink logtest.Sink
 }
 
-func (r *recordingMigrationLogger) Logger() *slog.Logger { return slog.New(&r.recordingSlogHandler) }
+func (m *migrationLog) Logger() *slog.Logger { return slog.New(&m.sink) }
 
-func (r *recordingMigrationLogger) infos() []string {
-	var out []string
-	for _, rec := range r.records {
-		if rec.Level == slog.LevelInfo {
-			out = append(out, migrationLine(rec))
-		}
-	}
-	return out
-}
+func (m *migrationLog) infos() []string { return migrationLines(&m.sink, slog.LevelInfo) }
 
-func (r *recordingMigrationLogger) infoReaped() []int64 {
+func (m *migrationLog) warns() []string { return migrationLines(&m.sink, slog.LevelWarn) }
+
+func (m *migrationLog) infoReaped() []int64 {
 	var out []int64
-	for _, rec := range r.records {
-		if rec.Level == slog.LevelInfo {
-			out = append(out, migrationReaped(rec))
-		}
+	for _, rec := range m.sink.RecordsAtExactLevel(slog.LevelInfo) {
+		out = append(out, migrationReaped(rec))
 	}
 	return out
 }
 
-func (r *recordingMigrationLogger) warns() []string {
+func migrationLines(sink *logtest.Sink, level slog.Level) []string {
 	var out []string
-	for _, rec := range r.records {
-		if rec.Level == slog.LevelWarn {
-			out = append(out, migrationLine(rec))
-		}
+	for _, rec := range sink.RecordsAtExactLevel(level) {
+		out = append(out, migrationLine(rec))
 	}
 	return out
 }
 
-func migrationLine(rec slog.Record) string {
-	component := ""
-	rec.Attrs(func(a slog.Attr) bool {
-		if a.Key == "component" {
-			component = a.Value.String()
-		}
-		return true
-	})
-	return "[" + component + "] " + rec.Message
+func migrationLine(rec logtest.Record) string {
+	return "[" + attrOrEmpty(rec, "component") + "] " + rec.Msg
 }
 
-func migrationReaped(rec slog.Record) int64 {
-	reaped := int64(-1)
-	rec.Attrs(func(a slog.Attr) bool {
-		if a.Key == "reaped" {
-			reaped = a.Value.Int64()
-		}
-		return true
-	})
-	return reaped
+// migrationReaped stands in -1 for a line carrying no reaped attr, so a caller
+// asserting on the count sees the absence rather than a zero.
+func migrationReaped(rec logtest.Record) int64 {
+	v, ok := rec.Attrs["reaped"]
+	if !ok {
+		return -1
+	}
+	return v.Int64()
 }
