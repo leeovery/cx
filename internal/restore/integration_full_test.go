@@ -83,8 +83,8 @@ func TestPhase3Integration_FullRoundTrip(t *testing.T) {
 
 	scrollbackFixtures := map[string][]byte{}
 	for _, fx := range []fixtureSession{alpha, beta} {
-		for w := 0; w < 2; w++ {
-			for p := 0; p < 2; p++ {
+		for w := range 2 {
+			for p := range 2 {
 				key := state.SanitizePaneKey(fx.name, w, p)
 				bytes := ansiFixtureBytes(fx.name, w, p)
 				scrollbackFixtures[key] = bytes
@@ -143,8 +143,8 @@ func TestPhase3Integration_FullRoundTrip(t *testing.T) {
 	restoretest.WaitForSkeletonMarkersCleared(t, client, 10*time.Second, 50*time.Millisecond)
 
 	for _, fx := range []fixtureSession{alpha, beta} {
-		for w := 0; w < 2; w++ {
-			for p := 0; p < 2; p++ {
+		for w := range 2 {
+			for p := range 2 {
 				verifyANSIInScrollback(t, ts, fx.name, w, p, scrollbackFixtures[state.SanitizePaneKey(fx.name, w, p)])
 			}
 		}
@@ -198,7 +198,7 @@ func verifyTopologyShape(t *testing.T, idx state.Index, alpha, beta fixtureSessi
 		if got := len(s.Windows); got != 2 {
 			t.Fatalf("%s windows = %d; want 2", s.Name, got)
 		}
-		for w := 0; w < 2; w++ {
+		for w := range 2 {
 			if got := len(s.Windows[w].Panes); got != 2 {
 				t.Fatalf("%s w%d panes = %d; want 2", s.Name, w, got)
 			}
@@ -209,7 +209,7 @@ func verifyTopologyShape(t *testing.T, idx state.Index, alpha, beta fixtureSessi
 		if got := s.Environment[fx.f.envKey]; got != fx.f.envValue {
 			t.Errorf("%s env[%s] = %q; want %q", s.Name, fx.f.envKey, got, fx.f.envValue)
 		}
-		for w := 0; w < 2; w++ {
+		for w := range 2 {
 			ap := fx.f.activePanes[w]
 			if !s.Windows[w].Panes[ap].Active {
 				t.Errorf("%s w%d p%d should be active in capture; got Active=false (panes=%+v)",
@@ -228,8 +228,8 @@ func verifyLiveStructure(t *testing.T, ts *tmuxtest.Socket, sessions ...fixtureS
 		}
 		panesOut := ts.Run(t, "list-panes", "-s", "-t", fx.name,
 			"-F", "#{window_index}:#{pane_index}")
-		for w := 0; w < 2; w++ {
-			for p := 0; p < 2; p++ {
+		for w := range 2 {
+			for p := range 2 {
 				want := fmt.Sprintf("%d:%d", w, p)
 				if !strings.Contains(panesOut, want) {
 					t.Errorf("%s live pane %q missing; got %q", fx.name, want, panesOut)
@@ -242,7 +242,7 @@ func verifyLiveStructure(t *testing.T, ts *tmuxtest.Socket, sessions ...fixtureS
 func verifyZoomFlags(t *testing.T, ts *tmuxtest.Socket, sessions ...fixtureSession) {
 	t.Helper()
 	for _, fx := range sessions {
-		for w := 0; w < 2; w++ {
+		for w := range 2 {
 			got := strings.TrimSpace(ts.Run(t, "display-message", "-p",
 				"-t", fmt.Sprintf("%s:%d", fx.name, w),
 				"#{window_zoomed_flag}"))
@@ -260,7 +260,7 @@ func verifyZoomFlags(t *testing.T, ts *tmuxtest.Socket, sessions ...fixtureSessi
 func verifyActivePanes(t *testing.T, ts *tmuxtest.Socket, sessions ...fixtureSession) {
 	t.Helper()
 	for _, fx := range sessions {
-		for w := 0; w < 2; w++ {
+		for w := range 2 {
 			ap := fx.activePanes[w]
 			got := strings.TrimSpace(ts.Run(t, "display-message", "-p",
 				"-t", tmux.PaneTarget(fx.name, w, ap),

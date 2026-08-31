@@ -238,7 +238,7 @@ func waitForSaverPanePID(t *testing.T, sock *tmuxtest.Socket) int {
 
 func readSaverPanePID(t *testing.T, sock *tmuxtest.Socket) int {
 	t.Helper()
-	for attempt := 0; attempt < 2; attempt++ {
+	for range 2 {
 		out, err := sock.TryRun("list-panes", "-t", tmux.PortalSaverName, "-F", "#{pane_pid}")
 		if err == nil {
 			p, perr := strconv.Atoi(strings.TrimSpace(out))

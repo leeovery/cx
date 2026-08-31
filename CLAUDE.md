@@ -16,7 +16,7 @@ go test -tags integration ./cmd -run TestCommitNowSymptom   # run single integra
 
 `-p 1` on the integration lane is load-bearing, not a preference: with no CI, all packages otherwise run in parallel on one machine and the daemon-timing tests (composite e2e suites, hysteresis measurement) flake under mutual contention.
 
-Lint via `golangci-lint run` (config in `.golangci.yml`: the standard set plus the `modernize` linter). Not wired into CI — it's run locally / from the Mint release step. No code generation.
+Lint via `golangci-lint run` (config in `.golangci.yml`: the standard set plus the `modernize` linter). The config sets the `integration` build tag and uncaps both issue limits, so one bare invocation covers the integration-tagged files too and reports every finding — there is no second `--build-tags integration` run to remember. What it cannot see is a file gated `//go:build !integration`, which that tag swaps out of the build. Not wired into CI — it's run locally / from the Mint release step. No code generation.
 
 Tests **must not** use `t.Parallel()` — the cmd package injects mocks via package-level mutable state (`bootstrapDeps`, `openDeps`, `doctorDeps`, etc.) and cleans up with `t.Cleanup()`.
 

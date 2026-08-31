@@ -4,6 +4,23 @@
 # step, enforces a consistent baseline and keeps modernization from drifting.
 version: "2"
 
+run:
+  # Every file behind `//go:build integration` is invisible to a linter that
+  # analyses only the default tags. Enabling the tag here rather than asking
+  # for a second `--build-tags integration` invocation puts them in scope of a
+  # bare `golangci-lint run`: with no CI, a step that depends on someone
+  # recalling a flag is a step that stops running. A file gated
+  # `//go:build !integration` is swapped out of the build under this tag, so
+  # this run does not analyse it.
+  build-tags:
+    - integration
+
+issues:
+  # Report every finding. The defaults (3 of a kind, 50 per linter) silently
+  # truncate a sweep's real count.
+  max-same-issues: 0
+  max-issues-per-linter: 0
+
 linters:
   # The standard set: errcheck, govet, ineffassign, staticcheck, unused.
   default: standard

@@ -172,7 +172,7 @@ func assertNoLogLineMatches(t *testing.T, logPath string, pred func(string) bool
 		}
 		t.Fatalf("read portal.log %s: %v", logPath, err)
 	}
-	for _, line := range strings.Split(string(data), "\n") {
+	for line := range strings.SplitSeq(string(data), "\n") {
 		if pred(line) {
 			t.Fatalf(failFmt, append(args, line)...)
 		}
@@ -279,7 +279,7 @@ func verifyPostBootstrapSessionSet(t *testing.T, ts *tmuxtest.Socket, client *tm
 
 	rawOut := ts.Run(t, "list-sessions", "-F", "#{session_name}")
 	rawSet := map[string]struct{}{}
-	for _, line := range strings.Split(rawOut, "\n") {
+	for line := range strings.SplitSeq(rawOut, "\n") {
 		name := strings.TrimSpace(line)
 		if name == "" {
 			continue

@@ -139,8 +139,8 @@ func configDirFromEnvSlice(t *testing.T, env []string) string {
 	t.Helper()
 	const key = "XDG_CONFIG_HOME="
 	for _, e := range env {
-		if strings.HasPrefix(e, key) {
-			return strings.TrimPrefix(e, key)
+		if after, ok := strings.CutPrefix(e, key); ok {
+			return after
 		}
 	}
 	t.Fatalf("configDirFromEnvSlice: XDG_CONFIG_HOME not present in env slice — IsolateStateForTest contract regression")
@@ -155,7 +155,7 @@ func staleHookCleanupLogLines(portalLog string) []string {
 
 func logLinesContaining(portalLog, needle string) []string {
 	var matches []string
-	for _, line := range strings.Split(portalLog, "\n") {
+	for line := range strings.SplitSeq(portalLog, "\n") {
 		if strings.Contains(line, needle) {
 			matches = append(matches, line)
 		}

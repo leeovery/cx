@@ -50,7 +50,7 @@ func TestCompositeHarness_PreFixDysfunctionReproduces(t *testing.T) {
 func sampleScrollbackBinCounts(t *testing.T, dir string, count int, interval time.Duration) []int {
 	t.Helper()
 	samples := make([]int, 0, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		if i > 0 {
 			time.Sleep(interval)
 		}

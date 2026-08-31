@@ -88,7 +88,7 @@ func TestSelfSupervisionHysteresisMeasurement(t *testing.T) {
 	results := make([]*scenarioResult, 0, len(scenarios))
 	for _, sc := range scenarios {
 		r := &scenarioResult{name: sc.name}
-		for i := 0; i < hysteresisRunsPerScenario; i++ {
+		for i := range hysteresisRunsPerScenario {
 			worst := sc.fn(t, binary)
 			r.runs = append(r.runs, worst)
 			t.Logf("scenario=%s run=%d worst-consecutive-failures=%d", sc.name, i+1, worst)
@@ -105,13 +105,7 @@ func TestSelfSupervisionHysteresisMeasurement(t *testing.T) {
 		}
 	}
 	doubled := int(math.Ceil(float64(maxObserved) * 2))
-	chosen := doubled
-	if chosen < 3 {
-		chosen = 3
-	}
-	if chosen > 9 {
-		chosen = 9
-	}
+	chosen := min(max(doubled, 3), 9)
 	upstreamDefect := doubled > 5
 
 	t.Logf("aggregate: max-observed=%d, 2x=%d, chosen-N=%d, upstream-defect-flag=%v",
@@ -228,11 +222,10 @@ func newHarness(t *testing.T, binary string) *harness {
 	// from tmux. Without the mirror the daemon subprocess resolves its state
 	// dir against the developer's real XDG_CONFIG_HOME.
 	for _, e := range env {
-		idx := strings.IndexByte(e, '=')
-		if idx < 0 {
+		k, v, ok := strings.Cut(e, "=")
+		if !ok {
 			continue
 		}
-		k, v := e[:idx], e[idx+1:]
 		if k == "XDG_CONFIG_HOME" {
 			t.Setenv(k, v)
 		}

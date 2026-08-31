@@ -224,7 +224,7 @@ func assertCompositePreState(t *testing.T, stateDir string, sock *tmuxtest.Socke
 func seedUserSessions(t *testing.T, client *tmux.Client, count int) []string {
 	t.Helper()
 	names := make([]string, 0, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		name := fmt.Sprintf("%s%d", compositeUserSessionPrefix, i)
 		shellCmd := fmt.Sprintf("sh -c %q", compositeUserSessionSeedScript)
 		if err := client.NewSessionWithCommand(name, "", shellCmd); err != nil {
