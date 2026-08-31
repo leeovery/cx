@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -102,15 +101,8 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		}
 	})
 
-	t.Run("hookStore.Load error returns err with Warn", func(t *testing.T) {
-		// A directory at the hooks.json path is what makes ReadFile fail: malformed
-		// JSON would decode to an empty map instead of erroring.
-		dir := t.TempDir()
-		bogusPath := filepath.Join(dir, "hooks.json")
-		if err := os.MkdirAll(bogusPath, 0o755); err != nil {
-			t.Fatalf("mkdir bogus path: %v", err)
-		}
-		store := hooks.NewStore(bogusPath)
+	t.Run("hookStore.Load error stands the cycle down and returns nil", func(t *testing.T) {
+		store := bogusHooksStore(t)
 
 		logger, loggerSink := newCaptureLoggerForComponent(t, "bootstrap")
 		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA), err: nil}
@@ -118,8 +110,8 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		sink := logtest.Install(t)
 
 		outcome, err := runHookStaleCleanup(lister, store, logger)
-		if err == nil {
-			t.Fatalf("runHookStaleCleanup: want Load error, got nil")
+		if err != nil {
+			t.Fatalf("runHookStaleCleanup on a Load error: want nil, got %v", err)
 		}
 		if outcome.DeclineReason != skipReasonStoreReadFailed {
 			t.Errorf("DeclineReason = %q, want %q", outcome.DeclineReason, skipReasonStoreReadFailed)
@@ -371,19 +363,19 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 	})
 
 	t.Run("it skips before loading the store", func(t *testing.T) {
-		// A directory at the hooks.json path makes any read fail loudly, so a
-		// nil return proves the store was never loaded.
-		bogusPath := filepath.Join(t.TempDir(), "hooks.json")
-		if err := os.MkdirAll(bogusPath, 0o755); err != nil {
-			t.Fatalf("mkdir bogus hooks path: %v", err)
-		}
-		store := hooks.NewStore(bogusPath)
+		// The store fails loudly on any read, so a decline naming the restore
+		// marker — rather than the store read — proves it was never loaded.
+		store := bogusHooksStore(t)
 
 		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA), restoring: true}
 
 		outcome, err := runHookStaleCleanup(lister, store, nil)
 		if err != nil {
 			t.Fatalf("runHookStaleCleanup: want nil (store untouched), got %v", err)
+		}
+		if outcome.DeclineReason != skipReasonRestoring {
+			t.Errorf("DeclineReason = %q, want %q (a store read would have declined with %q)",
+				outcome.DeclineReason, skipReasonRestoring, skipReasonStoreReadFailed)
 		}
 		if lister.calls != 0 {
 			t.Errorf("ListAllPaneHookKeys call count = %d, want 0", lister.calls)

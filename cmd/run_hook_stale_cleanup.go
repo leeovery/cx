@@ -159,11 +159,12 @@ func (e declinedError) Error() string {
 
 // liveTokenEnumeration answers the clean with the live token set persisted keys
 // are judged against, or with the stand-down that forbids judging them at all.
-func liveTokenEnumeration(reader PaneHookLister, logger *slog.Logger) func(hooks.Snapshot) ([]string, error) {
+// countsLogger carries the cycle's DEBUG counts only; see runHookStaleCleanup.
+func liveTokenEnumeration(reader PaneHookLister, countsLogger *slog.Logger) func(hooks.Snapshot) ([]string, error) {
 	return func(snapshot hooks.Snapshot) ([]string, error) {
 		view := judgeAgainstLivePanes(reader, len(snapshot))
 		if view.Enumerated {
-			logger.Debug("stale-hook cleanup counts", "panes", view.PaneRows, "entries", len(snapshot))
+			countsLogger.Debug("stale-hook cleanup counts", "panes", view.PaneRows, "entries", len(snapshot))
 		}
 		if view.Decline.declined() {
 			return nil, declinedError{view.Decline}
@@ -180,9 +181,17 @@ func liveTokenEnumeration(reader PaneHookLister, logger *slog.Logger) func(hooks
 	}
 }
 
-func runHookStaleCleanup(reader staleSweepReader, store *hooks.Store, logger *slog.Logger) (sweepOutcome, error) {
-	if logger == nil {
-		logger = bootstrapLogger
+// runHookStaleCleanup runs one hook-staleness cycle, reporting what it removed
+// or the reason it declined to remove anything.
+//
+// countsLogger governs the cycle's two DEBUG counts — the panes-and-entries
+// line and the reaped line — and nothing else, so a caller may attribute them
+// to its own component. Every stand-down is emitted by standDown.emit() under
+// the hooks component regardless, so a caller observing this cycle through
+// countsLogger alone sees the counts and none of the stand-downs.
+func runHookStaleCleanup(reader staleSweepReader, store *hooks.Store, countsLogger *slog.Logger) (sweepOutcome, error) {
+	if countsLogger == nil {
+		countsLogger = bootstrapLogger
 	}
 
 	// Taken before the store is read at all: a restore window is no time to
@@ -192,12 +201,12 @@ func runHookStaleCleanup(reader staleSweepReader, store *hooks.Store, logger *sl
 		return sweepOutcome{DeclineReason: decline.reason}, nil
 	}
 
-	removed, err := store.CleanStale(liveTokenEnumeration(reader, logger))
+	removed, err := store.CleanStale(liveTokenEnumeration(reader, countsLogger))
 	if err != nil {
 		return declinedSweep(err)
 	}
 
-	logger.Debug("stale-hook cleanup removed", "reaped", len(removed))
+	countsLogger.Debug("stale-hook cleanup removed", "reaped", len(removed))
 
 	return sweepOutcome{Removed: removed}, nil
 }
@@ -222,12 +231,13 @@ func declinedSweep(err error) (sweepOutcome, error) {
 		lockDecline.emit()
 		return sweepOutcome{DeclineReason: lockDecline.reason}, nil
 	case errors.Is(err, hooks.ErrSnapshotRead):
-		// The one decline a caller must also see as a failure: nothing but
-		// repair clears an unreadable store, so the daemon reports it while the
-		// reason still rides the outcome for a caller that only renders.
+		// An unreadable store is a decline like any other: the cycle wrote
+		// nothing, and its own WARN names the condition and the read error that
+		// produced it. The nil error keeps the caller from adding a second
+		// report for the same event.
 		readDecline := declineWarn(skipReasonStoreReadFailed, "error", err)
 		readDecline.emit()
-		return sweepOutcome{DeclineReason: readDecline.reason}, err
+		return sweepOutcome{DeclineReason: readDecline.reason}, nil
 	}
 	return sweepOutcome{}, err
 }

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -115,18 +114,21 @@ func TestMaybeRunHookCleanup_FiresAtIntervalBoundary(t *testing.T) {
 	}
 }
 
+// A failure the sweep does not name as a stand-down is the daemon's to report:
+// the cycle is swallowed so the tick survives it, and the throttle anchor still
+// advances so a failing prune backs off instead of retrying every tick.
 func TestMaybeRunHookCleanup_LogsWarnAndSwallowsCleanupError(t *testing.T) {
-	// hooks.Store.Load returns an empty map (not an error) for malformed JSON, so
-	// pointing it at a directory is the only reliable way to force a Load failure.
-	dir := t.TempDir()
-	bogusPath := filepath.Join(dir, "hooks.json")
-	if err := os.MkdirAll(bogusPath, 0o755); err != nil {
-		t.Fatalf("mkdir bogus hooks path: %v", err)
-	}
-	store := hooks.NewStore(bogusPath)
+	// A denied write is a failure the sweep returns rather than standing down
+	// on: the mutation takes its lock and reads cleanly, then fails at the temp
+	// create.
+	store, _ := newStagedHooksStore(t, hooksStoreStaging{
+		dir:          filepath.Join(t.TempDir(), "write-denied"),
+		seed:         staleHookSeed,
+		writesDenied: true,
+	})
 
-	// Non-empty panesOut keeps the mass-deletion guard off the path, so Load fails
-	// first and the returned-error branch is the one exercised.
+	// Non-empty panesOut keeps the mass-deletion guard off the path, so the
+	// write is reached and the returned-error branch is the one exercised.
 	fc := &daemonFakeCommander{panesOut: livePaneRowOut}
 	logger, sink := newCaptureLoggerForComponent(t, "daemon")
 	deps := hookCleanupDeps(fc, store, logger)
