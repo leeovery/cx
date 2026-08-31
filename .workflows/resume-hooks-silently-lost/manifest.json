@@ -250,7 +250,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 7,
-          "current_task": "resume-hooks-silently-lost-7-12",
+          "current_task": "resume-hooks-silently-lost-7-13",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -337,7 +337,8 @@
             "resume-hooks-silently-lost-7-8",
             "resume-hooks-silently-lost-7-9",
             "resume-hooks-silently-lost-7-10",
-            "resume-hooks-silently-lost-7-11"
+            "resume-hooks-silently-lost-7-11",
+            "resume-hooks-silently-lost-7-12"
           ],
           "staging": {
             "p1": {
@@ -1049,6 +1050,56 @@
                 "CLAUDE.md",
                 "internal/restore/logging_capture_test.go",
                 "internal/logtest/capture.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-12",
+              "source": "reviewer",
+              "summary": "bogusHooksStore lives in an outcome test file while testhelpers_test.go declares itself the home for staging helpers; it is now consumed from three files.",
+              "detail": "cmd/run_hook_stale_cleanup_outcome_test.go:15 holds bogusHooksStore, and cmd/testhelpers_test.go header declares itself the home for how-a-test-is-set-up-and-driven staging helpers. The placement predates task 7-12 and consuming it was the right call; moving it is a separate tidy.",
+              "files": [
+                "cmd/run_hook_stale_cleanup_outcome_test.go",
+                "cmd/testhelpers_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-12",
+              "source": "reviewer",
+              "summary": "The two decline branches in declinedSweep are now byte-identical apart from the reason constant.",
+              "detail": "cmd/run_hook_stale_cleanup.go:225-240. Deliberately not raised as an issue at review: at two instances a shared helper is the premature abstraction code-quality.md warns against, and each branch comment carries different rationale a table would flatten. Worth revisiting only if a sixth decline reason lands. Also minor: cmd/run_hook_stale_cleanup_single_report_test.go:31 asserts the absence of the daemon WARN by message while the lock-timeout subtest at :106 asserts the absence of ANY WARN on the injected sink — the broader form is the stronger guard.",
+              "files": [
+                "cmd/run_hook_stale_cleanup.go",
+                "cmd/run_hook_stale_cleanup_single_report_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-12",
+              "source": "reviewer",
+              "summary": "The lock-timeout single-report case now exists twice, in two files, from two tasks.",
+              "detail": "cmd/run_hook_stale_cleanup_single_report_test.go:91-105 and cmd/run_hook_stale_cleanup_lock_timeout_test.go:140-157 stage the identical fixture (lockedSweepFixture), drive the identical path (maybeRunHookCleanup with an injected daemon logger) and make the same two assertions; the older additionally asserts the file is unchanged, the newer checks the injected sink for any WARN rather than the named one. Not the executor invention — the task test list named it, and it earns its place as the co-located regression guard for the branch above being unchanged — but a consolidation pass could fold the stronger assertions into one case and have the other reference it. Fixing it edits a prior task suite.",
+              "files": [
+                "cmd/run_hook_stale_cleanup_single_report_test.go",
+                "cmd/run_hook_stale_cleanup_lock_timeout_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-12",
+              "source": "reviewer",
+              "summary": "The new doctor-print subtest duplicates a pre-existing one outright.",
+              "detail": "cmd/run_hook_stale_cleanup_single_report_test.go:45-58 stages the identical fixture (seedHealthyStateDir + bogusHooksStore + seedProjectsJSON + staleDeps), drives the identical runDoctorFixCmd, and asserts the identical assertSkippedPruneLine as the pre-existing TestDoctorFixReportsStandDownOnReadFailures case at cmd/run_hook_stale_cleanup_outcome_test.go:112-121. Its one extra assertion (Execute returns nil) is made more forcefully by its own sibling at :60-89. Consolidation means deleting one of the two, and the better deletion is arguably the older one — it lives in another task file.",
+              "files": [
+                "cmd/run_hook_stale_cleanup_single_report_test.go",
+                "cmd/run_hook_stale_cleanup_outcome_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-12",
+              "source": "reviewer",
+              "summary": "doctor --fix prints nothing at all when the sweep genuinely fails.",
+              "detail": "cmd/doctor.go:201-210 — on a returned error the outcome is the zero sweepOutcome, so there is no Pruned stale hook: line and no Skipped stale hook prune: line; a user who asked for a repair sees only a WARN in portal.log. This is the same a-repair-that-printed-nothing-is-indistinguishable-from-one-that-found-nothing argument the stand-down lines exist to answer, now visible on the one path the stand-downs do not cover. Tasks 7-13/7-34 may already own this. Also pre-existing: the nil-countsLogger default falls back to bootstrapLogger, attributing counts to the bootstrap component even though a guard forbids a bootstrap step from calling the sweep; reachable only from tests since both production callers supply a logger.",
+              "files": [
+                "cmd/doctor.go",
+                "cmd/run_hook_stale_cleanup.go"
               ]
             }
           ]
