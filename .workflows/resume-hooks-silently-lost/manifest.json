@@ -250,7 +250,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 7,
-          "current_task": "resume-hooks-silently-lost-7-20",
+          "current_task": "resume-hooks-silently-lost-7-21",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -343,7 +343,8 @@
             "resume-hooks-silently-lost-7-16",
             "resume-hooks-silently-lost-7-17",
             "resume-hooks-silently-lost-7-18",
-            "resume-hooks-silently-lost-7-19"
+            "resume-hooks-silently-lost-7-19",
+            "resume-hooks-silently-lost-7-20"
           ],
           "staging": {
             "p1": {
@@ -1240,6 +1241,17 @@
               "detail": "cmd/hooks_rm_exit_test.go:44-47 — a row that sets paneKeyPath: true AND a resolver has the resolver silently discarded, and a row that sets neither passes a typed-nil *mockKeyResolver through the interface, which panics inside the mock rather than falling back to the production default. Neither can produce a false pass (the first combination is meaningless on a path whose subject is that the resolver is never called, the second fails loudly) and the field comment documents the convention. Recorded so a later touch of the struct can close it.",
               "files": [
                 "cmd/hooks_rm_exit_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-20",
+              "source": "reviewer",
+              "summary": "The analysis record names the wrong twin for one of task 7-20 deletions; a future reader could delete the surviving claim as redundant.",
+              "detail": "analysis-duplication-c2.md:36 and analysis-tasks-c2.md:619 both call \"it still retains a non-token-shaped key\" a trimmed copy of store_shape_test.go:18 (\"it retains a non-token-shaped key absent from the live set\"). It is not trimmed — its live set is empty where :18 is not. Mutation-proven: making staleKeys mass-delete when the live set is empty fails store_shape_test.go:86 but NOT :18, so :86 is the claim-preserving twin. The deletion was lossless only because :86 exists. Worth correcting in the analysis record so a future reader does not conclude :18 alone suffices and delete :86 as redundant.",
+              "files": [
+                ".workflows/resume-hooks-silently-lost/implementation/resume-hooks-silently-lost/analysis-duplication-c2.md",
+                ".workflows/resume-hooks-silently-lost/implementation/resume-hooks-silently-lost/analysis-tasks-c2.md",
+                "internal/hooks/store_shape_test.go"
               ]
             }
           ]
