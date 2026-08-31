@@ -1,6 +1,8 @@
 package hookstest
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/hooks"
+	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/nanoid"
 )
 
@@ -73,19 +76,43 @@ func SeedHooksJSON(t *testing.T, env []string, entries map[string]string) {
 	}
 }
 
-// HooksJSONBytes returns the raw on-disk bytes of hooks.json, or nil when the
-// file is absent. Any other read error fails the test.
+// HooksJSONBytes returns the raw on-disk bytes of the hooks.json the env
+// resolves to, or nil when the file is absent. Any other read error fails the
+// test.
 func HooksJSONBytes(t *testing.T, env []string) []byte {
 	t.Helper()
-	path := ResolveHooksFilePathFromEnv(t, env)
+	return HooksFileBytes(t, ResolveHooksFilePathFromEnv(t, env))
+}
+
+// HooksFileBytes returns the raw on-disk bytes of the hooks.json at path, or
+// nil when the file is absent, so a caller can compare a route's before and
+// after without an absent file — a state the route may legitimately leave —
+// fatalling. Any other read error fails the test.
+func HooksFileBytes(t logtest.TestingT, path string) []byte {
+	t.Helper()
 	data, err := os.ReadFile(path)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, os.ErrNotExist) {
 			return nil
 		}
-		t.Fatalf("hookstest.HooksJSONBytes: read %s: %v", path, err)
+		t.Fatalf("hookstest.HooksFileBytes: read %s: %v", path, err)
 	}
 	return data
+}
+
+// AssertHooksFileUnchanged proves a route left the hooks.json at path byte for
+// byte as it found it. An optional context names what the route must not have
+// done in place of the default, so a caller reporting something more specific
+// than a failing write keeps its own words in the failure.
+func AssertHooksFileUnchanged(t logtest.TestingT, path string, before []byte, context ...string) {
+	t.Helper()
+	what := "changed on a failing route"
+	if len(context) > 0 {
+		what = context[0]
+	}
+	if after := HooksFileBytes(t, path); !bytes.Equal(before, after) {
+		t.Errorf("hooks.json %s:\nbefore %s\nafter  %s", what, before, after)
+	}
 }
 
 // ReapableHookKey returns a seed hook key the staleness rule can judge, so an

@@ -3,7 +3,6 @@
 package cmd
 
 import (
-	"bytes"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -72,13 +71,8 @@ func runTransientCleanStaleModeSubtest(t *testing.T, spec transientModeSpec) {
 			spec.name, err, output)
 	}
 
-	after := hookstest.HooksJSONBytes(t, env)
-	if !bytes.Equal(before, after) {
-		t.Fatalf("hooks.json mutated under %s — the wipe regression has returned\n"+
-			"  before: %s\n"+
-			"  after:  %s",
-			spec.name, before, after)
-	}
+	hookstest.AssertHooksFileUnchanged(t, hookstest.ResolveHooksFilePathFromEnv(t, env), before,
+		"mutated under "+spec.name+" — the wipe regression has returned")
 
 	seededKeys := make([]string, 0, len(transientModeSeedEntries))
 	for k := range transientModeSeedEntries {

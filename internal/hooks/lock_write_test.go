@@ -73,9 +73,7 @@ func TestMutationLockTimeoutWritesNothing(t *testing.T) {
 				t.Fatal("expected an error when the lock will not yield, got nil")
 			}
 
-			if after := readFileBytes(t, path); string(after) != string(before) {
-				t.Errorf("hooks.json changed on a timed-out Set:\nbefore %s\nafter  %s", before, after)
-			}
+			hookstest.AssertHooksFileUnchanged(t, path, before, "changed on a timed-out Set")
 		})
 	})
 
@@ -96,9 +94,7 @@ func TestMutationLockTimeoutWritesNothing(t *testing.T) {
 		if removed {
 			t.Error("removed = true, want false when the lock could not be taken")
 		}
-		if after := readFileBytes(t, path); string(after) != string(before) {
-			t.Errorf("hooks.json changed on a timed-out Remove:\nbefore %s\nafter  %s", before, after)
-		}
+		hookstest.AssertHooksFileUnchanged(t, path, before, "changed on a timed-out Remove")
 	})
 
 	t.Run("it matches the sentinel through the wrap", func(t *testing.T) {
@@ -232,9 +228,7 @@ func TestMutationLockTimeoutLogging(t *testing.T) {
 		if recs := sink.Records(); len(recs) != 0 {
 			t.Errorf("a removal that removed nothing emitted %d records, want 0: %+v", len(recs), recs)
 		}
-		if after := readFileBytes(t, path); string(after) != string(before) {
-			t.Errorf("hooks.json changed on a no-removal:\nbefore %s\nafter  %s", before, after)
-		}
+		hookstest.AssertHooksFileUnchanged(t, path, before, "changed on a no-removal")
 	})
 
 	t.Run("it emits no store-side WARN when CleanStale cannot take the lock", func(t *testing.T) {

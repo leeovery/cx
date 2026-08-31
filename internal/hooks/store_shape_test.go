@@ -2,7 +2,6 @@ package hooks_test
 
 import (
 	"fmt"
-	"os"
 	"slices"
 	"testing"
 
@@ -19,10 +18,7 @@ func TestCleanStaleShapeAwareness(t *testing.T) {
 	t.Run("it retains a non-token-shaped key absent from the live set", func(t *testing.T) {
 		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: fmt.Sprintf(`{%q:{"on-resume":"old"},%q:{"on-resume":"live"}}`, retainedKey, liveKey)})
 
-		before, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatalf("read seeded file: %v", err)
-		}
+		before := readFileBytes(t, path)
 
 		removed, err := store.CleanStale(enumerating(liveKey))
 		if err != nil {
@@ -41,13 +37,7 @@ func TestCleanStaleShapeAwareness(t *testing.T) {
 			t.Errorf("StaleKeys reported %v, want nothing", predicted)
 		}
 
-		after, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatalf("read file after clean: %v", err)
-		}
-		if string(after) != string(before) {
-			t.Errorf("hooks.json changed:\n before %s\n after  %s", before, after)
-		}
+		hookstest.AssertHooksFileUnchanged(t, path, before, "changed by a clean that removed nothing")
 	})
 
 	t.Run("it deletes a token-shaped key absent from the live set", func(t *testing.T) {
@@ -96,10 +86,7 @@ func TestCleanStaleShapeAwareness(t *testing.T) {
 	t.Run("it writes no file and emits no summary when every candidate is retained", func(t *testing.T) {
 		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: fmt.Sprintf(`{%q:{"on-resume":"a"},%q:{"on-resume":"b"}}`, hookstest.UnjudgeableHookKey(1), hookstest.UnjudgeableHookKey(2))})
 
-		before, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatalf("read seeded file: %v", err)
-		}
+		before := readFileBytes(t, path)
 
 		sink := logtest.Install(t)
 		removed, err := store.CleanStale(enumerating())
@@ -116,12 +103,6 @@ func TestCleanStaleShapeAwareness(t *testing.T) {
 			}
 		}
 
-		after, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatalf("read file after clean: %v", err)
-		}
-		if string(after) != string(before) {
-			t.Errorf("hooks.json changed:\n before %s\n after  %s", before, after)
-		}
+		hookstest.AssertHooksFileUnchanged(t, path, before, "changed when every candidate was retained")
 	})
 }

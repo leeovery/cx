@@ -53,6 +53,27 @@ func readFileBytes(t *testing.T, path string) []byte {
 	return data
 }
 
+// TestReadFileBytes pins the read rule the hooks/projects assertion pairs both
+// depend on: exact bytes when the file is there, nil when it is not, whichever
+// of the two config files is named.
+func TestReadFileBytes(t *testing.T) {
+	t.Run("it reads projects.json by the same rule", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "projects.json")
+
+		if got := readFileBytes(t, path); got != nil {
+			t.Errorf("readFileBytes of an absent projects.json = %q, want nil", got)
+		}
+
+		body := []byte(`{"projects":[{"path":"/tmp/proj","name":"proj0"}]}`)
+		if err := os.WriteFile(path, body, 0o600); err != nil {
+			t.Fatalf("seed projects.json: %v", err)
+		}
+		if got := readFileBytes(t, path); !bytes.Equal(got, body) {
+			t.Errorf("readFileBytes = %s, want %s", got, body)
+		}
+	})
+}
+
 // hooksFileInTempDir points PORTAL_HOOKS_FILE at a hooks.json inside a fresh
 // temp directory, and stages the sidecar beside it. It is the second of the two
 // staging routes: this one leaves the path to the command body's own
@@ -146,18 +167,9 @@ func seedHooksFile(t *testing.T, path string, data map[string]map[string]string)
 	return readFileBytes(t, path)
 }
 
-// assertHooksFileUnchanged proves a route left the file byte for byte as it
-// found it. An optional context names the route in place of the default, so a
-// caller reporting something more specific than a failing write keeps its own
-// words in the failure.
+// assertHooksFileUnchanged names the shared byte-identity assertion in this
+// package's own vocabulary, so a cmd test reads the same as its neighbours.
 func assertHooksFileUnchanged(t *testing.T, path string, before []byte, context ...string) {
 	t.Helper()
-	what := "changed on a failing route"
-	if len(context) > 0 {
-		what = context[0]
-	}
-	after := readFileBytes(t, path)
-	if !bytes.Equal(before, after) {
-		t.Errorf("hooks.json %s:\nbefore %s\nafter  %s", what, before, after)
-	}
+	hookstest.AssertHooksFileUnchanged(t, path, before, context...)
 }

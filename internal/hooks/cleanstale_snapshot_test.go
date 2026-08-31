@@ -127,7 +127,7 @@ func TestCleanStaleSnapshotNarrowing(t *testing.T) {
 		if err := store.Set(liveKey, "on-resume", "live", hooks.ViaCLI); err != nil {
 			t.Fatalf("register the live entry: %v", err)
 		}
-		before := string(readFileBytes(t, path))
+		before := readFileBytes(t, path)
 
 		sentinel := errors.New("nothing to enumerate")
 		sink := logtest.Install(t)
@@ -139,9 +139,7 @@ func TestCleanStaleSnapshotNarrowing(t *testing.T) {
 		if len(removed) != 0 {
 			t.Errorf("removed = %v, want none", removed)
 		}
-		if after := string(readFileBytes(t, path)); after != before {
-			t.Errorf("hooks.json changed:\n before %s\n after  %s", before, after)
-		}
+		hookstest.AssertHooksFileUnchanged(t, path, before, "changed on an aborted clean")
 		if recs := sink.Records(); len(recs) != 0 {
 			t.Errorf("an aborted clean emitted %d records, want 0: %+v", len(recs), recs)
 		}
@@ -176,7 +174,7 @@ func TestCleanStaleSnapshotNarrowing(t *testing.T) {
 
 	t.Run("it still retains a non-token-shaped key", func(t *testing.T) {
 		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: fmt.Sprintf(`{%q:{"on-resume":"old"}}`, unjudgeableKey)})
-		before := string(readFileBytes(t, path))
+		before := readFileBytes(t, path)
 
 		removed, err := store.CleanStale(enumerating())
 		if err != nil {
@@ -185,9 +183,7 @@ func TestCleanStaleSnapshotNarrowing(t *testing.T) {
 		if len(removed) != 0 {
 			t.Fatalf("CleanStale removed %v, want nothing", removed)
 		}
-		if after := string(readFileBytes(t, path)); after != before {
-			t.Errorf("hooks.json changed:\n before %s\n after  %s", before, after)
-		}
+		hookstest.AssertHooksFileUnchanged(t, path, before, "changed by a clean that removed nothing")
 	})
 
 	t.Run("it still deletes an empty key present in both the file and the snapshot", func(t *testing.T) {

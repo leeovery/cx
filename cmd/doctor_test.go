@@ -858,18 +858,15 @@ func restoringHookLister() *stubStaleSweepReader {
 func assertStalePrunesApplied(t *testing.T, hooksPath, projectsPath, liveDir, goneDir, out string) {
 	t.Helper()
 
-	hooksAfter, err := os.ReadFile(hooksPath)
-	if err != nil {
-		t.Fatalf("read hooks.json: %v", err)
+	hooksAfter := readFileBytes(t, hooksPath)
+	if len(hooksAfter) == 0 {
+		t.Fatalf("hooks.json is absent or empty after the prune — the prune removed the file rather than the stale entry")
 	}
 	if strings.Contains(string(hooksAfter), reapableSeedA) {
 		t.Errorf("stale hook %s not pruned from hooks.json:\n%s", reapableSeedA, hooksAfter)
 	}
 
-	projectsAfter, err := os.ReadFile(projectsPath)
-	if err != nil {
-		t.Fatalf("read projects.json: %v", err)
-	}
+	projectsAfter := readFileBytes(t, projectsPath)
 	if strings.Contains(string(projectsAfter), goneDir) {
 		t.Errorf("stale project %q not pruned from projects.json:\n%s", goneDir, projectsAfter)
 	}
@@ -926,9 +923,9 @@ func assertDownServerDeferral(t *testing.T, hooksBefore []byte, hooksPath, proje
 
 	assertHooksFileUnchanged(t, hooksPath, hooksBefore, "pruned on a down server (user commands must survive)")
 
-	projectsAfter, readErr := os.ReadFile(projectsPath)
-	if readErr != nil {
-		t.Fatalf("re-read projects.json: %v", readErr)
+	projectsAfter := readFileBytes(t, projectsPath)
+	if len(projectsAfter) == 0 {
+		t.Fatalf("projects.json is absent or empty after the prune — the prune removed the file rather than the stale record")
 	}
 	if strings.Contains(string(projectsAfter), goneDir) {
 		t.Errorf("the filesystem-only stale-project prune did not run on a down server:\n%s", projectsAfter)
@@ -1573,10 +1570,7 @@ func TestDoctorStaleChecksAreReadOnly(t *testing.T) {
 	projectStore, projectsPath := seedProjectsJSON(t, liveDir, goneDir)
 
 	hooksBefore := readFileBytes(t, hooksPath)
-	projectsBefore, err := os.ReadFile(projectsPath)
-	if err != nil {
-		t.Fatalf("read projects.json: %v", err)
-	}
+	projectsBefore := readFileBytes(t, projectsPath)
 
 	lister := &stubStaleSweepReader{rows: tokenRows(liveSeedB)} // the seeded reapable key is stale
 	results, err := runDoctorDiagnosis(staleDeps(dir, lister, hookStore, projectStore))
@@ -1590,12 +1584,8 @@ func TestDoctorStaleChecksAreReadOnly(t *testing.T) {
 		t.Fatalf("stale projects status = %v; want checkFail (setup should be stale)", got.status)
 	}
 
-	projectsAfter, err := os.ReadFile(projectsPath)
-	if err != nil {
-		t.Fatalf("re-read projects.json: %v", err)
-	}
 	assertHooksFileUnchanged(t, hooksPath, hooksBefore, "mutated by diagnosis (read-only violated)")
-	if !bytes.Equal(projectsBefore, projectsAfter) {
+	if projectsAfter := readFileBytes(t, projectsPath); !bytes.Equal(projectsBefore, projectsAfter) {
 		t.Errorf("projects.json mutated by diagnosis (read-only violated)\nbefore: %s\nafter:  %s", projectsBefore, projectsAfter)
 	}
 }

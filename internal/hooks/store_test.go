@@ -20,8 +20,9 @@ import (
 	"github.com/leeovery/portal/internal/logtest"
 )
 
-// readFileBytes returns the file's exact bytes, so a test can assert a no-op
-// left the file untouched rather than rewritten to equivalent content.
+// readFileBytes returns the file's exact bytes, failing when it is absent, so a
+// before-read cannot silently record the emptiness of a file the fixture never
+// wrote.
 func readFileBytes(t *testing.T, path string) []byte {
 	t.Helper()
 	data, err := os.ReadFile(path)
@@ -388,9 +389,7 @@ func TestRemove(t *testing.T) {
 			t.Error("removed = true, want false for an absent key")
 		}
 
-		if after := readFileBytes(t, filePath); !bytes.Equal(before, after) {
-			t.Errorf("file rewritten on a no-op removal:\nbefore %s\nafter  %s", before, after)
-		}
+		hookstest.AssertHooksFileUnchanged(t, filePath, before, "rewritten on a no-op removal")
 		if after := modTime(t, filePath); !after.Equal(beforeMod) {
 			t.Error("file was written on a no-op removal (Save should be skipped)")
 		}
@@ -423,9 +422,7 @@ func TestRemove(t *testing.T) {
 			t.Error("removed = true, want false when the named event is absent")
 		}
 
-		if after := readFileBytes(t, filePath); !bytes.Equal(before, after) {
-			t.Errorf("file rewritten on a no-op removal:\nbefore %s\nafter  %s", before, after)
-		}
+		hookstest.AssertHooksFileUnchanged(t, filePath, before, "rewritten on a no-op removal")
 		if after := modTime(t, filePath); !after.Equal(beforeMod) {
 			t.Error("file was written on a no-op removal (Save should be skipped)")
 		}
@@ -477,9 +474,7 @@ func TestRemove(t *testing.T) {
 			t.Error("removed = true, want false for a malformed file")
 		}
 
-		if after := readFileBytes(t, filePath); !bytes.Equal(before, after) {
-			t.Errorf("malformed file rewritten:\nbefore %s\nafter  %s", before, after)
-		}
+		hookstest.AssertHooksFileUnchanged(t, filePath, before, "rewritten while malformed")
 	})
 
 	t.Run("it leaves a key mapped to an empty event map in place", func(t *testing.T) {
@@ -499,9 +494,7 @@ func TestRemove(t *testing.T) {
 			t.Error("removed = true, want false for a key with no events")
 		}
 
-		if after := readFileBytes(t, filePath); !bytes.Equal(before, after) {
-			t.Errorf("file rewritten on a no-op removal:\nbefore %s\nafter  %s", before, after)
-		}
+		hookstest.AssertHooksFileUnchanged(t, filePath, before, "rewritten on a no-op removal")
 	})
 
 	t.Run("it reports no removal when the save fails", func(t *testing.T) {
@@ -1075,10 +1068,7 @@ func TestCleanStaleLogging(t *testing.T) {
 			t.Errorf("error_class = %q, want %q", got, "write-failed-temp-create")
 		}
 
-		after := readFileBytes(t, seeded)
-		if string(after) != body {
-			t.Errorf("hooks.json changed on a failed save\nbefore: %s\nafter:  %s", body, after)
-		}
+		hookstest.AssertHooksFileUnchanged(t, seeded, []byte(body), "changed on a failed save")
 	})
 
 	t.Run("omits entries_failed from the summary when no per-entry failures occur", func(t *testing.T) {
