@@ -250,7 +250,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 7,
-          "current_task": "resume-hooks-silently-lost-7-16",
+          "current_task": "resume-hooks-silently-lost-7-17",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -339,7 +339,8 @@
             "resume-hooks-silently-lost-7-10",
             "resume-hooks-silently-lost-7-11",
             "resume-hooks-silently-lost-7-12",
-            "resume-hooks-silently-lost-7-14"
+            "resume-hooks-silently-lost-7-14",
+            "resume-hooks-silently-lost-7-16"
           ],
           "staging": {
             "p1": {
@@ -1136,6 +1137,39 @@
                 "internal/hooks/store_test.go",
                 "internal/state/fifo_sweep_summary_test.go",
                 "internal/logtest/capture.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-16",
+              "source": "executor",
+              "summary": "The sidecar-creation suite hand-stages the same hooks.json path twelve times over.",
+              "detail": "internal/hooks/lock_write_test.go:52,65,85,107,126,139,158,180,198,217,242,271 each repeat path := filepath.Join(t.TempDir(), \"hooks.json\") plus an inline os.WriteFile seed. They cannot use StageStore as-is (their subject is the sidecar absence and its creation by the mutation), but they want a path-only sibling on the same helper — which only makes sense decided together with whatever the sibling task lands in internal/hookstest.",
+              "files": [
+                "internal/hooks/lock_write_test.go",
+                "internal/hookstest/staging.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-16",
+              "source": "reviewer",
+              "summary": "internal/hooks/store_test.go hand-stages a hooks.json path inline 36 times, the same way the already-banked sidecar suite does.",
+              "detail": "36 inline filepath.Join(dir, \"hooks.json\") compositions, 8 of them paired with an os.WriteFile seed that hookstest.Staging{Seed: ...} now expresses (e.g. internal/hooks/store_test.go:60-68, :105-112). Same call as the banked lock_write_test.go item — several sites subject genuinely is the file non-existence and must stay — so it wants deciding alongside whatever path-only sibling that entry lands on StageStore.",
+              "files": [
+                "internal/hooks/store_test.go",
+                "internal/hooks/lock_write_test.go",
+                "internal/hookstest/staging.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-16",
+              "source": "reviewer",
+              "summary": "An eighth path-based hooks.json stager survives in cmd, outside the finding seven.",
+              "detail": "cmd/state_hydrate_test.go:1183 seedHookStore(t, dir, map[string]map[string]string) stages a hooks.json into a caller-supplied fixture dir and returns a store, across ~18 call sites in cmd/state_hydrate_test.go, cmd/state_hydrate_exec_log_test.go and cmd/state_hydrate_empty_hookkey_test.go. Folding it onto StageStore needs an events-shaped axis (it seeds on-attach as well as on-resume, which Staging.Entries cannot express) and would inject a sidecar into fixture dirs that also hold FIFOs and scrollback — so it wants deciding alongside the already-banked lock_write_test.go / store_test.go path-only sibling. Low urgency: no hydrate test installs a process-wide logtest sink, so it leaks no load-unlocked breadcrumb into an asserted sink today. Note this is also what would make the CLAUDE-adjacent second-of-two-routes claim literally true.",
+              "files": [
+                "cmd/state_hydrate_test.go",
+                "cmd/state_hydrate_exec_log_test.go",
+                "cmd/state_hydrate_empty_hookkey_test.go",
+                "internal/hookstest/staging.go"
               ]
             }
           ]
