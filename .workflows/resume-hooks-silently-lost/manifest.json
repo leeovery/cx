@@ -250,7 +250,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 7,
-          "current_task": "resume-hooks-silently-lost-7-10",
+          "current_task": "resume-hooks-silently-lost-7-11",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -335,7 +335,8 @@
             "resume-hooks-silently-lost-7-6",
             "resume-hooks-silently-lost-7-7",
             "resume-hooks-silently-lost-7-8",
-            "resume-hooks-silently-lost-7-9"
+            "resume-hooks-silently-lost-7-9",
+            "resume-hooks-silently-lost-7-10"
           ],
           "staging": {
             "p1": {
@@ -994,6 +995,26 @@
               "detail": "got.Elapsed > wait.Ceiling+300ms. The margin is 33% of a 900ms budget rather than the 2% that caused the original problem, so risk is much lower, and it is partly redundant: !Reached && !Stalled two assertions above already proves the ceiling branch fired. Its remaining value is catching a mis-derived ceiling (e.g. start.Add(w.Ceiling*10)), which a tolerance of 2*wait.Ceiling would catch just as well with far more scheduler headroom. Also worth one line: TestAwaitProgress_ReportsTheLastObservationInItsFailureMessage already drives the three/two/two sequence — the A-B-B shape that pins Changes == 1, closing the repeat-does-not-increment gap.",
               "files": [
                 "internal/tmuxtest/progress_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-10",
+              "source": "reviewer",
+              "summary": "run.build-tags selects ONE build configuration, so enabling integration swaps the !integration variant file out of the analysed set.",
+              "detail": "Confirmed with go list: default tags list internal/state/pgrep_sandbox_prod.go (//go:build !integration, the variant the shipped binary carries), integration tags list pgrep_sandbox.go instead. That file was in scope before this change and is not now. It is 16 lines of inert stubs so practical exposure is near zero and there is no live finding, but no code remedy exists short of reverting the settled single-invocation decision. Two further files stay outside every lint run, pre-existing: internal/spawn/ghostty_compile_ghosttycompile_test.go (ghosttycompile) and ghostty_openwindow_manual_test.go (manual) — deliberately opt-in tags. Recorded so the nothing-accumulates-out-of-sight claim is not read as absolute.",
+              "files": [
+                ".golangci.yml",
+                "internal/state/pgrep_sandbox_prod.go",
+                "internal/spawn/ghostty_compile_ghosttycompile_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-10",
+              "source": "reviewer",
+              "summary": "Side effect of the integration tag: unused now counts a production symbol referenced only by an integration test as used.",
+              "detail": "With integration test files visible to the linter, the unused check treats a production symbol referenced only from an integration test as live. Nothing was masked here (the pre-change unit-lane baseline was 0 issues), but it is the flip side of the same single-configuration property and worth knowing before trusting a future clean unused run.",
+              "files": [
+                ".golangci.yml"
               ]
             }
           ]
