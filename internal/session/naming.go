@@ -15,11 +15,23 @@ type IDGenerator = nanoid.Generator
 
 type ExistsFunc func(name string) bool
 
-// SanitiseProjectName replaces the characters tmux rejects in a session name —
-// periods and colons — with hyphens.
+// sessionIDPrefix leads a tmux session ID. A generated name opens with the
+// sanitised project fragment, so a fragment carrying this prefix would mint a
+// name tmux resolves as an ID instead of a name — unaddressable either way.
+// Only a leading occurrence carries that meaning.
+const sessionIDPrefix = "$"
+
+// SanitiseProjectName replaces the characters that would leave a generated
+// session name untidy or unaddressable — periods, colons and a leading dollar —
+// with hyphens.
 func SanitiseProjectName(name string) string {
 	r := strings.NewReplacer(".", "-", ":", "-")
-	return r.Replace(name)
+	sanitised := r.Replace(name)
+
+	if rest, found := strings.CutPrefix(sanitised, sessionIDPrefix); found {
+		return "-" + rest
+	}
+	return sanitised
 }
 
 // GenerateSessionName produces a session name of the form {project}-{nanoid},

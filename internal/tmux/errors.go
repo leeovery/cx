@@ -67,14 +67,34 @@ var ErrUnaddressableSessionName = tmuxerr.ErrUnaddressableSessionName
 // a trailing separator were measured and all fail identically.
 const targetSeparator = ":"
 
+// sessionIDPrefix leads a tmux session ID. tmux resolves a target beginning with
+// one as an ID rather than a name, so a session whose name starts with it cannot
+// be addressed by name at all — bare and exact forms were measured and both fail.
+// Only a leading occurrence carries this meaning.
+const sessionIDPrefix = "$"
+
+// ErrSessionNameSeparator and ErrSessionNameIDPrefix report which rule refused a
+// name; discriminate with errors.Is when the answer selects wording of its own. A
+// refusal wraps one of them alongside ErrUnaddressableSessionName, so a caller
+// that only cares that the name is unaddressable still matches. Each carries the
+// clause it contributes to the refusal message rather than a heading of its own,
+// so nothing is said twice.
+var (
+	ErrSessionNameSeparator = fmt.Errorf("contains %q, which tmux reserves as a target separator", targetSeparator)
+	ErrSessionNameIDPrefix  = fmt.Errorf("begins with %q, which tmux reserves as a session ID prefix", sessionIDPrefix)
+)
+
 // ValidateSessionName reports whether a session name can be addressed by the
 // exact-match target every per-session operation composes. The returned error
-// wraps ErrUnaddressableSessionName and names the offending character, so a
-// caller can surface the refusal verbatim.
+// wraps ErrUnaddressableSessionName plus the sentinel for the rule that refused,
+// and names the offending character, so a caller can surface the refusal verbatim
+// or choose wording of its own.
 func ValidateSessionName(name string) error {
 	if strings.Contains(name, targetSeparator) {
-		return fmt.Errorf("%w: %q contains %q, which tmux reserves as a target separator",
-			ErrUnaddressableSessionName, name, targetSeparator)
+		return fmt.Errorf("%w: %q %w", ErrUnaddressableSessionName, name, ErrSessionNameSeparator)
+	}
+	if strings.HasPrefix(name, sessionIDPrefix) {
+		return fmt.Errorf("%w: %q %w", ErrUnaddressableSessionName, name, ErrSessionNameIDPrefix)
 	}
 	return nil
 }

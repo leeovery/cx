@@ -8,6 +8,7 @@ import (
 
 	"github.com/leeovery/portal/internal/nanoid"
 	"github.com/leeovery/portal/internal/session"
+	"github.com/leeovery/portal/internal/tmux"
 )
 
 func TestSanitiseProjectName(t *testing.T) {
@@ -30,6 +31,16 @@ func TestSanitiseProjectName(t *testing.T) {
 			name:  "replaces multiple periods and colons",
 			input: "my.cool:app.v2",
 			want:  "my-cool-app-v2",
+		},
+		{
+			name:  "sanitises a project directory whose name begins with $",
+			input: "$foo",
+			want:  "-foo",
+		},
+		{
+			name:  "leaves a $ that is not leading alone",
+			input: "a$b",
+			want:  "a$b",
 		},
 		{
 			name:  "leaves clean name unchanged",
@@ -196,6 +207,29 @@ func TestGenerateSessionName_SuffixDrawsOnTheGeneralPurposeGenerator(t *testing.
 			if !strings.ContainsRune(nanoid.Alphabet, rune(suffix[i])) {
 				t.Errorf("session-name suffix %q carries %q, which is outside the generated-id alphabet", suffix, suffix[i])
 			}
+		}
+	})
+}
+
+func TestGenerateSessionNameProducesAddressableNames(t *testing.T) {
+	t.Run("it generates only names ValidateSessionName accepts", func(t *testing.T) {
+		// Directory names carrying the characters the generator replaces: the
+		// target separator, the leading ID prefix, and the period.
+		hostileProjectNames := []string{"$foo", "$", "a:b", "a.b", "$a:b"}
+		gen := func() (string, error) { return "abc123", nil }
+		exists := func(string) bool { return false }
+
+		for _, projectName := range hostileProjectNames {
+			t.Run(projectName, func(t *testing.T) {
+				name, err := session.GenerateSessionName(projectName, gen, exists)
+				if err != nil {
+					t.Fatalf("GenerateSessionName(%q): %v", projectName, err)
+				}
+
+				if err := tmux.ValidateSessionName(name); err != nil {
+					t.Errorf("GenerateSessionName(%q) produced %q, which ValidateSessionName refuses: %v", projectName, name, err)
+				}
+			})
 		}
 	})
 }

@@ -14,42 +14,49 @@ import (
 // surfaced nothing at all cannot pass as a fix.
 const plainSession = "plain"
 
-func TestCaptureStructureRealTmuxColonNamedSession(t *testing.T) {
-	t.Run("it surfaces a colon-named session in a real-tmux capture rather than dropping it", func(t *testing.T) {
-		tmuxtest.SkipIfNoTmux(t)
+func TestCaptureStructureRealTmuxUnaddressableSessionName(t *testing.T) {
+	t.Run("it surfaces an unaddressable session in a real-tmux capture rather than dropping it", func(t *testing.T) {
+		for _, unaddressable := range []string{colonSession, dollarSession} {
+			t.Run(unaddressable, func(t *testing.T) {
+				tmuxtest.SkipIfNoTmux(t)
 
-		ts := tmuxtest.New(t, "ptl-colonsess-")
-		client := ts.Client()
-		if _, err := client.EnsureServer(); err != nil {
-			t.Fatalf("EnsureServer: %v", err)
-		}
-		dir := t.TempDir()
-		for _, name := range []string{colonSession, plainSession} {
-			ts.Run(t, "new-session", "-d", "-s", name, "-c", dir)
-		}
-		// Not WaitForSession: has-session reads the colon as a window separator
-		// and can never resolve this name. Enumeration settles both names.
-		waitForListedSessions(t, ts, colonSession, plainSession)
+				ts := tmuxtest.New(t, "ptl-unaddrsess-")
+				client := ts.Client()
+				if _, err := client.EnsureServer(); err != nil {
+					t.Fatalf("EnsureServer: %v", err)
+				}
+				dir := t.TempDir()
+				for _, name := range []string{unaddressable, plainSession} {
+					ts.Run(t, "new-session", "-d", "-s", name, "-c", dir)
+				}
+				// Not WaitForSession: has-session composes the same target the
+				// capture does and can never resolve this name. Enumeration
+				// settles both names.
+				waitForListedSessions(t, ts, unaddressable, plainSession)
 
-		logger, sink := openTestLogger(t, t.TempDir())
-		idx, err := state.CaptureStructure(client, nil, nil, logger)
-		if err != nil {
-			t.Fatalf("CaptureStructure: %v", err)
-		}
+				logger, sink := openTestLogger(t, t.TempDir())
+				idx, err := state.CaptureStructure(client, nil, nil, logger)
+				if err != nil {
+					t.Fatalf("CaptureStructure: %v", err)
+				}
 
-		if !capturedSession(idx, plainSession) {
-			t.Fatalf("precondition: %q must be captured; Sessions = %+v", plainSession, idx.Sessions)
-		}
+				if !capturedSession(idx, plainSession) {
+					t.Fatalf("precondition: %q must be captured; Sessions = %+v", plainSession, idx.Sessions)
+				}
 
-		log := sink.Body()
-		if capturedSession(idx, colonSession) {
-			return
-		}
-		if !strings.Contains(log, "capture anomalous session error") {
-			t.Errorf("%q is absent from the capture and was not reported as anomalous; log:\n%s", colonSession, log)
-		}
-		if strings.Contains(log, "vanished") {
-			t.Errorf("a live %q must never be counted as natural churn; log:\n%s", colonSession, log)
+				log := sink.Body()
+				// A tmux that can address the name captures it, which is the
+				// better outcome and leaves nothing to classify.
+				if capturedSession(idx, unaddressable) {
+					return
+				}
+				if !strings.Contains(log, "capture anomalous session error") {
+					t.Errorf("%q is absent from the capture and was not reported as anomalous; log:\n%s", unaddressable, log)
+				}
+				if strings.Contains(log, "vanished") {
+					t.Errorf("a live %q must never be counted as natural churn; log:\n%s", unaddressable, log)
+				}
+			})
 		}
 	})
 }

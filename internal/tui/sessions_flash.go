@@ -1,10 +1,13 @@
 package tui
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+
+	"github.com/leeovery/portal/internal/tmux"
 )
 
 // The zero value is flashWarning, so an unparameterised setFlash stays a warning.
@@ -50,6 +53,18 @@ func formatSessionGoneFlash(name string) string {
 	return fmt.Sprintf(`session "%s" no longer exists`, name)
 }
 
-// renameColonRefusedFlash explains a refused rename in the band's own voice. It
-// carries no ⚠ glyph — the warning band prepends one.
-const renameColonRefusedFlash = `":" isn't allowed in a session name — tmux reads it as a separator`
+// The band's own voice for each rename refusal. Neither carries a ⚠ glyph — the
+// warning band prepends one.
+const (
+	renameSeparatorRefusedFlash = `":" isn't allowed in a session name — tmux reads it as a separator`
+	renameIDPrefixRefusedFlash  = `"$" isn't allowed at the start of a session name — tmux reads it as a session ID`
+)
+
+// renameRefusalFlash picks the band's wording from the rule the validator
+// reported, so the refusal names the character the user actually typed.
+func renameRefusalFlash(err error) string {
+	if errors.Is(err, tmux.ErrSessionNameIDPrefix) {
+		return renameIDPrefixRefusedFlash
+	}
+	return renameSeparatorRefusedFlash
+}

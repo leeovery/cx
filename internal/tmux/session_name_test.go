@@ -201,3 +201,31 @@ func TestPerSessionOpsClassifyUnaddressableName(t *testing.T) {
 		})
 	})
 }
+
+func TestValidateSessionName(t *testing.T) {
+	t.Run("it refuses a session name beginning with $", func(t *testing.T) {
+		err := tmux.ValidateSessionName("$foo")
+
+		if err == nil {
+			t.Fatal(`ValidateSessionName("$foo") = nil; want a refusal`)
+		}
+		if !errors.Is(err, tmuxerr.ErrUnaddressableSessionName) {
+			t.Errorf("error = %v; want it to wrap tmuxerr.ErrUnaddressableSessionName", err)
+		}
+		if !strings.Contains(err.Error(), `"$"`) {
+			t.Errorf("refusal message %q does not name the offending %q character", err.Error(), "$")
+		}
+	})
+
+	t.Run("it accepts a $ that is not leading", func(t *testing.T) {
+		if err := tmux.ValidateSessionName("a$b"); err != nil {
+			t.Errorf(`ValidateSessionName("a$b") = %v; want nil`, err)
+		}
+	})
+
+	t.Run("it accepts a name containing a period", func(t *testing.T) {
+		if err := tmux.ValidateSessionName("a.b"); err != nil {
+			t.Errorf(`ValidateSessionName("a.b") = %v; want nil`, err)
+		}
+	})
+}

@@ -7,7 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-func TestRenameRefusesColonBearingName(t *testing.T) {
+func TestRenameRefusesUnaddressableName(t *testing.T) {
 	t.Run("it refuses a colon-bearing rename from the TUI and reports why", func(t *testing.T) {
 		rec := &recordingRenamer{}
 		m := newRenameTestModel(rec, "alpha", "a:b")
@@ -21,21 +21,48 @@ func TestRenameRefusesColonBearingName(t *testing.T) {
 		if um.modal != modalNone {
 			t.Errorf("modal = %v, want modalNone after a refusal", um.modal)
 		}
-		if um.flashText != renameColonRefusedFlash {
-			t.Errorf("flashText = %q, want %q", um.flashText, renameColonRefusedFlash)
+		if um.flashText != renameSeparatorRefusedFlash {
+			t.Errorf("flashText = %q, want %q", um.flashText, renameSeparatorRefusedFlash)
 		}
 	})
 
 	t.Run("it names the offending character in the refusal message", func(t *testing.T) {
-		if !strings.Contains(renameColonRefusedFlash, `":"`) {
-			t.Errorf("refusal flash %q does not name the offending character", renameColonRefusedFlash)
+		if !strings.Contains(renameSeparatorRefusedFlash, `":"`) {
+			t.Errorf("refusal flash %q does not name the offending character", renameSeparatorRefusedFlash)
 		}
-		if strings.Contains(renameColonRefusedFlash, flashWarningGlyph) {
-			t.Errorf("the refusal text must not embed the %q glyph (the band prepends it): %q", flashWarningGlyph, renameColonRefusedFlash)
+		if strings.Contains(renameSeparatorRefusedFlash, flashWarningGlyph) {
+			t.Errorf("the refusal text must not embed the %q glyph (the band prepends it): %q", flashWarningGlyph, renameSeparatorRefusedFlash)
 		}
 	})
 
-	t.Run("it renames a colon-free name unchanged", func(t *testing.T) {
+	t.Run("it refuses a rename to a name beginning with $ and reports why", func(t *testing.T) {
+		rec := &recordingRenamer{}
+		m := newRenameTestModel(rec, "alpha", "$foo")
+
+		updated, _ := m.updateRenameModal(tea.KeyPressMsg{Code: tea.KeyEnter})
+		um := updated.(Model)
+
+		if rec.called {
+			t.Error("a rename to an ID-prefixed name must reach no renamer")
+		}
+		if um.modal != modalNone {
+			t.Errorf("modal = %v, want modalNone after a refusal", um.modal)
+		}
+		if um.flashText != renameIDPrefixRefusedFlash {
+			t.Errorf("flashText = %q, want %q", um.flashText, renameIDPrefixRefusedFlash)
+		}
+	})
+
+	t.Run("it names the offending character in the ID-prefix refusal message", func(t *testing.T) {
+		if !strings.Contains(renameIDPrefixRefusedFlash, `"$"`) {
+			t.Errorf("refusal flash %q does not name the offending character", renameIDPrefixRefusedFlash)
+		}
+		if strings.Contains(renameIDPrefixRefusedFlash, flashWarningGlyph) {
+			t.Errorf("the refusal text must not embed the %q glyph (the band prepends it): %q", flashWarningGlyph, renameIDPrefixRefusedFlash)
+		}
+	})
+
+	t.Run("it renames an addressable name unchanged", func(t *testing.T) {
 		rec := &recordingRenamer{}
 		m := newRenameTestModel(rec, "alpha", "renamed-alpha")
 
