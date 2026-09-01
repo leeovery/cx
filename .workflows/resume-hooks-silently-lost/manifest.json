@@ -360,7 +360,8 @@
             "resume-hooks-silently-lost-7-32",
             "resume-hooks-silently-lost-7-33",
             "resume-hooks-silently-lost-7-34",
-            "resume-hooks-silently-lost-7-13"
+            "resume-hooks-silently-lost-7-13",
+            "resume-hooks-silently-lost-7-35"
           ],
           "staging": {
             "p1": {
@@ -1859,6 +1860,36 @@
               "files": [
                 "cmd/run_hook_stale_cleanup.go",
                 "cmd/doctor.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-35",
+              "source": "executor",
+              "summary": "The two suites that LOOKED like they tested the pre-read bound pinned it to an absolute value of its own",
+              "detail": "internal/hooks `it degrades the sweep pre-read at the short bound` and cmd TestSweepPreReadBound both set an absolute 60ms via SetSnapshotLockTimeoutForTest while raising lockTimeout to 5s — so they measured a value the pre-read was given directly, not one derived from anything, and would have kept passing over a derivation that never moved. 7-35 acceptance criterion 4 (lowering lockTimeout lowers the pre-read bound) would have been untested in exactly the two places that appear to test it. The fix was deleting the absolute setter and replacing it with a read-only accessor. Worth noting as a pattern: a test seam that lets a test SET the value under test, rather than set its input and read it back, cannot detect that the derivation broke.",
+              "files": [
+                "internal/hooks/locktest.go",
+                "internal/hooks/read_lock_test.go",
+                "cmd/hooks_read_lock_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-35",
+              "source": "reviewer",
+              "summary": "An uncontended lock acquire can never time out however small the bound — the real reason a short pre-read bound is safe",
+              "detail": "The reviewer probed acquireLock directly against a held exclusive lock and found the first Flock attempt PRECEDES any deadline check. Two consequences neither the task nor the executor stated: (1) an uncontended acquire cannot time out at any bound, so a short pre-read bound introduces no spurious-degradation flake surface — this is the actual safety argument for the floor, stronger than the one in the comment; (2) below one poll interval the figure named stops being the figure waited (100us and 3ms both cost 5.7ms), which is the floor's real justification. Worth knowing wherever else a bound is chosen against this acquire.",
+              "files": [
+                "internal/hooks/lock.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-35",
+              "source": "reviewer",
+              "summary": "snapshotLockBound doc dropped the concrete why-a-hundredth justification and gained a now-vacuous clause",
+              "detail": "The 7-35 comment is 16 lines against lockTimeout 4. Every clause carries a why, so it is not padding — but two problems: `bounded at the cheapest figure that still grants an uncontended lock` is now VACUOUS given the loop ordering (an uncontended acquire cannot time out at any bound, so every figure grants it), and the HEAD comment concrete justification — `four poll intervals above the sub-millisecond critical section` — was dropped. That was the sentence explaining why a hundredth rather than a thousandth. Also: `it bounds the clean pre-read below the mutation bound` asserts preRead < mutation/2 over three hand-picked values, a property that is FALSE below ~10ms given the floor — no test goes near it, but it is a three-point sample dressed as an invariant.",
+              "files": [
+                "internal/hooks/lock.go",
+                "internal/hooks/read_lock_test.go"
               ]
             }
           ]
