@@ -3,6 +3,7 @@ package cmd
 import (
 	"testing"
 
+	"github.com/leeovery/portal/internal/nanoid"
 	"github.com/leeovery/portal/internal/tmux"
 )
 
@@ -28,8 +29,8 @@ func TestHookSeams(t *testing.T) {
 		if err != nil {
 			t.Fatalf("production TokenMinter: %v", err)
 		}
-		if token == "" {
-			t.Error("production TokenMinter minted an empty token")
+		if !nanoid.IsTokenShaped(token) {
+			t.Errorf("production TokenMinter minted %q, which IsTokenShaped rejects — hooks.json could never judge the key it becomes", token)
 		}
 	})
 

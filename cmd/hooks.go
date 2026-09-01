@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/leeovery/portal/internal/hooks"
-	"github.com/leeovery/portal/internal/session"
+	"github.com/leeovery/portal/internal/nanoid"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
 	"github.com/spf13/cobra"
@@ -42,7 +42,7 @@ type HooksDeps struct {
 	KeyResolver HookKeyResolver
 	PaneLister  PaneHookLister
 	PaneStamper PaneOptionSetter
-	TokenMinter session.IDGenerator
+	TokenMinter nanoid.Generator
 }
 
 func requireTmuxPane() (string, error) {
@@ -97,7 +97,7 @@ func hookSeams() HooksDeps {
 		seams.PaneStamper = client
 	}
 	if seams.TokenMinter == nil {
-		seams.TokenMinter = session.NewPaneToken
+		seams.TokenMinter = nanoid.NewPaneTokenGenerator()
 	}
 
 	return seams
