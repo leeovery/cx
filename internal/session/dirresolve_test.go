@@ -85,7 +85,11 @@ func TestResolveSessionDir(t *testing.T) {
 		}
 	})
 
-	t.Run("returns unresolvable when the session was killed mid-resolve", func(t *testing.T) {
+	// Seam-level, not tmux-level: *tmux.Client reports an absent session as an
+	// empty path with a nil error, never as this sentinel. The branch stays
+	// because the reader is an interface and the classification is the seam's
+	// contract.
+	t.Run("returns unresolvable for a reader reporting the no-such-session sentinel", func(t *testing.T) {
 		killed := errors.New("display-message failed: " + tmux.ErrNoSuchSession.Error())
 		wrapped := errors.Join(tmux.ErrNoSuchSession, killed)
 		reader := &fakePaneReader{err: wrapped}
@@ -107,9 +111,12 @@ func TestResolveSessionDir(t *testing.T) {
 		}
 	})
 
-	t.Run("returns no-directory when the active pane has no readable current_path", func(t *testing.T) {
-		// A blank path must never reach ResolveGitRoot, which would os.Stat("").
-		reader := &fakePaneReader{path: ""}
+	t.Run("treats an empty path with a nil error as unresolved", func(t *testing.T) {
+		// The pair *tmux.Client actually returns for a session no pane answers
+		// to, and for a live pane with no readable current_path yet: tmux exits
+		// 0 with an empty expansion, so there is no error to classify. A blank
+		// path must also never reach ResolveGitRoot, which would os.Stat("").
+		reader := &fakePaneReader{path: "", err: nil}
 		runner := &fakeRunner{gitRoot: "/should/not/be/used"}
 
 		dir, ok, err := session.ResolveSessionDir("blank", reader, runner)

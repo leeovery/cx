@@ -197,7 +197,7 @@ func TestDaemon_ThrottledHookCleanup_ReapsStaleRetainsLiveOnIdleServer(t *testin
 	postKeys := readHookKeys(t, env)
 	if _, ok := postKeys[liveHookKey]; !ok {
 		t.Fatalf("live key %q was removed by the cleanup; CleanStale must RETAIN entries "+
-			"whose paneKey is present in the live pane set (ListAllPanes)\n"+
+			"whose paneKey is present in the live pane set (ListAllPaneHookKeys)\n"+
 			"  remaining keys: %v\n--- hooks.json (%s) ---\n%s\n--- portal.log ---\n%s",
 			liveHookKey, sortedKeys(postKeys), hooksPath,
 			string(hookstest.HooksJSONBytes(t, env)), portaltest.ReadPortalLogSafe(stateDir))

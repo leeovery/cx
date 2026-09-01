@@ -141,13 +141,16 @@ func TestRebuildSessionListDirResolution(t *testing.T) {
 		}
 	})
 
-	t.Run("an unresolvable empty-Dir session falls through to Unknown and is not cached", func(t *testing.T) {
+	// The exact pair tmux gives for a session no pane answers to: display-message
+	// exits 0 with an empty expansion, so the reader returns ("", nil) and the
+	// grouped render must read that as unresolved rather than as a directory.
+	t.Run("it treats an empty current path as unresolved in the grouped render", func(t *testing.T) {
 		dir := t.TempDir()
 		projects := []project.Project{{Path: dir, Name: "Portal"}}
 		sessions := []tmux.Session{{Name: "portal-abc", Dir: ""}}
 
 		m := newRebuildTestModel(t, prefs.ModeByProject, sessions, projects)
-		m.dirReader = &fakeStamper{path: ""}
+		m.dirReader = &fakeStamper{path: "", err: nil}
 		m.dirRunner = &fakeDirRunner{gitRoot: dir}
 
 		m.rebuildSessionList()
@@ -157,7 +160,10 @@ func TestRebuildSessionListDirResolution(t *testing.T) {
 			t.Fatalf("len(session rows) = %d, want 1", len(rows))
 		}
 		if !rows[0].CatchAll {
-			t.Fatalf("unresolvable session must route to the Unknown catch-all")
+			t.Fatalf("an empty-and-nil pane read must route the session to the Unknown catch-all")
+		}
+		if rows[0].GroupHeading != unknownHeading {
+			t.Errorf("GroupHeading = %q, want %q (nothing was resolved)", rows[0].GroupHeading, unknownHeading)
 		}
 		if m.sessions[0].Dir != "" {
 			t.Errorf("m.sessions[0].Dir = %q, want \"\" (unresolvable, nothing to cache)", m.sessions[0].Dir)

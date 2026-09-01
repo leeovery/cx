@@ -162,11 +162,11 @@ func TestMaybeRunHookCleanup_ListPanesErrorSwallowedNoReap(t *testing.T) {
 		t.Fatalf("store.Load: %v", err)
 	}
 	if _, ok := postRun[hookstest.ReapableSeedA]; !ok {
-		t.Errorf("entry reaped despite ListAllPanes error; hooks=%v", keysOf(postRun))
+		t.Errorf("entry reaped despite ListAllPanesWithFormat error; hooks=%v", keysOf(postRun))
 	}
 
 	if got := sink.Body(); strings.Contains(got, "hooks stale-cleanup failed") {
-		t.Errorf("gate WARN fired despite swallowed ListAllPanes error; got:\n%s", got)
+		t.Errorf("gate WARN fired despite swallowed ListAllPanesWithFormat error; got:\n%s", got)
 	}
 
 	if deps.lastCleanup.Before(beforeCall) {

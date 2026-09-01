@@ -244,12 +244,25 @@ func (c *Client) ResolveHookKey(paneID string) (string, error) {
 }
 
 // ActivePaneCurrentPath returns the named session's active pane current_path in
-// a single tmux read. A session killed mid-read surfaces as errors.Is(err,
-// ErrNoSuchSession), which callers can treat as unresolvable rather than fatal.
+// a single tmux read.
+//
+// A session no pane answers to returns ("", nil), NOT an error: tmux answers an
+// unmatched display-message target with an empty expansion at exit 0 and no
+// stderr (measured on 3.7c; the same fact ExactSessionTarget's doc states from
+// the target-form side), so there is no "no such session" stderr to classify and
+// no ErrNoSuchSession this path can ever produce. A live session whose pane has
+// no readable path yet returns the same pair, which is why the empty path — not
+// an error — is the unresolvable signal callers must handle. internal/session's
+// ResolveSessionDir reports it as ok==false with a nil error so the grouped
+// render carries on.
+//
+// A non-nil error is therefore a genuine display-message failure — no server to
+// connect to, say — wrapped with the session name and preserving the underlying
+// *CommandError for a caller that wants tmux's own words.
 func (c *Client) ActivePaneCurrentPath(session string) (string, error) {
 	output, err := c.cmd.Run("display-message", "-p", "-t", ExactCoordTarget(session), "-F", "#{pane_current_path}")
 	if err != nil {
-		return "", fmt.Errorf("failed to read active pane current path for session %q: %w", session, wrapNoSuchSession(err))
+		return "", fmt.Errorf("failed to read active pane current path for session %q: %w", session, err)
 	}
 	return output, nil
 }

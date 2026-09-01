@@ -77,7 +77,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		}
 	})
 
-	t.Run("ListAllPanes error stands the cycle down and returns nil", func(t *testing.T) {
+	t.Run("ListAllPaneHookKeys error stands the cycle down and returns nil", func(t *testing.T) {
 		seed := fmt.Sprintf(`{%q: {"on-resume": "cmd-a"}}`, hookstest.ReapableSeedA)
 		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 		before := readFileBytes(t, path)
@@ -88,16 +88,16 @@ func TestRunHookStaleCleanup(t *testing.T) {
 
 		outcome, err := runHookStaleCleanup(lister, store, logger)
 		if err != nil {
-			t.Fatalf("runHookStaleCleanup on ListAllPanes error: want nil, got %v", err)
+			t.Fatalf("runHookStaleCleanup on ListAllPaneHookKeys error: want nil, got %v", err)
 		}
 		if outcome.DeclineReason != skipReasonPaneReadFailed {
 			t.Errorf("DeclineReason = %q, want %q", outcome.DeclineReason, skipReasonPaneReadFailed)
 		}
 
-		assertHooksFileUnchanged(t, path, before, "modified on ListAllPanes-error path")
+		assertHooksFileUnchanged(t, path, before, "modified on ListAllPaneHookKeys-error path")
 
 		if got := len(loggerSink.RecordsAtExactLevelWith(slog.LevelDebug, "bootstrap", entryDebugFmt)); got != 0 {
-			t.Errorf("entry-point Debug count = %d, want 0 (must NOT fire on ListAllPanes-error branch); entries=%+v", got, loggerSink.Records())
+			t.Errorf("entry-point Debug count = %d, want 0 (must NOT fire on ListAllPaneHookKeys-error branch); entries=%+v", got, loggerSink.Records())
 		}
 	})
 
@@ -205,7 +205,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		}
 	})
 
-	t.Run("it enumerates live keys via ListAllPaneHookKeys not ListAllPanes", func(t *testing.T) {
+	t.Run("it enumerates live keys via ListAllPaneHookKeys not ListAllPanesWithFormat", func(t *testing.T) {
 		seed := fmt.Sprintf(`{%q: {"on-resume": "cmd-a"}}`, hookstest.LiveSeedA)
 		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 
