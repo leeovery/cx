@@ -250,7 +250,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 7,
-          "current_task": "resume-hooks-silently-lost-7-23",
+          "current_task": "resume-hooks-silently-lost-7-24",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -346,7 +346,8 @@
             "resume-hooks-silently-lost-7-19",
             "resume-hooks-silently-lost-7-20",
             "resume-hooks-silently-lost-7-21",
-            "resume-hooks-silently-lost-7-22"
+            "resume-hooks-silently-lost-7-22",
+            "resume-hooks-silently-lost-7-23"
           ],
           "staging": {
             "p1": {
@@ -1346,6 +1347,61 @@
                 "internal/restore/prefix_sibling_integration_test.go",
                 "internal/restoretest/orchestrator_staged.go",
                 "internal/restoretest/orchestrator_literal_guard_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-23",
+              "source": "executor",
+              "summary": "The two daemon suites are now internally mixed on the stale command string: shared two-entry seed says cmd-gone, their single-entry seeds still say cmd-stale",
+              "detail": "Task 7-23 reconciled the two-entry hooks.json body onto hookstest.StaleHookSeed, whose stale command is cmd-gone (chosen because staleHookSeed already carried that value across 18 cmd call sites). But cmd/state_daemon_hook_cleanup_test.go and cmd/state_daemon_run_test.go each also stage SINGLE-entry daemon seeds that still say cmd-stale, which were outside this task scope. Those two files now use both strings for the same concept. No test asserts on any of these command strings today (grepped repo-wide: every hit is a seed site), so this is legibility rather than correctness — but the split invites a future reader to think the two values mean different things.",
+              "files": [
+                "cmd/state_daemon_hook_cleanup_test.go",
+                "cmd/state_daemon_run_test.go",
+                "internal/hookstest/hooks.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-23",
+              "source": "reviewer",
+              "summary": "Two daemon fixtures assert the stale seed is ABSENT after the sweep without first asserting it was present — mutation-proven defanged",
+              "detail": "cmd/state_daemon_hook_cleanup_test.go:81 and cmd/state_daemon_run_test.go:571 assert the stale key is absent after the sweep with no prior presence check. The reviewer proved by mutation in an out-of-tree copy that repointing hookstest.StaleHookSeed's stale half to an unjudgeable key leaves BOTH fixtures passing, while repointing the live half fails both loudly — because the live assertion is a presence check and the stale one is not. Now that the seed body lives in another package (7-23), a future edit to StaleHookSeed can silently defang both. Fix is two lines per fixture, mirroring the guard the integration suite already has at cmd/state_daemon_hook_cleanup_integration_test.go:94.",
+              "files": [
+                "cmd/state_daemon_hook_cleanup_test.go",
+                "cmd/state_daemon_run_test.go",
+                "internal/hookstest/hooks.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-23",
+              "source": "reviewer",
+              "summary": "Unexporting ReapableHookKey/UnjudgeableHookKey would make the seed-index rule structural instead of observed",
+              "detail": "After 7-23, ReapableHookKey and UnjudgeableHookKey have no call sites outside internal/hookstest and its own external self-test. Moving hooks_test.go to package hookstest and unexporting the two constructors would make the named seeds the ONLY exported vocabulary, so \"no package re-derives a seed index inline\" becomes impossible rather than merely currently-true. Pairs naturally with renaming ReapableHookKey to JudgeableHookKey, which would end the friction of LiveSeedA being defined as ReapableHookKey(4).",
+              "files": [
+                "internal/hookstest/hooks.go",
+                "internal/hookstest/hooks_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-23",
+              "source": "reviewer",
+              "summary": "Hand-rolled hook-key literals in four cmd suites are token-shaped only by coincidence at the current pane-token width",
+              "detail": "aaa111, tok999, ghost9 and similar literals in cmd/hooks_test.go, cmd/hooks_rm_exit_test.go, cmd/hooks_pane_token_test.go and cmd/hooks_read_lock_test.go:74 sit outside the hookstest vocabulary. Unlike constructor-derived seeds, which panic if the pane-token width moves, these would quietly become UNJUDGEABLE — flipping the class of every assertion built on them, silently. Task 7-5 made paneTokenWidth part of hooks.json's on-disk recognition contract precisely because moving it is a migration event; these literals are the remaining place where that move would be silent rather than loud.",
+              "files": [
+                "cmd/hooks_test.go",
+                "cmd/hooks_rm_exit_test.go",
+                "cmd/hooks_pane_token_test.go",
+                "cmd/hooks_read_lock_test.go",
+                "internal/hookstest/hooks.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-23",
+              "source": "reviewer",
+              "summary": "hookstest self-test bounds its token-shape sweep at n<4 while the vocabulary now spans 0-6",
+              "detail": "internal/hookstest/hooks_test.go:16,28 still sweep `for n := range 4` for the token-shape and width subtests, but 7-23 extended the named seeds to indices 0-6 (LiveSeedA..C are 4-6). No live risk — the constructor panics on non-token-shape and the named seeds are evaluated at package init — but the self-test's bound is now stale relative to the vocabulary it backs, so it no longer sweeps every index the package actually mints.",
+              "files": [
+                "internal/hookstest/hooks_test.go",
+                "internal/hookstest/hooks.go"
               ]
             }
           ]
