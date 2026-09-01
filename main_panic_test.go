@@ -31,7 +31,7 @@ func TestRunPanicEmission(t *testing.T) {
 			t.Error("panicked = false, want true")
 		}
 
-		panics := rec.Records().Msg("panic")
+		panics := rec.RecordsWithMessage("panic")
 		if len(panics) != 1 {
 			t.Fatalf("expected exactly 1 process: panic record, got %d", len(panics))
 		}
@@ -59,7 +59,7 @@ func TestRunPanicEmission(t *testing.T) {
 		}
 		mainEmitClose(2, panicked)
 
-		if exits := rec.Records().Msg("exit"); len(exits) != 0 {
+		if exits := rec.RecordsWithMessage("exit"); len(exits) != 0 {
 			t.Errorf("expected no process: exit on the panic path, got %d", len(exits))
 		}
 	})
@@ -77,10 +77,10 @@ func TestRunPanicEmission(t *testing.T) {
 		}
 		mainEmitClose(code, panicked)
 
-		if panics := rec.Records().Msg("panic"); len(panics) != 0 {
+		if panics := rec.RecordsWithMessage("panic"); len(panics) != 0 {
 			t.Errorf("expected no process: panic on a clean run, got %d", len(panics))
 		}
-		exits := rec.Records().Msg("exit")
+		exits := rec.RecordsWithMessage("exit")
 		if len(exits) != 1 {
 			t.Fatalf("expected exactly 1 process: exit on a clean run, got %d", len(exits))
 		}
@@ -106,10 +106,10 @@ func TestRunPanicEmission(t *testing.T) {
 		}
 		mainEmitClose(code, panicked)
 
-		if panics := rec.Records().Msg("panic"); len(panics) != 0 {
+		if panics := rec.RecordsWithMessage("panic"); len(panics) != 0 {
 			t.Errorf("expected no process: panic on an error run, got %d", len(panics))
 		}
-		exits := rec.Records().Msg("exit")
+		exits := rec.RecordsWithMessage("exit")
 		if len(exits) != 1 {
 			t.Fatalf("expected exactly 1 process: exit on an error run, got %d", len(exits))
 		}
@@ -140,8 +140,8 @@ func TestRunPanicEmission(t *testing.T) {
 				code, panicked := run()
 				mainEmitClose(code, panicked)
 
-				panics := len(rec.Records().Msg("panic"))
-				exits := len(rec.Records().Msg("exit"))
+				panics := len(rec.RecordsWithMessage("panic"))
+				exits := len(rec.RecordsWithMessage("exit"))
 				if panicked != tc.wantPanic {
 					t.Fatalf("panicked = %v, want %v", panicked, tc.wantPanic)
 				}

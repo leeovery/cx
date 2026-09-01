@@ -125,7 +125,7 @@ func TestSweepOrphanFIFOs_RemoveFailureWarnsOnLoggerAndCountsAsSkipped(t *testin
 		t.Fatalf("restore chmod: %v", err)
 	}
 
-	warns := sink.RecordsWith("bootstrap", "remove orphan fifo failed").AtExactLevel(slog.LevelWarn)
+	warns := sink.RecordsAtExactLevelWith(slog.LevelWarn, "bootstrap", "remove orphan fifo failed")
 	if len(warns) != 2 {
 		t.Fatalf("expected 2 remove-failure WARNs under bootstrap, got %d: %+v", len(warns), sink.Records())
 	}
@@ -194,7 +194,7 @@ func TestSweepOrphanFIFOs_DemotesPerRemovalInfoToDebugUnderClean(t *testing.T) {
 		}
 	}
 
-	dbg := sink.RecordsWith("clean", "orphan fifo reaped").AtExactLevel(slog.LevelDebug)
+	dbg := sink.RecordsAtExactLevelWith(slog.LevelDebug, "clean", "orphan fifo reaped")
 	if len(dbg) != 1 {
 		t.Fatalf("expected 1 DEBUG 'orphan fifo reaped' under clean, got %d: %+v", len(dbg), sink.Records())
 	}
@@ -235,11 +235,11 @@ func TestSweepOrphanFIFOs_BoundaryContract_CallerWarnSinkVsCleanSummary(t *testi
 		t.Fatalf("restore chmod: %v", err)
 	}
 
-	warns := sink.RecordsWith(callerComponent, "remove orphan fifo failed").AtExactLevel(slog.LevelWarn)
+	warns := sink.RecordsAtExactLevelWith(slog.LevelWarn, callerComponent, "remove orphan fifo failed")
 	if len(warns) != 1 {
 		t.Fatalf("expected 1 remove-failure WARN under %q, got %d: %+v", callerComponent, len(warns), sink.Records())
 	}
-	if cleanWarns := sink.RecordsWith("clean", "remove orphan fifo failed").AtExactLevel(slog.LevelWarn); len(cleanWarns) != 0 {
+	if cleanWarns := sink.RecordsAtExactLevelWith(slog.LevelWarn, "clean", "remove orphan fifo failed"); len(cleanWarns) != 0 {
 		t.Errorf("per-item WARN must NOT be attributed to clean, got %d: %+v", len(cleanWarns), cleanWarns)
 	}
 

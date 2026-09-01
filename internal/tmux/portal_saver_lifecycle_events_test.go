@@ -314,9 +314,8 @@ func TestWaitForSaverDaemonReady_EmitsNoDaemonReadyAndKeepsWarnOnTimeout(t *test
 // carrying msg, so a test can assert one event was emitted before another. -1
 // when none was.
 func firstSaverIndex(sink *logtest.Sink, msg string) int {
-	recs := sink.Records()
-	for i := range recs {
-		if len(recs[:i+1].With("saver", msg)) == 1 {
+	for i, r := range sink.Records() {
+		if r.Matches("saver", msg) {
 			return i
 		}
 	}

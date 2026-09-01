@@ -964,7 +964,7 @@ func TestSessionRestorer_ReStampsSavedPaneToken(t *testing.T) {
 			t.Errorf("respawn-pane calls = %d, want 1 (the pane is still armed)", got)
 		}
 
-		recs := sink.Records().Msg("set pane token failed")
+		recs := sink.RecordsWithMessage("set pane token failed")
 		if len(recs) != 1 {
 			t.Fatalf("'set pane token failed' records = %d, want 1; body: %q", len(recs), sink.Body())
 		}

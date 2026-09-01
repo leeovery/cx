@@ -753,10 +753,10 @@ func TestSlotConfirm_NilPersisterIsInert(t *testing.T) {
 
 		m, _ = convertToSlot(t, m, "nord", slotDarkPress)
 
-		if got := themeEventRecords(sink, "loaded"); len(got) != 0 {
+		if got := sink.RecordsWithMessage("loaded"); len(got) != 0 {
 			t.Errorf("`y` over a nil persister emitted %d `theme: loaded` line(s), want none — no write landed for a load to follow\n%s", len(got), sink.Body())
 		}
-		if got := themeEventRecords(sink, "fallback applied"); len(got) != 0 {
+		if got := sink.RecordsWithMessage("fallback applied"); len(got) != 0 {
 			t.Errorf("`y` over a nil persister emitted %d `theme: fallback applied` line(s), want none — a load run here would collapse the un-mirrored constant's empty slots onto the shipped defaults and report a load for a write that never happened\n%s", len(got), sink.Body())
 		}
 		if m.themeState.nomination != nomination || !m.themeState.nomination.IsConstant() {

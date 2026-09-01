@@ -106,20 +106,10 @@ func convertToSlot(t *testing.T, m Model, target string, press tea.KeyPressMsg) 
 	return pressConfirmKey(t, m, confirmYes)
 }
 
-func themeEventRecords(sink *logtest.Sink, msg string) []logtest.Record {
-	var found []logtest.Record
-	for _, r := range sink.Records() {
-		if r.Msg == msg {
-			found = append(found, r)
-		}
-	}
-	return found
-}
-
 func requireLoadedLine(t *testing.T, sink *logtest.Sink, slug, slot string) {
 	t.Helper()
 
-	loaded := themeEventRecords(sink, "loaded")
+	loaded := sink.RecordsWithMessage("loaded")
 	if len(loaded) != 1 {
 		t.Fatalf("the conversion emitted %d `theme: loaded` lines, want exactly 1\n%s", len(loaded), sink.Body())
 	}
@@ -159,7 +149,7 @@ func requireNominationConstant(t *testing.T, m Model, want theme.Theme) {
 func requireNoFallbackLine(t *testing.T, sink *logtest.Sink) {
 	t.Helper()
 
-	if got := themeEventRecords(sink, "fallback applied"); len(got) != 0 {
+	if got := sink.RecordsWithMessage("fallback applied"); len(got) != 0 {
 		t.Errorf("the conversion emitted %d `theme: fallback applied` line(s), want none — the slot resolved\n%s", len(got), sink.Body())
 	}
 }
@@ -340,7 +330,7 @@ func TestCommitSlotLoad_EmitsLoadedOncePerConversion(t *testing.T) {
 	m, _ = convertToSlot(t, m, "nord", slotDarkPress)
 	requireNominationPair(t, m, testLightTheme(t), themetest.Builtin(t, "nord"))
 
-	loaded := themeEventRecords(sink, "loaded")
+	loaded := sink.RecordsWithMessage("loaded")
 	if len(loaded) != 2 {
 		t.Fatalf("two conversions emitted %d `theme: loaded` lines, want 2 — the event is NOT deduplicated\n%s", len(loaded), sink.Body())
 	}
@@ -363,7 +353,7 @@ func TestCommitSlotLoad_LoadedNamesTheFallbackSlug(t *testing.T) {
 	m, _ = convertToSlot(t, m, "nord", slotDarkPress)
 
 	requireLoadedLine(t, sink, theme.DefaultLightSlug, "light")
-	applied := themeEventRecords(sink, "fallback applied")
+	applied := sink.RecordsWithMessage("fallback applied")
 	if len(applied) != 1 {
 		t.Fatalf("the conversion emitted %d `theme: fallback applied` lines, want exactly 1\n%s", len(applied), sink.Body())
 	}
@@ -376,7 +366,7 @@ func TestCommitSlotLoad_LoadedNamesTheFallbackSlug(t *testing.T) {
 	if got := applied[0].AttrString(t, "reason"); got != string(theme.ReasonNotFound) {
 		t.Errorf("`theme: fallback applied` carries reason=%q, want %q", got, theme.ReasonNotFound)
 	}
-	if loaded := themeEventRecords(sink, "loaded")[0].AttrString(t, "slug"); loaded == applied[0].AttrString(t, "slug") {
+	if loaded := sink.RecordsWithMessage("loaded")[0].AttrString(t, "slug"); loaded == applied[0].AttrString(t, "slug") {
 		t.Errorf("both lines name %q; the pair is only useful because one names the theme that BROKE and the other the palette that RENDERED", loaded)
 	}
 	requireSlotCanvas(t, m, theme.SlotLight, testLightTheme(t).Canvas.Value)
@@ -452,7 +442,7 @@ func TestCommitSlotLoad_NonConvertingCommitIsSilent(t *testing.T) {
 			if len(persister.slugs) != 1 {
 				t.Fatalf("fixture: the keypress wrote %v, want exactly one commit so the silence is not vacuous", persister.slugs)
 			}
-			if got := themeEventRecords(sink, "loaded"); len(got) != 0 {
+			if got := sink.RecordsWithMessage("loaded"); len(got) != 0 {
 				t.Errorf("a non-converting commit emitted %d `theme: loaded` line(s), want none\n%s", len(got), sink.Body())
 			}
 			tc.want(t, m, previewed)
@@ -473,7 +463,7 @@ func TestCommitSlotLoad_NonConvertingCommitIsSilent(t *testing.T) {
 
 		requireCommitted(t, persister, "nord")
 		requireConstantKeys(t, m, "nord")
-		if got := themeEventRecords(sink, "loaded"); len(got) != 0 {
+		if got := sink.RecordsWithMessage("loaded"); len(got) != 0 {
 			t.Errorf("`Enter` emitted %d `theme: loaded` line(s), want none\n%s", len(got), sink.Body())
 		}
 		requireNominationConstant(t, m, themetest.Builtin(t, "nord"))
@@ -497,10 +487,10 @@ func TestCommitSlotLoad_FailedCommitLoadsNothing(t *testing.T) {
 	m, _ = convertToSlot(t, m, "nord", slotDarkPress)
 
 	requireSlotCommits(t, persister, slotCommit{slug: "nord", member: theme.MemberDark})
-	if got := themeEventRecords(sink, "loaded"); len(got) != 0 {
+	if got := sink.RecordsWithMessage("loaded"); len(got) != 0 {
 		t.Errorf("a failed write emitted %d `theme: loaded` line(s), want none — nothing became live\n%s", len(got), sink.Body())
 	}
-	if got := themeEventRecords(sink, "fallback applied"); len(got) != 0 {
+	if got := sink.RecordsWithMessage("fallback applied"); len(got) != 0 {
 		t.Errorf("a failed write emitted %d `theme: fallback applied` line(s), want none\n%s", len(got), sink.Body())
 	}
 	if m.themeState.nomination != nomination {

@@ -151,7 +151,7 @@ func TestHookSweepStandsDownOnLockTimeout(t *testing.T) {
 
 		assertHooksFileUnchanged(t, path, before, "rewritten by the daemon under a held lock")
 		assertStandDown(t, sink, slog.LevelWarn, "lock-timeout")
-		if got := len(injectedSink.RecordsWith("daemon", "hooks stale-cleanup failed").AtExactLevel(slog.LevelWarn)); got != 0 {
+		if got := len(injectedSink.RecordsAtExactLevelWith(slog.LevelWarn, "daemon", "hooks stale-cleanup failed")); got != 0 {
 			t.Errorf("daemon generic-failure WARN count = %d, want 0; entries=%+v", got, injectedSink.Records())
 		}
 	})

@@ -2784,21 +2784,19 @@ func recordStringAttr(rec logtest.Record, key string) (string, bool) {
 	return v.Resolve().String(), true
 }
 
-// Snapshots the captured records at Exec time, so the exec marker's emission
-// can be placed before the handoff.
+// Reads the captured records at Exec time, so the exec marker's emission can be
+// placed before the handoff.
 type orderingExecer struct {
 	sink           *logtest.Sink
 	argv0          string
 	argv           []string
-	recordsAtCall  logtest.Records
 	execMarkerSeen bool
 }
 
 func (e *orderingExecer) Exec(argv0 string, argv []string, _ []string) error {
 	e.argv0 = argv0
 	e.argv = argv
-	e.recordsAtCall = e.sink.Records()
-	if len(e.recordsAtCall.With("process", "exec")) > 0 {
+	if len(e.sink.RecordsWith("process", "exec")) > 0 {
 		e.execMarkerSeen = true
 	}
 	return nil

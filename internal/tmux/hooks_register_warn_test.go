@@ -12,7 +12,7 @@ import (
 const showHooksWarnMessage = "show-hooks failed"
 
 func showHooksWarnRecords(sink *logtest.Sink) logtest.Records {
-	return sink.RecordsAtExactLevel(slog.LevelWarn).Msg(showHooksWarnMessage)
+	return sink.RecordsAtExactLevelWithMessage(slog.LevelWarn, showHooksWarnMessage)
 }
 
 func assertShowHooksWarnShape(t *testing.T, rec logtest.Record, wantErr error) {

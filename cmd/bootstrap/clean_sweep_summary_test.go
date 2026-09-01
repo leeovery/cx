@@ -61,7 +61,7 @@ func TestSweepOrphanDaemons_DemotesPerKillInfoToDebug(t *testing.T) {
 			t.Errorf("old per-kill INFO message must be gone: %+v", r)
 		}
 	}
-	dbg := sink.RecordsWith("clean", "orphan killed").AtExactLevel(slog.LevelDebug)
+	dbg := sink.RecordsAtExactLevelWith(slog.LevelDebug, "clean", "orphan killed")
 	if len(dbg) != 1 {
 		t.Fatalf("expected 1 DEBUG 'orphan killed' under clean, got %d: %+v", len(dbg), sink.Records())
 	}
@@ -97,11 +97,11 @@ func TestSweepOrphanDaemons_ExcludesSkippedAndFailedFromKilled(t *testing.T) {
 		t.Errorf("killed = %d, want 1 (excludes skip + failed kill)", got)
 	}
 
-	skips := sink.RecordsWith("bootstrap", "sweep: pid not identity-checked as portal daemon, skipping").AtExactLevel(slog.LevelDebug)
+	skips := sink.RecordsAtExactLevelWith(slog.LevelDebug, "bootstrap", "sweep: pid not identity-checked as portal daemon, skipping")
 	if len(skips) != 1 {
 		t.Errorf("expected 1 identity-skip DEBUG under bootstrap, got %d: %+v", len(skips), sink.Records())
 	}
-	warns := sink.RecordsWith("bootstrap", "sweep: kill failed").AtExactLevel(slog.LevelWarn)
+	warns := sink.RecordsAtExactLevelWith(slog.LevelWarn, "bootstrap", "sweep: kill failed")
 	if len(warns) != 1 {
 		t.Errorf("expected 1 kill-failure WARN under bootstrap, got %d: %+v", len(warns), sink.Records())
 	}
@@ -235,7 +235,7 @@ func TestCleanStaleMarkers_SummaryUnsetZeroOnMassUnsetHazardDeferral(t *testing.
 	if got := rec.IntAttr(t, "unset"); got != 0 {
 		t.Errorf("unset = %d, want 0 (never a false unset on deferral)", got)
 	}
-	warns := sink.RecordsWith("bootstrap", "stale-marker cleanup: zero live panes parsed with markers present; skipping to avoid mass-unset hazard (next bootstrap retries)").AtExactLevel(slog.LevelWarn)
+	warns := sink.RecordsAtExactLevelWith(slog.LevelWarn, "bootstrap", "stale-marker cleanup: zero live panes parsed with markers present; skipping to avoid mass-unset hazard (next bootstrap retries)")
 	if len(warns) != 1 {
 		t.Errorf("expected 1 deferral WARN under bootstrap, got %d: %+v", len(warns), sink.Records())
 	}

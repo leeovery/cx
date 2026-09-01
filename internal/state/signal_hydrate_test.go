@@ -142,7 +142,7 @@ func TestWriteFIFOSignal_EmitsRetryDebugUnderSignal(t *testing.T) {
 		t.Fatalf("WriteFIFOSignal: %v", err)
 	}
 
-	dbg := sink.RecordsWith("signal", "fifo signal retrying").AtExactLevel(slog.LevelDebug)
+	dbg := sink.RecordsAtExactLevelWith(slog.LevelDebug, "signal", "fifo signal retrying")
 	if len(dbg) != 1 {
 		t.Fatalf("expected 1 DEBUG 'fifo signal retrying' under component=signal (one retryable transition), got %d: %+v", len(dbg), sink.Records())
 	}
@@ -172,7 +172,7 @@ func TestWriteFIFOSignal_RetryDebugOncePerRetryTransition(t *testing.T) {
 		t.Fatalf("expected retry-exhaustion error, got nil")
 	}
 
-	dbg := sink.RecordsWith("signal", "fifo signal retrying").AtExactLevel(slog.LevelDebug)
+	dbg := sink.RecordsAtExactLevelWith(slog.LevelDebug, "signal", "fifo signal retrying")
 	if len(dbg) != len(state.SignalHydrateRetryDelays) {
 		t.Errorf("retry DEBUG count = %d; want %d (one per sleep+retry transition)", len(dbg), len(state.SignalHydrateRetryDelays))
 	}

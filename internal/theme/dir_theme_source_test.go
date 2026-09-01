@@ -49,7 +49,7 @@ func TestDirThemeSource_LoadSlotRecordsTheCollapsedSlug(t *testing.T) {
 		t.Fatalf("LoadSlot: %v", err)
 	}
 
-	loaded := recordsNamed(sink, "loaded")
+	loaded := sink.RecordsWithMessage("loaded")
 	if len(loaded) != 1 {
 		t.Fatalf("LoadSlot emitted %d `theme: loaded` record(s), want exactly 1:\n%s", len(loaded), sink.Body())
 	}
@@ -74,7 +74,7 @@ func TestDirThemeSource_ResolveRecordsNoLoad(t *testing.T) {
 		t.Fatalf("Resolve: %v", err)
 	}
 
-	if n := len(recordsNamed(sink, "loaded")); n != 0 {
+	if n := len(sink.RecordsWithMessage("loaded")); n != 0 {
 		t.Errorf("Resolve emitted %d `theme: loaded` record(s), want none — recording the load is LoadSlot's job alone:\n%s", n, sink.Body())
 	}
 }

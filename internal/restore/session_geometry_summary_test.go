@@ -87,7 +87,7 @@ func TestApplyWindowGeometry_SummaryHasOnlyPanesTookAnomalousAttrs(t *testing.T)
 
 	r.ApplyWindowGeometry(sess, liveCoordsFromSaved(sess, 0, 0))
 
-	recs := sink.Records().Msg("geometry complete")
+	recs := sink.RecordsWithMessage("geometry complete")
 	if len(recs) != 1 {
 		t.Fatalf("expected exactly one geometry-complete record, got %d", len(recs))
 	}
@@ -113,7 +113,7 @@ func TestApplyWindowGeometry_EmitsExactlyOneSummaryPerCall(t *testing.T) {
 
 	r.ApplyWindowGeometry(sess, liveCoordsFromSaved(sess, 0, 0))
 
-	recs := sink.Records().Msg("geometry complete")
+	recs := sink.RecordsWithMessage("geometry complete")
 	if len(recs) != 1 {
 		t.Fatalf("expected exactly one geometry-complete summary per call, got %d", len(recs))
 	}

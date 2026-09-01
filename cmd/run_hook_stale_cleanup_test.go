@@ -36,7 +36,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 
 		assertHooksFileUnchanged(t, path, before, "modified by hazard-guard branch")
 
-		if got := len(loggerSink.RecordsWith("bootstrap", entryDebugFmt).AtExactLevel(slog.LevelDebug)); got != 1 {
+		if got := len(loggerSink.RecordsAtExactLevelWith(slog.LevelDebug, "bootstrap", entryDebugFmt)); got != 1 {
 			t.Errorf("entry-point Debug count = %d, want 1; entries=%+v", got, loggerSink.Records())
 		}
 
@@ -46,7 +46,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 			t.Errorf("unexpected Warn on the injected logger under the hazard guard: %+v", rec)
 		}
 
-		if got := len(loggerSink.RecordsWith("bootstrap", completionDebugFmt).AtExactLevel(slog.LevelDebug)); got != 0 {
+		if got := len(loggerSink.RecordsAtExactLevelWith(slog.LevelDebug, "bootstrap", completionDebugFmt)); got != 0 {
 			t.Errorf("completion Debug count = %d, want 0 (must NOT fire on hazard branch); entries=%+v", got, loggerSink.Records())
 		}
 	})
@@ -64,7 +64,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 
 		assertHooksFileUnchanged(t, path, before, "materialised under both-sides-empty path")
 
-		if got := len(loggerSink.RecordsWith("bootstrap", entryDebugFmt).AtExactLevel(slog.LevelDebug)); got != 1 {
+		if got := len(loggerSink.RecordsAtExactLevelWith(slog.LevelDebug, "bootstrap", entryDebugFmt)); got != 1 {
 			t.Errorf("entry-point Debug count = %d, want 1; entries=%+v", got, loggerSink.Records())
 		}
 
@@ -72,7 +72,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 			t.Errorf("unexpected Warn under both-sides-empty: %+v", rec)
 		}
 
-		if got := len(loggerSink.RecordsWith("bootstrap", completionDebugFmt).AtExactLevel(slog.LevelDebug)); got != 0 {
+		if got := len(loggerSink.RecordsAtExactLevelWith(slog.LevelDebug, "bootstrap", completionDebugFmt)); got != 0 {
 			t.Errorf("completion Debug count = %d, want 0; entries=%+v", got, loggerSink.Records())
 		}
 	})
@@ -96,7 +96,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 
 		assertHooksFileUnchanged(t, path, before, "modified on ListAllPanes-error path")
 
-		if got := len(loggerSink.RecordsWith("bootstrap", entryDebugFmt).AtExactLevel(slog.LevelDebug)); got != 0 {
+		if got := len(loggerSink.RecordsAtExactLevelWith(slog.LevelDebug, "bootstrap", entryDebugFmt)); got != 0 {
 			t.Errorf("entry-point Debug count = %d, want 0 (must NOT fire on ListAllPanes-error branch); entries=%+v", got, loggerSink.Records())
 		}
 	})
@@ -119,7 +119,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 
 		assertStandDown(t, sink, slog.LevelWarn, skipReasonStoreReadFailed)
 
-		if got := len(loggerSink.RecordsWith("bootstrap", entryDebugFmt).AtExactLevel(slog.LevelDebug)); got != 0 {
+		if got := len(loggerSink.RecordsAtExactLevelWith(slog.LevelDebug, "bootstrap", entryDebugFmt)); got != 0 {
 			t.Errorf("entry-point Debug count = %d, want 0 on Load-error branch; entries=%+v", got, loggerSink.Records())
 		}
 	})
@@ -182,11 +182,11 @@ func TestRunHookStaleCleanup(t *testing.T) {
 			t.Errorf("post-run hooks still contains stale key %s; got %v", hookstest.ReapableSeedD, keysOf(postRun))
 		}
 
-		if got := len(loggerSink.RecordsWith("bootstrap", entryDebugFmt).AtExactLevel(slog.LevelDebug)); got != 1 {
+		if got := len(loggerSink.RecordsAtExactLevelWith(slog.LevelDebug, "bootstrap", entryDebugFmt)); got != 1 {
 			t.Errorf("entry-point Debug count = %d, want 1; entries=%+v", got, loggerSink.Records())
 		}
 
-		if got := len(loggerSink.RecordsWith("bootstrap", completionDebugFmt).AtExactLevel(slog.LevelDebug)); got != 1 {
+		if got := len(loggerSink.RecordsAtExactLevelWith(slog.LevelDebug, "bootstrap", completionDebugFmt)); got != 1 {
 			t.Errorf("completion Debug count = %d, want 1; entries=%+v", got, loggerSink.Records())
 		}
 
@@ -690,7 +690,7 @@ func TestHookSweepGuardCountsPaneRowsNotTokens(t *testing.T) {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
-		counts := loggerSink.RecordsWith("bootstrap", "stale-hook cleanup counts").AtExactLevel(slog.LevelDebug)
+		counts := loggerSink.RecordsAtExactLevelWith(slog.LevelDebug, "bootstrap", "stale-hook cleanup counts")
 		if len(counts) != 1 {
 			t.Fatalf("records matching debug/bootstrap/%q = %d, want 1; records=%+v",
 				"stale-hook cleanup counts", len(counts), loggerSink.Records())

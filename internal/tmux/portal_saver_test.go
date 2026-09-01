@@ -2315,7 +2315,7 @@ func TestSetVersionWriterLogger_BootstrapWrapperEmitsDebugBreadcrumb(t *testing.
 		t.Fatalf("portalSaverWriteVersionFile: %v", err)
 	}
 
-	breadcrumbs := sink.Records().Msg("daemon.version write")
+	breadcrumbs := sink.RecordsWithMessage("daemon.version write")
 	if len(breadcrumbs) != 1 {
 		t.Fatalf("expected exactly 1 'daemon.version write' breadcrumb, got %d: %v", len(breadcrumbs), sink.Records())
 	}
@@ -3535,7 +3535,7 @@ func TestKillSaverAndWaitForDaemon_Escalation_NoPIDFile_EscalationNeverRuns(t *t
 const escalationBreadcrumbMessage = "kill-barrier escalating to SIGKILL"
 
 func escalationDebugRecords(sink *logtest.Sink) logtest.Records {
-	return sink.Records().Msg(escalationBreadcrumbMessage)
+	return sink.RecordsWithMessage(escalationBreadcrumbMessage)
 }
 
 func TestEscalateKillToSIGKILL_EmitsDebugBreadcrumbWithTargetPIDOnEscalationBranch(t *testing.T) {

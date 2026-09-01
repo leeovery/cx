@@ -22,7 +22,7 @@ func TestThemeSourceImplementations_LoadTheSameSlug(t *testing.T) {
 	if err := production.LoadSlot(enumeration, theme.SlotDark, keys); err != nil {
 		t.Fatalf("the production adapter's LoadSlot: %v", err)
 	}
-	loaded := themeEventRecords(sink, "loaded")
+	loaded := sink.RecordsWithMessage("loaded")
 	if len(loaded) != 1 {
 		t.Fatalf("the production adapter emitted %d `theme: loaded` line(s), want exactly 1\n%s", len(loaded), sink.Body())
 	}
