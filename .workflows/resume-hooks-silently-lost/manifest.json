@@ -250,7 +250,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 7,
-          "current_task": "resume-hooks-silently-lost-7-31",
+          "current_task": "resume-hooks-silently-lost-7-32",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -355,7 +355,8 @@
             "resume-hooks-silently-lost-7-15",
             "resume-hooks-silently-lost-7-28",
             "resume-hooks-silently-lost-7-29",
-            "resume-hooks-silently-lost-7-30"
+            "resume-hooks-silently-lost-7-30",
+            "resume-hooks-silently-lost-7-31"
           ],
           "staging": {
             "p1": {
@@ -1723,6 +1724,17 @@
               "files": [
                 "cmd/hooks_pane_token_width_guard_test.go",
                 "internal/restore/session.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-31",
+              "source": "reviewer",
+              "summary": "Client.SendKeys is the remaining exported *Client method with zero production callers — but it is a different case from ListPanes",
+              "detail": "internal/tmux/tmux.go:638. Its only callers are internal/tmux/tmux_test.go:1359,1383, cmd/bootstrap/eager_signal_hydrate_integration_test.go:154,237 and internal/restore/exit_closes_pane_integration_test.go:35,58 — where it serves as a real-tmux DRIVER (typing into live panes) rather than as its own self-test. That is materially unlike ListPanes: deleting it means rewriting integration drivers in two other packages, and a shared test driver living on the client is arguably legitimate. So 7-31 outcome is met for the pane-listing family it named, but the broader claim -- the tmux client exports no method with zero production callers -- is not literally true tree-wide. Worth a deliberate keep-or-delete decision at the phase boundary rather than an assumption either way.",
+              "files": [
+                "internal/tmux/tmux.go",
+                "cmd/bootstrap/eager_signal_hydrate_integration_test.go",
+                "internal/restore/exit_closes_pane_integration_test.go"
               ]
             }
           ]
