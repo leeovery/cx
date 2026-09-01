@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/project"
 )
@@ -197,8 +196,7 @@ func TestStateDaemon_ProjectCleanupWiring(t *testing.T) {
 		t.Setenv("PORTAL_PROJECTS_FILE", "") // force fall-through to home-dir resolution
 		t.Setenv("HOME", "")                 // os.UserHomeDir() now errors → loadProjectStore errors
 
-		sink := &logtest.Sink{}
-		log.SetTestHandler(t, sink)
+		sink := logtest.Install(t)
 
 		holder := withImmediateRun(t)
 		withDaemonLockFileReset(t)

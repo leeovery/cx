@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/leeovery/portal/cmd/bootstrap"
-	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/tmux"
 )
@@ -158,8 +157,7 @@ func TestEnsureSaverLiveness_LogsWarnWithUnderlyingErrorWhenReviveFails(t *testi
 	stubSaverAliveCheck(t, false)
 	shrinkSaverRetryDelay(t)
 
-	sink := &logtest.Sink{}
-	log.SetTestHandler(t, sink)
+	sink := logtest.Install(t)
 
 	cmder := saverAbsentReviveFailsCommander()
 
@@ -180,8 +178,7 @@ func TestEnsureSaverLiveness_LogsWarnWithUnderlyingErrorWhenReviveFails(t *testi
 func TestEnsureSaverLiveness_LogsNoWarnWhenSaverPresent(t *testing.T) {
 	resetBootstrapWarnings(t)
 
-	sink := &logtest.Sink{}
-	log.SetTestHandler(t, sink)
+	sink := logtest.Install(t)
 
 	// Anything beyond the presence probe fails the test: the alive saver's
 	// whole contract is that no other tmux call is made.

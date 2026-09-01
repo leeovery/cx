@@ -18,8 +18,7 @@ const themeComponent = "theme"
 var closedAttrKeys = []string{"slug", "slot", "reason", "path", "token", "count", "rejected"}
 
 func TestEventLogger_RejectionsAreWarn(t *testing.T) {
-	sink := &logtest.Sink{}
-	log.SetTestHandler(t, sink)
+	sink := logtest.Install(t)
 	events := theme.NewEventLogger(log.For(themeComponent))
 
 	events.Rejected("nord-lee", "/themes/nord-lee.theme", &theme.Rejection{Reason: theme.ReasonBadSyntax, Detail: "line 4: quoted value", Line: 4})
@@ -166,8 +165,7 @@ func TestEventLogger_AttrKeysAreInTheClosedSet(t *testing.T) {
 }
 
 func TestEventLogger_DiscardSilencesEverything(t *testing.T) {
-	sink := &logtest.Sink{}
-	log.SetTestHandler(t, sink)
+	sink := logtest.Install(t)
 	events := theme.NewEventLogger(log.Discard())
 
 	emitFullRejectSet(events)
@@ -198,8 +196,7 @@ func TestEventLogger_DiscardSilencesEverything(t *testing.T) {
 }
 
 func TestEventLogger_NilLoggerIsSafe(t *testing.T) {
-	sink := &logtest.Sink{}
-	log.SetTestHandler(t, sink)
+	sink := logtest.Install(t)
 	events := theme.NewEventLogger(nil)
 
 	emitFullRejectSet(events)
@@ -362,8 +359,7 @@ func TestEventLogger_ConcurrentEmissionIsRaceFree(t *testing.T) {
 
 func TestEnumerate_AbsentDirectoryEmitsNothing(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "themes")
-	sink := &logtest.Sink{}
-	log.SetTestHandler(t, sink)
+	sink := logtest.Install(t)
 	loader := theme.NewLoader(theme.NewEventLogger(log.For(themeComponent)))
 
 	for range 5 {
@@ -607,8 +603,7 @@ func TestEvents_LoadedIsNotDeduplicated(t *testing.T) {
 }
 
 func TestEvents_LevelsAreLoadedInfoFallbackWarn(t *testing.T) {
-	sink := &logtest.Sink{}
-	log.SetTestHandler(t, sink)
+	sink := logtest.Install(t)
 	loader := theme.NewLoader(theme.NewEventLogger(log.For(themeComponent)))
 	setting := theme.Setting{IsConstant: true, Constant: "gone"}
 
@@ -700,8 +695,7 @@ func TestEvents_DiscardSilencesResolution(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sink := &logtest.Sink{}
-			log.SetTestHandler(t, sink)
+			sink := logtest.Install(t)
 
 			if fellBack := resolveEverySettingState(t, tt.loader); fellBack != wantFallbacks {
 				t.Fatalf("the resolution set produced %d fallbacks, want %d", fellBack, wantFallbacks)

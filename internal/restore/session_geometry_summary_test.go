@@ -6,11 +6,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/restore"
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-func geometrySummaryLine(t *testing.T, sink *captureSink) string {
+func geometrySummaryLine(t *testing.T, sink *logtest.Sink) string {
 	t.Helper()
 	var found []string
 	for _, line := range sink.Lines() {
@@ -30,7 +31,7 @@ func geometrySummaryLine(t *testing.T, sink *captureSink) string {
 func TestApplyWindowGeometry_EmitsGeometryCompleteSummaryOnCleanReplay(t *testing.T) {
 	mock := &mockCommander{}
 	client := tmux.NewClient(mock)
-	logger, sink := newCaptureLogger(t)
+	logger, sink := logtest.NewCaptureLogger(t)
 	r := &restore.SessionRestorer{Client: client, Logger: logger}
 
 	sess := geometrySession("work",
@@ -58,7 +59,7 @@ func TestApplyWindowGeometry_EmitsGeometryCompleteSummaryOnCleanReplay(t *testin
 func TestApplyWindowGeometry_SummaryPanesEqualsLivePaneCount(t *testing.T) {
 	mock := &mockCommander{}
 	client := tmux.NewClient(mock)
-	logger, sink := newCaptureLogger(t)
+	logger, sink := logtest.NewCaptureLogger(t)
 	r := &restore.SessionRestorer{Client: client, Logger: logger}
 
 	sess := geometrySession("work",
@@ -77,7 +78,7 @@ func TestApplyWindowGeometry_SummaryPanesEqualsLivePaneCount(t *testing.T) {
 func TestApplyWindowGeometry_SummaryHasOnlyPanesTookAnomalousAttrs(t *testing.T) {
 	mock := &mockCommander{}
 	client := tmux.NewClient(mock)
-	logger, sink := newCaptureLogger(t)
+	logger, sink := logtest.NewCaptureLogger(t)
 	r := &restore.SessionRestorer{Client: client, Logger: logger}
 
 	sess := geometrySession("work",
@@ -86,11 +87,11 @@ func TestApplyWindowGeometry_SummaryHasOnlyPanesTookAnomalousAttrs(t *testing.T)
 
 	r.ApplyWindowGeometry(sess, liveCoordsFromSaved(sess, 0, 0))
 
-	recs := sink.recordsWithMessage("geometry complete")
+	recs := sink.Records().Msg("geometry complete")
 	if len(recs) != 1 {
 		t.Fatalf("expected exactly one geometry-complete record, got %d", len(recs))
 	}
-	got := append([]string(nil), recs[0].keys...)
+	got := append([]string(nil), recs[0].Keys...)
 	sort.Strings(got)
 	want := []string{"anomalous", "panes", "took"}
 	if !equalStringSlices(got, want) {
@@ -101,7 +102,7 @@ func TestApplyWindowGeometry_SummaryHasOnlyPanesTookAnomalousAttrs(t *testing.T)
 func TestApplyWindowGeometry_EmitsExactlyOneSummaryPerCall(t *testing.T) {
 	mock := &mockCommander{}
 	client := tmux.NewClient(mock)
-	logger, sink := newCaptureLogger(t)
+	logger, sink := logtest.NewCaptureLogger(t)
 	r := &restore.SessionRestorer{Client: client, Logger: logger}
 
 	sess := geometrySession("work",
@@ -112,7 +113,7 @@ func TestApplyWindowGeometry_EmitsExactlyOneSummaryPerCall(t *testing.T) {
 
 	r.ApplyWindowGeometry(sess, liveCoordsFromSaved(sess, 0, 0))
 
-	recs := sink.recordsWithMessage("geometry complete")
+	recs := sink.Records().Msg("geometry complete")
 	if len(recs) != 1 {
 		t.Fatalf("expected exactly one geometry-complete summary per call, got %d", len(recs))
 	}
@@ -128,7 +129,7 @@ func TestApplyWindowGeometry_SelectLayoutFailureIncrementsAnomalousAndRetainsWar
 		},
 	}
 	client := tmux.NewClient(mock)
-	logger, sink := newCaptureLogger(t)
+	logger, sink := logtest.NewCaptureLogger(t)
 	r := &restore.SessionRestorer{Client: client, Logger: logger}
 
 	sess := geometrySession("work",
@@ -159,7 +160,7 @@ func TestApplyWindowGeometry_DoubleLayoutFailureIsOneAnomalous(t *testing.T) {
 		},
 	}
 	client := tmux.NewClient(mock)
-	logger, sink := newCaptureLogger(t)
+	logger, sink := logtest.NewCaptureLogger(t)
 	r := &restore.SessionRestorer{Client: client, Logger: logger}
 
 	sess := geometrySession("work",
@@ -191,7 +192,7 @@ func TestApplyWindowGeometry_SelectPaneFailureIncrementsAnomalous(t *testing.T) 
 		},
 	}
 	client := tmux.NewClient(mock)
-	logger, sink := newCaptureLogger(t)
+	logger, sink := logtest.NewCaptureLogger(t)
 	r := &restore.SessionRestorer{Client: client, Logger: logger}
 
 	sess := geometrySession("work",
@@ -219,7 +220,7 @@ func TestApplyWindowGeometry_ZoomFailureIncrementsAnomalous(t *testing.T) {
 		},
 	}
 	client := tmux.NewClient(mock)
-	logger, sink := newCaptureLogger(t)
+	logger, sink := logtest.NewCaptureLogger(t)
 	r := &restore.SessionRestorer{Client: client, Logger: logger}
 
 	sess := geometrySession("work",
@@ -240,7 +241,7 @@ func TestApplyWindowGeometry_ZoomFailureIncrementsAnomalous(t *testing.T) {
 func TestApplyWindowGeometry_EmptySavedWindowGroupSkippedNotAnomalous(t *testing.T) {
 	mock := &mockCommander{}
 	client := tmux.NewClient(mock)
-	logger, sink := newCaptureLogger(t)
+	logger, sink := logtest.NewCaptureLogger(t)
 	r := &restore.SessionRestorer{Client: client, Logger: logger}
 
 	sess := geometrySession("work",

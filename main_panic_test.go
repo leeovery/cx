@@ -1,67 +1,25 @@
 package main
 
 import (
-	"context"
 	"errors"
 	"log/slog"
-	"sync"
 	"testing"
 
 	"github.com/leeovery/portal/internal/log"
+	"github.com/leeovery/portal/internal/logtest"
 )
 
-// WithAttrs returns the receiver, so a bound component attr is observed at Handle
-// time rather than re-bound.
-type captureHandler struct {
-	mu      sync.Mutex
-	records []slog.Record
-}
-
-func (h *captureHandler) Enabled(context.Context, slog.Level) bool { return true }
-
-func (h *captureHandler) Handle(_ context.Context, r slog.Record) error {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	h.records = append(h.records, r)
-	return nil
-}
-
-func (h *captureHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
-
-func (h *captureHandler) WithGroup(string) slog.Handler { return h }
-
-func (h *captureHandler) messages(msg string) []slog.Record {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	var out []slog.Record
-	for _, r := range h.records {
-		if r.Message == msg {
-			out = append(out, r)
-		}
+func attrValue(r logtest.Record, key string) (slog.Value, bool) {
+	v, ok := r.Attrs[key]
+	if !ok {
+		return slog.Value{}, false
 	}
-	return out
-}
-
-func attrValue(r slog.Record, key string) (slog.Value, bool) {
-	var (
-		v     slog.Value
-		found bool
-	)
-	r.Attrs(func(a slog.Attr) bool {
-		if a.Key == key {
-			v = a.Value.Resolve()
-			found = true
-			return false
-		}
-		return true
-	})
-	return v, found
+	return v.Resolve(), true
 }
 
 func TestRunPanicEmission(t *testing.T) {
 	t.Run("it emits ERROR process: panic with reason on a recovered panic", func(t *testing.T) {
-		rec := &captureHandler{}
-		log.SetTestHandler(t, rec)
+		rec := logtest.Install(t)
 		withSeams(t, func() error { panic("kaboom") })
 
 		code, panicked := run()
@@ -73,7 +31,7 @@ func TestRunPanicEmission(t *testing.T) {
 			t.Error("panicked = false, want true")
 		}
 
-		panics := rec.messages("panic")
+		panics := rec.Records().Msg("panic")
 		if len(panics) != 1 {
 			t.Fatalf("expected exactly 1 process: panic record, got %d", len(panics))
 		}
@@ -91,8 +49,7 @@ func TestRunPanicEmission(t *testing.T) {
 	})
 
 	t.Run("it skips Close on the panic path so no process: exit fires", func(t *testing.T) {
-		rec := &captureHandler{}
-		log.SetTestHandler(t, rec)
+		rec := logtest.Install(t)
 		withSeams(t, func() error { panic("boom") })
 
 		_, panicked := run()
@@ -102,14 +59,13 @@ func TestRunPanicEmission(t *testing.T) {
 		}
 		mainEmitClose(2, panicked)
 
-		if exits := rec.messages("exit"); len(exits) != 0 {
+		if exits := rec.Records().Msg("exit"); len(exits) != 0 {
 			t.Errorf("expected no process: exit on the panic path, got %d", len(exits))
 		}
 	})
 
 	t.Run("it emits process: exit (not panic) on a clean run", func(t *testing.T) {
-		rec := &captureHandler{}
-		log.SetTestHandler(t, rec)
+		rec := logtest.Install(t)
 		withSeams(t, func() error { return nil })
 
 		code, panicked := run()
@@ -121,10 +77,10 @@ func TestRunPanicEmission(t *testing.T) {
 		}
 		mainEmitClose(code, panicked)
 
-		if panics := rec.messages("panic"); len(panics) != 0 {
+		if panics := rec.Records().Msg("panic"); len(panics) != 0 {
 			t.Errorf("expected no process: panic on a clean run, got %d", len(panics))
 		}
-		exits := rec.messages("exit")
+		exits := rec.Records().Msg("exit")
 		if len(exits) != 1 {
 			t.Fatalf("expected exactly 1 process: exit on a clean run, got %d", len(exits))
 		}
@@ -138,8 +94,7 @@ func TestRunPanicEmission(t *testing.T) {
 	})
 
 	t.Run("it emits process: exit code=N on an error run", func(t *testing.T) {
-		rec := &captureHandler{}
-		log.SetTestHandler(t, rec)
+		rec := logtest.Install(t)
 		withSeams(t, func() error { return errors.New("boom") })
 
 		code, panicked := run()
@@ -151,10 +106,10 @@ func TestRunPanicEmission(t *testing.T) {
 		}
 		mainEmitClose(code, panicked)
 
-		if panics := rec.messages("panic"); len(panics) != 0 {
+		if panics := rec.Records().Msg("panic"); len(panics) != 0 {
 			t.Errorf("expected no process: panic on an error run, got %d", len(panics))
 		}
-		exits := rec.messages("exit")
+		exits := rec.Records().Msg("exit")
 		if len(exits) != 1 {
 			t.Fatalf("expected exactly 1 process: exit on an error run, got %d", len(exits))
 		}
@@ -179,15 +134,14 @@ func TestRunPanicEmission(t *testing.T) {
 		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
-				rec := &captureHandler{}
-				log.SetTestHandler(t, rec)
+				rec := logtest.Install(t)
 				withSeams(t, tc.execute)
 
 				code, panicked := run()
 				mainEmitClose(code, panicked)
 
-				panics := len(rec.messages("panic"))
-				exits := len(rec.messages("exit"))
+				panics := len(rec.Records().Msg("panic"))
+				exits := len(rec.Records().Msg("exit"))
 				if panicked != tc.wantPanic {
 					t.Fatalf("panicked = %v, want %v", panicked, tc.wantPanic)
 				}

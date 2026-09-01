@@ -7,7 +7,7 @@ import (
 
 	"github.com/leeovery/portal/cmd"
 	"github.com/leeovery/portal/cmd/bootstrap"
-	"github.com/leeovery/portal/internal/log"
+	"github.com/leeovery/portal/internal/logtest"
 )
 
 func withSeams(t *testing.T, execute func() error) *bytes.Buffer {
@@ -112,7 +112,7 @@ func TestRun(t *testing.T) {
 	t.Run("it recovers a panic to code 2 and skips Close", func(t *testing.T) {
 		// Captures the recover block's ERROR marker so it does not reach the
 		// default stderr handler.
-		log.SetTestHandler(t, &captureHandler{})
+		logtest.Install(t)
 		withSeams(t, func() error { panic("kaboom") })
 
 		code, panicked := run()

@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/themetest"
@@ -593,8 +592,7 @@ func TestCommitSlotLoad_DiscardSilencesLoaded(t *testing.T) {
 	}
 	control(t)
 
-	sink := &logtest.Sink{}
-	log.SetTestHandler(t, sink)
+	sink := logtest.Install(t)
 	dir := newConversionThemesDir(t)
 	m, _ := newLoadPanelModel(t, dir, theme.RawKeys{Theme: conversionConstant}, theme.NewSilentLoader())
 	m = openConversionPanel(t, m)

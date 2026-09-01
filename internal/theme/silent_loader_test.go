@@ -12,8 +12,7 @@ import (
 )
 
 func TestNewSilentLoader_JudgesIdenticallyAndWritesNothing(t *testing.T) {
-	sink := &logtest.Sink{}
-	log.SetTestHandler(t, sink)
+	sink := logtest.Install(t)
 	dir := stageMixedVerdictDir(t)
 
 	silentEntries, silentDirRejection := theme.NewSilentLoader().Enumerate(dir)

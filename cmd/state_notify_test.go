@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/state"
 )
@@ -192,8 +191,7 @@ func TestStateNotify_LogsWarnOnSaveRequestedCreateFailure(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
 
-	sink := &logtest.Sink{}
-	log.SetTestHandler(t, sink)
+	sink := logtest.Install(t)
 
 	// Create the state dir here so the blocking directory can be planted at
 	// save.requested before notify runs.

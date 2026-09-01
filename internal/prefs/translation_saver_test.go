@@ -395,8 +395,7 @@ func TestSaveTranslation_WritesAConstant(t *testing.T) {
 // Complements the leaf guard: prefs cannot reach a logger, and nothing it
 // calls emits on its behalf.
 func TestSaveTranslation_IsSilent(t *testing.T) {
-	sink := &logtest.Sink{}
-	log.SetTestHandler(t, sink)
+	sink := logtest.Install(t)
 
 	writing := seedPrefsFile(t, `{"appearance":"dark"}`)
 	markerOnly := seedPrefsFile(t, `{"appearance":"dark","theme":"nord"}`)

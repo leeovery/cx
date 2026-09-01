@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/restore"
 	"github.com/leeovery/portal/internal/restoretest"
 	"github.com/leeovery/portal/internal/state"
@@ -129,7 +130,7 @@ func TestApplySkeletonMarkers_UsesLivePaneKey(t *testing.T) {
 func TestApplySkeletonMarkers_LogsSanityWarningOnPaneCountMismatch(t *testing.T) {
 	mock := &mockCommander{}
 	client := tmux.NewClient(mock)
-	logger, sink := newCaptureLogger(t)
+	logger, sink := logtest.NewCaptureLogger(t)
 
 	r := &restore.SessionRestorer{Client: client, Logger: logger}
 

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/restore"
 	"github.com/leeovery/portal/internal/restoretest"
 	"github.com/leeovery/portal/internal/state"
@@ -682,7 +683,7 @@ func TestSessionRestorer_ArmPanesWarnsAndArmsOnlyPairedPanesWhenLiveCountExceeds
 	mock := &mockCommander{RunFunc: restoreRunFunc("0:0\n0:1")}
 	client := tmux.NewClient(mock)
 	dir := t.TempDir()
-	logger, sink := newCaptureLogger(t)
+	logger, sink := logtest.NewCaptureLogger(t)
 	r := &restore.SessionRestorer{Client: client, StateDir: dir, Logger: logger}
 
 	sess := newSession("work", nil,
@@ -725,7 +726,7 @@ func TestSessionRestorer_ArmPanesWarnsAndArmsOnlyFirstWhenLiveCountIsLessThanSav
 	mock := &mockCommander{RunFunc: restoreRunFunc("0:0")}
 	client := tmux.NewClient(mock)
 	dir := t.TempDir()
-	logger, sink := newCaptureLogger(t)
+	logger, sink := logtest.NewCaptureLogger(t)
 	r := &restore.SessionRestorer{Client: client, StateDir: dir, Logger: logger}
 
 	sess := newSession("work", nil,
@@ -924,7 +925,7 @@ func TestSessionRestorer_ReStampsSavedPaneToken(t *testing.T) {
 
 	t.Run("it stamps nothing for a saved pane with an empty token", func(t *testing.T) {
 		mock := &mockCommander{RunFunc: restoreRunFunc("0:0")}
-		logger, sink := newCaptureLogger(t)
+		logger, sink := logtest.NewCaptureLogger(t)
 		r := &restore.SessionRestorer{Client: tmux.NewClient(mock), StateDir: t.TempDir(), Logger: logger}
 
 		sess := newSession("work", nil,
@@ -945,7 +946,7 @@ func TestSessionRestorer_ReStampsSavedPaneToken(t *testing.T) {
 
 	t.Run("it warns and continues when the stamp fails", func(t *testing.T) {
 		mock := &mockCommander{RunFunc: failOnPaneOptionTarget("0:0", "=work:0.0")}
-		logger, sink := newCaptureLogger(t)
+		logger, sink := logtest.NewCaptureLogger(t)
 		r := &restore.SessionRestorer{Client: tmux.NewClient(mock), StateDir: t.TempDir(), Logger: logger}
 
 		sess := newSession("work", nil,
@@ -963,16 +964,16 @@ func TestSessionRestorer_ReStampsSavedPaneToken(t *testing.T) {
 			t.Errorf("respawn-pane calls = %d, want 1 (the pane is still armed)", got)
 		}
 
-		recs := sink.recordsWithMessage("set pane token failed")
+		recs := sink.Records().Msg("set pane token failed")
 		if len(recs) != 1 {
 			t.Fatalf("'set pane token failed' records = %d, want 1; body: %q", len(recs), sink.Body())
 		}
-		if recs[0].level != slog.LevelWarn {
-			t.Errorf("level = %v, want WARN", recs[0].level)
+		if recs[0].Level != slog.LevelWarn {
+			t.Errorf("level = %v, want WARN", recs[0].Level)
 		}
 		wantKeys := []string{"session", "pane_key", "error"}
-		if !slices.Equal(recs[0].keys, wantKeys) {
-			t.Errorf("attr keys = %v, want %v", recs[0].keys, wantKeys)
+		if !slices.Equal(recs[0].Keys, wantKeys) {
+			t.Errorf("attr keys = %v, want %v", recs[0].Keys, wantKeys)
 		}
 		rec := sink.Records()[0]
 		if got := rec.AttrString(t, "session"); got != "work" {
@@ -982,7 +983,7 @@ func TestSessionRestorer_ReStampsSavedPaneToken(t *testing.T) {
 
 	t.Run("it names the live structural key in pane_key", func(t *testing.T) {
 		mock := &mockCommander{RunFunc: failOnPaneOptionTarget("5:5", "=work:5.5")}
-		logger, sink := newCaptureLogger(t)
+		logger, sink := logtest.NewCaptureLogger(t)
 		r := &restore.SessionRestorer{Client: tmux.NewClient(mock), StateDir: t.TempDir(), Logger: logger}
 
 		sess := newSession("work", nil,
@@ -1011,7 +1012,7 @@ func TestSessionRestorer_ReStampsSavedPaneToken(t *testing.T) {
 
 	t.Run("it keeps stamping the remaining panes after one fails", func(t *testing.T) {
 		mock := &mockCommander{RunFunc: failOnPaneOptionTarget("0:0\n0:1", "=work:0.0")}
-		logger, _ := newCaptureLogger(t)
+		logger, _ := logtest.NewCaptureLogger(t)
 		r := &restore.SessionRestorer{Client: tmux.NewClient(mock), StateDir: t.TempDir(), Logger: logger}
 
 		sess := newSession("work", nil,
@@ -1034,7 +1035,7 @@ func TestSessionRestorer_ReStampsSavedPaneToken(t *testing.T) {
 
 	t.Run("it stamps only the paired prefix when more live panes than saved", func(t *testing.T) {
 		mock := &mockCommander{RunFunc: restoreRunFunc("0:0\n0:1\n0:2")}
-		logger, _ := newCaptureLogger(t)
+		logger, _ := logtest.NewCaptureLogger(t)
 		r := &restore.SessionRestorer{Client: tmux.NewClient(mock), StateDir: t.TempDir(), Logger: logger}
 
 		sess := newSession("work", nil,
@@ -1063,7 +1064,7 @@ func TestSessionRestorer_ReStampsSavedPaneToken(t *testing.T) {
 
 	t.Run("it stamps only the paired prefix when more saved panes than live", func(t *testing.T) {
 		mock := &mockCommander{RunFunc: restoreRunFunc("0:0\n0:1")}
-		logger, _ := newCaptureLogger(t)
+		logger, _ := logtest.NewCaptureLogger(t)
 		r := &restore.SessionRestorer{Client: tmux.NewClient(mock), StateDir: t.TempDir(), Logger: logger}
 
 		sess := newSession("work", nil,
@@ -1093,7 +1094,7 @@ func TestSessionRestorer_ReStampsSavedPaneToken(t *testing.T) {
 
 	t.Run("it emits no warn on a boot where every saved pane is unstamped", func(t *testing.T) {
 		mock := &mockCommander{RunFunc: restoreRunFunc("0:0\n0:1\n1:0")}
-		logger, sink := newCaptureLogger(t)
+		logger, sink := logtest.NewCaptureLogger(t)
 		r := &restore.SessionRestorer{Client: tmux.NewClient(mock), StateDir: t.TempDir(), Logger: logger}
 
 		sess := newSession("work", nil,

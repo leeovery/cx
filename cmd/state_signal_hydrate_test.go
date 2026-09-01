@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/statetest"
@@ -305,8 +304,7 @@ func TestSignalHydrate_WARNsRenderUnderSignalComponent(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			sink := &logtest.Sink{}
-			log.SetTestHandler(t, sink)
+			sink := logtest.Install(t)
 
 			cfg := signalHydrateConfig{
 				Session:  "foo",

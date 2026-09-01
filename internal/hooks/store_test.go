@@ -1310,6 +1310,9 @@ func TestSetLogging(t *testing.T) {
 }
 
 func TestSetEmitsOpAsJSONField(t *testing.T) {
+	// Not logtest.Install: this asserts the JSON *rendering* of the emission,
+	// which a logtest.Sink (it captures structurally and renders as text) does
+	// not produce.
 	var buf bytes.Buffer
 	log.SetTestHandler(t, slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 

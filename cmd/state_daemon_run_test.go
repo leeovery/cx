@@ -15,7 +15,6 @@ import (
 
 	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/hookstest"
-	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
@@ -902,8 +901,7 @@ func TestDaemonStartup_HandlesMissingSessionsJSONAsNilPrev(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
 
-	sink := &logtest.Sink{}
-	log.SetTestHandler(t, sink)
+	sink := logtest.Install(t)
 
 	holder := withImmediateRun(t)
 	withDaemonLockFileReset(t)
@@ -932,8 +930,7 @@ func TestDaemonStartup_LogsWarningOnUndecodableSessionsJSON(t *testing.T) {
 		t.Fatalf("seed bad sessions.json: %v", err)
 	}
 
-	sink := &logtest.Sink{}
-	log.SetTestHandler(t, sink)
+	sink := logtest.Install(t)
 
 	holder := withImmediateRun(t)
 	withDaemonLockFileReset(t)

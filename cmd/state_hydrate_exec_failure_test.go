@@ -6,7 +6,6 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 )
 
@@ -15,8 +14,7 @@ import (
 // interleave in emission order and a test can assert their relative ordering.
 func newSharedExecFailureCapture(t *testing.T) (*logtest.Sink, *slog.Logger) {
 	t.Helper()
-	sink := &logtest.Sink{}
-	log.SetTestHandler(t, sink)
+	sink := logtest.Install(t)
 	return sink, slog.New(sink).With("component", "hydrate")
 }
 

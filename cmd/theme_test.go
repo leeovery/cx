@@ -383,8 +383,7 @@ func assertTreeUnchanged(t *testing.T, root string, before map[string]portaltest
 func assertNoThemeRecords(t *testing.T, run func()) []logtest.Record {
 	t.Helper()
 
-	sink := &logtest.Sink{}
-	log.SetTestHandler(t, sink)
+	sink := logtest.Install(t)
 
 	run()
 
@@ -957,8 +956,7 @@ func TestThemeExport_UsesSharedByNameResolver(t *testing.T) {
 
 	t.Run("it still emits no theme records", func(t *testing.T) {
 		_ = themetest.DenyDir(t, seedThemesDir(t, "mine", validThemeSource(t)))
-		sink := &logtest.Sink{}
-		log.SetTestHandler(t, sink)
+		sink := logtest.Install(t)
 
 		execThemeExport(t, "mine")
 

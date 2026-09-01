@@ -12,11 +12,11 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"sync"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/leeovery/portal/internal/log"
+	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/project"
 	"github.com/leeovery/portal/internal/resolver"
 	"github.com/leeovery/portal/internal/session"
@@ -501,8 +501,7 @@ func TestOpenCommand_SessionPin_EmitsNoResolveLine(t *testing.T) {
 	openSessionFunc = func(_ *cobra.Command, _ string) error { return nil }
 	t.Cleanup(func() { openSessionFunc = origSession })
 
-	h := newCapturingHandler()
-	log.SetTestHandler(t, h)
+	sink := logtest.Install(t)
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "-s", "dev"})
@@ -510,7 +509,7 @@ func TestOpenCommand_SessionPin_EmitsNoResolveLine(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if recs := h.resolveRecords(); len(recs) != 0 {
+	if recs := sink.RecordsWith("resolve", "resolved"); len(recs) != 0 {
 		t.Fatalf("expected no resolve records for a -s pin, got %d", len(recs))
 	}
 }
@@ -706,8 +705,7 @@ func TestOpenCommand_PathPin_EmitsNoResolveLine(t *testing.T) {
 	openPathFunc = func(_ *cobra.Command, _ string, _ []string) error { return nil }
 	t.Cleanup(func() { openPathFunc = origPath })
 
-	h := newCapturingHandler()
-	log.SetTestHandler(t, h)
+	sink := logtest.Install(t)
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "-p", dir})
@@ -715,7 +713,7 @@ func TestOpenCommand_PathPin_EmitsNoResolveLine(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if recs := h.resolveRecords(); len(recs) != 0 {
+	if recs := sink.RecordsWith("resolve", "resolved"); len(recs) != 0 {
 		t.Fatalf("expected no resolve records for a -p pin, got %d", len(recs))
 	}
 }
@@ -874,8 +872,7 @@ func TestOpenCommand_AliasPin_EmitsNoResolveLine(t *testing.T) {
 	openPathFunc = func(_ *cobra.Command, _ string, _ []string) error { return nil }
 	t.Cleanup(func() { openPathFunc = origPath })
 
-	h := newCapturingHandler()
-	log.SetTestHandler(t, h)
+	sink := logtest.Install(t)
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "-a", "myapp"})
@@ -883,7 +880,7 @@ func TestOpenCommand_AliasPin_EmitsNoResolveLine(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if recs := h.resolveRecords(); len(recs) != 0 {
+	if recs := sink.RecordsWith("resolve", "resolved"); len(recs) != 0 {
 		t.Fatalf("expected no resolve records for a -a pin, got %d", len(recs))
 	}
 }
@@ -1086,8 +1083,7 @@ func TestOpenCommand_ZoxidePin_EmitsNoResolveLine(t *testing.T) {
 	openPathFunc = func(_ *cobra.Command, _ string, _ []string) error { return nil }
 	t.Cleanup(func() { openPathFunc = origPath })
 
-	h := newCapturingHandler()
-	log.SetTestHandler(t, h)
+	sink := logtest.Install(t)
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "-z", "proj"})
@@ -1095,7 +1091,7 @@ func TestOpenCommand_ZoxidePin_EmitsNoResolveLine(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if recs := h.resolveRecords(); len(recs) != 0 {
+	if recs := sink.RecordsWith("resolve", "resolved"); len(recs) != 0 {
 		t.Fatalf("expected no resolve records for a -z pin, got %d", len(recs))
 	}
 }
@@ -1971,8 +1967,7 @@ func TestOpenCommand_ResolveLog_SessionHit(t *testing.T) {
 	openSessionFunc = func(_ *cobra.Command, _ string) error { return nil }
 	t.Cleanup(func() { openSessionFunc = origSession })
 
-	h := newCapturingHandler()
-	log.SetTestHandler(t, h)
+	sink := logtest.Install(t)
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "dev"})
@@ -1980,13 +1975,13 @@ func TestOpenCommand_ResolveLog_SessionHit(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	recs := h.resolveRecords()
+	recs := sink.RecordsWith("resolve", "resolved")
 	if len(recs) != 1 {
 		t.Fatalf("expected exactly 1 resolve record, got %d", len(recs))
 	}
 	r := recs[0]
-	if r.record.Level != slog.LevelInfo {
-		t.Errorf("resolve record level = %v, want INFO", r.record.Level)
+	if r.Level != slog.LevelInfo {
+		t.Errorf("resolve record level = %v, want INFO", r.Level)
 	}
 	assertResolveAttr(t, r, "target", "dev")
 	assertResolveAttr(t, r, "domain", "session")
@@ -2007,8 +2002,7 @@ func TestOpenCommand_ResolveLog_ZoxideMint(t *testing.T) {
 	openPathFunc = func(_ *cobra.Command, _ string, _ []string) error { return nil }
 	t.Cleanup(func() { openPathFunc = origPath })
 
-	h := newCapturingHandler()
-	log.SetTestHandler(t, h)
+	sink := logtest.Install(t)
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "blog"})
@@ -2016,13 +2010,13 @@ func TestOpenCommand_ResolveLog_ZoxideMint(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	recs := h.resolveRecords()
+	recs := sink.RecordsWith("resolve", "resolved")
 	if len(recs) != 1 {
 		t.Fatalf("expected exactly 1 resolve record, got %d", len(recs))
 	}
 	r := recs[0]
-	if r.record.Level != slog.LevelInfo {
-		t.Errorf("resolve record level = %v, want INFO", r.record.Level)
+	if r.Level != slog.LevelInfo {
+		t.Errorf("resolve record level = %v, want INFO", r.Level)
 	}
 	assertResolveAttr(t, r, "target", "blog")
 	assertResolveAttr(t, r, "domain", "zoxide")
@@ -2039,8 +2033,7 @@ func TestOpenCommand_ResolveLog_Miss(t *testing.T) {
 		DirValidator:  &testDirValidator{existing: map[string]bool{}},
 	})
 
-	h := newCapturingHandler()
-	log.SetTestHandler(t, h)
+	sink := logtest.Install(t)
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "blog"})
@@ -2053,13 +2046,13 @@ func TestOpenCommand_ResolveLog_Miss(t *testing.T) {
 		t.Errorf("error = %q, want %q", err.Error(), want)
 	}
 
-	recs := h.resolveRecords()
+	recs := sink.RecordsWith("resolve", "resolved")
 	if len(recs) != 1 {
 		t.Fatalf("expected exactly 1 resolve record, got %d", len(recs))
 	}
 	r := recs[0]
-	if r.record.Level != slog.LevelInfo {
-		t.Errorf("resolve record level = %v, want INFO", r.record.Level)
+	if r.Level != slog.LevelInfo {
+		t.Errorf("resolve record level = %v, want INFO", r.Level)
 	}
 	assertResolveAttr(t, r, "target", "blog")
 	assertResolveAttr(t, r, "domain", "miss")
@@ -2084,8 +2077,7 @@ func TestOpenCommand_ResolveLog_GlobEmitsNoLine(t *testing.T) {
 	openRawArgs = func() []string { return []string{"portal", "open", "dev*"} }
 	t.Cleanup(func() { openRawArgs = origRaw })
 
-	h := newCapturingHandler()
-	log.SetTestHandler(t, h)
+	sink := logtest.Install(t)
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "dev*"})
@@ -2093,24 +2085,23 @@ func TestOpenCommand_ResolveLog_GlobEmitsNoLine(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if recs := h.resolveRecords(); len(recs) != 0 {
+	if recs := sink.RecordsWith("resolve", "resolved"); len(recs) != 0 {
 		t.Fatalf("expected no resolve records for a glob target, got %d", len(recs))
 	}
 }
 
 func TestEmitResolveDecision_Helper(t *testing.T) {
 	t.Run("non-glob target emits exactly one resolve line", func(t *testing.T) {
-		h := newCapturingHandler()
-		log.SetTestHandler(t, h)
+		sink := logtest.Install(t)
 
 		emitResolveDecision("dev", &resolver.SessionResult{Name: "dev", Domain: "session"})
 
-		recs := h.resolveRecords()
+		recs := sink.RecordsWith("resolve", "resolved")
 		if len(recs) != 1 {
 			t.Fatalf("expected exactly 1 resolve record, got %d", len(recs))
 		}
-		if recs[0].record.Level != slog.LevelInfo {
-			t.Errorf("resolve record level = %v, want INFO", recs[0].record.Level)
+		if recs[0].Level != slog.LevelInfo {
+			t.Errorf("resolve record level = %v, want INFO", recs[0].Level)
 		}
 		assertResolveAttr(t, recs[0], "target", "dev")
 		assertResolveAttr(t, recs[0], "domain", "session")
@@ -2118,12 +2109,11 @@ func TestEmitResolveDecision_Helper(t *testing.T) {
 	})
 
 	t.Run("glob target emits no line (gate lives in the helper)", func(t *testing.T) {
-		h := newCapturingHandler()
-		log.SetTestHandler(t, h)
+		sink := logtest.Install(t)
 
 		emitResolveDecision("dev*", &resolver.SessionResult{Name: "dev-1", Domain: "glob"})
 
-		if recs := h.resolveRecords(); len(recs) != 0 {
+		if recs := sink.RecordsWith("resolve", "resolved"); len(recs) != 0 {
 			t.Fatalf("expected no resolve records for a glob target, got %d", len(recs))
 		}
 	})
@@ -2131,17 +2121,16 @@ func TestEmitResolveDecision_Helper(t *testing.T) {
 
 func TestLogExecHandoff_Helper(t *testing.T) {
 	t.Run("strips argv[0] and joins the rest under target=tmux", func(t *testing.T) {
-		h := newCapturingHandler()
-		log.SetTestHandler(t, h)
+		sink := logtest.Install(t)
 
 		logExecHandoff([]string{"tmux", "attach-session", "-t", "=foo"})
 
-		recs := h.execRecords()
+		recs := sink.RecordsWith("process", "exec")
 		if len(recs) != 1 {
 			t.Fatalf("expected exactly 1 process: exec record, got %d", len(recs))
 		}
-		if recs[0].record.Level != slog.LevelInfo {
-			t.Errorf("exec marker level = %v, want INFO", recs[0].record.Level)
+		if recs[0].Level != slog.LevelInfo {
+			t.Errorf("exec marker level = %v, want INFO", recs[0].Level)
 		}
 		if target, ok := recordStringAttr(recs[0], "target"); !ok || target != "tmux" {
 			t.Errorf("target attr = %q (ok=%v), want %q", target, ok, "tmux")
@@ -2152,12 +2141,11 @@ func TestLogExecHandoff_Helper(t *testing.T) {
 	})
 
 	t.Run("defensive: empty argv does not panic and logs empty args", func(t *testing.T) {
-		h := newCapturingHandler()
-		log.SetTestHandler(t, h)
+		sink := logtest.Install(t)
 
 		logExecHandoff(nil)
 
-		recs := h.execRecords()
+		recs := sink.RecordsWith("process", "exec")
 		if len(recs) != 1 {
 			t.Fatalf("expected exactly 1 process: exec record, got %d", len(recs))
 		}
@@ -2776,85 +2764,9 @@ func TestAttachConnectorConnectArgv(t *testing.T) {
 	}
 }
 
-// log.For delivers the component attr through WithAttrs rather than on the
-// record, so a handler must remember its accumulated attrs to see it.
-type capturedRecord struct {
-	record slog.Record
-	attrs  []slog.Attr
-}
-
-type capturingHandler struct {
-	mu       *sync.Mutex
-	captured *[]capturedRecord
-	attrs    []slog.Attr
-}
-
-func newCapturingHandler() *capturingHandler {
-	return &capturingHandler{
-		mu:       &sync.Mutex{},
-		captured: &[]capturedRecord{},
-	}
-}
-
-func (h *capturingHandler) Enabled(context.Context, slog.Level) bool { return true }
-
-func (h *capturingHandler) Handle(_ context.Context, r slog.Record) error {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	*h.captured = append(*h.captured, capturedRecord{record: r, attrs: h.attrs})
-	return nil
-}
-
-func (h *capturingHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
-	merged := make([]slog.Attr, len(h.attrs)+len(attrs))
-	copy(merged, h.attrs)
-	copy(merged[len(h.attrs):], attrs)
-	return &capturingHandler{mu: h.mu, captured: h.captured, attrs: merged}
-}
-
-func (h *capturingHandler) WithGroup(string) slog.Handler { return h }
-
-func (h *capturingHandler) snapshot() []capturedRecord {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	out := make([]capturedRecord, len(*h.captured))
-	copy(out, *h.captured)
-	return out
-}
-
-func (h *capturingHandler) execRecords() []capturedRecord {
-	return filterExecRecords(h.snapshot())
-}
-
-func filterExecRecords(in []capturedRecord) []capturedRecord {
-	var out []capturedRecord
-	for _, cr := range in {
-		if cr.record.Message != "exec" {
-			continue
-		}
-		if recordComponent(cr) == "process" {
-			out = append(out, cr)
-		}
-	}
-	return out
-}
-
-func (h *capturingHandler) resolveRecords() []capturedRecord {
-	var out []capturedRecord
-	for _, cr := range h.snapshot() {
-		if cr.record.Message != "resolved" {
-			continue
-		}
-		if recordComponent(cr) == "resolve" {
-			out = append(out, cr)
-		}
-	}
-	return out
-}
-
-func assertResolveAttr(t *testing.T, cr capturedRecord, key, want string) {
+func assertResolveAttr(t *testing.T, rec logtest.Record, key, want string) {
 	t.Helper()
-	got, ok := recordStringAttr(cr, key)
+	got, ok := recordStringAttr(rec, key)
 	if !ok {
 		t.Errorf("resolve record missing %q attr", key)
 		return
@@ -2864,52 +2776,29 @@ func assertResolveAttr(t *testing.T, cr capturedRecord, key, want string) {
 	}
 }
 
-func recordComponent(cr capturedRecord) string {
-	if v, ok := recordStringAttr(cr, "component"); ok {
-		return v
+func recordStringAttr(rec logtest.Record, key string) (string, bool) {
+	v, ok := rec.Attrs[key]
+	if !ok {
+		return "", false
 	}
-	return ""
-}
-
-func recordStringAttr(cr capturedRecord, key string) (string, bool) {
-	var (
-		found string
-		ok    bool
-	)
-	cr.record.Attrs(func(a slog.Attr) bool {
-		if a.Key == key {
-			found = a.Value.Resolve().String()
-			ok = true
-			return false
-		}
-		return true
-	})
-	if ok {
-		return found, true
-	}
-	for _, a := range cr.attrs {
-		if a.Key == key {
-			return a.Value.Resolve().String(), true
-		}
-	}
-	return "", false
+	return v.Resolve().String(), true
 }
 
 // Snapshots the captured records at Exec time, so the exec marker's emission
 // can be placed before the handoff.
 type orderingExecer struct {
-	handler        *capturingHandler
+	sink           *logtest.Sink
 	argv0          string
 	argv           []string
-	recordsAtCall  []capturedRecord
+	recordsAtCall  logtest.Records
 	execMarkerSeen bool
 }
 
 func (e *orderingExecer) Exec(argv0 string, argv []string, _ []string) error {
 	e.argv0 = argv0
 	e.argv = argv
-	e.recordsAtCall = e.handler.snapshot()
-	if len(filterExecRecords(e.recordsAtCall)) > 0 {
+	e.recordsAtCall = e.sink.Records()
+	if len(e.recordsAtCall.With("process", "exec")) > 0 {
 		e.execMarkerSeen = true
 	}
 	return nil
@@ -2917,24 +2806,23 @@ func (e *orderingExecer) Exec(argv0 string, argv []string, _ []string) error {
 
 func TestAttachConnector_EmitsExecMarkerBeforeExec(t *testing.T) {
 	t.Run("emits process: exec target=tmux args before exec", func(t *testing.T) {
-		h := newCapturingHandler()
-		log.SetTestHandler(t, h)
+		sink := logtest.Install(t)
 
-		ex := &orderingExecer{handler: h}
+		ex := &orderingExecer{sink: sink}
 		ac := &AttachConnector{execer: ex, tmuxPath: "/usr/bin/tmux"}
 
 		if err := ac.Connect("foo"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		recs := h.execRecords()
+		recs := sink.RecordsWith("process", "exec")
 		if len(recs) != 1 {
 			t.Fatalf("expected exactly 1 process: exec record, got %d", len(recs))
 		}
 		r := recs[0]
 
-		if r.record.Level != slog.LevelInfo {
-			t.Errorf("exec marker level = %v, want INFO", r.record.Level)
+		if r.Level != slog.LevelInfo {
+			t.Errorf("exec marker level = %v, want INFO", r.Level)
 		}
 		if target, ok := recordStringAttr(r, "target"); !ok || target != "tmux" {
 			t.Errorf("target attr = %q (ok=%v), want %q", target, ok, "tmux")
@@ -2950,10 +2838,9 @@ func TestAttachConnector_EmitsExecMarkerBeforeExec(t *testing.T) {
 	})
 
 	t.Run("marker emitted before the exec call (ordering)", func(t *testing.T) {
-		h := newCapturingHandler()
-		log.SetTestHandler(t, h)
+		sink := logtest.Install(t)
 
-		ex := &orderingExecer{handler: h}
+		ex := &orderingExecer{sink: sink}
 		ac := &AttachConnector{execer: ex, tmuxPath: "/usr/bin/tmux"}
 
 		if err := ac.Connect("foo"); err != nil {
@@ -2968,10 +2855,9 @@ func TestAttachConnector_EmitsExecMarkerBeforeExec(t *testing.T) {
 
 func TestPathOpener_EmitsExecMarkerBeforeExec_OutsideTmux(t *testing.T) {
 	t.Run("emits process: exec target=tmux args=joined ExecArgs before exec", func(t *testing.T) {
-		h := newCapturingHandler()
-		log.SetTestHandler(t, h)
+		sink := logtest.Install(t)
 
-		ex := &orderingExecer{handler: h}
+		ex := &orderingExecer{sink: sink}
 		opener := &PathOpener{
 			insideTmux: false,
 			creator:    &mockSessionCreator{},
@@ -2991,14 +2877,14 @@ func TestPathOpener_EmitsExecMarkerBeforeExec_OutsideTmux(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		recs := h.execRecords()
+		recs := sink.RecordsWith("process", "exec")
 		if len(recs) != 1 {
 			t.Fatalf("expected exactly 1 process: exec record, got %d", len(recs))
 		}
 		r := recs[0]
 
-		if r.record.Level != slog.LevelInfo {
-			t.Errorf("exec marker level = %v, want INFO", r.record.Level)
+		if r.Level != slog.LevelInfo {
+			t.Errorf("exec marker level = %v, want INFO", r.Level)
 		}
 		if target, ok := recordStringAttr(r, "target"); !ok || target != "tmux" {
 			t.Errorf("target attr = %q (ok=%v), want %q", target, ok, "tmux")
@@ -3014,10 +2900,9 @@ func TestPathOpener_EmitsExecMarkerBeforeExec_OutsideTmux(t *testing.T) {
 	})
 
 	t.Run("marker emitted before the exec call (ordering)", func(t *testing.T) {
-		h := newCapturingHandler()
-		log.SetTestHandler(t, h)
+		sink := logtest.Install(t)
 
-		ex := &orderingExecer{handler: h}
+		ex := &orderingExecer{sink: sink}
 		opener := &PathOpener{
 			insideTmux: false,
 			creator:    &mockSessionCreator{},
@@ -3044,10 +2929,9 @@ func TestPathOpener_EmitsExecMarkerBeforeExec_OutsideTmux(t *testing.T) {
 func TestExecMarker_ArgsLoggedVerbatim(t *testing.T) {
 	// Privacy posture: args land in portal.log verbatim (single-user threat
 	// model), so a multi-word command tail must survive unredacted.
-	h := newCapturingHandler()
-	log.SetTestHandler(t, h)
+	sink := logtest.Install(t)
 
-	ex := &orderingExecer{handler: h}
+	ex := &orderingExecer{sink: sink}
 	shellCmd := "/bin/zsh -ic 'claude --resume; exec /bin/zsh'"
 	opener := &PathOpener{
 		insideTmux: false,
@@ -3066,7 +2950,7 @@ func TestExecMarker_ArgsLoggedVerbatim(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	recs := h.execRecords()
+	recs := sink.RecordsWith("process", "exec")
 	if len(recs) != 1 {
 		t.Fatalf("expected exactly 1 process: exec record, got %d", len(recs))
 	}
@@ -3081,8 +2965,7 @@ func TestExecMarker_ArgsLoggedVerbatim(t *testing.T) {
 }
 
 func TestSwitchConnector_EmitsNoExecMarker(t *testing.T) {
-	h := newCapturingHandler()
-	log.SetTestHandler(t, h)
+	sink := logtest.Install(t)
 
 	mock := &mockSwitchClient{}
 	connector := &SwitchConnector{client: mock}
@@ -3091,16 +2974,15 @@ func TestSwitchConnector_EmitsNoExecMarker(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if recs := h.execRecords(); len(recs) != 0 {
+	if recs := sink.RecordsWith("process", "exec"); len(recs) != 0 {
 		t.Errorf("SwitchConnector must emit no process: exec marker, got %d", len(recs))
 	}
 }
 
 func TestPathOpener_InsideTmux_EmitsNoExecMarker(t *testing.T) {
-	h := newCapturingHandler()
-	log.SetTestHandler(t, h)
+	sink := logtest.Install(t)
 
-	ex := &orderingExecer{handler: h}
+	ex := &orderingExecer{sink: sink}
 	opener := &PathOpener{
 		insideTmux: true,
 		creator:    &mockSessionCreator{sessionName: "myproject-abc123"},
@@ -3113,7 +2995,7 @@ func TestPathOpener_InsideTmux_EmitsNoExecMarker(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if recs := h.execRecords(); len(recs) != 0 {
+	if recs := sink.RecordsWith("process", "exec"); len(recs) != 0 {
 		t.Errorf("PathOpener inside-tmux must emit no process: exec marker, got %d", len(recs))
 	}
 	if ex.argv0 != "" {
@@ -3131,15 +3013,19 @@ var lifecycleBypassMessages = map[string]bool{
 }
 
 // Models the production WARN gate plus the lifecycle bypass, without exporting
-// the production handler.
+// the production handler. It gates, then forwards whatever survives to a
+// logtest.Sink: the gate is the part a Sink cannot model, since a Sink admits
+// every level. log.For binds the component attr through WithAttrs rather than
+// putting it on the record, so the gate must remember its accumulated attrs to
+// see it.
 type warnBypassHandler struct {
-	mu       *sync.Mutex
-	captured *[]capturedRecord
-	attrs    []slog.Attr
+	inner slog.Handler
+	attrs []slog.Attr
 }
 
-func newWARNBypassHandler() *warnBypassHandler {
-	return &warnBypassHandler{mu: &sync.Mutex{}, captured: &[]capturedRecord{}}
+func newWARNBypassHandler() (*warnBypassHandler, *logtest.Sink) {
+	sink := &logtest.Sink{}
+	return &warnBypassHandler{inner: sink}, sink
 }
 
 // Mirrors the production coarse INFO-floor pre-gate, so an INFO lifecycle
@@ -3149,37 +3035,48 @@ func (h *warnBypassHandler) Enabled(_ context.Context, level slog.Level) bool {
 	return level >= floor
 }
 
-func (h *warnBypassHandler) Handle(_ context.Context, r slog.Record) error {
-	cr := capturedRecord{record: r, attrs: h.attrs}
-	bypass := recordComponent(cr) == "process" && lifecycleBypassMessages[r.Message]
+func (h *warnBypassHandler) Handle(ctx context.Context, r slog.Record) error {
+	bypass := h.component(r) == "process" && lifecycleBypassMessages[r.Message]
 	if !bypass && r.Level < slog.LevelWarn {
 		return nil
 	}
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	*h.captured = append(*h.captured, cr)
-	return nil
+	return h.inner.Handle(ctx, r)
+}
+
+func (h *warnBypassHandler) component(r slog.Record) string {
+	var found string
+	r.Attrs(func(a slog.Attr) bool {
+		if a.Key == "component" {
+			found = a.Value.Resolve().String()
+			return false
+		}
+		return true
+	})
+	if found != "" {
+		return found
+	}
+	for _, a := range h.attrs {
+		if a.Key == "component" {
+			return a.Value.Resolve().String()
+		}
+	}
+	return ""
 }
 
 func (h *warnBypassHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	merged := make([]slog.Attr, len(h.attrs)+len(attrs))
 	copy(merged, h.attrs)
 	copy(merged[len(h.attrs):], attrs)
-	return &warnBypassHandler{mu: h.mu, captured: h.captured, attrs: merged}
+	return &warnBypassHandler{inner: h.inner.WithAttrs(attrs), attrs: merged}
 }
 
 func (h *warnBypassHandler) WithGroup(string) slog.Handler { return h }
 
-func (h *warnBypassHandler) execRecords() []capturedRecord {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	out := make([]capturedRecord, len(*h.captured))
-	copy(out, *h.captured)
-	return filterExecRecords(out)
-}
-
 func TestExecMarker_VisibleAtWARN(t *testing.T) {
-	h := newWARNBypassHandler()
+	// Not logtest.Install: the point of the test is the production level gate,
+	// and a logtest.Sink admits every level. The gate forwards what survives
+	// into the sink, so the records still read back through the Sink API.
+	h, sink := newWARNBypassHandler()
 	log.SetTestHandler(t, h)
 
 	ex := &recordingExecer{}
@@ -3189,7 +3086,7 @@ func TestExecMarker_VisibleAtWARN(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	recs := h.execRecords()
+	recs := sink.RecordsWith("process", "exec")
 	if len(recs) != 1 {
 		t.Fatalf("exec marker not visible at WARN: expected 1 process: exec record, got %d", len(recs))
 	}

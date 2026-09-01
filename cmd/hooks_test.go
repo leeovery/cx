@@ -10,7 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
@@ -907,8 +906,7 @@ func TestHooksSetTouchesSaveRequested(t *testing.T) {
 		}
 		t.Setenv("PORTAL_STATE_DIR", filepath.Join(blocker, "state"))
 
-		sink := &logtest.Sink{}
-		log.SetTestHandler(t, sink)
+		sink := logtest.Install(t)
 
 		if err := runHookSetForKey(t, "tok123", "claude --resume abc"); err != nil {
 			t.Fatalf("hook set failed on an unresolvable state directory: %v", err)
@@ -934,8 +932,7 @@ func TestHooksSetTouchesSaveRequested(t *testing.T) {
 		t.Cleanup(func() { _ = os.Chmod(stateDir, 0o700) })
 		t.Setenv("PORTAL_STATE_DIR", stateDir)
 
-		sink := &logtest.Sink{}
-		log.SetTestHandler(t, sink)
+		sink := logtest.Install(t)
 
 		if err := runHookSetForKey(t, "tok123", "claude --resume abc"); err != nil {
 			t.Fatalf("hook set failed on a failing touch: %v", err)
@@ -952,8 +949,7 @@ func TestHooksSetTouchesSaveRequested(t *testing.T) {
 		_, hooksFile := hooksFileInTempDir(t)
 		t.Setenv("PORTAL_STATE_DIR", filepath.Join(hooksFile, "state"))
 
-		sink := &logtest.Sink{}
-		log.SetTestHandler(t, sink)
+		sink := logtest.Install(t)
 
 		if err := runHookSetForKey(t, "tok123", "claude --resume abc"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -970,8 +966,7 @@ func TestHooksSetTouchesSaveRequested(t *testing.T) {
 		_, hooksFile := hooksFileInTempDir(t)
 		t.Setenv("PORTAL_STATE_DIR", filepath.Join(hooksFile, "state"))
 
-		sink := &logtest.Sink{}
-		log.SetTestHandler(t, sink)
+		sink := logtest.Install(t)
 
 		if err := runHookSetForKey(t, "tok123", "claude --resume abc"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -992,8 +987,7 @@ func TestHooksSetTouchesSaveRequested(t *testing.T) {
 		stateDir := t.TempDir()
 		t.Setenv("PORTAL_STATE_DIR", stateDir)
 
-		sink := &logtest.Sink{}
-		log.SetTestHandler(t, sink)
+		sink := logtest.Install(t)
 
 		if err := runHookSetForKey(t, "tok123", "claude --resume abc"); err == nil {
 			t.Fatal("expected an error from a failed write, got nil")

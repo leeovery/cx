@@ -11,8 +11,7 @@ import (
 )
 
 func TestDefaultDarkTheme_SeedsTheShippedPaletteSilently(t *testing.T) {
-	sink := &logtest.Sink{}
-	log.SetTestHandler(t, sink)
+	sink := logtest.Install(t)
 
 	seeded := defaultDarkTheme()
 

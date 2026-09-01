@@ -11,7 +11,6 @@ import (
 
 	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/hookstest"
-	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/state"
 )
@@ -345,8 +344,7 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 		sentinel := errors.New("tmux dead")
 		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA), restoringErr: sentinel}
 
-		sink := &logtest.Sink{}
-		log.SetTestHandler(t, sink)
+		sink := logtest.Install(t)
 
 		if err := sweepErr(lister, store, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
@@ -390,8 +388,7 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hookstest.StaleHookSeed})
 		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA), restoring: true}
 
-		sink := &logtest.Sink{}
-		log.SetTestHandler(t, sink)
+		sink := logtest.Install(t)
 
 		if err := sweepErr(lister, store, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
@@ -542,8 +539,7 @@ func TestHookSweepReportsStandDown(t *testing.T) {
 		before := readFileBytes(t, path)
 		lister := &stubStaleSweepReader{rows: tokenRows()}
 
-		sink := &logtest.Sink{}
-		log.SetTestHandler(t, sink)
+		sink := logtest.Install(t)
 
 		injected, _ := newCaptureLoggerForComponent(t, "bootstrap")
 		outcome, err := runHookStaleCleanup(lister, store, injected)
@@ -570,8 +566,7 @@ func TestHookSweepReportsStandDown(t *testing.T) {
 		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: ""})
 		lister := &stubStaleSweepReader{rows: tokenRows()}
 
-		sink := &logtest.Sink{}
-		log.SetTestHandler(t, sink)
+		sink := logtest.Install(t)
 
 		injected, _ := newCaptureLoggerForComponent(t, "bootstrap")
 		outcome, err := runHookStaleCleanup(lister, store, injected)
@@ -592,8 +587,7 @@ func TestHookSweepReportsStandDown(t *testing.T) {
 		sentinel := errors.New("tmux dead")
 		lister := &stubStaleSweepReader{err: sentinel}
 
-		sink := &logtest.Sink{}
-		log.SetTestHandler(t, sink)
+		sink := logtest.Install(t)
 
 		injected, injectedSink := newCaptureLoggerForComponent(t, "bootstrap")
 		outcome, err := runHookStaleCleanup(lister, store, injected)
@@ -627,8 +621,7 @@ func TestHookSweepGuardCountsPaneRowsNotTokens(t *testing.T) {
 		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 		before := readFileBytes(t, path)
 
-		sink := &logtest.Sink{}
-		log.SetTestHandler(t, sink)
+		sink := logtest.Install(t)
 
 		injected, injectedSink := newCaptureLoggerForComponent(t, "bootstrap")
 		outcome, err := runHookStaleCleanup(&stubStaleSweepReader{rows: unstampedRows(3)}, store,

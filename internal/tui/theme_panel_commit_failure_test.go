@@ -460,8 +460,7 @@ func requireOnlySlotContender(t *testing.T, m Model, want string) {
 }
 
 func TestCommitFailure_PanelEmitsNoThemeRecord(t *testing.T) {
-	sink := &logtest.Sink{}
-	log.SetTestHandler(t, sink)
+	sink := logtest.Install(t)
 	dir := t.TempDir()
 	themetest.Write(t, dir, "aurora.theme", themetest.MonochromeLines("#101010"))
 

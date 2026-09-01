@@ -7,7 +7,6 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/themetest"
@@ -198,8 +197,7 @@ func TestUnion_EnumeratedFiresPerOpenUndeduped(t *testing.T) {
 }
 
 func TestUnion_DiscardSilencesEnumerated(t *testing.T) {
-	sink := &logtest.Sink{}
-	log.SetTestHandler(t, sink)
+	sink := logtest.Install(t)
 	dir := t.TempDir()
 	themetest.WriteWithCanvas(t, dir, "bad-colour.theme", "blue")
 	assembler := theme.Assembler{Loader: theme.NewSilentLoader()}
@@ -217,8 +215,7 @@ func TestUnion_DiscardSilencesEnumerated(t *testing.T) {
 }
 
 func TestUnion_ZeroValueLoaderIsASilentSeam(t *testing.T) {
-	sink := &logtest.Sink{}
-	log.SetTestHandler(t, sink)
+	sink := logtest.Install(t)
 	dir := t.TempDir()
 	themetest.Write(t, dir, "nord-lee.theme", themetest.Lines())
 

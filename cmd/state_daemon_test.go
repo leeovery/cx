@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/leeovery/portal/internal/hooks"
-	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
@@ -845,8 +844,7 @@ func TestStateDaemon_HooksCleanupWiring(t *testing.T) {
 		t.Setenv("PORTAL_HOOKS_FILE", "") // force fall-through to home-dir resolution
 		t.Setenv("HOME", "")              // os.UserHomeDir() now errors → loadHookStore errors
 
-		sink := &logtest.Sink{}
-		log.SetTestHandler(t, sink)
+		sink := logtest.Install(t)
 
 		holder := withImmediateRun(t)
 		withDaemonLockFileReset(t)

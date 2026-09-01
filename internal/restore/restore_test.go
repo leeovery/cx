@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/restore"
 	"github.com/leeovery/portal/internal/restoretest"
 	"github.com/leeovery/portal/internal/state"
@@ -69,10 +70,10 @@ func newOrchestrator(t *testing.T, mock *mockCommander, dir string, logger *slog
 	return restoretest.NewFakeExeOrchestrator(t, tmux.NewClient(mock), dir, logger)
 }
 
-func openTestLogger(t *testing.T, dir string) (*slog.Logger, *captureSink) {
+func openTestLogger(t *testing.T, dir string) (*slog.Logger, *logtest.Sink) {
 	t.Helper()
 	_ = dir
-	return newCaptureLogger(t)
+	return logtest.NewCaptureLogger(t)
 }
 
 func TestOrchestrator_NoOpWhenSessionsJSONAbsent(t *testing.T) {
@@ -452,7 +453,7 @@ func TestOrchestrator_ReturnsNilWhenEverySessionErrors(t *testing.T) {
 	}
 }
 
-func skeletonSummaryLine(t *testing.T, sink *captureSink) string {
+func skeletonSummaryLine(t *testing.T, sink *logtest.Sink) string {
 	t.Helper()
 	var found []string
 	for _, line := range sink.Lines() {

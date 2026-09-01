@@ -681,8 +681,7 @@ func TestPersistedThemeAdvisory_EmitsNoThemeRecords(t *testing.T) {
 	}
 
 	t.Run("the condition emits through a real component logger", func(t *testing.T) {
-		sink := &logtest.Sink{}
-		log.SetTestHandler(t, sink)
+		sink := logtest.Install(t)
 
 		loud := theme.NewLoader(theme.NewEventLogger(log.For("theme")))
 		if _, rejection := loud.ResolveByName("nord-lee", unusableDir(t)); rejection == nil {
@@ -699,8 +698,7 @@ func TestPersistedThemeAdvisory_EmitsNoThemeRecords(t *testing.T) {
 		t.Setenv("PORTAL_THEMES_DIR", dir)
 		setPrefsFile(t, `{"theme":"nord-lee"}`)
 
-		sink := &logtest.Sink{}
-		log.SetTestHandler(t, sink)
+		sink := logtest.Install(t)
 
 		outBuf, _, err := runDoctorWith(t, healthyDoctorDeps(t))
 		if err != nil {

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/restore"
 	"github.com/leeovery/portal/internal/restoretest"
 	"github.com/leeovery/portal/internal/state"
@@ -17,7 +18,7 @@ type progressCall struct {
 
 func newProgressOrchestrator(t *testing.T, mock *mockCommander, dir string, calls *[]progressCall) *restore.Orchestrator {
 	t.Helper()
-	logger, _ := newCaptureLogger(t)
+	logger, _ := logtest.NewCaptureLogger(t)
 	o := restoretest.NewFakeExeOrchestrator(t, tmux.NewClient(mock), dir, logger)
 	o.Progress = func(n, m int) {
 		*calls = append(*calls, progressCall{n: n, m: m})
@@ -193,7 +194,7 @@ func TestProgress_NilCallbackLeavesRestoreOutcomesUnchanged(t *testing.T) {
 		writeValidIndex(t, dir, sessions)
 		rf := &orchestratorRunFunc{listSessionsOut: "", listPanesOut: "0:0"}
 		mock := &mockCommander{RunFunc: rf.run}
-		logger, _ := newCaptureLogger(t)
+		logger, _ := logtest.NewCaptureLogger(t)
 		o := restoretest.NewFakeExeOrchestrator(t, tmux.NewClient(mock), dir, logger)
 		o.Progress = progress
 		if _, err := o.Restore(); err != nil {

@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/leeovery/portal/internal/log"
+	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/resolver"
 	"github.com/leeovery/portal/internal/spawn"
 	"github.com/spf13/cobra"
@@ -346,8 +346,7 @@ func TestResolveOpenSurfaces_ReadOnly_NoMintOrAttach(t *testing.T) {
 }
 
 func TestResolveOpenSurfaces_ResolveLog_BareNonGlobOnly(t *testing.T) {
-	h := newCapturingHandler()
-	log.SetTestHandler(t, h)
+	sink := logtest.Install(t)
 
 	qr := newSurfaceResolver(
 		[]string{"dev", "web", "api-1", "api-2"},
@@ -371,13 +370,13 @@ func TestResolveOpenSurfaces_ResolveLog_BareNonGlobOnly(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	recs := h.resolveRecords()
+	recs := sink.RecordsWith("resolve", "resolved")
 	if len(recs) != 3 {
 		t.Fatalf("expected exactly 3 resolve records (one per bare non-glob target), got %d", len(recs))
 	}
 	for _, r := range recs {
-		if r.record.Level != slog.LevelInfo {
-			t.Errorf("resolve record level = %v, want INFO", r.record.Level)
+		if r.Level != slog.LevelInfo {
+			t.Errorf("resolve record level = %v, want INFO", r.Level)
 		}
 	}
 	assertResolveAttr(t, recs[0], "target", "dev")

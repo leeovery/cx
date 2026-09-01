@@ -21,8 +21,7 @@ import (
 func resolveLoader(t *testing.T) (theme.Loader, *logtest.Sink) {
 	t.Helper()
 
-	sink := &logtest.Sink{}
-	log.SetTestHandler(t, sink)
+	sink := logtest.Install(t)
 	return theme.NewLoader(theme.NewEventLogger(log.For(themeComponent))), sink
 }
 
@@ -373,8 +372,7 @@ func TestResolveByName_DirectoryUnusableIsDeduped(t *testing.T) {
 	})
 
 	t.Run("a second event logger emits its own record", func(t *testing.T) {
-		sink := &logtest.Sink{}
-		log.SetTestHandler(t, sink)
+		sink := logtest.Install(t)
 		dir := themesDirWithOneTheme(t)
 		_ = themetest.DenyDir(t, dir)
 

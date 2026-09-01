@@ -12,7 +12,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/themetest"
@@ -155,8 +154,7 @@ func TestThemeAdvisories_ValidFileIsSilent(t *testing.T) {
 func TestThemeAdvisories_AbsentDirectoryIsSilent(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "themes")
 
-	sink := &logtest.Sink{}
-	log.SetTestHandler(t, sink)
+	sink := logtest.Install(t)
 
 	if got := themeAdvisoriesFor(t, dir); len(got) != 0 {
 		t.Errorf("scan produced %d advisories over an absent directory, want none:\n  %s", len(got), strings.Join(advisoryLines(got), "\n  "))

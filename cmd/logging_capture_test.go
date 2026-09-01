@@ -20,7 +20,9 @@ func initTestLogToStateDir(t *testing.T, dir, version string) {
 
 // It creates dir (log.Init's writer does not create parents) and brackets
 // log.Init with a handler snapshot-and-restore so the process-wide swap does
-// not leak into sibling tests.
+// not leak into sibling tests. The handler is a discard, not a logtest.Install
+// sink: the swap here is a silencer for the pre-Init window, and nothing reads
+// records back from it.
 func initTestLogToStateDirAs(t *testing.T, dir, version, processRole string) {
 	t.Helper()
 	if err := os.MkdirAll(dir, 0o700); err != nil {

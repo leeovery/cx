@@ -12,7 +12,6 @@ import (
 
 	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/hookstest"
-	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/tmux"
 )
@@ -209,8 +208,7 @@ func TestMaybeRunHookCleanup_ReusesMassDeletionGuard(t *testing.T) {
 	logger, sink := newCaptureLoggerForComponent(t, "daemon")
 	deps := hookCleanupDeps(fc, store, logger)
 
-	hooksSink := &logtest.Sink{}
-	log.SetTestHandler(t, hooksSink)
+	hooksSink := logtest.Install(t)
 
 	deps.lastCleanup = time.Now().Add(-hookCleanupInterval - time.Second)
 

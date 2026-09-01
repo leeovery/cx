@@ -457,8 +457,7 @@ func TestResolveProgram_ThemeDrivesBothBranches(t *testing.T) {
 }
 
 func TestCaptureTool_ThemeResolutionIsSilent(t *testing.T) {
-	sink := &logtest.Sink{}
-	log.SetTestHandler(t, sink)
+	sink := logtest.Install(t)
 
 	dir := t.TempDir()
 	reserved := themetest.Write(t, dir, "nord.theme", themetest.Lines())

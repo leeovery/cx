@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/tmux"
 )
@@ -19,8 +18,7 @@ import (
 // order and their relative order is assertable.
 func newSharedSelfEjectCapture(t *testing.T) (*logtest.Sink, *daemonDeps) {
 	t.Helper()
-	sink := &logtest.Sink{}
-	log.SetTestHandler(t, sink)
+	sink := logtest.Install(t)
 	depsLogger := slog.New(sink).With("component", "daemon")
 	return sink, &daemonDeps{Logger: depsLogger}
 }

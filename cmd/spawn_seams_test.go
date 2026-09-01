@@ -7,7 +7,6 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/spawn"
 	"github.com/leeovery/portal/internal/tmux"
@@ -36,8 +35,7 @@ func cmdWithClient(client *tmux.Client) *cobra.Command {
 func TestBuildProductionSpawnSeams(t *testing.T) {
 	isolateTerminalsFile(t)
 
-	sink := &logtest.Sink{}
-	log.SetTestHandler(t, sink)
+	sink := logtest.Install(t)
 
 	cmder := quietCommander()
 	client := tmux.NewClient(cmder)

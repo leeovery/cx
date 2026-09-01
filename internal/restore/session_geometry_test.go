@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/restore"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
@@ -184,7 +185,7 @@ func TestApplyWindowGeometry_LogsAndContinuesWhenTiledFallbackAlsoFails(t *testi
 		},
 	}
 	client := tmux.NewClient(mock)
-	logger, sink := newCaptureLogger(t)
+	logger, sink := logtest.NewCaptureLogger(t)
 	r := &restore.SessionRestorer{Client: client, Logger: logger}
 
 	sess := geometrySession("work",

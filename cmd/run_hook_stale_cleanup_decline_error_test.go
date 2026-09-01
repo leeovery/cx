@@ -6,7 +6,6 @@ import (
 
 	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/hookstest"
-	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 )
 
@@ -39,8 +38,7 @@ func TestHookSweepDeclineReasonTravelsWithTheError(t *testing.T) {
 		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(hookstest.LiveSeedA, hookstest.LiveSeedB)})
 		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA, hookstest.LiveSeedB)}
 
-		sink := &logtest.Sink{}
-		log.SetTestHandler(t, sink)
+		sink := logtest.Install(t)
 
 		injected, _ := newCaptureLoggerForComponent(t, "bootstrap")
 		outcome, err := runHookStaleCleanup(lister, store, injected)
@@ -63,8 +61,7 @@ func TestHookSweepDeclineReasonTravelsWithTheError(t *testing.T) {
 		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody()})
 		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA)}
 
-		sink := &logtest.Sink{}
-		log.SetTestHandler(t, sink)
+		sink := logtest.Install(t)
 
 		injected, _ := newCaptureLoggerForComponent(t, "bootstrap")
 		outcome, err := runHookStaleCleanup(lister, store, injected)
