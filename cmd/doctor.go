@@ -71,72 +71,70 @@ type DoctorDeps struct {
 
 var doctorDeps *DoctorDeps
 
+// resolveDoctorDeps returns the seams doctor runs against: whatever a test
+// injected, with the production default filled in for each seam it left unset.
+// A new seam costs one fill line here; leaving it out is a nil dereference at
+// first use rather than an injection the diagnosis silently ignores.
 func resolveDoctorDeps() *DoctorDeps {
+	deps := &DoctorDeps{}
+	if doctorDeps != nil {
+		*deps = *doctorDeps
+	}
+
 	client := tmux.DefaultClient()
-	seams := buildProductionSpawnSeams(client)
-	deps := &DoctorDeps{
-		ServerRunning: client.ServerRunning,
-		SaverPresent: func() (bool, error) {
+	if deps.ServerRunning == nil {
+		deps.ServerRunning = client.ServerRunning
+	}
+	if deps.SaverPresent == nil {
+		deps.SaverPresent = func() (bool, error) {
 			_, present, err := tmux.SaverPanePIDOrAbsent(client, tmux.PortalSaverName)
 			return present, err
-		},
-		HookCounts: func() (map[string]int, error) {
+		}
+	}
+	if deps.HookCounts == nil {
+		deps.HookCounts = func() (map[string]int, error) {
 			return tmux.PortalHookCountsByEvent(client)
-		},
-		HookLister: client,
-		Detector:   seams.Detector,
-		Resolve:    seams.Resolve,
+		}
 	}
-	if hookStore, err := loadHookStore(); err == nil {
-		deps.HookStore = hookStore
+	if deps.HookLister == nil {
+		deps.HookLister = client
 	}
-	if projectStore, err := loadProjectStore(); err == nil {
-		deps.ProjectStore = projectStore
+	if deps.Detector == nil || deps.Resolve == nil {
+		seams := buildProductionSpawnSeams(client)
+		if deps.Detector == nil {
+			deps.Detector = seams.Detector
+		}
+		if deps.Resolve == nil {
+			deps.Resolve = seams.Resolve
+		}
 	}
-	// Never the migrating loadPrefsStore: doctor heals nothing on the read-only
-	// path, and that one dispatches the one-shot appearance translation.
-	if prefsStore, err := loadPrefsStoreNoMigrate(); err == nil {
-		deps.PrefsStore = prefsStore
+
+	// Each best-effort load is constructed only for a seam left unset, so an
+	// injected store costs no config read.
+	if deps.HookStore == nil {
+		if hookStore, err := loadHookStore(); err == nil {
+			deps.HookStore = hookStore
+		}
 	}
-	if themesDir, err := themesDirPath(); err == nil {
-		deps.ThemesDir = themesDir
+	if deps.ProjectStore == nil {
+		if projectStore, err := loadProjectStore(); err == nil {
+			deps.ProjectStore = projectStore
+		}
 	}
-	if doctorDeps == nil {
-		return deps
+	if deps.PrefsStore == nil {
+		// Never the migrating loadPrefsStore: doctor heals nothing on the
+		// read-only path, and that one dispatches the one-shot appearance
+		// translation.
+		if prefsStore, err := loadPrefsStoreNoMigrate(); err == nil {
+			deps.PrefsStore = prefsStore
+		}
 	}
-	if doctorDeps.StateDir != "" {
-		deps.StateDir = doctorDeps.StateDir
+	if deps.ThemesDir == "" {
+		if themesDir, err := themesDirPath(); err == nil {
+			deps.ThemesDir = themesDir
+		}
 	}
-	if doctorDeps.ThemesDir != "" {
-		deps.ThemesDir = doctorDeps.ThemesDir
-	}
-	if doctorDeps.ServerRunning != nil {
-		deps.ServerRunning = doctorDeps.ServerRunning
-	}
-	if doctorDeps.SaverPresent != nil {
-		deps.SaverPresent = doctorDeps.SaverPresent
-	}
-	if doctorDeps.HookCounts != nil {
-		deps.HookCounts = doctorDeps.HookCounts
-	}
-	if doctorDeps.HookLister != nil {
-		deps.HookLister = doctorDeps.HookLister
-	}
-	if doctorDeps.HookStore != nil {
-		deps.HookStore = doctorDeps.HookStore
-	}
-	if doctorDeps.ProjectStore != nil {
-		deps.ProjectStore = doctorDeps.ProjectStore
-	}
-	if doctorDeps.PrefsStore != nil {
-		deps.PrefsStore = doctorDeps.PrefsStore
-	}
-	if doctorDeps.Detector != nil {
-		deps.Detector = doctorDeps.Detector
-	}
-	if doctorDeps.Resolve != nil {
-		deps.Resolve = doctorDeps.Resolve
-	}
+
 	return deps
 }
 

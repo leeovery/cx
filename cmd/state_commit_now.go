@@ -46,37 +46,36 @@ type CommitNowDeps struct {
 	TouchSaveRequested func(dir string) error
 }
 
+// resolveCommitNowDeps returns the seams commit-now runs against: whatever a
+// test injected, with the production default filled in for each seam it left
+// unset. A new seam costs one fill line here; leaving it out is a nil
+// dereference at first use rather than an injection the command silently
+// ignores.
 func resolveCommitNowDeps() *CommitNowDeps {
-	deps := &CommitNowDeps{
-		ReadIndex:          state.ReadIndex,
-		CaptureStructure:   state.CaptureStructure,
-		Commit:             state.Commit,
-		NewClient:          func() state.CaptureClient { return tmux.DefaultClient() },
-		IsRestoring:        func() (bool, error) { return state.IsRestoringSet(tmux.DefaultClient()) },
-		TouchSaveRequested: state.TouchSaveRequested,
+	deps := &CommitNowDeps{}
+	if commitNowDeps != nil {
+		*deps = *commitNowDeps
 	}
 
-	if commitNowDeps == nil {
-		return deps
+	if deps.ReadIndex == nil {
+		deps.ReadIndex = state.ReadIndex
 	}
-	if commitNowDeps.ReadIndex != nil {
-		deps.ReadIndex = commitNowDeps.ReadIndex
+	if deps.CaptureStructure == nil {
+		deps.CaptureStructure = state.CaptureStructure
 	}
-	if commitNowDeps.CaptureStructure != nil {
-		deps.CaptureStructure = commitNowDeps.CaptureStructure
+	if deps.Commit == nil {
+		deps.Commit = state.Commit
 	}
-	if commitNowDeps.Commit != nil {
-		deps.Commit = commitNowDeps.Commit
+	if deps.NewClient == nil {
+		deps.NewClient = func() state.CaptureClient { return tmux.DefaultClient() }
 	}
-	if commitNowDeps.NewClient != nil {
-		deps.NewClient = commitNowDeps.NewClient
+	if deps.IsRestoring == nil {
+		deps.IsRestoring = func() (bool, error) { return state.IsRestoringSet(tmux.DefaultClient()) }
 	}
-	if commitNowDeps.IsRestoring != nil {
-		deps.IsRestoring = commitNowDeps.IsRestoring
+	if deps.TouchSaveRequested == nil {
+		deps.TouchSaveRequested = state.TouchSaveRequested
 	}
-	if commitNowDeps.TouchSaveRequested != nil {
-		deps.TouchSaveRequested = commitNowDeps.TouchSaveRequested
-	}
+
 	return deps
 }
 
