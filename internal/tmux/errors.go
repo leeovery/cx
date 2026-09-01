@@ -82,7 +82,9 @@ func ValidateSessionName(name string) error {
 // wrapSessionTargetErr classifies a failed per-session operation. The name check
 // must come first: tmux answers an unaddressable name with the same "no such
 // session" stderr a vanished one produces, and wrapNoSuchSession would hand the
-// capture loop a live session dressed as natural churn.
+// capture loop a live session dressed as natural churn. An operation classifies
+// inside its own message wrap, so the sentinel and tmux's own words both stay
+// reachable on the error its caller receives.
 func wrapSessionTargetErr(session string, err error) error {
 	if err == nil {
 		return nil

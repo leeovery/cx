@@ -20,6 +20,75 @@ const (
 	coordTargetForm   = "=exact:"
 )
 
+// exactTargetSession is the session name every route in perSessionRoutes is
+// invoked against; the two target forms above are its exact renderings.
+const exactTargetSession = "exact"
+
+// perSessionRoute is one operation that composes an exact tmux target for a
+// single session.
+type perSessionRoute struct {
+	name    string
+	command string
+	want    string
+	invoke  func(*tmux.Client)
+}
+
+// perSessionRoutes is the route set shared by both guards over the composition
+// rule: the mock-level target-form table below and the real-tmux prefix-sibling
+// routes. A route added here is unguarded until both enumerate it, so the two
+// cannot drift apart. It is a maintained set, not the client's whole
+// exact-target surface.
+var perSessionRoutes = []perSessionRoute{
+	{
+		name:    "ShowEnvironment",
+		command: "show-environment",
+		want:    sessionTargetForm,
+		invoke:  func(c *tmux.Client) { _, _ = c.ShowEnvironment(exactTargetSession) },
+	},
+	{
+		name:    "SetSessionEnvironment",
+		command: "set-environment",
+		want:    sessionTargetForm,
+		invoke:  func(c *tmux.Client) { _ = c.SetSessionEnvironment(exactTargetSession, "K", "v") },
+	},
+	{
+		name:    "SetSessionOption",
+		command: "set-option",
+		want:    coordTargetForm,
+		invoke:  func(c *tmux.Client) { _ = c.SetSessionOption(exactTargetSession, "@k", "v") },
+	},
+	{
+		name:    "ActivePaneCurrentPath",
+		command: "display-message",
+		want:    coordTargetForm,
+		invoke:  func(c *tmux.Client) { _, _ = c.ActivePaneCurrentPath(exactTargetSession) },
+	},
+	{
+		name:    "ListPanesInSession",
+		command: "list-panes",
+		want:    coordTargetForm,
+		invoke:  func(c *tmux.Client) { _, _ = c.ListPanesInSession(exactTargetSession) },
+	},
+	{
+		name:    "ListWindowsAndPanesInSession",
+		command: "list-panes",
+		want:    coordTargetForm,
+		invoke:  func(c *tmux.Client) { _, _ = c.ListWindowsAndPanesInSession(exactTargetSession) },
+	},
+	{
+		name:    "SaverPaneID",
+		command: "list-panes",
+		want:    coordTargetForm,
+		invoke:  func(c *tmux.Client) { _, _ = c.SaverPaneID(exactTargetSession) },
+	},
+	{
+		name:    "SaverPanePIDOrAbsent",
+		command: "list-panes",
+		want:    coordTargetForm,
+		invoke:  func(c *tmux.Client) { _, _, _ = tmux.SaverPanePIDOrAbsent(c, exactTargetSession) },
+	},
+}
+
 func targetArgOf(t *testing.T, call []string) string {
 	t.Helper()
 	i := slices.Index(call, "-t")
@@ -30,66 +99,20 @@ func targetArgOf(t *testing.T, call []string) string {
 }
 
 func TestSessionTargetsAreComposedExactly(t *testing.T) {
-	const session = "exact"
-
-	cases := []struct {
-		name    string
-		command string
-		want    string
-		invoke  func(*tmux.Client)
-	}{
-		{
-			name:    "ShowEnvironment",
-			command: "show-environment",
-			want:    sessionTargetForm,
-			invoke:  func(c *tmux.Client) { _, _ = c.ShowEnvironment(session) },
-		},
-		{
-			name:    "SetSessionEnvironment",
-			command: "set-environment",
-			want:    sessionTargetForm,
-			invoke:  func(c *tmux.Client) { _ = c.SetSessionEnvironment(session, "K", "v") },
-		},
-		{
-			name:    "SetSessionOption",
-			command: "set-option",
-			want:    coordTargetForm,
-			invoke:  func(c *tmux.Client) { _ = c.SetSessionOption(session, "@k", "v") },
-		},
-		{
-			name:    "ActivePaneCurrentPath",
-			command: "display-message",
-			want:    coordTargetForm,
-			invoke:  func(c *tmux.Client) { _, _ = c.ActivePaneCurrentPath(session) },
-		},
-		{
-			name:    "ListPanesInSession",
-			command: "list-panes",
-			want:    coordTargetForm,
-			invoke:  func(c *tmux.Client) { _, _ = c.ListPanesInSession(session) },
-		},
-		{
-			name:    "ListWindowsAndPanesInSession",
-			command: "list-panes",
-			want:    coordTargetForm,
-			invoke:  func(c *tmux.Client) { _, _ = c.ListWindowsAndPanesInSession(session) },
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, route := range perSessionRoutes {
+		t.Run(route.name, func(t *testing.T) {
 			mock := &MockCommander{}
-			tc.invoke(tmux.NewClient(mock))
+			route.invoke(tmux.NewClient(mock))
 
 			if len(mock.Calls) != 1 {
 				t.Fatalf("composed %d tmux calls, want exactly 1: %q", len(mock.Calls), mock.Calls)
 			}
 			call := mock.Calls[0]
-			if call[0] != tc.command {
-				t.Errorf("ran tmux %q, want %q", call[0], tc.command)
+			if call[0] != route.command {
+				t.Errorf("ran tmux %q, want %q", call[0], route.command)
 			}
-			if got := targetArgOf(t, call); got != tc.want {
-				t.Errorf("-t argument = %q, want %q", got, tc.want)
+			if got := targetArgOf(t, call); got != route.want {
+				t.Errorf("-t argument = %q, want %q", got, route.want)
 			}
 		})
 	}

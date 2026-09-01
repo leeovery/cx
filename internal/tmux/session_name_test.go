@@ -114,3 +114,90 @@ func TestShowEnvironmentClassifiesUnaddressableName(t *testing.T) {
 		}
 	})
 }
+
+// perSessionOp is one operation addressing a single session that can report a
+// failure back to its caller.
+type perSessionOp struct {
+	name   string
+	invoke func(*tmux.Client, string) error
+}
+
+// perSessionOps are the operations that mint an absence sentinel: each must
+// classify the name before it hands the failure back, or a live session tmux
+// cannot address exactly reads as a vanished one.
+var perSessionOps = []perSessionOp{
+	{"HasSessionProbe", func(c *tmux.Client, s string) error { _, err := c.HasSessionProbe(s); return err }},
+	{"KillSession", func(c *tmux.Client, s string) error { return c.KillSession(s) }},
+	{"RenameSession", func(c *tmux.Client, s string) error { return c.RenameSession(s, "new-name") }},
+	{"SwitchClient", func(c *tmux.Client, s string) error { return c.SwitchClient(s) }},
+	{"SetSessionEnvironment", func(c *tmux.Client, s string) error { return c.SetSessionEnvironment(s, "K", "v") }},
+	{"ShowEnvironment", func(c *tmux.Client, s string) error { _, err := c.ShowEnvironment(s); return err }},
+	{"SaverPaneID", func(c *tmux.Client, s string) error { _, err := c.SaverPaneID(s); return err }},
+}
+
+func TestPerSessionOpsClassifyUnaddressableName(t *testing.T) {
+	t.Run("it classifies a colon-named session as unaddressable rather than absent", func(t *testing.T) {
+		for _, op := range perSessionOps {
+			t.Run(op.name, func(t *testing.T) {
+				client := tmux.NewClient(noSuchSessionCommander("=" + colonSession))
+
+				err := op.invoke(client, colonSession)
+
+				if err == nil {
+					t.Fatal("expected an error, got nil")
+				}
+				if !errors.Is(err, tmuxerr.ErrUnaddressableSessionName) {
+					t.Errorf("error = %v; want it to wrap tmuxerr.ErrUnaddressableSessionName", err)
+				}
+				if errors.Is(err, tmuxerr.ErrNoSuchSession) {
+					t.Errorf("error = %v; a live session tmux cannot address must not read as a vanished one", err)
+				}
+			})
+		}
+	})
+
+	t.Run("it still reports a vanished session as no-such-session", func(t *testing.T) {
+		for _, op := range perSessionOps {
+			t.Run(op.name, func(t *testing.T) {
+				client := tmux.NewClient(noSuchSessionCommander("=gone"))
+
+				err := op.invoke(client, "gone")
+
+				if err == nil {
+					t.Fatal("expected an error, got nil")
+				}
+				if !errors.Is(err, tmuxerr.ErrNoSuchSession) {
+					t.Errorf("error = %v; want it to wrap tmuxerr.ErrNoSuchSession", err)
+				}
+				if errors.Is(err, tmuxerr.ErrUnaddressableSessionName) {
+					t.Errorf("error = %v; a colon-free name is addressable", err)
+				}
+			})
+		}
+	})
+
+	t.Run("it collapses a genuine absence but not an unaddressable name in SaverPanePIDOrAbsent", func(t *testing.T) {
+		t.Run("gone session", func(t *testing.T) {
+			client := tmux.NewClient(noSuchSessionCommander("=gone"))
+
+			pid, present, err := tmux.SaverPanePIDOrAbsent(client, "gone")
+
+			if pid != 0 || present || err != nil {
+				t.Errorf("SaverPanePIDOrAbsent = (%d, %t, %v); want (0, false, nil)", pid, present, err)
+			}
+		})
+
+		t.Run("colon-named session", func(t *testing.T) {
+			client := tmux.NewClient(noSuchSessionCommander("=" + colonSession))
+
+			pid, present, err := tmux.SaverPanePIDOrAbsent(client, colonSession)
+
+			if err == nil {
+				t.Fatalf("SaverPanePIDOrAbsent = (%d, %t, nil); want the unaddressable name surfaced as an error", pid, present)
+			}
+			if !errors.Is(err, tmuxerr.ErrUnaddressableSessionName) {
+				t.Errorf("error = %v; want it to wrap tmuxerr.ErrUnaddressableSessionName", err)
+			}
+		})
+	})
+}

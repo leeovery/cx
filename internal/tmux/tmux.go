@@ -98,10 +98,11 @@ func (c *Client) HasSessionProbe(name string) (bool, error) {
 	if err == nil {
 		return true, nil
 	}
+	classified := wrapSessionTargetErr(name, err)
 	if _, ok := errors.AsType[*exec.ExitError](err); ok {
-		return false, err
+		return false, classified
 	}
-	return true, err
+	return true, classified
 }
 
 // NewSession creates a detached session; shellCommand becomes the pane's
@@ -270,7 +271,7 @@ func (c *Client) ActivePaneCurrentPath(session string) (string, error) {
 func (c *Client) KillSession(name string) error {
 	_, err := c.cmd.Run("kill-session", "-t", ExactSessionTarget(name))
 	if err != nil {
-		return fmt.Errorf("failed to kill tmux session %q: %w", name, err)
+		return fmt.Errorf("failed to kill tmux session %q: %w", name, wrapSessionTargetErr(name, err))
 	}
 	return nil
 }
@@ -285,7 +286,7 @@ func (c *Client) RenameSession(oldName, newName string) error {
 	}
 	_, err := c.cmd.Run("rename-session", "-t", ExactSessionTarget(oldName), newName)
 	if err != nil {
-		return fmt.Errorf("failed to rename tmux session %q to %q: %w", oldName, newName, err)
+		return fmt.Errorf("failed to rename tmux session %q to %q: %w", oldName, newName, wrapSessionTargetErr(oldName, err))
 	}
 	return nil
 }
@@ -293,7 +294,7 @@ func (c *Client) RenameSession(oldName, newName string) error {
 func (c *Client) SwitchClient(name string) error {
 	_, err := c.cmd.Run("switch-client", "-t", ExactSessionTarget(name))
 	if err != nil {
-		return fmt.Errorf("failed to switch to session %q: %w", name, err)
+		return fmt.Errorf("failed to switch to session %q: %w", name, wrapSessionTargetErr(name, err))
 	}
 	return nil
 }
@@ -578,7 +579,6 @@ func (c *Client) ListAllPanesWithFormat(format string) (string, error) {
 func (c *Client) ShowEnvironment(session string) (string, error) {
 	out, err := c.cmd.Run("show-environment", "-t", ExactSessionTarget(session))
 	if err != nil {
-		// Classify before the outer wrap, or the sentinel is unreachable.
 		return "", fmt.Errorf("failed to show environment for session %q: %w", session, wrapSessionTargetErr(session, err))
 	}
 	return out, nil
@@ -767,7 +767,7 @@ func (c *Client) SplitWindow(target, cwd, shellCommand string) error {
 func (c *Client) SetSessionEnvironment(session, key, value string) error {
 	_, err := c.cmd.Run("set-environment", "-t", ExactSessionTarget(session), key, value)
 	if err != nil {
-		return fmt.Errorf("failed to set env %s on %q: %w", key, session, err)
+		return fmt.Errorf("failed to set env %s on %q: %w", key, session, wrapSessionTargetErr(session, err))
 	}
 	return nil
 }

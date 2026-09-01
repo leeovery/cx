@@ -2,8 +2,10 @@ package tmux_test
 
 import (
 	"errors"
+	"maps"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -78,11 +80,24 @@ func siblingWindowLayout(t *testing.T, ts *tmuxtest.Socket) string {
 	return strings.TrimSpace(out)
 }
 
-// TestSessionTargets_GoneSessionDoesNotReachPrefixSibling is the wrong-session
-// half: every per-session read and write must miss rather than silently land on
-// the live sibling.
-func TestSessionTargets_GoneSessionDoesNotReachPrefixSibling(t *testing.T) {
-	t.Run("ActivePaneCurrentPath", func(t *testing.T) {
+// siblingFirstPaneField reads one tmux format field of the sibling's first
+// pane — the pane both saver reads resolve to.
+func siblingFirstPaneField(t *testing.T, ts *tmuxtest.Socket, format string) string {
+	t.Helper()
+	out := ts.Run(t, "list-panes", "-t", "="+prefixSibling+":", "-F", format)
+	first, _, _ := strings.Cut(strings.TrimSpace(out), "\n")
+	if first == "" {
+		t.Fatalf("list-panes -F %s on %q returned no pane", format, prefixSibling)
+	}
+	return first
+}
+
+// goneSessionRouteCases is the wrong-session half, one case per route: every
+// per-session read and write must miss rather than silently land on the live
+// sibling. Keyed by route name so the cases can be matched against
+// perSessionRoutes rather than trusted to stay in step with it.
+var goneSessionRouteCases = map[string]func(*testing.T){
+	"ActivePaneCurrentPath": func(t *testing.T) {
 		_, client, dir := seedPrefixSiblingServer(t)
 
 		got, err := client.ActivePaneCurrentPath(goneSession)
@@ -95,27 +110,27 @@ func TestSessionTargets_GoneSessionDoesNotReachPrefixSibling(t *testing.T) {
 		if err != nil || got != "" {
 			t.Errorf("ActivePaneCurrentPath(%q) = %q, %v; want an empty path and no error", goneSession, got, err)
 		}
-	})
+	},
 
-	t.Run("ListPanesInSession", func(t *testing.T) {
+	"ListPanesInSession": func(t *testing.T) {
 		_, client, _ := seedPrefixSiblingServer(t)
 
 		coords, err := client.ListPanesInSession(goneSession)
 		if err == nil {
 			t.Fatalf("ListPanesInSession(%q) succeeded with %v, want a tmux failure", goneSession, coords)
 		}
-	})
+	},
 
-	t.Run("ListWindowsAndPanesInSession", func(t *testing.T) {
+	"ListWindowsAndPanesInSession": func(t *testing.T) {
 		_, client, _ := seedPrefixSiblingServer(t)
 
 		groups, err := client.ListWindowsAndPanesInSession(goneSession)
 		if err == nil {
 			t.Fatalf("ListWindowsAndPanesInSession(%q) succeeded with %v, want a tmux failure", goneSession, groups)
 		}
-	})
+	},
 
-	t.Run("ShowEnvironment", func(t *testing.T) {
+	"ShowEnvironment": func(t *testing.T) {
 		ts, client, _ := seedPrefixSiblingServer(t)
 		ts.Run(t, "set-environment", "-t", prefixSibling, "PORTAL_SIB", "sibling-only")
 
@@ -129,9 +144,9 @@ func TestSessionTargets_GoneSessionDoesNotReachPrefixSibling(t *testing.T) {
 		if strings.Contains(out, "sibling-only") {
 			t.Errorf("ShowEnvironment(%q) read the live %q session's environment", goneSession, prefixSibling)
 		}
-	})
+	},
 
-	t.Run("SetSessionEnvironment", func(t *testing.T) {
+	"SetSessionEnvironment": func(t *testing.T) {
 		ts, client, _ := seedPrefixSiblingServer(t)
 
 		if err := client.SetSessionEnvironment(goneSession, "PORTAL_LEAK", "leaked"); err == nil {
@@ -140,9 +155,9 @@ func TestSessionTargets_GoneSessionDoesNotReachPrefixSibling(t *testing.T) {
 		if got := siblingEnvironment(t, ts); strings.Contains(got, "PORTAL_LEAK") {
 			t.Errorf("the write landed on the live %q session:\n%s", prefixSibling, got)
 		}
-	})
+	},
 
-	t.Run("SetSessionOption", func(t *testing.T) {
+	"SetSessionOption": func(t *testing.T) {
 		ts, client, _ := seedPrefixSiblingServer(t)
 
 		if err := client.SetSessionOption(goneSession, "@portal-leak", "leaked"); err == nil {
@@ -151,9 +166,35 @@ func TestSessionTargets_GoneSessionDoesNotReachPrefixSibling(t *testing.T) {
 		if got := siblingOptions(t, ts); strings.Contains(got, "@portal-leak") {
 			t.Errorf("the write landed on the live %q session:\n%s", prefixSibling, got)
 		}
-	})
+	},
 
-	t.Run("SelectLayout", func(t *testing.T) {
+	"SaverPaneID": func(t *testing.T) {
+		ts, client, _ := seedPrefixSiblingServer(t)
+		siblingPane := siblingFirstPaneField(t, ts, "#{pane_id}")
+
+		got, err := client.SaverPaneID(goneSession)
+		if got == siblingPane {
+			t.Fatalf("SaverPaneID(%q) returned %q — the live %q session's pane", goneSession, got, prefixSibling)
+		}
+		if !errors.Is(err, tmux.ErrNoSuchSession) {
+			t.Errorf("SaverPaneID(%q) = %q, %v; want an error matching ErrNoSuchSession", goneSession, got, err)
+		}
+	},
+
+	"SaverPanePIDOrAbsent": func(t *testing.T) {
+		ts, client, _ := seedPrefixSiblingServer(t)
+		siblingPID := siblingFirstPaneField(t, ts, "#{pane_pid}")
+
+		pid, present, err := tmux.SaverPanePIDOrAbsent(client, goneSession)
+		if strconv.Itoa(pid) == siblingPID {
+			t.Fatalf("SaverPanePIDOrAbsent(%q) returned %d — the live %q session's pane pid", goneSession, pid, prefixSibling)
+		}
+		if pid != 0 || present || err != nil {
+			t.Errorf("SaverPanePIDOrAbsent(%q) = (%d, %t, %v); want a collapsed absence (0, false, nil)", goneSession, pid, present, err)
+		}
+	},
+
+	"SelectLayout": func(t *testing.T) {
 		ts, client, _ := seedPrefixSiblingServer(t)
 		before := siblingWindowLayout(t, ts)
 
@@ -165,15 +206,14 @@ func TestSessionTargets_GoneSessionDoesNotReachPrefixSibling(t *testing.T) {
 		if got := siblingWindowLayout(t, ts); got != before {
 			t.Errorf("the live %q session's layout changed from %q to %q", prefixSibling, before, got)
 		}
-	})
+	},
 }
 
-// TestSessionTargets_LiveSessionStillResolves is the half that keeps the exact
-// forms honest: pinning the session must not cost the ordinary case, and a form
-// tmux cannot resolve at all would read as a permanent miss rather than a
-// wrong-session hit.
-func TestSessionTargets_LiveSessionStillResolves(t *testing.T) {
-	t.Run("ActivePaneCurrentPath", func(t *testing.T) {
+// liveSessionRouteCases is the half that keeps the exact forms honest: pinning
+// the session must not cost the ordinary case, and a form tmux cannot resolve
+// at all would read as a permanent miss rather than a wrong-session hit.
+var liveSessionRouteCases = map[string]func(*testing.T){
+	"ActivePaneCurrentPath": func(t *testing.T) {
 		_, client, dir := seedPrefixSiblingServer(t)
 
 		got, err := client.ActivePaneCurrentPath(prefixSibling)
@@ -183,9 +223,9 @@ func TestSessionTargets_LiveSessionStillResolves(t *testing.T) {
 		if got != dir {
 			t.Errorf("ActivePaneCurrentPath(%q) = %q, want %q", prefixSibling, got, dir)
 		}
-	})
+	},
 
-	t.Run("ListPanesInSession", func(t *testing.T) {
+	"ListPanesInSession": func(t *testing.T) {
 		_, client, _ := seedPrefixSiblingServer(t)
 
 		coords, err := client.ListPanesInSession(prefixSibling)
@@ -195,9 +235,9 @@ func TestSessionTargets_LiveSessionStillResolves(t *testing.T) {
 		if !slices.Equal(coords, siblingAllCoords) {
 			t.Errorf("ListPanesInSession(%q) = %v, want %v — every pane of every window", prefixSibling, coords, siblingAllCoords)
 		}
-	})
+	},
 
-	t.Run("ListWindowsAndPanesInSession", func(t *testing.T) {
+	"ListWindowsAndPanesInSession": func(t *testing.T) {
 		_, client, _ := seedPrefixSiblingServer(t)
 
 		groups, err := client.ListWindowsAndPanesInSession(prefixSibling)
@@ -212,9 +252,9 @@ func TestSessionTargets_LiveSessionStillResolves(t *testing.T) {
 				t.Errorf("window %d = %+v, want index %d holding panes [0 1]", i, group, i)
 			}
 		}
-	})
+	},
 
-	t.Run("ShowEnvironment", func(t *testing.T) {
+	"ShowEnvironment": func(t *testing.T) {
 		ts, client, _ := seedPrefixSiblingServer(t)
 		ts.Run(t, "set-environment", "-t", prefixSibling, "PORTAL_SIB", "sibling-only")
 
@@ -225,9 +265,9 @@ func TestSessionTargets_LiveSessionStillResolves(t *testing.T) {
 		if !strings.Contains(out, "PORTAL_SIB=sibling-only") {
 			t.Errorf("ShowEnvironment(%q) = %q, want it to carry PORTAL_SIB=sibling-only", prefixSibling, out)
 		}
-	})
+	},
 
-	t.Run("SetSessionEnvironment", func(t *testing.T) {
+	"SetSessionEnvironment": func(t *testing.T) {
 		ts, client, _ := seedPrefixSiblingServer(t)
 
 		if err := client.SetSessionEnvironment(prefixSibling, "PORTAL_SET", "written"); err != nil {
@@ -236,9 +276,9 @@ func TestSessionTargets_LiveSessionStillResolves(t *testing.T) {
 		if got := siblingEnvironment(t, ts); !strings.Contains(got, "PORTAL_SET=written") {
 			t.Errorf("the write did not land on %q:\n%s", prefixSibling, got)
 		}
-	})
+	},
 
-	t.Run("SetSessionOption", func(t *testing.T) {
+	"SetSessionOption": func(t *testing.T) {
 		ts, client, _ := seedPrefixSiblingServer(t)
 
 		if err := client.SetSessionOption(prefixSibling, "@portal-set", "written"); err != nil {
@@ -247,9 +287,35 @@ func TestSessionTargets_LiveSessionStillResolves(t *testing.T) {
 		if got := siblingOptions(t, ts); !strings.Contains(got, "@portal-set written") {
 			t.Errorf("the write did not land on %q:\n%s", prefixSibling, got)
 		}
-	})
+	},
 
-	t.Run("SelectLayout", func(t *testing.T) {
+	"SaverPaneID": func(t *testing.T) {
+		ts, client, _ := seedPrefixSiblingServer(t)
+		want := siblingFirstPaneField(t, ts, "#{pane_id}")
+
+		got, err := client.SaverPaneID(prefixSibling)
+		if err != nil {
+			t.Fatalf("SaverPaneID(%q): %v", prefixSibling, err)
+		}
+		if got != want {
+			t.Errorf("SaverPaneID(%q) = %q, want %q", prefixSibling, got, want)
+		}
+	},
+
+	"SaverPanePIDOrAbsent": func(t *testing.T) {
+		ts, client, _ := seedPrefixSiblingServer(t)
+		want := siblingFirstPaneField(t, ts, "#{pane_pid}")
+
+		pid, present, err := tmux.SaverPanePIDOrAbsent(client, prefixSibling)
+		if err != nil {
+			t.Fatalf("SaverPanePIDOrAbsent(%q): %v", prefixSibling, err)
+		}
+		if !present || strconv.Itoa(pid) != want {
+			t.Errorf("SaverPanePIDOrAbsent(%q) = (%d, %t), want (%s, true)", prefixSibling, pid, present, want)
+		}
+	},
+
+	"SelectLayout": func(t *testing.T) {
 		ts, client, _ := seedPrefixSiblingServer(t)
 		ts.Run(t, "select-layout", "-t", "="+prefixSibling+":0", "even-vertical")
 		before := siblingWindowLayout(t, ts)
@@ -259,6 +325,39 @@ func TestSessionTargets_LiveSessionStillResolves(t *testing.T) {
 		}
 		if got := siblingWindowLayout(t, ts); got == before {
 			t.Errorf("the layout of %q:0 is still %q — the write did not land", prefixSibling, got)
+		}
+	},
+}
+
+// runRouteCases runs every case in a route-keyed map, ordered so a failing run
+// reads the same way twice.
+func runRouteCases(t *testing.T, cases map[string]func(*testing.T)) {
+	t.Helper()
+	for _, name := range slices.Sorted(maps.Keys(cases)) {
+		t.Run(name, cases[name])
+	}
+}
+
+func TestSessionTargets_GoneSessionDoesNotReachPrefixSibling(t *testing.T) {
+	runRouteCases(t, goneSessionRouteCases)
+}
+
+func TestSessionTargets_LiveSessionStillResolves(t *testing.T) {
+	runRouteCases(t, liveSessionRouteCases)
+}
+
+func TestSessionTargets_EveryPerSessionRouteIsCovered(t *testing.T) {
+	t.Run("it covers every per-session read in the real-tmux prefix-sibling routes", func(t *testing.T) {
+		halves := map[string]map[string]func(*testing.T){
+			"gone-session": goneSessionRouteCases,
+			"live-session": liveSessionRouteCases,
+		}
+		for _, half := range slices.Sorted(maps.Keys(halves)) {
+			for _, route := range perSessionRoutes {
+				if _, ok := halves[half][route.name]; !ok {
+					t.Errorf("the %s half has no case for the %q route", half, route.name)
+				}
+			}
 		}
 	})
 }

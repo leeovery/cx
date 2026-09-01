@@ -12,8 +12,7 @@ import (
 func saverPanePID(c *Client, sessionName string) (int, error) {
 	out, err := c.cmd.Run("list-panes", "-t", ExactCoordTarget(sessionName), "-F", "#{pane_pid}")
 	if err != nil {
-		wrapped := wrapNoSuchSession(err)
-		return 0, fmt.Errorf("list-panes -t %s: %w", sessionName, wrapped)
+		return 0, fmt.Errorf("list-panes -t %s: %w", sessionName, wrapSessionTargetErr(sessionName, err))
 	}
 
 	for line := range strings.SplitSeq(out, "\n") {
@@ -36,7 +35,7 @@ func saverPanePID(c *Client, sessionName string) (int, error) {
 func (c *Client) SaverPaneID(sessionName string) (string, error) {
 	out, err := c.cmd.Run("list-panes", "-t", ExactCoordTarget(sessionName), "-F", "#{pane_id}")
 	if err != nil {
-		return "", fmt.Errorf("list-panes -t %s -F #{pane_id}: %w", sessionName, err)
+		return "", fmt.Errorf("list-panes -t %s -F #{pane_id}: %w", sessionName, wrapSessionTargetErr(sessionName, err))
 	}
 	for line := range strings.SplitSeq(out, "\n") {
 		if line = strings.TrimSpace(line); line != "" {
