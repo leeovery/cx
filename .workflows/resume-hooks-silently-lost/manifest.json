@@ -250,7 +250,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 7,
-          "current_task": "resume-hooks-silently-lost-7-22",
+          "current_task": "resume-hooks-silently-lost-7-23",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -345,7 +345,8 @@
             "resume-hooks-silently-lost-7-18",
             "resume-hooks-silently-lost-7-19",
             "resume-hooks-silently-lost-7-20",
-            "resume-hooks-silently-lost-7-21"
+            "resume-hooks-silently-lost-7-21",
+            "resume-hooks-silently-lost-7-22"
           ],
           "staging": {
             "p1": {
@@ -1263,6 +1264,88 @@
               "files": [
                 "cmd/hooks_test.go",
                 "cmd/hooks_rm_exit_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-22",
+              "source": "executor",
+              "summary": "A third exe-pinning route survives: prefix_sibling_integration_test.go builds a bare restore.SessionRestorer, outside the Orchestrator guard",
+              "detail": "Task 7-22 collapsed three staged-exe helpers to two (StagedHydrateExe as the primitive, StagedRestoreAdapter over it). The executor stopped there because internal/restore/prefix_sibling_integration_test.go pins a restore.SessionRestorer rather than an Orchestrator, so it still resolves the exe by hand. The new source guard only covers restore.Orchestrator composite literals, so this route is unguarded: a SessionRestorer built without a pinned exe would hit the same silent test-binary-arming failure the task exists to foreclose. Worth deciding whether the guard should cover SessionRestorer too, or whether that shape needs its own constructor.",
+              "files": [
+                "internal/restore/prefix_sibling_integration_test.go",
+                "internal/restoretest/orchestrator_literal_guard_test.go",
+                "internal/restoretest/orchestrator_staged.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-22",
+              "source": "reviewer",
+              "summary": "Six-plus spellings of the same list-panes live-coord read across the restore test corpus, only three prefix-safe",
+              "detail": "The same `list-panes -s -F \"#{window_index}:#{pane_index}\"` read is written out at nine sites: assertLivePanes (multipane_legacy_integration_test.go:105, added by this task) beside livePaneCoords (prefix_sibling_integration_test.go:76) in the SAME package, plus integration_full_test.go:214, rename_reboot_shared_test.go:123, exit_closes_pane_integration_test.go:179, armed_restore_integration_test.go:140, and cmd/bootstrap/reboot_roundtrip_test.go:256,268,552. Only three route through tmux.ExactCoordTarget; the rest carry the latent prefix-sibling trap that ExactCoordTarget exists to close. One restoretest reader would collapse all of them and make the prefix-safety uniform.",
+              "files": [
+                "internal/restore/multipane_legacy_integration_test.go",
+                "internal/restore/prefix_sibling_integration_test.go",
+                "internal/restore/integration_full_test.go",
+                "internal/restore/rename_reboot_shared_test.go",
+                "internal/restore/exit_closes_pane_integration_test.go",
+                "internal/restore/armed_restore_integration_test.go",
+                "cmd/bootstrap/reboot_roundtrip_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-22",
+              "source": "reviewer",
+              "summary": "bootstrapadapter.NewRestoreAdapter is a second unguarded route to an Exe-less orchestrator",
+              "detail": "internal/bootstrapadapter/adapters.go:64 builds a restore.Orchestrator without requiring Exe, so it bypasses the new source guard entirely (the guard only catches composite literals in *_test.go). Latent rather than live today: no test calls it directly — the only callers are restoretest.StagedRestoreAdapter and production cmd/bootstrap_production.go:55 — but it is the second door into the silent test-binary-arming failure the task exists to foreclose.",
+              "files": [
+                "internal/bootstrapadapter/adapters.go",
+                "internal/restoretest/orchestrator_literal_guard_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-22",
+              "source": "reviewer",
+              "summary": "legacyFixture and renameRebootFixture are now the same fixture with a pane loop as the only difference",
+              "detail": "After 7-22 parameterised the multipane arrange, newLegacyFixture with a one-element panes slice IS newRenameRebootFixture: identical struct shape, identical captureAndPersist/rebootAndHydrate method names and bodies modulo the pane loop. Merging them would touch internal/restore/rename_reboot_shared_test.go, rename_reboot_durability_integration_test.go and rename_reboot_hook_integration_test.go, which 7-22 did not scope — so the convergence was created by this task and left unresolved by it.",
+              "files": [
+                "internal/restore/multipane_legacy_integration_test.go",
+                "internal/restore/rename_reboot_shared_test.go",
+                "internal/restore/rename_reboot_durability_integration_test.go",
+                "internal/restore/rename_reboot_hook_integration_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-22",
+              "source": "executor",
+              "summary": "Temp-HOME teardown race is unguarded across every fixture that restores a pane into an interactive $SHELL",
+              "detail": "portaltest.IsolateStateForTest re-points HOME at a t.TempDir() (internal/portaltest/isolated_env.go:28) and neutralises only shell *history* (:35, HISTFILE=/dev/null). A restored pane's $SHELL writes other per-session files there (zsh's .zsh_sessions), and RegisterStateDirTeardownGuard (internal/portaltest/teardown_guard.go:53, 3s budget) waits on the STATE dir only — so the framework's RemoveAll of HOME races those writers and fails the test after its assertions passed. Observed once as `TempDir RemoveAll cleanup: unlinkat .../002: directory not empty` on TestNonContiguousWindowReboot_KeepsTokenKeyedHooks, and proved by instrumentation to be the temp HOME rather than the state dir. The same shape is reachable from every restore fixture, so the fix (a HOME-scoped quiescence wait, or pinning the shells' session dir the way HISTFILE is pinned) belongs in portaltest rather than in any one suite.",
+              "files": [
+                "internal/portaltest/isolated_env.go",
+                "internal/portaltest/teardown_guard.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-22",
+              "source": "reviewer",
+              "summary": "The temp-HOME teardown fix already exists locally in one fixture and is unshared",
+              "detail": "Third reviewer independently corroborated the 002-directory-not-empty diagnosis and found the remedy already written in this repo but never promoted: reapTmuxServer at cmd/concurrent_coldboot_integration_test.go:61-70 blocks until the tmux server is unreachable for exactly this reason (its comment names the lingering-shell-into-isolated-HOME race). Promoting it into portaltest, or registering it alongside RegisterStateDirTeardownGuard, closes the flake class for newDivergentRebootFixture and its siblings at once. Supersedes the bare diagnosis banked from the executor.",
+              "files": [
+                "internal/portaltest/isolated_env.go",
+                "internal/portaltest/teardown_guard_coverage_test.go",
+                "cmd/concurrent_coldboot_integration_test.go",
+                "cmd/noncontiguous_window_reboot_integration_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-22",
+              "source": "reviewer",
+              "summary": "SessionRestorer Exe guard needs an integration-tag-scoped shape, not a blanket one",
+              "detail": "Refines the earlier SessionRestorer bank entries with the reason a blanket guard is wrong: ~70 sites in session_test.go, session_geometry_test.go, session_markers_test.go and session_geometry_summary_test.go compose restore.SessionRestorer bare and mock-driven, where an unset Exe is harmless. Only prefix_sibling_integration_test.go:48 drives one against a live server. The proportionate shape is a guard scoped to integration-tagged test files plus a restoretest.NewSessionRestorer(t, client, stateDir, binDir) — not an extension of the existing Orchestrator guard.",
+              "files": [
+                "internal/restore/session.go",
+                "internal/restore/prefix_sibling_integration_test.go",
+                "internal/restoretest/orchestrator_staged.go",
+                "internal/restoretest/orchestrator_literal_guard_test.go"
               ]
             }
           ]
