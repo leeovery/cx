@@ -16,6 +16,17 @@ func keyPageDown() tea.KeyPressMsg {
 	return tea.KeyPressMsg{Code: tea.KeyDown, Mod: tea.ModCtrl}
 }
 
+// No Text, for the same reason as keyPageDown: these are not printable, and a
+// Text-bearing message would also reach the rune arms they must not.
+func keyEnter() tea.KeyPressMsg {
+	return tea.KeyPressMsg{Code: tea.KeyEnter}
+}
+
+// keyLineStart is the text input's own line-start binding.
+func keyLineStart() tea.KeyPressMsg {
+	return tea.KeyPressMsg{Code: 'a', Mod: tea.ModCtrl}
+}
+
 // ModelAt drives the model to its captured state with no tea program running.
 // BootstrapCompleteMsg and LoadingMinElapsedMsg are deliberately never sent:
 // loading fixtures stay parked precisely because neither arrives.

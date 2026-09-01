@@ -138,6 +138,8 @@ func fixtureBuilders() []func() *Fixture {
 		sessionsByTagFixture,
 		sessionsPagedFixture,
 		sessionsInlineFlashFixture,
+		sessionsRenameRefusedSeparatorFixture,
+		sessionsRenameRefusedIDPrefixFixture,
 		sessionsMultiSelectActiveFixture,
 		sessionsUnsupportedTerminalFixture,
 		sessionsUnsupportedNullFixture,
@@ -329,6 +331,25 @@ func sessionsInlineFlashFixture() *Fixture {
 		initialMode:  prefs.ModeFlat,
 		initialFlash: "folio-Jiz4el closed externally — list updated",
 	}
+}
+
+// The refusal is typed, never seeded: the keys open the real rename modal and
+// commit an unaddressable name, so the band carries production's own wording
+// rather than a copy of it this file could drift from.
+func sessionsRenameRefusedSeparatorFixture() *Fixture {
+	fx := sessionsFlatFixture()
+	fx.name = "sessions-rename-refused-separator"
+	fx.captureKeys = []tea.KeyPressMsg{keyRune('r'), keyRune(':'), keyEnter()}
+	return fx
+}
+
+// The modal opens with the cursor at the end of the current name and only a
+// leading "$" is refused, so the line-start key is load-bearing.
+func sessionsRenameRefusedIDPrefixFixture() *Fixture {
+	fx := sessionsFlatFixture()
+	fx.name = "sessions-rename-refused-id-prefix"
+	fx.captureKeys = []tea.KeyPressMsg{keyRune('r'), keyLineStart(), keyRune('$'), keyEnter()}
+	return fx
 }
 
 func sessionsMultiSelectActiveFixture() *Fixture {

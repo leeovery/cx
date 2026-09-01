@@ -194,6 +194,8 @@ The verb is **`hook`** (singular); **`hooks`** is kept as a permanent silent ali
 
 Hooks stay attached to a session even if you rename it, whether from the picker's `r` modal or an external `tmux rename-session`. A renamed session still re-runs its command after the next reboot.
 
+Two kinds of name are refused, by the picker's `r` modal and by Portal's own rename alike, because the exact-match tmux target every per-session operation composes cannot address them afterwards: `":" isn't allowed in a session name — tmux reads it as a separator`, and `"$" isn't allowed at the start of a session name — tmux reads it as a session ID`. The picker says exactly that and leaves the session under its old name; nothing is renamed, and a hook already registered against the pane is untouched.
+
 ```bash
 xctl hook set --on-resume "npm start"            # register a resume hook
 xctl hook rm --on-resume                         # remove the current pane's hook
