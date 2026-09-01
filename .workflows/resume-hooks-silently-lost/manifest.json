@@ -250,7 +250,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 7,
-          "current_task": "resume-hooks-silently-lost-7-26",
+          "current_task": "resume-hooks-silently-lost-7-27",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -349,7 +349,8 @@
             "resume-hooks-silently-lost-7-22",
             "resume-hooks-silently-lost-7-23",
             "resume-hooks-silently-lost-7-24",
-            "resume-hooks-silently-lost-7-25"
+            "resume-hooks-silently-lost-7-25",
+            "resume-hooks-silently-lost-7-26"
           ],
           "staging": {
             "p1": {
@@ -1502,6 +1503,43 @@
                 "cmd/state_signal_hydrate.go",
                 "cmd/testhelpers_test.go",
                 "cmd/deps_seam_guard_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-26",
+              "source": "executor",
+              "summary": "None of the seven cmd Commander fakes honoured the Run/RunRaw trim-vs-verbatim split — the contract was absent seven times, not divided seven ways",
+              "detail": "The task premised that seven independent Commander implementations would DIVERGE on the trim-versus-verbatim split the moment it changed. The executor found the premise understated: every one of the seven had RunRaw either delegate to Run or dispatch identically, so the contract was not being honoured anywhere in cmd test code. The new scriptedCommander implements it properly (commanderRun/commanderRunRaw), and the surviving daemonFakeCommander now routes through the same pair. Worth checking whether the same absence holds for the Commander fakes OUTSIDE cmd (internal/state, internal/tmux, internal/restore, internal/restoretest), which were out of this task scope — if so, no test anywhere pins the split, and a production change to it would land silently.",
+              "files": [
+                "cmd/scripted_commander_test.go",
+                "internal/state",
+                "internal/tmux",
+                "internal/restore",
+                "internal/restoretest"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-26",
+              "source": "reviewer",
+              "summary": "Four Commander fakes outside cmd still collapse the trim/verbatim split — the divergence risk lives on in four packages",
+              "detail": "Answers the question the executor banked. internal/tmux/tmux_test.go:29 (MockCommander.RunRaw records and dispatches identically to Run), internal/restore/session_test.go:32 (same), internal/restoretest/restore_marker_test.go:37 (RunRaw delegates to Run), internal/state/capture_test.go:67 (RunRaw Fatalfs — a deliberate stance, but a fourth statement of the contract). 7-26 homed the scripted fake in cmd, which the reviewer judged right for THAT task, but promoting it beside transienttest.Commander would close these four. Until then no test outside cmd pins the split, so a production change to it lands silently there.",
+              "files": [
+                "internal/tmux/tmux_test.go",
+                "internal/restore/session_test.go",
+                "internal/restoretest/restore_marker_test.go",
+                "internal/state/capture_test.go",
+                "internal/transienttest/commander.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-26",
+              "source": "reviewer",
+              "summary": "Four parallel call-log filters now coexist in package cmd",
+              "detail": "countOp (cmd/abridged_saver_test.go:52), callIndex and setHookCalls (cmd/uninstall_test.go:25,35) and the new callsMatching (cmd/scripted_commander_test.go:199) all filter [][]string call logs. Consolidating would touch assertions in uninstall_test.go and abridged_saver_test.go that 7-26 otherwise only rewrote mechanically, so it was left. Note callsMatching currently has no consumer outside its own contract test — the reviewer flagged it as a small YAGNI addition whose three package-local equivalents make a future consumer plausible; a consolidation would resolve both at once.",
+              "files": [
+                "cmd/scripted_commander_test.go",
+                "cmd/uninstall_test.go",
+                "cmd/abridged_saver_test.go"
               ]
             }
           ]
