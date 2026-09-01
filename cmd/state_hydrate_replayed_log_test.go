@@ -197,7 +197,7 @@ func TestHydrateReplayedLog_NotEmittedOnTimeoutPath(t *testing.T) {
 
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
 	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "not:0.0",
-		OpenFIFO: instantTimeoutOpenFIFO, Logger: logger})
+		OpenFIFO: instantTimeoutOpenFIFO, HandleTimeout: handleHydrateTimeout, Logger: logger})
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
@@ -217,7 +217,7 @@ func TestHydrateReplayedLog_NotEmittedOnFileMissingPath(t *testing.T) {
 
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
 	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: scrollback, HookKey: "fm:0.0",
-		OpenFIFO: openFIFOWithTimeout, Logger: logger})
+		OpenFIFO: openFIFOWithTimeout, HandleFileMissing: handleHydrateFileMissing, Logger: logger})
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)

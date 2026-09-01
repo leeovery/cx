@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"log/slog"
@@ -88,15 +89,15 @@ func TestHydrate_BlocksOnFIFOUntilSignalArrives(t *testing.T) {
 		close(signalSent)
 	}()
 
-	cfg := hydrateConfig{
+	cfg := hydrateCfg(t, hydrateCfgOpts{
 		FIFO:      fifo,
 		File:      scrollback,
 		HookKey:   "foo:0.0",
-		Stdout:    stdout,
-		Client:    tmux.NewClient(cmder),
-		ExecShell: exec.fn(),
 		OpenFIFO:  openFIFOWithTimeout,
-	}
+		Stdout:    stdout,
+		Commander: cmder,
+		ExecShell: exec.fn(),
+	})
 	start := time.Now()
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
@@ -131,15 +132,12 @@ func TestHydrate_ReadsSingleByteFromFIFOOnSignal(t *testing.T) {
 		_ = f.Close()
 	}()
 
-	cfg := hydrateConfig{
-		FIFO:      fifo,
-		File:      scrollback,
-		HookKey:   "foo:0.0",
-		Stdout:    io.Discard,
-		Client:    tmux.NewClient(quietCommander()),
-		ExecShell: (&stubExecShell{}).fn(),
-		OpenFIFO:  openFIFOWithTimeout,
-	}
+	cfg := hydrateCfg(t, hydrateCfgOpts{
+		FIFO:     fifo,
+		File:     scrollback,
+		HookKey:  "foo:0.0",
+		OpenFIFO: openFIFOWithTimeout,
+	})
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
 	}
@@ -157,15 +155,12 @@ func TestHydrate_RemovesFIFOAfterReading(t *testing.T) {
 
 	signalFIFOAsync(t, fifo)
 
-	cfg := hydrateConfig{
-		FIFO:      fifo,
-		File:      scrollback,
-		HookKey:   "bar:0.0",
-		Stdout:    io.Discard,
-		Client:    tmux.NewClient(quietCommander()),
-		ExecShell: (&stubExecShell{}).fn(),
-		OpenFIFO:  openFIFOWithTimeout,
-	}
+	cfg := hydrateCfg(t, hydrateCfgOpts{
+		FIFO:     fifo,
+		File:     scrollback,
+		HookKey:  "bar:0.0",
+		OpenFIFO: openFIFOWithTimeout,
+	})
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
 	}
@@ -184,13 +179,13 @@ func TestHydrate_EmitsResetPreambleBeforeDump(t *testing.T) {
 	signalFIFOAsync(t, fifo)
 
 	stdout := new(bytes.Buffer)
-	cfg := hydrateConfig{
-		FIFO: fifo, File: scrollback, HookKey: "x:0.0",
-		Stdout:    stdout,
-		Client:    tmux.NewClient(quietCommander()),
-		ExecShell: (&stubExecShell{}).fn(),
-		OpenFIFO:  openFIFOWithTimeout,
-	}
+	cfg := hydrateCfg(t, hydrateCfgOpts{
+		FIFO:     fifo,
+		File:     scrollback,
+		HookKey:  "x:0.0",
+		OpenFIFO: openFIFOWithTimeout,
+		Stdout:   stdout,
+	})
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
 	}
@@ -216,13 +211,13 @@ func TestHydrate_StreamsScrollbackBytesVerbatim(t *testing.T) {
 	signalFIFOAsync(t, fifo)
 
 	stdout := new(bytes.Buffer)
-	cfg := hydrateConfig{
-		FIFO: fifo, File: scrollback, HookKey: "y:0.0",
-		Stdout:    stdout,
-		Client:    tmux.NewClient(quietCommander()),
-		ExecShell: (&stubExecShell{}).fn(),
-		OpenFIFO:  openFIFOWithTimeout,
-	}
+	cfg := hydrateCfg(t, hydrateCfgOpts{
+		FIFO:     fifo,
+		File:     scrollback,
+		HookKey:  "y:0.0",
+		OpenFIFO: openFIFOWithTimeout,
+		Stdout:   stdout,
+	})
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
 	}
@@ -241,13 +236,13 @@ func TestHydrate_EmitsResetPostambleWithCRLFAfterDump(t *testing.T) {
 	signalFIFOAsync(t, fifo)
 
 	stdout := new(bytes.Buffer)
-	cfg := hydrateConfig{
-		FIFO: fifo, File: scrollback, HookKey: "z:0.0",
-		Stdout:    stdout,
-		Client:    tmux.NewClient(quietCommander()),
-		ExecShell: (&stubExecShell{}).fn(),
-		OpenFIFO:  openFIFOWithTimeout,
-	}
+	cfg := hydrateCfg(t, hydrateCfgOpts{
+		FIFO:     fifo,
+		File:     scrollback,
+		HookKey:  "z:0.0",
+		OpenFIFO: openFIFOWithTimeout,
+		Stdout:   stdout,
+	})
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
 	}
@@ -275,13 +270,13 @@ func TestHydrate_Sleeps100msBeforeUnsettingMarker(t *testing.T) {
 	signalFIFOAsync(t, fifo)
 
 	cmder := quietCommander()
-	cfg := hydrateConfig{
-		FIFO: fifo, File: scrollback, HookKey: "q:0.0",
-		Stdout:    io.Discard,
-		Client:    tmux.NewClient(cmder),
-		ExecShell: (&stubExecShell{}).fn(),
+	cfg := hydrateCfg(t, hydrateCfgOpts{
+		FIFO:      fifo,
+		File:      scrollback,
+		HookKey:   "q:0.0",
 		OpenFIFO:  openFIFOWithTimeout,
-	}
+		Commander: cmder,
+	})
 
 	start := time.Now()
 	if err := runHydrate(cfg); err != nil {
@@ -306,13 +301,13 @@ func TestHydrate_UnsetsSkeletonMarkerWithSetOptionSU(t *testing.T) {
 	signalFIFOAsync(t, fifo)
 
 	cmder := quietCommander()
-	cfg := hydrateConfig{
-		FIFO: fifo, File: scrollback, HookKey: "foo:0.0",
-		Stdout:    io.Discard,
-		Client:    tmux.NewClient(cmder),
-		ExecShell: (&stubExecShell{}).fn(),
+	cfg := hydrateCfg(t, hydrateCfgOpts{
+		FIFO:      fifo,
+		File:      scrollback,
+		HookKey:   "foo:0.0",
 		OpenFIFO:  openFIFOWithTimeout,
-	}
+		Commander: cmder,
+	})
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
 	}
@@ -349,13 +344,13 @@ func TestHydrate_PreservesANSISequencesInDump(t *testing.T) {
 	signalFIFOAsync(t, fifo)
 
 	stdout := new(bytes.Buffer)
-	cfg := hydrateConfig{
-		FIFO: fifo, File: scrollback, HookKey: "a:0.0",
-		Stdout:    stdout,
-		Client:    tmux.NewClient(quietCommander()),
-		ExecShell: (&stubExecShell{}).fn(),
-		OpenFIFO:  openFIFOWithTimeout,
-	}
+	cfg := hydrateCfg(t, hydrateCfgOpts{
+		FIFO:     fifo,
+		File:     scrollback,
+		HookKey:  "a:0.0",
+		OpenFIFO: openFIFOWithTimeout,
+		Stdout:   stdout,
+	})
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
 	}
@@ -381,13 +376,13 @@ func TestHydrate_StreamsLargeScrollbackFile(t *testing.T) {
 	signalFIFOAsync(t, fifo)
 
 	stdout := new(bytes.Buffer)
-	cfg := hydrateConfig{
-		FIFO: fifo, File: scrollback, HookKey: "big:0.0",
-		Stdout:    stdout,
-		Client:    tmux.NewClient(quietCommander()),
-		ExecShell: (&stubExecShell{}).fn(),
-		OpenFIFO:  openFIFOWithTimeout,
-	}
+	cfg := hydrateCfg(t, hydrateCfgOpts{
+		FIFO:     fifo,
+		File:     scrollback,
+		HookKey:  "big:0.0",
+		OpenFIFO: openFIFOWithTimeout,
+		Stdout:   stdout,
+	})
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
 	}
@@ -415,13 +410,16 @@ func TestHydrate_ExecsShellWhenNoHookApplies(t *testing.T) {
 	t.Setenv("SHELL", "/usr/local/bin/myshell")
 
 	exec := &stubExecShell{}
-	cfg := hydrateConfig{
-		FIFO: fifo, File: scrollback, HookKey: "s:0.0",
-		Stdout:    io.Discard,
-		Client:    tmux.NewClient(quietCommander()),
-		ExecShell: exec.fn(),
+	cfg := hydrateCfg(t, hydrateCfgOpts{
+		FIFO:      fifo,
+		File:      scrollback,
+		HookKey:   "s:0.0",
 		OpenFIFO:  openFIFOWithTimeout,
-	}
+		ExecShell: exec.fn(),
+		// The absent hook store is the subject: with none, the helper must
+		// reach a bare shell.
+		HookStore: nil,
+	})
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
 	}
@@ -444,13 +442,16 @@ func TestHydrate_DefaultsShellToBinSh(t *testing.T) {
 	t.Setenv("SHELL", "")
 
 	exec := &stubExecShell{}
-	cfg := hydrateConfig{
-		FIFO: fifo, File: scrollback, HookKey: "d:0.0",
-		Stdout:    io.Discard,
-		Client:    tmux.NewClient(quietCommander()),
-		ExecShell: exec.fn(),
+	cfg := hydrateCfg(t, hydrateCfgOpts{
+		FIFO:      fifo,
+		File:      scrollback,
+		HookKey:   "d:0.0",
 		OpenFIFO:  openFIFOWithTimeout,
-	}
+		ExecShell: exec.fn(),
+		// No hook store, so the bare shell whose default is under test is the
+		// route taken.
+		HookStore: nil,
+	})
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
 	}
@@ -469,13 +470,14 @@ func TestHydrate_DoesNotReadHooksFileInThisPhase(t *testing.T) {
 
 	signalFIFOAsync(t, fifo)
 
-	cfg := hydrateConfig{
-		FIFO: fifo, File: scrollback, HookKey: "h:0.0",
-		Stdout:    io.Discard,
-		Client:    tmux.NewClient(quietCommander()),
-		ExecShell: (&stubExecShell{}).fn(),
-		OpenFIFO:  openFIFOWithTimeout,
-	}
+	cfg := hydrateCfg(t, hydrateCfgOpts{
+		FIFO:     fifo,
+		File:     scrollback,
+		HookKey:  "h:0.0",
+		OpenFIFO: openFIFOWithTimeout,
+		// The absent hook store is the subject: nothing may read hooks.json.
+		HookStore: nil,
+	})
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
 	}
@@ -512,11 +514,10 @@ func TestHydrate_TimeoutPathInvokesHandleTimeout(t *testing.T) {
 	_ = os.WriteFile(scrollback, []byte(""), 0o600)
 
 	called := false
-	cfg := hydrateConfig{
-		FIFO: fifo, File: scrollback, HookKey: "t:0.0",
-		Stdout:    io.Discard,
-		Client:    tmux.NewClient(quietCommander()),
-		ExecShell: (&stubExecShell{}).fn(),
+	cfg := hydrateCfg(t, hydrateCfgOpts{
+		FIFO:    fifo,
+		File:    scrollback,
+		HookKey: "t:0.0",
 		OpenFIFO: func(_ string, _ time.Duration) (*os.File, error) {
 			return nil, ErrHydrateTimeout
 		},
@@ -524,7 +525,7 @@ func TestHydrate_TimeoutPathInvokesHandleTimeout(t *testing.T) {
 			called = true
 			return nil
 		},
-	}
+	})
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
 	}
@@ -541,17 +542,16 @@ func TestHydrate_FileMissingPathInvokesHandleFileMissing(t *testing.T) {
 	signalFIFOAsync(t, fifo)
 
 	called := false
-	cfg := hydrateConfig{
-		FIFO: fifo, File: scrollback, HookKey: "m:0.0",
-		Stdout:    io.Discard,
-		Client:    tmux.NewClient(quietCommander()),
-		ExecShell: (&stubExecShell{}).fn(),
-		OpenFIFO:  openFIFOWithTimeout,
+	cfg := hydrateCfg(t, hydrateCfgOpts{
+		FIFO:     fifo,
+		File:     scrollback,
+		HookKey:  "m:0.0",
+		OpenFIFO: openFIFOWithTimeout,
 		HandleFileMissing: func(_ hydrateConfig, _ hydrateFileMissingContext) error {
 			called = true
 			return nil
 		},
-	}
+	})
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
 	}
@@ -569,14 +569,15 @@ func TestHydrate_FileMissing_ENOENT_EmitsPreambleAndExecsShell(t *testing.T) {
 
 	stdout := new(bytes.Buffer)
 	exec := &stubExecShell{}
-	cfg := hydrateConfig{
-		FIFO: fifo, File: scrollback, HookKey: "fm:0.0",
-		Stdout:            stdout,
-		Client:            tmux.NewClient(quietCommander()),
-		ExecShell:         exec.fn(),
+	cfg := hydrateCfg(t, hydrateCfgOpts{
+		FIFO:              fifo,
+		File:              scrollback,
+		HookKey:           "fm:0.0",
 		OpenFIFO:          openFIFOWithTimeout,
+		Stdout:            stdout,
+		ExecShell:         exec.fn(),
 		HandleFileMissing: handleHydrateFileMissing,
-	}
+	})
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
 	}
@@ -605,14 +606,15 @@ func TestHydrate_FileMissing_PermissionDenied_EmitsPreambleAndExecsShell(t *test
 
 	stdout := new(bytes.Buffer)
 	exec := &stubExecShell{}
-	cfg := hydrateConfig{
-		FIFO: fifo, File: scrollback, HookKey: "fp:0.0",
-		Stdout:            stdout,
-		Client:            tmux.NewClient(quietCommander()),
-		ExecShell:         exec.fn(),
+	cfg := hydrateCfg(t, hydrateCfgOpts{
+		FIFO:              fifo,
+		File:              scrollback,
+		HookKey:           "fp:0.0",
 		OpenFIFO:          openFIFOWithTimeout,
+		Stdout:            stdout,
+		ExecShell:         exec.fn(),
 		HandleFileMissing: handleHydrateFileMissing,
-	}
+	})
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
 	}
@@ -639,11 +641,14 @@ func TestHydrate_FileMissing_MidStreamCopyError_LeavesPartialBytes(t *testing.T)
 	stdout.WriteString("partial-bytes-already-on-stdout")
 
 	cmder := quietCommander()
-	cfg := hydrateConfig{
-		FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "mid:0.0",
-		Stdout: stdout,
-		Client: tmux.NewClient(cmder),
-	}
+	cfg := hydrateCfg(t, hydrateCfgOpts{
+		FIFO:      fifo,
+		File:      filepath.Join(dir, "sb"),
+		HookKey:   "mid:0.0",
+		OpenFIFO:  unexpectedOpenFIFO(t),
+		Stdout:    stdout,
+		Commander: cmder,
+	})
 
 	start := time.Now()
 	if err := handleHydrateFileMissing(cfg, hydrateFileMissingContext{Cause: errors.New("read: I/O error")}); err != nil {
@@ -671,15 +676,14 @@ func TestHydrate_FileMissing_LogsENOENTDistinctly(t *testing.T) {
 
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
 
-	cfg := hydrateConfig{
-		FIFO: fifo, File: scrollback, HookKey: "le:0.0",
-		Stdout:            io.Discard,
-		Client:            tmux.NewClient(quietCommander()),
-		Logger:            logger,
-		ExecShell:         (&stubExecShell{}).fn(),
+	cfg := hydrateCfg(t, hydrateCfgOpts{
+		FIFO:              fifo,
+		File:              scrollback,
+		HookKey:           "le:0.0",
 		OpenFIFO:          openFIFOWithTimeout,
+		Logger:            logger,
 		HandleFileMissing: handleHydrateFileMissing,
-	}
+	})
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
 	}
@@ -706,15 +710,14 @@ func TestHydrate_FileMissing_LogsPermissionDistinctly(t *testing.T) {
 
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
 
-	cfg := hydrateConfig{
-		FIFO: fifo, File: scrollback, HookKey: "lp:0.0",
-		Stdout:            io.Discard,
-		Client:            tmux.NewClient(quietCommander()),
-		Logger:            logger,
-		ExecShell:         (&stubExecShell{}).fn(),
+	cfg := hydrateCfg(t, hydrateCfgOpts{
+		FIFO:              fifo,
+		File:              scrollback,
+		HookKey:           "lp:0.0",
 		OpenFIFO:          openFIFOWithTimeout,
+		Logger:            logger,
 		HandleFileMissing: handleHydrateFileMissing,
-	}
+	})
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
 	}
@@ -733,12 +736,14 @@ func TestHydrate_FileMissing_LogsGenericIOError(t *testing.T) {
 
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
 
-	cfg := hydrateConfig{
-		FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "lg:0.0",
-		Stdout: stdout,
-		Client: tmux.NewClient(quietCommander()),
-		Logger: logger,
-	}
+	cfg := hydrateCfg(t, hydrateCfgOpts{
+		FIFO:     fifo,
+		File:     filepath.Join(dir, "sb"),
+		HookKey:  "lg:0.0",
+		OpenFIFO: unexpectedOpenFIFO(t),
+		Stdout:   stdout,
+		Logger:   logger,
+	})
 	genericErr := errors.New("synthetic mid-stream failure")
 	if err := handleHydrateFileMissing(cfg, hydrateFileMissingContext{Cause: genericErr}); err != nil {
 		t.Fatalf("handleHydrateFileMissing: %v", err)
@@ -762,15 +767,14 @@ func TestHydrate_FileMissing_LogIncludesHookKeyAndFile(t *testing.T) {
 
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
 
-	cfg := hydrateConfig{
-		FIFO: fifo, File: scrollback, HookKey: "li:0.0",
-		Stdout:            io.Discard,
-		Client:            tmux.NewClient(quietCommander()),
-		Logger:            logger,
-		ExecShell:         (&stubExecShell{}).fn(),
+	cfg := hydrateCfg(t, hydrateCfgOpts{
+		FIFO:              fifo,
+		File:              scrollback,
+		HookKey:           "li:0.0",
 		OpenFIFO:          openFIFOWithTimeout,
+		Logger:            logger,
 		HandleFileMissing: handleHydrateFileMissing,
-	}
+	})
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
 	}
@@ -792,14 +796,14 @@ func TestHydrate_FileMissing_UnsetsSkeletonMarkerWithSetOptionSU(t *testing.T) {
 	signalFIFOAsync(t, fifo)
 
 	cmder := quietCommander()
-	cfg := hydrateConfig{
-		FIFO: fifo, File: scrollback, HookKey: "fu:0.0",
-		Stdout:            io.Discard,
-		Client:            tmux.NewClient(cmder),
-		ExecShell:         (&stubExecShell{}).fn(),
+	cfg := hydrateCfg(t, hydrateCfgOpts{
+		FIFO:              fifo,
+		File:              scrollback,
+		HookKey:           "fu:0.0",
 		OpenFIFO:          openFIFOWithTimeout,
+		Commander:         cmder,
 		HandleFileMissing: handleHydrateFileMissing,
-	}
+	})
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
 	}
@@ -833,14 +837,13 @@ func TestHydrate_FileMissing_SkipsSettleSleep(t *testing.T) {
 
 	signalFIFOAsync(t, fifo)
 
-	cfg := hydrateConfig{
-		FIFO: fifo, File: scrollback, HookKey: "fs:0.0",
-		Stdout:            io.Discard,
-		Client:            tmux.NewClient(quietCommander()),
-		ExecShell:         (&stubExecShell{}).fn(),
+	cfg := hydrateCfg(t, hydrateCfgOpts{
+		FIFO:              fifo,
+		File:              scrollback,
+		HookKey:           "fs:0.0",
 		OpenFIFO:          openFIFOWithTimeout,
 		HandleFileMissing: handleHydrateFileMissing,
-	}
+	})
 
 	start := time.Now()
 	if err := runHydrate(cfg); err != nil {
@@ -862,14 +865,15 @@ func TestHydrate_FileMissing_DoesNotReadHooksFile(t *testing.T) {
 
 	signalFIFOAsync(t, fifo)
 
-	cfg := hydrateConfig{
-		FIFO: fifo, File: scrollback, HookKey: "fh:0.0",
-		Stdout:            io.Discard,
-		Client:            tmux.NewClient(quietCommander()),
-		ExecShell:         (&stubExecShell{}).fn(),
+	cfg := hydrateCfg(t, hydrateCfgOpts{
+		FIFO:              fifo,
+		File:              scrollback,
+		HookKey:           "fh:0.0",
 		OpenFIFO:          openFIFOWithTimeout,
 		HandleFileMissing: handleHydrateFileMissing,
-	}
+		// The absent hook store is the subject: nothing may read hooks.json.
+		HookStore: nil,
+	})
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
 	}
@@ -888,11 +892,13 @@ func TestHydrate_FileMissing_LeavesPartialBytesOnMidStreamFailure(t *testing.T) 
 	const partial = "ABC partial data DEF"
 	stdout.WriteString(partial)
 
-	cfg := hydrateConfig{
-		FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "mp:0.0",
-		Stdout: stdout,
-		Client: tmux.NewClient(quietCommander()),
-	}
+	cfg := hydrateCfg(t, hydrateCfgOpts{
+		FIFO:     fifo,
+		File:     filepath.Join(dir, "sb"),
+		HookKey:  "mp:0.0",
+		OpenFIFO: unexpectedOpenFIFO(t),
+		Stdout:   stdout,
+	})
 	if err := handleHydrateFileMissing(cfg, hydrateFileMissingContext{Cause: errors.New("eio")}); err != nil {
 		t.Fatalf("handleHydrateFileMissing: %v", err)
 	}
@@ -911,27 +917,66 @@ func instantTimeoutOpenFIFO(_ string, _ time.Duration) (*os.File, error) {
 	return nil, ErrHydrateTimeout
 }
 
+// unexpectedOpenFIFO stands in for a case that drives a handler or the exec
+// chain directly and opens no FIFO. Reaching it means the case took a route it
+// was not written for, so it says so rather than blocking on a real open.
+func unexpectedOpenFIFO(t *testing.T) func(path string, timeout time.Duration) (*os.File, error) {
+	t.Helper()
+	return func(path string, _ time.Duration) (*os.File, error) {
+		t.Errorf("OpenFIFO called on a case that opens no FIFO: %s", path)
+		return nil, ErrHydrateTimeout
+	}
+}
+
+// unexpectedTimeout is what an unnamed HandleTimeout becomes: returning an error
+// makes runHydrate propagate rather than recover, so a stray timeout surfaces
+// instead of quietly completing. Its error names the wrong route and does not
+// wrap ErrHydrateTimeout.
+func unexpectedTimeout(t *testing.T) func(cfg hydrateConfig) error {
+	t.Helper()
+	return func(cfg hydrateConfig) error {
+		return fmt.Errorf("unexpected timeout path for a case that does not exercise it: %s", cfg.FIFO)
+	}
+}
+
+// unexpectedFileMissing is the file-missing counterpart of unexpectedTimeout,
+// with the same reasoning.
+func unexpectedFileMissing(t *testing.T) func(cfg hydrateConfig, ctx hydrateFileMissingContext) error {
+	t.Helper()
+	return func(cfg hydrateConfig, ctx hydrateFileMissingContext) error {
+		return fmt.Errorf("unexpected file-missing path for a case that does not exercise it: %s: %w", cfg.File, ctx.Cause)
+	}
+}
+
 // hydrateCfgOpts names the parts a hydrate case varies. Stdout, Commander and
 // ExecShell default when unset — a discarded stdout, a fresh recording
 // commander, and a stub exec whose recordings nobody reads. Logger and HookStore
 // do not: a nil Logger falls through to the package logger, and a nil HookStore
 // is the bare-shell scenario rather than an omission.
+//
+// Neither handler defaults to its production counterpart. The replay, timeout
+// and file-missing routes share an end state — preamble on stdout, skeleton
+// marker unset, shell or hook exec — so wiring a handler a case never named
+// would let a stray excursion satisfy assertions written for a different route.
+// An unnamed handler therefore becomes a stand-in that returns an error, so the
+// excursion surfaces instead of completing.
 type hydrateCfgOpts struct {
-	FIFO      string
-	File      string
-	HookKey   string
-	OpenFIFO  func(path string, timeout time.Duration) (*os.File, error)
-	Stdout    io.Writer
-	Commander tmux.Commander
-	Logger    *slog.Logger
-	HookStore *hooks.Store
-	ExecShell func(prog string, args []string)
+	FIFO              string
+	File              string
+	HookKey           string
+	OpenFIFO          func(path string, timeout time.Duration) (*os.File, error)
+	Stdout            io.Writer
+	Commander         tmux.Commander
+	Logger            *slog.Logger
+	HookStore         *hooks.Store
+	ExecShell         func(prog string, args []string)
+	HandleFileMissing func(cfg hydrateConfig, ctx hydrateFileMissingContext) error
+	HandleTimeout     func(cfg hydrateConfig) error
 }
 
-// hydrateCfg builds the config a hydrate case runs against. Both handlers are
-// always wired, so a case names only what it varies: the OpenFIFO seam decides
-// whether the timeout handler fires, and the scrollback File decides whether the
-// file-missing one does.
+// hydrateCfg builds the config a hydrate case runs against: the case names the
+// seams that decide its route — the OpenFIFO seam and whichever handler its
+// route ends in — and the rest defaults.
 func hydrateCfg(t *testing.T, opts hydrateCfgOpts) hydrateConfig {
 	t.Helper()
 	if opts.OpenFIFO == nil {
@@ -946,6 +991,12 @@ func hydrateCfg(t *testing.T, opts hydrateCfgOpts) hydrateConfig {
 	if opts.ExecShell == nil {
 		opts.ExecShell = (&stubExecShell{}).fn()
 	}
+	if opts.HandleFileMissing == nil {
+		opts.HandleFileMissing = unexpectedFileMissing(t)
+	}
+	if opts.HandleTimeout == nil {
+		opts.HandleTimeout = unexpectedTimeout(t)
+	}
 	return hydrateConfig{
 		FIFO:              opts.FIFO,
 		File:              opts.File,
@@ -956,8 +1007,8 @@ func hydrateCfg(t *testing.T, opts hydrateCfgOpts) hydrateConfig {
 		HookStore:         opts.HookStore,
 		ExecShell:         opts.ExecShell,
 		OpenFIFO:          opts.OpenFIFO,
-		HandleFileMissing: handleHydrateFileMissing,
-		HandleTimeout:     handleHydrateTimeout,
+		HandleFileMissing: opts.HandleFileMissing,
+		HandleTimeout:     opts.HandleTimeout,
 	}
 }
 
@@ -967,7 +1018,7 @@ func TestHydrate_TimeoutWritesResetPreambleToStdout(t *testing.T) {
 
 	stdout := new(bytes.Buffer)
 	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "tp:0.0",
-		OpenFIFO: instantTimeoutOpenFIFO, Stdout: stdout})
+		OpenFIFO: instantTimeoutOpenFIFO, HandleTimeout: handleHydrateTimeout, Stdout: stdout})
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
@@ -986,7 +1037,7 @@ func TestHydrate_TimeoutWritesNoScrollbackOrPostamble(t *testing.T) {
 
 	stdout := new(bytes.Buffer)
 	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: scrollback, HookKey: "tn:0.0",
-		OpenFIFO: instantTimeoutOpenFIFO, Stdout: stdout})
+		OpenFIFO: instantTimeoutOpenFIFO, HandleTimeout: handleHydrateTimeout, Stdout: stdout})
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
@@ -1008,7 +1059,7 @@ func TestHydrate_Timeout_PreservesSettleSleepBeforeExec(t *testing.T) {
 	fifo := makeFIFO(t, dir, "hydrate-ts__0.0.fifo")
 
 	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "ts:0.0",
-		OpenFIFO: instantTimeoutOpenFIFO})
+		OpenFIFO: instantTimeoutOpenFIFO, HandleTimeout: handleHydrateTimeout})
 
 	start := time.Now()
 	if err := runHydrate(cfg); err != nil {
@@ -1026,7 +1077,7 @@ func TestHydrate_TimeoutRemovesFIFO(t *testing.T) {
 	fifo := makeFIFO(t, dir, "hydrate-tr__0.0.fifo")
 
 	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "tr:0.0",
-		OpenFIFO: instantTimeoutOpenFIFO})
+		OpenFIFO: instantTimeoutOpenFIFO, HandleTimeout: handleHydrateTimeout})
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
@@ -1042,7 +1093,7 @@ func TestHydrate_TimeoutUnsetsSkeletonMarkerWithSetOptionSU(t *testing.T) {
 
 	cmder := quietCommander()
 	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "tu:0.0",
-		OpenFIFO: instantTimeoutOpenFIFO, Commander: cmder})
+		OpenFIFO: instantTimeoutOpenFIFO, HandleTimeout: handleHydrateTimeout, Commander: cmder})
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
@@ -1068,7 +1119,7 @@ func TestHydrate_TimeoutLogsWarningNamingHookKey(t *testing.T) {
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
 
 	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "tl:0.0",
-		OpenFIFO: instantTimeoutOpenFIFO, Logger: logger})
+		OpenFIFO: instantTimeoutOpenFIFO, HandleTimeout: handleHydrateTimeout, Logger: logger})
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
@@ -1093,7 +1144,9 @@ func TestHydrate_TimeoutExecsShell(t *testing.T) {
 	t.Setenv("SHELL", "/usr/local/bin/myshell")
 	exec := &stubExecShell{}
 	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "te:0.0",
-		OpenFIFO: instantTimeoutOpenFIFO, ExecShell: exec.fn()})
+		OpenFIFO: instantTimeoutOpenFIFO, HandleTimeout: handleHydrateTimeout, ExecShell: exec.fn(),
+		// No hook store: the timeout path must reach a bare $SHELL.
+		HookStore: nil})
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
@@ -1113,7 +1166,9 @@ func TestHydrate_TimeoutDoesNotReadHooksFile(t *testing.T) {
 	fifo := makeFIFO(t, dir, "hydrate-th__0.0.fifo")
 
 	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "th:0.0",
-		OpenFIFO: instantTimeoutOpenFIFO})
+		OpenFIFO: instantTimeoutOpenFIFO, HandleTimeout: handleHydrateTimeout,
+		// The absent hook store is the subject: nothing may read hooks.json.
+		HookStore: nil})
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
@@ -1128,7 +1183,7 @@ func TestHydrate_TimeoutToleratesMissingFIFOSilently(t *testing.T) {
 	fifo := filepath.Join(dir, "hydrate-tm__0.0.fifo")
 
 	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "tm:0.0",
-		OpenFIFO: instantTimeoutOpenFIFO})
+		OpenFIFO: instantTimeoutOpenFIFO, HandleTimeout: handleHydrateTimeout})
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v (FIFO os.Remove error must be tolerated)", err)
@@ -1140,12 +1195,12 @@ func TestHydrate_TimeoutHandler_OrderingAndTimingInvariants(t *testing.T) {
 	fifo := filepath.Join(dir, "hydrate-ord__0.0.fifo")
 
 	cmder := quietCommander()
-	cfg := hydrateConfig{
-		FIFO:    fifo,
-		HookKey: "ord:0.0",
-		Stdout:  io.Discard,
-		Client:  tmux.NewClient(cmder),
-	}
+	cfg := hydrateCfg(t, hydrateCfgOpts{
+		FIFO:      fifo,
+		HookKey:   "ord:0.0",
+		OpenFIFO:  unexpectedOpenFIFO(t),
+		Commander: cmder,
+	})
 
 	start := time.Now()
 	if err := handleHydrateTimeout(cfg); err != nil {
@@ -1203,14 +1258,14 @@ func TestHydrate_SignalArrived_ExecsHookChainWhenHookRegistered(t *testing.T) {
 	})
 
 	exec := &stubExecShell{}
-	cfg := hydrateConfig{
-		FIFO: fifo, File: scrollback, HookKey: "work:0.0",
-		Stdout:    io.Discard,
-		Client:    tmux.NewClient(quietCommander()),
+	cfg := hydrateCfg(t, hydrateCfgOpts{
+		FIFO:      fifo,
+		File:      scrollback,
+		HookKey:   "work:0.0",
+		OpenFIFO:  openFIFOWithTimeout,
 		HookStore: store,
 		ExecShell: exec.fn(),
-		OpenFIFO:  openFIFOWithTimeout,
-	}
+	})
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
 	}
@@ -1238,14 +1293,14 @@ func TestHydrate_SignalArrived_ExecsBareShellWhenNoHookRegistered(t *testing.T) 
 	store := seedHookStore(t, dir, map[string]map[string]string{})
 
 	exec := &stubExecShell{}
-	cfg := hydrateConfig{
-		FIFO: fifo, File: scrollback, HookKey: "nohook:0.0",
-		Stdout:    io.Discard,
-		Client:    tmux.NewClient(quietCommander()),
+	cfg := hydrateCfg(t, hydrateCfgOpts{
+		FIFO:      fifo,
+		File:      scrollback,
+		HookKey:   "nohook:0.0",
+		OpenFIFO:  openFIFOWithTimeout,
 		HookStore: store,
 		ExecShell: exec.fn(),
-		OpenFIFO:  openFIFOWithTimeout,
-	}
+	})
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
 	}
@@ -1273,15 +1328,15 @@ func TestHydrate_FileMissing_ExecsHookChainWhenHookRegistered(t *testing.T) {
 	})
 
 	exec := &stubExecShell{}
-	cfg := hydrateConfig{
-		FIFO: fifo, File: scrollback, HookKey: "fmh:0.0",
-		Stdout:            io.Discard,
-		Client:            tmux.NewClient(quietCommander()),
+	cfg := hydrateCfg(t, hydrateCfgOpts{
+		FIFO:              fifo,
+		File:              scrollback,
+		HookKey:           "fmh:0.0",
+		OpenFIFO:          openFIFOWithTimeout,
 		HookStore:         store,
 		ExecShell:         exec.fn(),
-		OpenFIFO:          openFIFOWithTimeout,
 		HandleFileMissing: handleHydrateFileMissing,
-	}
+	})
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
 	}
@@ -1308,15 +1363,15 @@ func TestHydrate_FileMissing_ExecsBareShellWhenNoHookRegistered(t *testing.T) {
 	store := seedHookStore(t, dir, map[string]map[string]string{})
 
 	exec := &stubExecShell{}
-	cfg := hydrateConfig{
-		FIFO: fifo, File: scrollback, HookKey: "fmn:0.0",
-		Stdout:            io.Discard,
-		Client:            tmux.NewClient(quietCommander()),
+	cfg := hydrateCfg(t, hydrateCfgOpts{
+		FIFO:              fifo,
+		File:              scrollback,
+		HookKey:           "fmn:0.0",
+		OpenFIFO:          openFIFOWithTimeout,
 		HookStore:         store,
 		ExecShell:         exec.fn(),
-		OpenFIFO:          openFIFOWithTimeout,
 		HandleFileMissing: handleHydrateFileMissing,
-	}
+	})
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
 	}
@@ -1339,8 +1394,7 @@ func TestHydrate_Timeout_FiresHookWhenRegistered(t *testing.T) {
 
 	exec := &stubExecShell{}
 	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "tfh:0.0",
-		OpenFIFO: instantTimeoutOpenFIFO, ExecShell: exec.fn()})
-	cfg.HookStore = store
+		OpenFIFO: instantTimeoutOpenFIFO, HandleTimeout: handleHydrateTimeout, ExecShell: exec.fn(), HookStore: store})
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
@@ -1365,7 +1419,9 @@ func TestHydrate_Timeout_NoHookStore_ExecsBareShell(t *testing.T) {
 
 	exec := &stubExecShell{}
 	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "tnh:0.0",
-		OpenFIFO: instantTimeoutOpenFIFO, ExecShell: exec.fn()})
+		OpenFIFO: instantTimeoutOpenFIFO, HandleTimeout: handleHydrateTimeout, ExecShell: exec.fn(),
+		// The absent hook store is the subject the name states.
+		HookStore: nil})
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
@@ -1390,8 +1446,7 @@ func TestHydrate_Timeout_LookupNotFound_ExecsBareShell(t *testing.T) {
 
 	exec := &stubExecShell{}
 	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "tlnf:0.0",
-		OpenFIFO: instantTimeoutOpenFIFO, ExecShell: exec.fn()})
-	cfg.HookStore = store
+		OpenFIFO: instantTimeoutOpenFIFO, HandleTimeout: handleHydrateTimeout, ExecShell: exec.fn(), HookStore: store})
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
@@ -1423,8 +1478,7 @@ func TestHydrate_Timeout_LookupError_ExecsBareShellAndLogsWarning(t *testing.T) 
 	t.Setenv("SHELL", "/bin/zsh")
 	exec := &stubExecShell{}
 	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "tle:0.0",
-		OpenFIFO: instantTimeoutOpenFIFO, Logger: logger, ExecShell: exec.fn()})
-	cfg.HookStore = store
+		OpenFIFO: instantTimeoutOpenFIFO, HandleTimeout: handleHydrateTimeout, Logger: logger, ExecShell: exec.fn(), HookStore: store})
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
@@ -1467,15 +1521,15 @@ func TestHydrate_LookupErrorDegradesToBareShellAndLogsWarning(t *testing.T) {
 
 	t.Setenv("SHELL", "/bin/zsh")
 	exec := &stubExecShell{}
-	cfg := hydrateConfig{
-		FIFO: fifo, File: scrollback, HookKey: "le:0.0",
-		Stdout:    io.Discard,
-		Client:    tmux.NewClient(quietCommander()),
+	cfg := hydrateCfg(t, hydrateCfgOpts{
+		FIFO:      fifo,
+		File:      scrollback,
+		HookKey:   "le:0.0",
+		OpenFIFO:  openFIFOWithTimeout,
 		Logger:    logger,
 		HookStore: store,
 		ExecShell: exec.fn(),
-		OpenFIFO:  openFIFOWithTimeout,
-	}
+	})
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
 	}
@@ -1512,14 +1566,14 @@ func TestHydrate_LooksUpHooksByHookKeyVerbatimNotByLivePaneKey(t *testing.T) {
 	})
 
 	exec := &stubExecShell{}
-	cfg := hydrateConfig{
-		FIFO: fifo, File: scrollback, HookKey: "saved:0.0",
-		Stdout:    io.Discard,
-		Client:    tmux.NewClient(quietCommander()),
+	cfg := hydrateCfg(t, hydrateCfgOpts{
+		FIFO:      fifo,
+		File:      scrollback,
+		HookKey:   "saved:0.0",
+		OpenFIFO:  openFIFOWithTimeout,
 		HookStore: store,
 		ExecShell: exec.fn(),
-		OpenFIFO:  openFIFOWithTimeout,
-	}
+	})
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
 	}
@@ -1549,14 +1603,14 @@ func TestHydrate_PassesHookCommandAsSingleArgvElementToShDashC(t *testing.T) {
 	})
 
 	exec := &stubExecShell{}
-	cfg := hydrateConfig{
-		FIFO: fifo, File: scrollback, HookKey: "q:0.0",
-		Stdout:    io.Discard,
-		Client:    tmux.NewClient(quietCommander()),
+	cfg := hydrateCfg(t, hydrateCfgOpts{
+		FIFO:      fifo,
+		File:      scrollback,
+		HookKey:   "q:0.0",
+		OpenFIFO:  openFIFOWithTimeout,
 		HookStore: store,
 		ExecShell: exec.fn(),
-		OpenFIFO:  openFIFOWithTimeout,
-	}
+	})
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
 	}
@@ -1603,16 +1657,17 @@ func TestHydrate_SignalArrived_LookupHappensAfterSleepAndMarkerUnset(t *testing.
 	)
 
 	var execAt time.Time
-	cfg := hydrateConfig{
-		FIFO: fifo, File: scrollback, HookKey: "ord:0.0",
-		Stdout:    io.Discard,
-		Client:    tmux.NewClient(cmder),
+	cfg := hydrateCfg(t, hydrateCfgOpts{
+		FIFO:      fifo,
+		File:      scrollback,
+		HookKey:   "ord:0.0",
+		OpenFIFO:  openFIFOWithTimeout,
+		Commander: cmder,
 		HookStore: store,
 		ExecShell: func(prog string, args []string) {
 			execAt = time.Now()
 		},
-		OpenFIFO: openFIFOWithTimeout,
-	}
+	})
 	startSleep := time.Now()
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
@@ -1661,17 +1716,18 @@ func TestHydrate_FileMissing_LookupHappensAfterMarkerUnset(t *testing.T) {
 	)
 
 	var execAt time.Time
-	cfg := hydrateConfig{
-		FIFO: fifo, File: scrollback, HookKey: "fmo:0.0",
-		Stdout:    io.Discard,
-		Client:    tmux.NewClient(cmder),
+	cfg := hydrateCfg(t, hydrateCfgOpts{
+		FIFO:      fifo,
+		File:      scrollback,
+		HookKey:   "fmo:0.0",
+		OpenFIFO:  openFIFOWithTimeout,
+		Commander: cmder,
 		HookStore: store,
 		ExecShell: func(prog string, args []string) {
 			execAt = time.Now()
 		},
-		OpenFIFO:          openFIFOWithTimeout,
 		HandleFileMissing: handleHydrateFileMissing,
-	}
+	})
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
 	}
@@ -1700,14 +1756,14 @@ func TestHydrate_NilHookStoreDegradesToBareShellOnSignalArrived(t *testing.T) {
 
 	t.Setenv("SHELL", "/bin/zsh")
 	exec := &stubExecShell{}
-	cfg := hydrateConfig{
-		FIFO: fifo, File: scrollback, HookKey: "nil:0.0",
-		Stdout:    io.Discard,
-		Client:    tmux.NewClient(quietCommander()),
+	cfg := hydrateCfg(t, hydrateCfgOpts{
+		FIFO:      fifo,
+		File:      scrollback,
+		HookKey:   "nil:0.0",
+		OpenFIFO:  openFIFOWithTimeout,
 		HookStore: nil,
 		ExecShell: exec.fn(),
-		OpenFIFO:  openFIFOWithTimeout,
-	}
+	})
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
 	}
@@ -1758,12 +1814,13 @@ func TestHydrate_FileMissing_ClassifiesCauseFromRawChain(t *testing.T) {
 			}
 
 			logger, sink := newCaptureLoggerForComponent(t, "hydrate")
-			cfg := hydrateConfig{
-				FIFO: "/x/hydrate-c__0.0.fifo", File: "/x/sb.bin", HookKey: "c:0.0",
-				Stdout: io.Discard,
-				Client: tmux.NewClient(quietCommander()),
-				Logger: logger,
-			}
+			cfg := hydrateCfg(t, hydrateCfgOpts{
+				FIFO:     "/x/hydrate-c__0.0.fifo",
+				File:     "/x/sb.bin",
+				HookKey:  "c:0.0",
+				OpenFIFO: unexpectedOpenFIFO(t),
+				Logger:   logger,
+			})
 			if err := handleHydrateFileMissing(cfg, hydrateFileMissingContext{Cause: tc.cause}); err != nil {
 				t.Fatalf("handleHydrateFileMissing: %v", err)
 			}
@@ -1785,17 +1842,16 @@ func TestHydrate_FileMissing_PassesRawCauseVerbatim(t *testing.T) {
 	signalFIFOAsync(t, fifo)
 
 	var captured error
-	cfg := hydrateConfig{
-		FIFO: fifo, File: scrollback, HookKey: "vc:0.0",
-		Stdout:    io.Discard,
-		Client:    tmux.NewClient(quietCommander()),
-		ExecShell: (&stubExecShell{}).fn(),
-		OpenFIFO:  openFIFOWithTimeout,
+	cfg := hydrateCfg(t, hydrateCfgOpts{
+		FIFO:     fifo,
+		File:     scrollback,
+		HookKey:  "vc:0.0",
+		OpenFIFO: openFIFOWithTimeout,
 		HandleFileMissing: func(_ hydrateConfig, ctx hydrateFileMissingContext) error {
 			captured = ctx.Cause
 			return nil
 		},
-	}
+	})
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
 	}
@@ -1828,17 +1884,16 @@ func TestHydrate_FileMissing_PassesPermissionCauseVerbatim(t *testing.T) {
 	signalFIFOAsync(t, fifo)
 
 	var captured error
-	cfg := hydrateConfig{
-		FIFO: fifo, File: scrollback, HookKey: "vp:0.0",
-		Stdout:    io.Discard,
-		Client:    tmux.NewClient(quietCommander()),
-		ExecShell: (&stubExecShell{}).fn(),
-		OpenFIFO:  openFIFOWithTimeout,
+	cfg := hydrateCfg(t, hydrateCfgOpts{
+		FIFO:     fifo,
+		File:     scrollback,
+		HookKey:  "vp:0.0",
+		OpenFIFO: openFIFOWithTimeout,
 		HandleFileMissing: func(_ hydrateConfig, ctx hydrateFileMissingContext) error {
 			captured = ctx.Cause
 			return nil
 		},
-	}
+	})
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
 	}
@@ -1864,18 +1919,17 @@ func TestHydrate_MidStreamCopyError_CarriesUnderlyingCauseToHandler(t *testing.T
 
 	var captured error
 	invoked := false
-	cfg := hydrateConfig{
-		FIFO: fifo, File: scrollbackDir, HookKey: "ms:0.0",
-		Stdout:    io.Discard,
-		Client:    tmux.NewClient(quietCommander()),
-		ExecShell: (&stubExecShell{}).fn(),
-		OpenFIFO:  openFIFOWithTimeout,
+	cfg := hydrateCfg(t, hydrateCfgOpts{
+		FIFO:     fifo,
+		File:     scrollbackDir,
+		HookKey:  "ms:0.0",
+		OpenFIFO: openFIFOWithTimeout,
 		HandleFileMissing: func(_ hydrateConfig, ctx hydrateFileMissingContext) error {
 			invoked = true
 			captured = ctx.Cause
 			return nil
 		},
-	}
+	})
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
 	}

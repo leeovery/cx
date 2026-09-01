@@ -1,13 +1,11 @@
 package cmd
 
 import (
-	"io"
 	"os"
 	"strings"
 	"testing"
 
 	"github.com/leeovery/portal/internal/hooks"
-	"github.com/leeovery/portal/internal/tmux"
 )
 
 // execLogLine returns the single captured line with the given message, matched
@@ -33,14 +31,13 @@ func TestHydrateExecLog_NilHookStore_MissThenBareShellExec(t *testing.T) {
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
 
 	exec := &stubExecShell{}
-	cfg := hydrateConfig{
+	cfg := hydrateCfg(t, hydrateCfgOpts{
 		HookKey:   "nil:0.0",
-		Stdout:    io.Discard,
-		Client:    tmux.NewClient(quietCommander()),
+		OpenFIFO:  unexpectedOpenFIFO(t),
 		Logger:    logger,
 		HookStore: nil,
 		ExecShell: exec.fn(),
-	}
+	})
 	execShellOrHookAndExit(cfg)
 
 	if exec.target != "/bin/zsh" {
@@ -84,14 +81,13 @@ func TestHydrateExecLog_LookupError_ErrorResultWithAttrWarnRetainedBareShell(t *
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
 
 	exec := &stubExecShell{}
-	cfg := hydrateConfig{
+	cfg := hydrateCfg(t, hydrateCfgOpts{
 		HookKey:   "err:0.0",
-		Stdout:    io.Discard,
-		Client:    tmux.NewClient(quietCommander()),
+		OpenFIFO:  unexpectedOpenFIFO(t),
 		Logger:    logger,
 		HookStore: store,
 		ExecShell: exec.fn(),
-	}
+	})
 	execShellOrHookAndExit(cfg)
 
 	if exec.target != "/bin/zsh" {
@@ -131,14 +127,13 @@ func TestHydrateExecLog_UnregisteredPaneKey_MissThenBareShellExec(t *testing.T) 
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
 
 	exec := &stubExecShell{}
-	cfg := hydrateConfig{
+	cfg := hydrateCfg(t, hydrateCfgOpts{
 		HookKey:   "miss:0.0",
-		Stdout:    io.Discard,
-		Client:    tmux.NewClient(quietCommander()),
+		OpenFIFO:  unexpectedOpenFIFO(t),
 		Logger:    logger,
 		HookStore: store,
 		ExecShell: exec.fn(),
-	}
+	})
 	execShellOrHookAndExit(cfg)
 
 	if exec.target != "/bin/zsh" {
@@ -170,14 +165,13 @@ func TestHydrateExecLog_RegisteredHook_HitThenHookChainExec(t *testing.T) {
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
 
 	exec := &stubExecShell{}
-	cfg := hydrateConfig{
+	cfg := hydrateCfg(t, hydrateCfgOpts{
 		HookKey:   "hit:0.0",
-		Stdout:    io.Discard,
-		Client:    tmux.NewClient(quietCommander()),
+		OpenFIFO:  unexpectedOpenFIFO(t),
 		Logger:    logger,
 		HookStore: store,
 		ExecShell: exec.fn(),
-	}
+	})
 	execShellOrHookAndExit(cfg)
 
 	if exec.target != "/bin/sh" {
@@ -213,14 +207,13 @@ func TestHydrateExecLog_HitRendersArgsVerbatimIncludingEmbeddedQuotes(t *testing
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
 
 	exec := &stubExecShell{}
-	cfg := hydrateConfig{
+	cfg := hydrateCfg(t, hydrateCfgOpts{
 		HookKey:   "q:0.0",
-		Stdout:    io.Discard,
-		Client:    tmux.NewClient(quietCommander()),
+		OpenFIFO:  unexpectedOpenFIFO(t),
 		Logger:    logger,
 		HookStore: store,
 		ExecShell: exec.fn(),
-	}
+	})
 	execShellOrHookAndExit(cfg)
 
 	body := sink.Body()
@@ -241,14 +234,13 @@ func TestHydrateExecLog_ExecInfoUsesTargetAttrNotPath(t *testing.T) {
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
 
 	exec := &stubExecShell{}
-	cfg := hydrateConfig{
+	cfg := hydrateCfg(t, hydrateCfgOpts{
 		HookKey:   "hit:0.0",
-		Stdout:    io.Discard,
-		Client:    tmux.NewClient(quietCommander()),
+		OpenFIFO:  unexpectedOpenFIFO(t),
 		Logger:    logger,
 		HookStore: store,
 		ExecShell: exec.fn(),
-	}
+	})
 	execShellOrHookAndExit(cfg)
 
 	info := execLogLine(t, sink.Body(), "INFO", "exec")
@@ -295,10 +287,9 @@ func TestHydrateExecLog_ExecInfoEmittedImmediatelyBeforeExecShell(t *testing.T) 
 			dir := t.TempDir()
 
 			var bodyAtExec string
-			cfg := hydrateConfig{
+			cfg := hydrateCfg(t, hydrateCfgOpts{
 				HookKey:   tc.hookKey,
-				Stdout:    io.Discard,
-				Client:    tmux.NewClient(quietCommander()),
+				OpenFIFO:  unexpectedOpenFIFO(t),
 				Logger:    logger,
 				HookStore: tc.hookStore(t, dir),
 				ExecShell: func(_ string, _ []string) {
@@ -306,7 +297,7 @@ func TestHydrateExecLog_ExecInfoEmittedImmediatelyBeforeExecShell(t *testing.T) 
 					// already be present.
 					bodyAtExec = sink.Body()
 				},
-			}
+			})
 			execShellOrHookAndExit(cfg)
 
 			execLogLine(t, bodyAtExec, "INFO", "exec")

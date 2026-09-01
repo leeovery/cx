@@ -144,7 +144,7 @@ func TestHydrateTimeoutLog_EmptyHookKeyRendersEmpty(t *testing.T) {
 
 		logger, sink := newCaptureLoggerForComponent(t, "hydrate")
 		cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "",
-			OpenFIFO: instantTimeoutOpenFIFO, Logger: logger})
+			OpenFIFO: instantTimeoutOpenFIFO, HandleTimeout: handleHydrateTimeout, Logger: logger})
 
 		if err := runHydrate(cfg); err != nil {
 			t.Fatalf("runHydrate: %v", err)

@@ -18,7 +18,7 @@ func TestHydrateTimeoutLog_EmitsSignalTimeoutTookOnTimeoutPath(t *testing.T) {
 
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
 	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "stl:0.0",
-		OpenFIFO: instantTimeoutOpenFIFO, Logger: logger})
+		OpenFIFO: instantTimeoutOpenFIFO, HandleTimeout: handleHydrateTimeout, Logger: logger})
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
@@ -36,7 +36,7 @@ func TestHydrateTimeoutLog_TookAttrIsDurationNotString(t *testing.T) {
 
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
 	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "dur:0.0",
-		OpenFIFO: instantTimeoutOpenFIFO, Logger: logger})
+		OpenFIFO: instantTimeoutOpenFIFO, HandleTimeout: handleHydrateTimeout, Logger: logger})
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
@@ -62,7 +62,7 @@ func TestHydrateTimeoutLog_SignalTimeoutPrecedesExecINFO(t *testing.T) {
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
 	// A nil HookStore takes the bare-shell exec path, which emits the exec INFO.
 	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "ord:0.0",
-		OpenFIFO: instantTimeoutOpenFIFO, Logger: logger})
+		OpenFIFO: instantTimeoutOpenFIFO, HandleTimeout: handleHydrateTimeout, Logger: logger})
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
@@ -89,7 +89,7 @@ func TestHydrateTimeoutLog_PreservesWarnUnlinkAndMarkerUnset(t *testing.T) {
 	cmder := quietCommander()
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
 	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "pre:0.0",
-		OpenFIFO: instantTimeoutOpenFIFO, Commander: cmder, Logger: logger})
+		OpenFIFO: instantTimeoutOpenFIFO, HandleTimeout: handleHydrateTimeout, Commander: cmder, Logger: logger})
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
