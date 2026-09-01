@@ -250,7 +250,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 7,
-          "current_task": "resume-hooks-silently-lost-7-13",
+          "current_task": "resume-hooks-silently-lost-7-35",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -359,7 +359,8 @@
             "resume-hooks-silently-lost-7-31",
             "resume-hooks-silently-lost-7-32",
             "resume-hooks-silently-lost-7-33",
-            "resume-hooks-silently-lost-7-34"
+            "resume-hooks-silently-lost-7-34",
+            "resume-hooks-silently-lost-7-13"
           ],
           "staging": {
             "p1": {
@@ -1838,6 +1839,26 @@
               "detail": "cmd/doctor_stand_down_copy_test.go:165-172 compares the TABLE expected values rather than the rendered ones, so it catches a copy-paste author rather than two production reasons converging on the same phrase. The reviewer proved it: pointing notEvaluableDetails[lock-timeout] at another reason phrase was caught by the exact-line assertions but NOT by the borrows check. No coverage gap — the exact-line assertions cover it — but the check is narrower than its message implies, so a reader may trust it for something it does not do.",
               "files": [
                 "cmd/doctor_stand_down_copy_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-13",
+              "source": "reviewer",
+              "summary": "Two hand-copies of a bound phrase in doctor.go bypass the new binding entirely",
+              "detail": "cmd/doctor.go:295 and :299 render the literal \"could not read hooks.json\" for the nil-store and store.Load error branches — the same string as notEvaluableDetails[skipReasonStoreReadFailed], but not routed through it. So re-wording the map silently strands them, which is exactly the divergence 7-13 exists to prevent, entering through a door the guard cannot see (the guard binds MAP KEYS to the const set; it cannot detect a literal that duplicates a map VALUE). Introduced by b9541fe2 in a different work unit (cli-verb-surface-redesign task 4-3), so out of 7-13 reach. Remedy is one line each: detail: phraseFor(notEvaluableDetails, skipReasonStoreReadFailed).",
+              "files": [
+                "cmd/doctor.go",
+                "cmd/run_hook_stale_cleanup.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-13",
+              "source": "reviewer",
+              "summary": "The stand-down reason vocabulary is closed by naming convention, not by the type system",
+              "detail": "declineDebug/declineWarn (cmd/run_hook_stale_cleanup.go:102,108) take `reason string`, so a raw literal or an off-convention const name compiles. The reviewer probed it: a const named declineReasonSixth (no skipReason prefix), absent from the slice and from both phrase maps, passes BOTH new guards — because the source guard matches on strings.HasPrefix(name, \"skipReason\"). 7-13 offered `a small named type` as the alternative to the enumerable slice; making it `type skipReason string` would close the hole at compile time rather than by convention, but it touches the decline ladder and typed outcome shipped by tasks 6-1 and 6-5. Note this name-based limitation is inherent to every source guard in the repo, so the decision generalises.",
+              "files": [
+                "cmd/run_hook_stale_cleanup.go",
+                "cmd/doctor.go"
               ]
             }
           ]
