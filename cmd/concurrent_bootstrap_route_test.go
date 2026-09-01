@@ -8,15 +8,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func coldCommander() *recordingCommander {
-	return &recordingCommander{
-		RunFunc: func(args ...string) (string, error) {
-			if len(args) > 0 && args[0] == "info" {
-				return "", context.DeadlineExceeded
-			}
-			return "", nil
-		},
-	}
+func coldCommander() *scriptedCommander {
+	return quietCommander(
+		fails(context.DeadlineExceeded, "info"),
+	)
 }
 
 func TestPersistentPreRunE_ColdTUI_DefersBootstrap(t *testing.T) {

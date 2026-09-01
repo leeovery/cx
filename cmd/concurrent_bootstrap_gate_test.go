@@ -94,7 +94,7 @@ func TestIsTUIPath(t *testing.T) {
 // The decider issues zero tmux round-trips, so the backing commander is
 // never called.
 func probeClient() *tmux.Client {
-	return tmux.NewClient(&recordingCommander{})
+	return tmux.NewClient(quietCommander())
 }
 
 func TestShouldRunConcurrentBootstrap(t *testing.T) {
@@ -176,11 +176,11 @@ func TestShouldRunConcurrentBootstrap_IssuesNoProbe(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			rec := &recordingCommander{}
+			rec := quietCommander()
 			client := tmux.NewClient(rec)
 			_ = shouldRunConcurrentBootstrap(tc.cmd, tc.args, client, false)
-			if len(rec.Calls) != 0 {
-				t.Errorf("%s: decider issued %d tmux round-trips %v, want 0", tc.name, len(rec.Calls), rec.Calls)
+			if len(rec.Calls()) != 0 {
+				t.Errorf("%s: decider issued %d tmux round-trips %v, want 0", tc.name, len(rec.Calls()), rec.Calls())
 			}
 		})
 	}
@@ -241,7 +241,7 @@ func TestPersistentPreRunE_LatchedTUI_ReadsLatchExactlyOnce(t *testing.T) {
 	if runner.calls != 0 {
 		t.Errorf("abridged path: orchestrator calls = %d, want 0 (never runs the full bootstrap)", runner.calls)
 	}
-	if got := countOp(rec.Calls, "show-option"); got != 1 {
-		t.Errorf("latch read count (show-option) = %d, want exactly 1 (single-read invariant): %v", got, rec.Calls)
+	if got := countOp(rec.Calls(), "show-option"); got != 1 {
+		t.Errorf("latch read count (show-option) = %d, want exactly 1 (single-read invariant): %v", got, rec.Calls())
 	}
 }

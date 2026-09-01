@@ -18,7 +18,7 @@ import (
 // fileMissingCfg wires the real blocking FIFO open, so the caller must unblock
 // it with signalFIFOAsync. The scrollback File is caller-supplied so each test
 // picks its own failure cause.
-func fileMissingCfg(t *testing.T, fifo, scrollback, hookKey string, stdout io.Writer, cmder *recordingCommander, exec func(string, []string), logger *slog.Logger) hydrateConfig {
+func fileMissingCfg(t *testing.T, fifo, scrollback, hookKey string, stdout io.Writer, cmder *scriptedCommander, exec func(string, []string), logger *slog.Logger) hydrateConfig {
 	t.Helper()
 	return hydrateConfig{
 		FIFO:              fifo,
@@ -61,7 +61,7 @@ func TestHydrateFileMissingLog_ENOENT_EmitsScrollbackMissingPath(t *testing.T) {
 	signalFIFOAsync(t, fifo)
 
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
-	cfg := fileMissingCfg(t, fifo, scrollback, "fmle:0.0", io.Discard, &recordingCommander{}, (&stubExecShell{}).fn(), logger)
+	cfg := fileMissingCfg(t, fifo, scrollback, "fmle:0.0", io.Discard, quietCommander(), (&stubExecShell{}).fn(), logger)
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
@@ -88,7 +88,7 @@ func TestHydrateFileMissingLog_Permission_EmitsOneScrollbackMissingINFO(t *testi
 	signalFIFOAsync(t, fifo)
 
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
-	cfg := fileMissingCfg(t, fifo, scrollback, "fmlp:0.0", io.Discard, &recordingCommander{}, (&stubExecShell{}).fn(), logger)
+	cfg := fileMissingCfg(t, fifo, scrollback, "fmlp:0.0", io.Discard, quietCommander(), (&stubExecShell{}).fn(), logger)
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
@@ -115,7 +115,7 @@ func TestHydrateFileMissingLog_GenericIO_EmitsOneScrollbackMissingINFO(t *testin
 	cfg := hydrateConfig{
 		FIFO: fifo, File: scrollback, HookKey: "fmlg:0.0",
 		Stdout: stdout,
-		Client: tmux.NewClient(&recordingCommander{}),
+		Client: tmux.NewClient(quietCommander()),
 		Logger: logger,
 	}
 
@@ -146,7 +146,7 @@ func TestHydrateFileMissingLog_MidStreamCopy_SharesScrollbackMissingINFO(t *test
 	cfg := hydrateConfig{
 		FIFO: fifo, File: scrollback, HookKey: "fmlm:0.0",
 		Stdout: stdout,
-		Client: tmux.NewClient(&recordingCommander{}),
+		Client: tmux.NewClient(quietCommander()),
 		Logger: logger,
 	}
 
@@ -173,7 +173,7 @@ func TestHydrateFileMissingLog_PathAttrIsFileAndPrecedesExecINFO(t *testing.T) {
 
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
 	// A nil HookStore takes the bare-shell exec path, which emits the exec INFO.
-	cfg := fileMissingCfg(t, fifo, scrollback, "fmord:0.0", io.Discard, &recordingCommander{}, (&stubExecShell{}).fn(), logger)
+	cfg := fileMissingCfg(t, fifo, scrollback, "fmord:0.0", io.Discard, quietCommander(), (&stubExecShell{}).fn(), logger)
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
@@ -209,7 +209,7 @@ func TestHydrateFileMissingLog_PreservesPerCauseWARNsAndNoSettleSleep(t *testing
 	stdout := new(bytes.Buffer)
 	stdout.WriteString(hydrateResetPreamble)
 
-	cmder := &recordingCommander{}
+	cmder := quietCommander()
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
 	cfg := hydrateConfig{
 		FIFO: fifo, File: scrollback, HookKey: "fmpre:0.0",
@@ -239,14 +239,14 @@ func TestHydrateFileMissingLog_PreservesPerCauseWARNsAndNoSettleSleep(t *testing
 
 	wantUnset := "set-option -su @portal-skeleton-fmpre__0.0"
 	found := false
-	for _, c := range cmder.Calls {
+	for _, c := range cmder.Calls() {
 		if strings.Join(c, " ") == wantUnset {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Errorf("expected marker-unset call %q; calls: %v", wantUnset, cmder.Calls)
+		t.Errorf("expected marker-unset call %q; calls: %v", wantUnset, cmder.Calls())
 	}
 }
 
@@ -262,7 +262,7 @@ func TestHydrateFifoMissingLog_EmitsFifoMissingPathOnNonTimeoutOpenError(t *test
 	cfg := hydrateConfig{
 		FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "fifo:0.0",
 		Stdout:            io.Discard,
-		Client:            tmux.NewClient(&recordingCommander{}),
+		Client:            tmux.NewClient(quietCommander()),
 		Logger:            logger,
 		ExecShell:         exec.fn(),
 		OpenFIFO:          openFIFOWithTimeout,

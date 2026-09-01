@@ -261,7 +261,7 @@ func TestPersistentPreRunE_EmitsWarningsForOpenWithPositionalArg(t *testing.T) {
 	}
 	// The session-domain check at the front of open resolution reads the tmux
 	// client production's PersistentPreRunE always injects into context.
-	withBootstrapDeps(t, BootstrapDeps{Orchestrator: runner, Client: tmux.NewClient(&stubCommander{})})
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: runner, Client: tmux.NewClient(stubTmuxCommander())})
 
 	// Resolution fails on the non-existent path; warning emission happens before
 	// RunE, so that failure is irrelevant here.

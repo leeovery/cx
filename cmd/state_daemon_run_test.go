@@ -21,9 +21,17 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// A tmux.Commander whose unset commands return ("", nil), so unrelated tmux
-// calls do not fail a test. The mutex covers Run and RunRaw interleaving from
-// the in-test goroutines that drive defaultDaemonRun.
+// daemonFakeCommander is kept bespoke rather than retired onto
+// scriptedCommander: it is not an argv-pattern script but a model of the
+// daemon's whole tmux surface, and it carries one behaviour a static script
+// cannot express — dispatchHook, a callback that fires after every dispatch,
+// matched or not, so a caller can cancel the context while a tmux subcall is
+// in flight. The mutex covers the concurrent drive from the goroutines
+// running defaultDaemonRun. Its Run/RunRaw still route through
+// commanderRun/commanderRunRaw, so the trim-versus-verbatim contract has one
+// implementation for this package.
+//
+// Unset commands return ("", nil), so unrelated tmux calls do not fail a test.
 type daemonFakeCommander struct {
 	mu sync.Mutex
 
@@ -61,7 +69,7 @@ func (c *daemonFakeCommander) Run(args ...string) (string, error) {
 	if hook != nil {
 		hook(args)
 	}
-	return out, err
+	return commanderRun(out, err)
 }
 
 func (c *daemonFakeCommander) RunRaw(args ...string) (string, error) {
@@ -73,7 +81,7 @@ func (c *daemonFakeCommander) RunRaw(args ...string) (string, error) {
 	if hook != nil {
 		hook(args)
 	}
-	return out, err
+	return commanderRunRaw(out, err)
 }
 
 func (c *daemonFakeCommander) dispatch(args []string) (string, error) {

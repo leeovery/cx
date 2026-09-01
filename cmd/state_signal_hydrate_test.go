@@ -41,23 +41,12 @@ func listPanesOutput(panes [][2]int) string {
 
 // signalHydrateClient replies to the two tmux calls signal-hydrate makes;
 // anything else fails the test.
-func signalHydrateClient(t *testing.T, markersRaw string, panes [][2]int) (*tmux.Client, *recordingCommander) {
+func signalHydrateClient(t *testing.T, markersRaw string, panes [][2]int) (*tmux.Client, *scriptedCommander) {
 	t.Helper()
-	cmder := &recordingCommander{
-		RunFunc: func(args ...string) (string, error) {
-			if len(args) == 0 {
-				return "", nil
-			}
-			switch args[0] {
-			case "show-options":
-				return markersRaw, nil
-			case "list-panes":
-				return listPanesOutput(panes), nil
-			}
-			t.Fatalf("unexpected tmux call: %v", args)
-			return "", nil
-		},
-	}
+	cmder := newScriptedCommander(t,
+		returns(markersRaw, "show-options"),
+		returns(listPanesOutput(panes), "list-panes"),
+	)
 	return tmux.NewClient(cmder), cmder
 }
 
@@ -169,7 +158,7 @@ func TestSignalHydrate_PerFIFOFailureDoesNotUnsetMarker(t *testing.T) {
 	}
 
 	// signal-hydrate must never touch markers: the hydrate helper owns the unset.
-	for _, c := range cmder.Calls {
+	for _, c := range cmder.Calls() {
 		if len(c) >= 2 && c[0] == "set-option" && c[1] == "-su" {
 			t.Errorf("signal-hydrate must never call set-option -su; got %v", c)
 		}
@@ -197,7 +186,7 @@ func TestSignalHydrate_NeverCallsSetOptionSU(t *testing.T) {
 		t.Fatalf("runSignalHydrate: %v", err)
 	}
 
-	for _, c := range cmder.Calls {
+	for _, c := range cmder.Calls() {
 		if len(c) >= 2 && c[0] == "set-option" && c[1] == "-su" {
 			t.Errorf("signal-hydrate issued set-option -su (forbidden): %v", c)
 		}
@@ -208,18 +197,10 @@ func TestSignalHydrate_SoftFailsWhenSessionDoesNotExist(t *testing.T) {
 	dir := t.TempDir()
 	session := "ghost"
 
-	cmder := &recordingCommander{
-		RunFunc: func(args ...string) (string, error) {
-			switch args[0] {
-			case "show-options":
-				return "", nil
-			case "list-panes":
-				return "", errors.New("can't find session: ghost")
-			}
-			t.Fatalf("unexpected tmux call: %v", args)
-			return "", nil
-		},
-	}
+	cmder := newScriptedCommander(t,
+		returns("", "show-options"),
+		fails(errors.New("can't find session: ghost"), "list-panes"),
+	)
 	client := tmux.NewClient(cmder)
 	signaler := &statetest.RecordingFIFOSignaler{}
 
@@ -244,21 +225,15 @@ func TestSignalHydrate_IsIdempotentAcrossRepeatedInvocations(t *testing.T) {
 	panes := [][2]int{{0, 0}}
 
 	var markerSet = true
-	cmder := &recordingCommander{
-		RunFunc: func(args ...string) (string, error) {
-			switch args[0] {
-			case "show-options":
-				if markerSet {
-					return markersOption(key), nil
-				}
-				return "", nil
-			case "list-panes":
-				return listPanesOutput(panes), nil
-			}
-			t.Fatalf("unexpected tmux call: %v", args)
-			return "", nil
-		},
-	}
+	// The marker entry's predicate is evaluated per call, so clearing markerSet
+	// between invocations retires it in favour of the empty read below it.
+	cmder := newScriptedCommander(t,
+		when(func(args []string) bool {
+			return markerSet && argvPrefix("show-options")(args)
+		}, markersOption(key), nil),
+		returns("", "show-options"),
+		returns(listPanesOutput(panes), "list-panes"),
+	)
 	client := tmux.NewClient(cmder)
 
 	first := &statetest.RecordingFIFOSignaler{}
@@ -296,45 +271,32 @@ func TestSignalHydrate_IsIdempotentAcrossRepeatedInvocations(t *testing.T) {
 func TestSignalHydrate_WARNsRenderUnderSignalComponent(t *testing.T) {
 	cases := []struct {
 		name    string
-		runFunc func(args ...string) (string, error)
+		script  []scriptEntry
 		signal  state.FIFOSignaler
 		wantMsg string
 	}{
 		{
 			name: "list skeleton markers failed",
-			runFunc: func(args ...string) (string, error) {
-				if len(args) > 0 && args[0] == "show-options" {
-					return "", errors.New("show-options boom")
-				}
-				return "", fmt.Errorf("unexpected tmux call: %v", args)
+			script: []scriptEntry{
+				fails(errors.New("show-options boom"), "show-options"),
 			},
 			signal:  &statetest.RecordingFIFOSignaler{},
 			wantMsg: "list skeleton markers failed",
 		},
 		{
 			name: "list panes for session failed",
-			runFunc: func(args ...string) (string, error) {
-				switch args[0] {
-				case "show-options":
-					return markersOption(state.SanitizePaneKey("foo", 0, 0)), nil
-				case "list-panes":
-					return "", errors.New("can't find session: foo")
-				}
-				return "", fmt.Errorf("unexpected tmux call: %v", args)
+			script: []scriptEntry{
+				returns(markersOption(state.SanitizePaneKey("foo", 0, 0)), "show-options"),
+				fails(errors.New("can't find session: foo"), "list-panes"),
 			},
 			signal:  &statetest.RecordingFIFOSignaler{},
 			wantMsg: "list panes for session failed",
 		},
 		{
 			name: "write fifo failed",
-			runFunc: func(args ...string) (string, error) {
-				switch args[0] {
-				case "show-options":
-					return markersOption(state.SanitizePaneKey("foo", 0, 0)), nil
-				case "list-panes":
-					return listPanesOutput([][2]int{{0, 0}}), nil
-				}
-				return "", fmt.Errorf("unexpected tmux call: %v", args)
+			script: []scriptEntry{
+				returns(markersOption(state.SanitizePaneKey("foo", 0, 0)), "show-options"),
+				returns(listPanesOutput([][2]int{{0, 0}}), "list-panes"),
 			},
 			signal:  &statetest.RecordingFIFOSignaler{Err: errors.New("retry exhausted (sentinel)")},
 			wantMsg: "write fifo failed",
@@ -349,7 +311,7 @@ func TestSignalHydrate_WARNsRenderUnderSignalComponent(t *testing.T) {
 			cfg := signalHydrateConfig{
 				Session:  "foo",
 				StateDir: t.TempDir(),
-				Client:   tmux.NewClient(&recordingCommander{RunFunc: tc.runFunc}),
+				Client:   tmux.NewClient(newScriptedCommander(t, tc.script...)),
 				Signaler: tc.signal,
 			}
 			if err := runSignalHydrate(cfg); err != nil {

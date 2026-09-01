@@ -16,7 +16,7 @@ func TestBuildOpenBurstDeps_PartialInjectionKeepsInjectedFillsRest(t *testing.T)
 	t.Run("injected fields win, unset fields defaulted", func(t *testing.T) {
 		isolateTerminalsFile(t)
 
-		client := tmux.NewClient(&recordingCommander{})
+		client := tmux.NewClient(quietCommander())
 		cmd := cmdWithClient(client)
 
 		injectedAdapter := &spawntest.FakeAdapter{}
@@ -92,7 +92,7 @@ func TestBuildOpenBurstDeps_PartialInjectionKeepsInjectedFillsRest(t *testing.T)
 	t.Run("unset LocalMint defaults to openPathFunc", func(t *testing.T) {
 		isolateTerminalsFile(t)
 
-		client := tmux.NewClient(&recordingCommander{})
+		client := tmux.NewClient(quietCommander())
 		cmd := cmdWithClient(client)
 
 		// LocalMint deliberately absent so it takes the production default.

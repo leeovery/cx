@@ -12,47 +12,27 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func satisfiedLatchAliveSaverCommander() *recordingCommander {
-	return &recordingCommander{
-		RunFunc: func(args ...string) (string, error) {
-			switch {
-			case len(args) > 0 && args[0] == "show-option":
-				return version, nil // stored latch == running version -> satisfied
-			case len(args) > 0 && args[0] == "list-panes" && isPanePIDProbe(args):
-				return "12345\n", nil // _portal-saver pane alive
-			}
-			return "", nil
-		},
-	}
+func satisfiedLatchAliveSaverCommander() *scriptedCommander {
+	return quietCommander(
+		returns(version, "show-option"),    // stored latch == running version -> satisfied
+		when(panePIDProbe, "12345\n", nil), // _portal-saver pane alive
+	)
 }
 
 // Carries no latch arm: ensureSaverLiveness never reads the latch.
-func saverAbsentReviveFailsCommander() *recordingCommander {
-	return &recordingCommander{
-		RunFunc: func(args ...string) (string, error) {
-			switch {
-			case len(args) > 0 && args[0] == "list-panes":
-				return "", noSuchSessionErr() // saver absent -> revive
-			case len(args) > 0 && args[0] == "has-session":
-				return "", errors.New("can't find session") // absent
-			case len(args) > 0 && args[0] == "new-session":
-				return "", errors.New("create denied") // revive fails across all retries
-			}
-			return "", nil
-		},
-	}
+func saverAbsentReviveFailsCommander() *scriptedCommander {
+	return quietCommander(
+		fails(noSuchSessionErr(), "list-panes"),                // saver absent -> revive
+		fails(errors.New("can't find session"), "has-session"), // absent
+		fails(errors.New("create denied"), "new-session"),      // revive fails across all retries
+	)
 }
 
-func satisfiedLatchSaverAbsentCommander() *recordingCommander {
-	base := saverAbsentReviveFailsCommander()
-	return &recordingCommander{
-		RunFunc: func(args ...string) (string, error) {
-			if len(args) > 0 && args[0] == "show-option" {
-				return version, nil // stored latch == running version -> satisfied
-			}
-			return base.RunFunc(args...)
-		},
-	}
+func satisfiedLatchSaverAbsentCommander() *scriptedCommander {
+	return commanderDelegatingTo(
+		saverAbsentReviveFailsCommander(),
+		returns(version, "show-option"), // stored latch == running version -> satisfied
+	)
 }
 
 // Carries tmux's option-absent phrasing, so TryGetServerOption collapses it
@@ -68,14 +48,9 @@ func optionAbsentErr() error {
 // real tmux server the developer is running (whose latch may coincide with
 // the dev version).
 func notSatisfiedLatchClient() *tmux.Client {
-	return tmux.NewClient(&recordingCommander{
-		RunFunc: func(args ...string) (string, error) {
-			if len(args) > 0 && args[0] == "show-option" {
-				return "", optionAbsentErr()
-			}
-			return "", nil
-		},
-	})
+	return tmux.NewClient(quietCommander(
+		fails(optionAbsentErr(), "show-option"),
+	))
 }
 
 func installMockList(t *testing.T) {
@@ -122,14 +97,9 @@ func TestPersistentPreRunE_FullBootstrap_WhenNotSatisfied(t *testing.T) {
 				t.Cleanup(func() { version = prevVersion })
 			}
 
-			client := tmux.NewClient(&recordingCommander{
-				RunFunc: func(args ...string) (string, error) {
-					if len(args) > 0 && args[0] == "show-option" {
-						return tc.showOptValue, tc.showOptErr
-					}
-					return "", nil
-				},
-			})
+			client := tmux.NewClient(quietCommander(
+				when(argvPrefix("show-option"), tc.showOptValue, tc.showOptErr),
+			))
 			runner := &recordingRunner{started: false}
 			withBootstrapDeps(t, BootstrapDeps{Orchestrator: runner, Client: client})
 

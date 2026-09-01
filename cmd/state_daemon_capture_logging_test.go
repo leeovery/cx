@@ -103,12 +103,9 @@ func TestDaemonTick_LogsAnomalousShowEnvironmentFailureUnderComponentDaemon(t *t
 		},
 	}
 
-	wrapped := &envFailingCommander{
-		inner: fc,
-		envErrs: map[string]error{
-			"B": errors.New("bravo-boom-sentinel"),
-		},
-	}
+	wrapped := commanderDelegatingTo(fc,
+		when(showEnvironmentFor("B"), "", errors.New("bravo-boom-sentinel")),
+	)
 
 	logger, sink := newCaptureLoggerForComponent(t, "daemon")
 
@@ -154,13 +151,10 @@ func TestDaemonTick_LogsPerSessionWarnAndCommitsEmptyOnAllNaturalChurn(t *testin
 		panesOut: "A|||0|||main|||layout|||0|||1|||0|||/tmp|||1|||zsh|||\n" +
 			"B|||0|||main|||layout|||0|||1|||0|||/tmp|||1|||zsh|||",
 	}
-	wrapped := &envFailingCommander{
-		inner: fc,
-		envErrs: map[string]error{
-			"A": noSuchSessionCommandErr("A"),
-			"B": noSuchSessionCommandErr("B"),
-		},
-	}
+	wrapped := commanderDelegatingTo(fc,
+		when(showEnvironmentFor("A"), "", noSuchSessionCommandErr("A")),
+		when(showEnvironmentFor("B"), "", noSuchSessionCommandErr("B")),
+	)
 
 	logger, sink := newCaptureLoggerForComponent(t, "daemon")
 
@@ -266,20 +260,11 @@ func sessionFromExactTarget(target string) string {
 	return strings.TrimPrefix(target, "=")
 }
 
-type envFailingCommander struct {
-	inner   *daemonFakeCommander
-	envErrs map[string]error
-}
-
-func (c *envFailingCommander) Run(args ...string) (string, error) {
-	if len(args) >= 3 && args[0] == "show-environment" && args[1] == "-t" {
-		if err, ok := c.envErrs[sessionFromExactTarget(args[2])]; ok {
-			return "", err
-		}
+// showEnvironmentFor matches the per-session environment read, resolving the
+// session the same way real tmux resolves the client's exact-match target.
+func showEnvironmentFor(session string) func(args []string) bool {
+	return func(args []string) bool {
+		return len(args) >= 3 && args[0] == "show-environment" && args[1] == "-t" &&
+			sessionFromExactTarget(args[2]) == session
 	}
-	return c.inner.Run(args...)
-}
-
-func (c *envFailingCommander) RunRaw(args ...string) (string, error) {
-	return c.inner.RunRaw(args...)
 }

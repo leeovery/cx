@@ -39,7 +39,7 @@ func TestBuildProductionSpawnSeams(t *testing.T) {
 	sink := &logtest.Sink{}
 	log.SetTestHandler(t, sink)
 
-	cmder := &recordingCommander{}
+	cmder := quietCommander()
 	client := tmux.NewClient(cmder)
 
 	seams := buildProductionSpawnSeams(client)
@@ -49,11 +49,11 @@ func TestBuildProductionSpawnSeams(t *testing.T) {
 			t.Fatal("Exists seam is nil")
 		}
 		if got := seams.Exists("mysession"); !got {
-			t.Errorf("Exists returned false; recordingCommander defaults to no error, want true")
+			t.Errorf("Exists returned false; quietCommander defaults to no error, want true")
 		}
 		want := []string{"has-session", "-t", "=mysession"}
-		if len(cmder.Calls) != 1 || !slices.Equal(cmder.Calls[0], want) {
-			t.Errorf("Exists drove commander with %v, want exactly one %v call", cmder.Calls, want)
+		if len(cmder.Calls()) != 1 || !slices.Equal(cmder.Calls()[0], want) {
+			t.Errorf("Exists drove commander with %v, want exactly one %v call", cmder.Calls(), want)
 		}
 	})
 

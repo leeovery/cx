@@ -85,26 +85,6 @@ func TestHookSeams(t *testing.T) {
 	})
 }
 
-// gonePaneCommander refuses the existence probe with tmux's own stderr for a
-// pane that does not exist, so the true error chain runs — the client's own
-// wrap around those words — rather than a shape a fake resolver invented. It
-// carries no *exec.ExitError, so the rendering omits the exit-status segment
-// a real refusal adds between the argv and the stderr.
-type gonePaneCommander struct{ paneID string }
-
-func (g *gonePaneCommander) Run(args ...string) (string, error) {
-	return "", &tmux.CommandError{
-		Args:   args,
-		Stderr: "no such pane: " + g.paneID,
-	}
-}
-
-func (g *gonePaneCommander) RunRaw(args ...string) (string, error) {
-	return g.Run(args...)
-}
-
-var _ tmux.Commander = (*gonePaneCommander)(nil)
-
 func TestGonePaneErrorCarriesOnePortalClause(t *testing.T) {
 	// One Portal-authored clause, then tmux's own words unaltered. Both verbs
 	// resolve the key through the same call, so both are pinned to it.
@@ -126,7 +106,19 @@ func TestGonePaneErrorCarriesOnePortalClause(t *testing.T) {
 			hooksFileInTempDir(t)
 			t.Setenv("TMUX_PANE", "%999")
 
-			withHooksDeps(t, HooksDeps{KeyResolver: tmux.NewClient(&gonePaneCommander{paneID: "%999"})})
+			// The existence probe is refused with tmux's own stderr for a
+			// pane that does not exist, so the true error chain runs — the
+			// client's own wrap around those words — rather than a shape a
+			// fake resolver invented. The error carries no *exec.ExitError, so
+			// the rendering omits the exit-status segment a real refusal adds
+			// between the argv and the stderr. Nothing else is scripted: any
+			// other argv fails the test, which pins the probe itself.
+			gonePane := newScriptedCommander(t, fails(&tmux.CommandError{
+				Args:   []string{"show-options", "-p", "-t", "%999"},
+				Stderr: "no such pane: %999",
+			}, "show-options", "-p", "-t", "%999"))
+
+			withHooksDeps(t, HooksDeps{KeyResolver: tmux.NewClient(gonePane)})
 
 			err := drive(t)
 			if err == nil {

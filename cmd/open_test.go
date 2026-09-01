@@ -73,7 +73,7 @@ func (t *testSessionLister) ListSessionNames() ([]string, error) {
 func TestOpenCommand_PathArgument_NonExistentPath(t *testing.T) {
 	// The session-domain pre-check reads the tmux client from context before
 	// path resolution runs.
-	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}, Client: tmux.NewClient(&stubCommander{})})
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}, Client: tmux.NewClient(stubTmuxCommander())})
 
 	resetRootCmd()
 	buf := new(bytes.Buffer)
@@ -95,7 +95,7 @@ func TestOpenCommand_PathArgument_NonExistentPath(t *testing.T) {
 func TestOpenCommand_PathArgument_FileNotDirectory(t *testing.T) {
 	// The session-domain pre-check reads the tmux client from context before
 	// path resolution runs.
-	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}, Client: tmux.NewClient(&stubCommander{})})
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}, Client: tmux.NewClient(stubTmuxCommander())})
 
 	dir := t.TempDir()
 	filePath := filepath.Join(dir, "file.txt")
@@ -1103,7 +1103,7 @@ func TestOpenCommand_ZoxidePin_EmitsNoResolveLine(t *testing.T) {
 func TestOpenSession_DelegatesToBuildSessionConnector(t *testing.T) {
 	t.Setenv("TMUX", "/tmp/fake-socket,1,0")
 
-	cmder := &recordingCommander{}
+	cmder := quietCommander()
 	client := tmux.NewClient(cmder)
 	cmd := cmdWithClient(client)
 
@@ -1113,14 +1113,14 @@ func TestOpenSession_DelegatesToBuildSessionConnector(t *testing.T) {
 
 	wantCall := []string{"switch-client", "-t", "=api-x7Kd9a"}
 	found := false
-	for _, c := range cmder.Calls {
+	for _, c := range cmder.Calls() {
 		if slices.Equal(c, wantCall) {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Errorf("expected switch-client call %v, got calls %v", wantCall, cmder.Calls)
+		t.Errorf("expected switch-client call %v, got calls %v", wantCall, cmder.Calls())
 	}
 }
 
@@ -1673,17 +1673,10 @@ func (s *stubAliasEditor) DeleteAndSave(name, _ string) (bool, error) {
 	return true, nil
 }
 
-type stubCommander struct{}
-
-func (s *stubCommander) Run(args ...string) (string, error) {
-	if len(args) > 0 && args[0] == "list-sessions" {
-		return "stub|1|0|", nil
-	}
-	return "", nil
-}
-
-func (s *stubCommander) RunRaw(args ...string) (string, error) {
-	return "", nil
+// stubTmuxCommander answers the session enumeration with one stub row and
+// stays quiet for every other tmux call.
+func stubTmuxCommander() *scriptedCommander {
+	return quietCommander(returns("stub|1|0|", "list-sessions"))
 }
 
 func defaultTestTUIConfig() tuiConfig {

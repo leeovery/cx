@@ -37,7 +37,7 @@ func TestVersionGuard_InvokedForNonExemptOpen(t *testing.T) {
 
 	// A client must be in context: open's session-domain pre-check reaches for it
 	// before path resolution runs.
-	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}, Client: tmux.NewClient(&stubCommander{})})
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}, Client: tmux.NewClient(stubTmuxCommander())})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "/nonexistent/path/that/does/not/exist"})
@@ -142,7 +142,7 @@ func TestVersionGuard_NotInvokedForExemptCommands(t *testing.T) {
 
 			// uninstall builds a tmux client in its real body.
 			installUninstallDeps(t, &UninstallDeps{
-				Client:     tmux.NewClient(&recordingCommander{}),
+				Client:     tmux.NewClient(quietCommander()),
 				Unregister: func(*tmux.Client) error { return nil },
 			})
 

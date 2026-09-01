@@ -36,7 +36,7 @@ func TestHydrateExecLog_NilHookStore_MissThenBareShellExec(t *testing.T) {
 	cfg := hydrateConfig{
 		HookKey:   "nil:0.0",
 		Stdout:    io.Discard,
-		Client:    tmux.NewClient(&recordingCommander{}),
+		Client:    tmux.NewClient(quietCommander()),
 		Logger:    logger,
 		HookStore: nil,
 		ExecShell: exec.fn(),
@@ -87,7 +87,7 @@ func TestHydrateExecLog_LookupError_ErrorResultWithAttrWarnRetainedBareShell(t *
 	cfg := hydrateConfig{
 		HookKey:   "err:0.0",
 		Stdout:    io.Discard,
-		Client:    tmux.NewClient(&recordingCommander{}),
+		Client:    tmux.NewClient(quietCommander()),
 		Logger:    logger,
 		HookStore: store,
 		ExecShell: exec.fn(),
@@ -134,7 +134,7 @@ func TestHydrateExecLog_UnregisteredPaneKey_MissThenBareShellExec(t *testing.T) 
 	cfg := hydrateConfig{
 		HookKey:   "miss:0.0",
 		Stdout:    io.Discard,
-		Client:    tmux.NewClient(&recordingCommander{}),
+		Client:    tmux.NewClient(quietCommander()),
 		Logger:    logger,
 		HookStore: store,
 		ExecShell: exec.fn(),
@@ -173,7 +173,7 @@ func TestHydrateExecLog_RegisteredHook_HitThenHookChainExec(t *testing.T) {
 	cfg := hydrateConfig{
 		HookKey:   "hit:0.0",
 		Stdout:    io.Discard,
-		Client:    tmux.NewClient(&recordingCommander{}),
+		Client:    tmux.NewClient(quietCommander()),
 		Logger:    logger,
 		HookStore: store,
 		ExecShell: exec.fn(),
@@ -216,7 +216,7 @@ func TestHydrateExecLog_HitRendersArgsVerbatimIncludingEmbeddedQuotes(t *testing
 	cfg := hydrateConfig{
 		HookKey:   "q:0.0",
 		Stdout:    io.Discard,
-		Client:    tmux.NewClient(&recordingCommander{}),
+		Client:    tmux.NewClient(quietCommander()),
 		Logger:    logger,
 		HookStore: store,
 		ExecShell: exec.fn(),
@@ -244,7 +244,7 @@ func TestHydrateExecLog_ExecInfoUsesTargetAttrNotPath(t *testing.T) {
 	cfg := hydrateConfig{
 		HookKey:   "hit:0.0",
 		Stdout:    io.Discard,
-		Client:    tmux.NewClient(&recordingCommander{}),
+		Client:    tmux.NewClient(quietCommander()),
 		Logger:    logger,
 		HookStore: store,
 		ExecShell: exec.fn(),
@@ -298,7 +298,7 @@ func TestHydrateExecLog_ExecInfoEmittedImmediatelyBeforeExecShell(t *testing.T) 
 			cfg := hydrateConfig{
 				HookKey:   tc.hookKey,
 				Stdout:    io.Discard,
-				Client:    tmux.NewClient(&recordingCommander{}),
+				Client:    tmux.NewClient(quietCommander()),
 				Logger:    logger,
 				HookStore: tc.hookStore(t, dir),
 				ExecShell: func(_ string, _ []string) {

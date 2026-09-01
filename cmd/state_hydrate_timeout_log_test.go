@@ -86,7 +86,7 @@ func TestHydrateTimeoutLog_PreservesWarnUnlinkAndMarkerUnset(t *testing.T) {
 	dir := t.TempDir()
 	fifo := makeFIFO(t, dir, "hydrate-pre__0.0.fifo")
 
-	cmder := &recordingCommander{}
+	cmder := quietCommander()
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
 	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "pre:0.0",
 		OpenFIFO: instantTimeoutOpenFIFO, Commander: cmder, Logger: logger})
@@ -107,14 +107,14 @@ func TestHydrateTimeoutLog_PreservesWarnUnlinkAndMarkerUnset(t *testing.T) {
 
 	wantUnset := "set-option -su @portal-skeleton-pre__0.0"
 	found := false
-	for _, c := range cmder.Calls {
+	for _, c := range cmder.Calls() {
 		if strings.Join(c, " ") == wantUnset {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Errorf("expected marker-unset call %q; calls: %v", wantUnset, cmder.Calls)
+		t.Errorf("expected marker-unset call %q; calls: %v", wantUnset, cmder.Calls())
 	}
 }
 
@@ -129,7 +129,7 @@ func TestHydrateTimeoutLog_NilHandleTimeout_NoSignalTimeoutNoExec(t *testing.T) 
 		File:      filepath.Join(dir, "sb"),
 		HookKey:   "nil:0.0",
 		Stdout:    new(bytes.Buffer),
-		Client:    tmux.NewClient(&recordingCommander{}),
+		Client:    tmux.NewClient(quietCommander()),
 		Logger:    logger,
 		ExecShell: exec.fn(),
 		OpenFIFO:  instantTimeoutOpenFIFO,

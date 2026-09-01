@@ -363,7 +363,7 @@ func TestOpenTUI_FatalBeforeModelConstruction(t *testing.T) {
 		t.Fatal("tmux.InsideTmux() is false after setting TMUX — the no-calls tripwire below would be unarmed")
 	}
 
-	commander := &recordingCommander{}
+	commander := quietCommander()
 	err := openTUI(cmdWithClient(tmux.NewClient(commander)), "", nil, false)
 
 	if err == nil {
@@ -372,8 +372,8 @@ func TestOpenTUI_FatalBeforeModelConstruction(t *testing.T) {
 	if want := theme.BrokenBuiltinError(theme.DefaultDarkSlug).Error(); err.Error() != want {
 		t.Errorf("openTUI error = %q, want %q", err.Error(), want)
 	}
-	if len(commander.Calls) != 0 {
-		t.Errorf("tmux commander saw %v, want no calls at all — the current-session read is the last statement before construction, so any call means the fatal returned past it", commander.Calls)
+	if len(commander.Calls()) != 0 {
+		t.Errorf("tmux commander saw %v, want no calls at all — the current-session read is the last statement before construction, so any call means the fatal returned past it", commander.Calls())
 	}
 	if pending := bootstrapWarnings.Drain(); len(pending) != 1 || !slices.Equal(pending[0].Lines, staged.Lines) {
 		t.Errorf("bootstrap warnings after the fatal = %+v, want the seeded one still pending — a drained sink means a model was constructed on the fatal path", pending)

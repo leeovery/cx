@@ -44,6 +44,12 @@ func isPanePIDProbe(args []string) bool {
 	return len(args) > 0 && args[len(args)-1] == "#{pane_pid}"
 }
 
+// panePIDProbe matches the _portal-saver pane-pid liveness read specifically,
+// distinguishing it from the SaverPaneID read that shares the list-panes verb.
+func panePIDProbe(args []string) bool {
+	return len(args) > 0 && args[0] == "list-panes" && isPanePIDProbe(args)
+}
+
 func countOp(calls [][]string, op string) int {
 	n := 0
 	for _, c := range calls {
@@ -67,24 +73,18 @@ func noSuchSessionErr() error {
 func TestEnsureSaverLiveness_NoOpWhenSaverPresentAndAlive(t *testing.T) {
 	resetBootstrapWarnings(t)
 
-	cmder := &recordingCommander{
-		RunFunc: func(args ...string) (string, error) {
-			if args[0] == "list-panes" && isPanePIDProbe(args) {
-				return "12345\n", nil // present pane, parseable pid -> alive
-			}
-			t.Fatalf("unexpected tmux call for present+alive saver: %v", args)
-			return "", nil
-		},
-	}
+	// Anything beyond the presence probe fails the test: the alive saver's
+	// whole contract is that no other tmux call is made.
+	cmder := newScriptedCommander(t, when(panePIDProbe, "12345\n", nil))
 
 	ensureSaverLiveness(tmux.NewClient(cmder), t.TempDir())
 
-	if got := countOp(cmder.Calls, "list-panes"); got != 1 {
-		t.Errorf("expected exactly 1 presence probe, got %d: %v", got, cmder.Calls)
+	if got := countOp(cmder.Calls(), "list-panes"); got != 1 {
+		t.Errorf("expected exactly 1 presence probe, got %d: %v", got, cmder.Calls())
 	}
 	for _, op := range []string{"has-session", "new-session", "respawn-pane", "kill-session"} {
-		if n := countOp(cmder.Calls, op); n != 0 {
-			t.Errorf("expected no %q call for alive saver, got %d: %v", op, n, cmder.Calls)
+		if n := countOp(cmder.Calls(), op); n != 0 {
+			t.Errorf("expected no %q call for alive saver, got %d: %v", op, n, cmder.Calls())
 		}
 	}
 	if got := bootstrapWarnings.Drain(); len(got) != 0 {
@@ -96,34 +96,21 @@ func TestEnsureSaverLiveness_RevivesViaBootstrapPortalSaverWhenAbsent(t *testing
 	resetBootstrapWarnings(t)
 	stubSaverAliveCheck(t, false)
 
-	cmder := &recordingCommander{
-		RunFunc: func(args ...string) (string, error) {
-			switch args[0] {
-			case "list-panes":
-				if isPanePIDProbe(args) {
-					return "", noSuchSessionErr()
-				}
-				return "%1\n", nil // SaverPaneID (#{pane_id}), best-effort
-			case "has-session":
-				return "", errors.New("can't find session") // absent -> create branch
-			case "new-session":
-				return "", nil // createPortalSaverWithRetry succeeds
-			case "set-option":
-				return "", nil
-			case "respawn-pane":
-				// Failing here returns before BootstrapPortalSaver's daemon-readiness
-				// barrier, which package cmd has no seam to reach.
-				return "", errors.New("respawn failed")
-			}
-			t.Fatalf("unexpected tmux call: %v", args)
-			return "", nil
-		},
-	}
+	cmder := newScriptedCommander(t,
+		when(panePIDProbe, "", noSuchSessionErr()),
+		returns("%1\n", "list-panes"),                          // SaverPaneID (#{pane_id}), best-effort
+		fails(errors.New("can't find session"), "has-session"), // absent -> create branch
+		returns("", "new-session"),                             // createPortalSaverWithRetry succeeds
+		returns("", "set-option"),
+		// Failing respawn-pane returns before BootstrapPortalSaver's
+		// daemon-readiness barrier, which package cmd has no seam to reach.
+		fails(errors.New("respawn failed"), "respawn-pane"),
+	)
 
 	ensureSaverLiveness(tmux.NewClient(cmder), t.TempDir())
 
-	if got := countOp(cmder.Calls, "new-session"); got != 1 {
-		t.Errorf("expected BootstrapPortalSaver create path (1 new-session), got %d: %v", got, cmder.Calls)
+	if got := countOp(cmder.Calls(), "new-session"); got != 1 {
+		t.Errorf("expected BootstrapPortalSaver create path (1 new-session), got %d: %v", got, cmder.Calls())
 	}
 }
 
@@ -131,33 +118,20 @@ func TestEnsureSaverLiveness_TreatsProbeTransientErrorAsAbsentAndRevives(t *test
 	resetBootstrapWarnings(t)
 	stubSaverAliveCheck(t, false)
 
-	cmder := &recordingCommander{
-		RunFunc: func(args ...string) (string, error) {
-			switch args[0] {
-			case "list-panes":
-				if isPanePIDProbe(args) {
-					// Non-sentinel transient: parseable-looking but not a base-10 pid.
-					return "not-a-pid\n", nil
-				}
-				return "%1\n", nil
-			case "has-session":
-				return "", errors.New("can't find session")
-			case "new-session":
-				return "", nil
-			case "set-option":
-				return "", nil
-			case "respawn-pane":
-				return "", errors.New("respawn failed")
-			}
-			t.Fatalf("unexpected tmux call: %v", args)
-			return "", nil
-		},
-	}
+	cmder := newScriptedCommander(t,
+		// Non-sentinel transient: parseable-looking but not a base-10 pid.
+		when(panePIDProbe, "not-a-pid\n", nil),
+		returns("%1\n", "list-panes"),
+		fails(errors.New("can't find session"), "has-session"),
+		returns("", "new-session"),
+		returns("", "set-option"),
+		fails(errors.New("respawn failed"), "respawn-pane"),
+	)
 
 	ensureSaverLiveness(tmux.NewClient(cmder), t.TempDir())
 
-	if got := countOp(cmder.Calls, "new-session"); got != 1 {
-		t.Errorf("transient probe error must be treated as absent and revive (1 new-session), got %d: %v", got, cmder.Calls)
+	if got := countOp(cmder.Calls(), "new-session"); got != 1 {
+		t.Errorf("transient probe error must be treated as absent and revive (1 new-session), got %d: %v", got, cmder.Calls())
 	}
 }
 
@@ -209,15 +183,9 @@ func TestEnsureSaverLiveness_LogsNoWarnWhenSaverPresent(t *testing.T) {
 	sink := &logtest.Sink{}
 	log.SetTestHandler(t, sink)
 
-	cmder := &recordingCommander{
-		RunFunc: func(args ...string) (string, error) {
-			if args[0] == "list-panes" && isPanePIDProbe(args) {
-				return "12345\n", nil // present pane, parseable pid -> alive
-			}
-			t.Fatalf("unexpected tmux call for present+alive saver: %v", args)
-			return "", nil
-		},
-	}
+	// Anything beyond the presence probe fails the test: the alive saver's
+	// whole contract is that no other tmux call is made.
+	cmder := newScriptedCommander(t, when(panePIDProbe, "12345\n", nil))
 
 	ensureSaverLiveness(tmux.NewClient(cmder), t.TempDir())
 
@@ -232,20 +200,13 @@ func TestEnsureSaverLiveness_LogsNoWarnWhenSaverPresent(t *testing.T) {
 func TestEnsureSaverLiveness_NeverInvokesVersionGate(t *testing.T) {
 	resetBootstrapWarnings(t)
 
-	cmder := &recordingCommander{
-		RunFunc: func(args ...string) (string, error) {
-			if args[0] == "list-panes" && isPanePIDProbe(args) {
-				return "12345\n", nil // present + alive -> no revive path at all
-			}
-			t.Fatalf("unexpected tmux call: %v", args)
-			return "", nil
-		},
-	}
+	// present + alive -> no revive path at all; any other argv fails the test.
+	cmder := newScriptedCommander(t, when(panePIDProbe, "12345\n", nil))
 
 	ensureSaverLiveness(tmux.NewClient(cmder), t.TempDir())
 
-	if n := countOp(cmder.Calls, "kill-session"); n != 0 {
-		t.Errorf("liveness-only helper must never kill-session, got %d: %v", n, cmder.Calls)
+	if n := countOp(cmder.Calls(), "kill-session"); n != 0 {
+		t.Errorf("liveness-only helper must never kill-session, got %d: %v", n, cmder.Calls())
 	}
 
 	// The identifier is deliberately named in the docstring, so match a call —
