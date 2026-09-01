@@ -351,7 +351,8 @@
             "resume-hooks-silently-lost-7-24",
             "resume-hooks-silently-lost-7-25",
             "resume-hooks-silently-lost-7-26",
-            "resume-hooks-silently-lost-7-27"
+            "resume-hooks-silently-lost-7-27",
+            "resume-hooks-silently-lost-7-15"
           ],
           "staging": {
             "p1": {
@@ -1583,6 +1584,48 @@
               "files": [
                 "cmd/logging_capture_test.go",
                 "internal/log/discard.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-15",
+              "source": "executor",
+              "summary": "The composite-e2e flake now fails 3/3 on clean HEAD — it has crossed from intermittent to near-deterministic under current machine load",
+              "detail": "7-15 executor stashed its changes and ran cmd/bootstrap TestCompositeBootstrap_* three times on clean HEAD: it failed 3/3 there, while passing intermittently WITH the changes applied. A different member fails each run (FObservables, ConvergesPgrepToOneDaemon, ExternalSaverKillTriggersSelfEject, FreshAcquireDaemonLockRefusesPostBootstrap). Every reviewer this phase has had to spend runs disproving attribution to their own change. An existing inbox bug (bootstrap-composite-e2e-convergence-flake, 2026-08-11) covers the convergence assertion specifically; this is broader — the whole composite suite. Worth deciding whether the suite needs a load-tolerant budget or should move behind a tag, because right now it costs every task a re-run and teaches reviewers to discount a real failure.",
+              "files": [
+                "cmd/bootstrap"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-15",
+              "source": "reviewer",
+              "summary": "7-15 step 4 duplication RELOCATED rather than disappeared — its criterion is met but its Outcome is not",
+              "detail": "The 7-15 executor reported step 4 as entirely moot because markerReporter/recordingReporter/fatalSentinel are gone from internal/restore. The reviewer found commit e9b27db7 MOVED them into internal/restoretest rather than deleting them: markerReporter at internal/restoretest/marker_count.go:19 declares Helper/Errorf/Fatalf, byte-identical to logtest.TestingT at internal/logtest/capture.go:23, and recordingReporter + fatalSentinel at marker_count_test.go:11-45 is the same panic-and-recover trick. So 7-15 criterion (internal/restore declares none of its own) is genuinely satisfied while its stated Outcome (no package redeclares the seam or the pattern) is not. Deferring was right: the fix edits a sibling task just-landed output and would introduce a restoretest -> logtest package edge that does not exist today, which is a design decision. Note also restoretest existing fakeFataller (waitfor_file_exists_test.go:12) has NO Errorf, so it cannot substitute for recordingReporter as step 4 assumed.",
+              "files": [
+                "internal/restoretest/marker_count.go",
+                "internal/restoretest/marker_count_test.go",
+                "internal/restoretest/waitfor_file_exists_test.go",
+                "internal/logtest/capture.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-15",
+              "source": "reviewer",
+              "summary": "Three live copies of the panic-and-recover recording-fataller across two test-only packages",
+              "detail": "fakeT + fakeFatal + captureFailure at internal/logtest/capture_test.go:330-365, recordingReporter + fatalSentinel at internal/restoretest/marker_count_test.go:11-45, and fakeFataller at internal/restoretest/waitfor_file_exists_test.go:12-22. All pre-existing and cross-package. Consolidating needs a home neither test-only package can host without introducing a third, or an edge between them — so it is a design decision rather than a rename.",
+              "files": [
+                "internal/logtest/capture_test.go",
+                "internal/restoretest/marker_count_test.go",
+                "internal/restoretest/waitfor_file_exists_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-15",
+              "source": "reviewer",
+              "summary": "Two logtest test names now describe a filter chain and a Msg filter that no longer exist",
+              "detail": "TestRecords_FilterChainCombinesLevelAndComponent (internal/logtest/capture_test.go:315) and TestRecords_MsgFiltersOnMessageAloneAcrossComponents (:367) name the chainable surface 7-15 unexported. The executor correctly left them — 7-15 acceptance criteria forbid renaming a test — but the names are stale for whoever lifts that constraint. Also worth noting: the Sink query surface is now 7 of the 8 possible level x component x message combinations, so the next at-or-above-level-plus-message need adds an eighth method rather than a composition. That is the directed shape (one route per query), not drift, but it is the cost of the direction.",
+              "files": [
+                "internal/logtest/capture_test.go",
+                "internal/logtest/capture.go"
               ]
             }
           ]
