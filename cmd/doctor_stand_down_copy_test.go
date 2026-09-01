@@ -37,6 +37,13 @@ func standDownCopyCases() []standDownCopyCase {
 			notEvaluableLine: "  · stale hooks: restore in progress (not evaluable)",
 		},
 		{
+			name:             "restore marker unreadable",
+			reason:           skipReasonMarkerReadFailed,
+			deps:             func(t *testing.T) *DoctorDeps { return markerReadFailedStandDownDeps(t) },
+			skippedLine:      "Skipped stale hook prune: could not read the restore marker",
+			notEvaluableLine: "  · stale hooks: could not read the restore marker",
+		},
+		{
 			name:             "hooks.json unreadable",
 			reason:           skipReasonStoreReadFailed,
 			deps:             func(t *testing.T) *DoctorDeps { return storeReadFailedStandDownDeps(t) },
@@ -83,6 +90,16 @@ func restoringStandDownDeps(t *testing.T) *DoctorDeps {
 	t.Helper()
 	store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(hookstest.LiveSeedA)})
 	return healthyStandDownDeps(t, restoringHookLister(), store)
+}
+
+// The server is down, so the marker read fails outright — the state a user
+// reaches for doctor in after a reboot.
+func markerReadFailedStandDownDeps(t *testing.T) *DoctorDeps {
+	t.Helper()
+	store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(hookstest.LiveSeedA)})
+	lister := staleHookLister()
+	lister.restoringErr = errors.New("no server running")
+	return healthyStandDownDeps(t, lister, store)
 }
 
 func storeReadFailedStandDownDeps(t *testing.T) *DoctorDeps {
@@ -144,10 +161,10 @@ func TestStandDownCopy(t *testing.T) {
 		assertSkippedPruneLine(t, out, "Skipped stale hook prune: live pane list came back empty")
 	})
 
-	t.Run("it renders a distinct phrase for each of the five stand-down reasons", func(t *testing.T) {
+	t.Run("it names a phrase for every stand-down reason on both surfaces", func(t *testing.T) {
 		cases := standDownCopyCases()
-		if len(cases) != 5 {
-			t.Fatalf("stand-down copy cases = %d, want one per reason (5)", len(cases))
+		if len(cases) != len(skipReasons) {
+			t.Fatalf("stand-down copy cases = %d, want one per declared reason (%d)", len(cases), len(skipReasons))
 		}
 
 		skipped := map[string]string{}
@@ -170,6 +187,12 @@ func TestStandDownCopy(t *testing.T) {
 			}
 			skipped[tc.skippedLine] = tc.reason
 			notEvaluable[tc.notEvaluableLine] = tc.reason
+		}
+	})
+
+	t.Run("it renders doctor's not-evaluable detail for a failed marker read", func(t *testing.T) {
+		if got := renderStaleHooksLine(skipReasonMarkerReadFailed); got != "  · stale hooks: could not read the restore marker" {
+			t.Errorf("not-evaluable line = %q, want the failed marker read named in the diagnosis", got)
 		}
 	})
 

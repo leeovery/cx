@@ -1065,12 +1065,17 @@ func TestDoctorStaleHooksCheck(t *testing.T) {
 		assertRestoreWindowResult(t, got)
 	})
 
-	t.Run("it treats a failed marker read as a set marker", func(t *testing.T) {
+	// A read that failed stands the check down like a set marker, but says so
+	// in its own words: it establishes nothing about the marker.
+	t.Run("it reports a failed marker read as its own reason", func(t *testing.T) {
 		dir := t.TempDir()
 		hookStore, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(hookstest.ReapableSeedA)})
 		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedB), restoringErr: errors.New("tmux transient")}
 		got := staleHooksCheckResult(t, dir, lister, hookStore)
-		assertRestoreWindowResult(t, got)
+		assertMarkerReadFailedResult(t, got)
+		if lister.calls != 0 {
+			t.Errorf("live pane enumerations = %d; want 0 (the failed marker read stands the check down first)", lister.calls)
+		}
 	})
 
 	t.Run("it reads the marker before the empty-live-set branch", func(t *testing.T) {
@@ -1106,7 +1111,7 @@ func TestDoctorStaleHooksCheck(t *testing.T) {
 		if err != nil {
 			t.Fatalf("runDoctorDiagnosis: %v", err)
 		}
-		assertRestoreWindowResult(t, findCheck(t, results, "stale hooks"))
+		assertMarkerReadFailedResult(t, findCheck(t, results, "stale hooks"))
 	})
 
 	t.Run("it still fails on a genuinely stale token-shaped key alongside retained non-token-shaped entries", func(t *testing.T) {
@@ -1157,6 +1162,18 @@ func assertRestoreWindowResult(t *testing.T, got checkResult) {
 	}
 	if got.detail != "restore in progress (not evaluable)" {
 		t.Errorf("detail = %q; want %q", got.detail, "restore in progress (not evaluable)")
+	}
+}
+
+// A server that is down is the routine state a user diagnoses in, so the
+// detail must name the read rather than assert a restore nothing is running.
+func assertMarkerReadFailedResult(t *testing.T, got checkResult) {
+	t.Helper()
+	if got.status != checkNotEvaluable {
+		t.Errorf("status = %v; want checkNotEvaluable on a failed marker read", got.status)
+	}
+	if got.detail != "could not read the restore marker" {
+		t.Errorf("detail = %q; want %q", got.detail, "could not read the restore marker")
 	}
 }
 

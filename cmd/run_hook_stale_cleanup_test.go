@@ -337,7 +337,10 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 		}
 	})
 
-	t.Run("it treats a failed marker read as a set marker", func(t *testing.T) {
+	// A read that failed proves nothing about the marker, so the cycle still
+	// stands down on it — the fail-safe posture is unchanged by the reason it
+	// is reported under.
+	t.Run("it stands the sweep down when the marker read fails", func(t *testing.T) {
 		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: hookstest.StaleHookSeed})
 		before := readFileBytes(t, path)
 
@@ -355,9 +358,49 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 			t.Errorf("ListAllPaneHookKeys call count = %d, want 0 on a failed marker read", lister.calls)
 		}
 
-		rec := assertStandDown(t, sink, slog.LevelDebug, "restoring")
+		rec := assertStandDown(t, sink, slog.LevelDebug, skipReasonMarkerReadFailed)
 		if got := rec.AttrString(t, "error"); got != sentinel.Error() {
 			t.Errorf("error attr = %q, want %q", got, sentinel.Error())
+		}
+	})
+
+	// With the tmux server down the marker cannot be read at all, which is the
+	// routine state a user reaches for doctor in: neither surface may answer it
+	// with a restore that is not running.
+	t.Run("it reports a failed marker read as its own reason", func(t *testing.T) {
+		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hookstest.StaleHookSeed})
+		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA), restoringErr: errors.New("no server running")}
+
+		outcome, err := runHookStaleCleanup(lister, store, nil)
+		if err != nil {
+			t.Fatalf("runHookStaleCleanup: %v", err)
+		}
+		if outcome.DeclineReason != skipReasonMarkerReadFailed {
+			t.Errorf("DeclineReason = %q, want %q", outcome.DeclineReason, skipReasonMarkerReadFailed)
+		}
+		for name, vocabulary := range map[string]map[string]string{
+			"skippedPrunePhrases": skippedPrunePhrases,
+			"notEvaluableDetails": notEvaluableDetails,
+		} {
+			if phrase := phraseFor(vocabulary, outcome.DeclineReason); strings.Contains(phrase, restoreStandDownPhrase) {
+				t.Errorf("%s renders %q for a failed marker read; want a phrase that asserts no restore", name, phrase)
+			}
+		}
+	})
+
+	t.Run("it reports an in-progress restore as a restore", func(t *testing.T) {
+		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hookstest.StaleHookSeed})
+		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA), restoring: true}
+
+		outcome, err := runHookStaleCleanup(lister, store, nil)
+		if err != nil {
+			t.Fatalf("runHookStaleCleanup: %v", err)
+		}
+		if outcome.DeclineReason != skipReasonRestoring {
+			t.Errorf("DeclineReason = %q, want %q", outcome.DeclineReason, skipReasonRestoring)
+		}
+		if phrase := phraseFor(skippedPrunePhrases, outcome.DeclineReason); phrase != restoreStandDownPhrase {
+			t.Errorf("skipped-prune phrase = %q, want %q", phrase, restoreStandDownPhrase)
 		}
 	})
 

@@ -13,11 +13,12 @@ import (
 // The reasons a cycle declines to run. Both the logged reason attr and the
 // caller-facing rendering read them, so the two cannot drift.
 const (
-	skipReasonRestoring       = "restoring"
-	skipReasonStoreReadFailed = "store-read-failed"
-	skipReasonPaneReadFailed  = "pane-read-failed"
-	skipReasonEmptyPaneRead   = "empty-pane-read"
-	skipReasonLockTimeout     = "lock-timeout"
+	skipReasonRestoring        = "restoring"
+	skipReasonMarkerReadFailed = "marker-read-failed"
+	skipReasonStoreReadFailed  = "store-read-failed"
+	skipReasonPaneReadFailed   = "pane-read-failed"
+	skipReasonEmptyPaneRead    = "empty-pane-read"
+	skipReasonLockTimeout      = "lock-timeout"
 )
 
 // skipReasons makes the reasons above enumerable, so anything that must cover
@@ -25,33 +26,43 @@ const (
 // declared and left out of it is invisible to everything that works from it.
 var skipReasons = []string{
 	skipReasonRestoring,
+	skipReasonMarkerReadFailed,
 	skipReasonStoreReadFailed,
 	skipReasonPaneReadFailed,
 	skipReasonEmptyPaneRead,
 	skipReasonLockTimeout,
 }
 
-const restoreStandDownPhrase = "restore in progress"
+// A restore that is running and a marker that could not be read stand the cycle
+// down alike, but they are different conditions: the server is routinely down
+// when a user reaches for a diagnosis, and reporting that as a restore would
+// assert something that is not happening.
+const (
+	restoreStandDownPhrase    = "restore in progress"
+	markerReadStandDownPhrase = "could not read the restore marker"
+)
 
 // skippedPrunePhrases completes "Skipped stale hook prune: …" for a user who
 // asked for a repair. A failed enumeration and a successful one that answered
 // nothing are separate conditions, so neither borrows the other's words.
 var skippedPrunePhrases = map[string]string{
-	skipReasonRestoring:       restoreStandDownPhrase,
-	skipReasonStoreReadFailed: "could not read hooks.json",
-	skipReasonPaneReadFailed:  "could not enumerate live panes",
-	skipReasonEmptyPaneRead:   "live pane list came back empty",
-	skipReasonLockTimeout:     "hooks.json is locked",
+	skipReasonRestoring:        restoreStandDownPhrase,
+	skipReasonMarkerReadFailed: markerReadStandDownPhrase,
+	skipReasonStoreReadFailed:  "could not read hooks.json",
+	skipReasonPaneReadFailed:   "could not enumerate live panes",
+	skipReasonEmptyPaneRead:    "live pane list came back empty",
+	skipReasonLockTimeout:      "hooks.json is locked",
 }
 
 // notEvaluableDetails renders a stand-down reason as the reason the count cannot
 // be taken, so the diagnostic reports exactly what the reaper declined to judge.
 var notEvaluableDetails = map[string]string{
-	skipReasonRestoring:       restoreStandDownPhrase + " (not evaluable)",
-	skipReasonStoreReadFailed: "could not read hooks.json",
-	skipReasonPaneReadFailed:  "could not enumerate live panes",
-	skipReasonEmptyPaneRead:   "zero live panes with hooks present (not evaluable)",
-	skipReasonLockTimeout:     "hooks.json is locked (not evaluable)",
+	skipReasonRestoring:        restoreStandDownPhrase + " (not evaluable)",
+	skipReasonMarkerReadFailed: markerReadStandDownPhrase,
+	skipReasonStoreReadFailed:  "could not read hooks.json",
+	skipReasonPaneReadFailed:   "could not enumerate live panes",
+	skipReasonEmptyPaneRead:    "zero live panes with hooks present (not evaluable)",
+	skipReasonLockTimeout:      "hooks.json is locked (not evaluable)",
 }
 
 // phraseFor renders a stand-down reason through one of the surface vocabularies
@@ -108,13 +119,6 @@ func declineWarn(reason string, attrs ...any) standDown {
 	return standDown{reason: reason, level: slog.LevelWarn, attrs: attrs}
 }
 
-func errAttr(err error) []any {
-	if err == nil {
-		return nil
-	}
-	return []any{"error", err}
-}
-
 // stalenessView is what the enumeration could establish about this moment: the
 // live token set persisted keys may be judged against, or the reason nothing
 // may be judged at all. A declined view's LiveTokens is not authority.
@@ -128,14 +132,21 @@ type stalenessView struct {
 }
 
 // hookStalenessStandDown reports whether hook-staleness work may run at all.
-// Both the sweep and the diagnostic take it before they read their store, so
+// Both the sweep and the diagnostic take it before they judge a single key, so
 // neither judges an entry the other protects. A restore's panes carry no token
 // until the re-stamp, so work landing in that window would treat every
 // token-keyed entry on the machine as lost; a deferred prune costs nothing, so
-// a failed read reports no louder than the stand-down itself.
+// a failed read reports no louder than the stand-down itself. The read that
+// failed folds into the same stand-down under its own reason: it establishes
+// nothing about the marker, so the reason it is reported under must not claim a
+// restore the user is not running.
 func hookStalenessStandDown(reader state.RestoringChecker) standDown {
-	if active, err := state.RestoreWindowActive(state.IsRestoringSet(reader)); active {
-		return declineDebug(skipReasonRestoring, errAttr(err)...)
+	active, err := state.RestoreWindowActive(state.IsRestoringSet(reader))
+	switch {
+	case err != nil:
+		return declineDebug(skipReasonMarkerReadFailed, "error", err)
+	case active:
+		return declineDebug(skipReasonRestoring)
 	}
 	return standDown{}
 }
