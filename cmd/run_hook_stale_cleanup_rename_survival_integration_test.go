@@ -36,22 +36,20 @@ func TestRenameRestoreCleanupSurvival_KeepsRestoredTokenKeyedHook(t *testing.T) 
 	// registered under must still name a live pane, or the sweep reaps it the
 	// way the mutable session name used to let it. Omitting the stamp leaves
 	// the pane unstamped and the entry unprotected.
-	ts.StampPaneToken(t, renameRestoreName+":0.0", liveSeedA)
+	ts.StampPaneToken(t, renameRestoreName+":0.0", hookstest.LiveSeedA)
 
 	if err := client.RenameSession(renameRestoreName, renameRestoreNewName); err != nil {
 		t.Fatalf("RenameSession: %v", err)
 	}
 	ts.WaitForSession(t, renameRestoreNewName, 2*time.Second)
 
-	assertLiveTokenPresent(t, client, liveSeedA)
+	assertLiveTokenPresent(t, client, hookstest.LiveSeedA)
 
-	// Truly-stale entry with no matching live pane, token-shaped so the reaper
-	// can judge it: must still be swept.
-	staleKey := reapableSeedA
-
+	// The truly-stale entry below (ReapableSeedA) has no matching live pane and
+	// is token-shaped, so the reaper can judge it: it must still be swept.
 	seed := `{
-  "` + liveSeedA + `": {"on-resume": "echo restored"},
-  "` + staleKey + `": {"on-resume": "echo gone"}
+  "` + hookstest.LiveSeedA + `": {"on-resume": "echo restored"},
+  "` + hookstest.ReapableSeedA + `": {"on-resume": "echo gone"}
 }`
 	store, path := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 
@@ -59,11 +57,11 @@ func TestRenameRestoreCleanupSurvival_KeepsRestoredTokenKeyedHook(t *testing.T) 
 	if err != nil {
 		t.Fatalf("pre-cleanup store.Load: %v", err)
 	}
-	if _, ok := preRun[liveSeedA]; !ok {
-		t.Fatalf("pre-cleanup seed missing token key %q; keys=%v", liveSeedA, keysOf(preRun))
+	if _, ok := preRun[hookstest.LiveSeedA]; !ok {
+		t.Fatalf("pre-cleanup seed missing token key %q; keys=%v", hookstest.LiveSeedA, keysOf(preRun))
 	}
-	if _, ok := preRun[staleKey]; !ok {
-		t.Fatalf("pre-cleanup seed missing stale key %q; keys=%v", staleKey, keysOf(preRun))
+	if _, ok := preRun[hookstest.ReapableSeedA]; !ok {
+		t.Fatalf("pre-cleanup seed missing stale key %q; keys=%v", hookstest.ReapableSeedA, keysOf(preRun))
 	}
 
 	if err := sweepErr(client, store, nil); err != nil {
@@ -74,15 +72,15 @@ func TestRenameRestoreCleanupSurvival_KeepsRestoredTokenKeyedHook(t *testing.T) 
 	if err != nil {
 		t.Fatalf("post-cleanup store.Load: %v", err)
 	}
-	if _, ok := postRun[liveSeedA]; !ok {
+	if _, ok := postRun[hookstest.LiveSeedA]; !ok {
 		t.Errorf("token-keyed hook %q was swept after a rename; want preserved "+
 			"(the token is stamped on the pane and a rename cannot move it). "+
-			"post-cleanup keys=%v (path=%s)", liveSeedA, keysOf(postRun), path)
+			"post-cleanup keys=%v (path=%s)", hookstest.LiveSeedA, keysOf(postRun), path)
 	}
-	if _, ok := postRun[staleKey]; ok {
+	if _, ok := postRun[hookstest.ReapableSeedA]; ok {
 		t.Errorf("truly-stale hook %q survived; want swept "+
 			"(no matching live pane — cleanup correctness must not be weakened). "+
-			"post-cleanup keys=%v (path=%s)", staleKey, keysOf(postRun), path)
+			"post-cleanup keys=%v (path=%s)", hookstest.ReapableSeedA, keysOf(postRun), path)
 	}
 }
 

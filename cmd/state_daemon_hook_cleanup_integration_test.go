@@ -41,16 +41,6 @@ const (
 	liveWorkSession = "work"
 )
 
-var (
-	// staleHookKey has no matching live pane on the test server, and its token
-	// shape is one the reaper can judge, so it is genuinely reapable.
-	staleHookKey = hookstest.ReapableHookKey(0)
-
-	// liveHookToken is token-shaped, so an entry keyed on it survives because
-	// its pane is live rather than because the reaper cannot judge the key.
-	liveHookToken = hookstest.ReapableHookKey(1)
-)
-
 func TestDaemon_ThrottledHookCleanup_ReapsStaleRetainsLiveOnIdleServer(t *testing.T) {
 	tmuxtest.SkipIfNoTmux(t)
 
@@ -88,26 +78,26 @@ func TestDaemon_ThrottledHookCleanup_ReapsStaleRetainsLiveOnIdleServer(t *testin
 	// the daemon's enumeration reports.
 	sock.Run(t, "new-session", "-d", "-s", liveWorkSession, "sh", "-c", "exec tail -f /dev/null")
 	livePaneTarget := liveWorkSession + ":0.0"
-	sock.StampPaneToken(t, livePaneTarget, liveHookToken)
+	sock.StampPaneToken(t, livePaneTarget, hookstest.LiveSeedA)
 	liveHookKey := sock.ReadPaneToken(t, livePaneTarget)
-	if liveHookKey != liveHookToken {
-		t.Fatalf("live pane token = %q, want %q (the stamp did not land)", liveHookKey, liveHookToken)
+	if liveHookKey != hookstest.LiveSeedA {
+		t.Fatalf("live pane token = %q, want %q (the stamp did not land)", liveHookKey, hookstest.LiveSeedA)
 	}
-	if liveHookKey == staleHookKey {
+	if liveHookKey == hookstest.ReapableSeedA {
 		t.Fatalf("test setup collision: live key %q equals the stale key constant", liveHookKey)
 	}
 
 	hookstest.SeedHooksJSON(t, env, map[string]string{
-		staleHookKey: "echo stale-should-be-reaped",
-		liveHookKey:  "echo live-should-be-retained",
+		hookstest.ReapableSeedA: "echo stale-should-be-reaped",
+		liveHookKey:             "echo live-should-be-retained",
 	})
 
 	// Guards against a seed that silently landed on the wrong path.
 	preKeys := readHookKeys(t, env)
-	if _, ok := preKeys[staleHookKey]; !ok {
+	if _, ok := preKeys[hookstest.ReapableSeedA]; !ok {
 		t.Fatalf("pre-spawn: stale key %q absent after seed; keys=%v\n"+
 			"  hooks.json path resolution mismatch — seed did not land where the daemon reads",
-			staleHookKey, sortedKeys(preKeys))
+			hookstest.ReapableSeedA, sortedKeys(preKeys))
 	}
 	if _, ok := preKeys[liveHookKey]; !ok {
 		t.Fatalf("pre-spawn: live key %q absent after seed; keys=%v",
@@ -162,7 +152,7 @@ func TestDaemon_ThrottledHookCleanup_ReapsStaleRetainsLiveOnIdleServer(t *testin
 			daemonPID, panePID, portaltest.ReadPortalLogSafe(stateDir))
 	}
 	t.Logf("daemon alive as _portal-saver pane (pid=%d); live key=%q, stale key=%q",
-		daemonPID, liveHookKey, staleHookKey)
+		daemonPID, liveHookKey, hookstest.ReapableSeedA)
 
 	elapsedA := time.Since(t0)
 	earlyKeys := readHookKeys(t, env)
@@ -171,11 +161,11 @@ func TestDaemon_ThrottledHookCleanup_ReapsStaleRetainsLiveOnIdleServer(t *testin
 			"skipping the no-reap-before-interval sub-assertion (reap + retain below still pin behaviour)",
 			elapsedA, preIntervalSafetyCeiling)
 	} else {
-		if _, ok := earlyKeys[staleHookKey]; !ok {
+		if _, ok := earlyKeys[hookstest.ReapableSeedA]; !ok {
 			t.Fatalf("stale key %q reaped only %s after daemon start (< interval %s); "+
 				"lastCleanup must be anchored to daemon-START so the first cleanup fires "+
 				"~one interval later, not immediately\n--- portal.log ---\n%s",
-				staleHookKey, elapsedA, hookCleanupIntervalMirror, portaltest.ReadPortalLogSafe(stateDir))
+				hookstest.ReapableSeedA, elapsedA, hookCleanupIntervalMirror, portaltest.ReadPortalLogSafe(stateDir))
 		}
 		if _, ok := earlyKeys[liveHookKey]; !ok {
 			t.Fatalf("live key %q missing %s after daemon start (before any cleanup)\n"+
@@ -188,7 +178,7 @@ func TestDaemon_ThrottledHookCleanup_ReapsStaleRetainsLiveOnIdleServer(t *testin
 	// The server must stay idle throughout: the cleanup gate lives on the
 	// daemon tick's idle branch, so anything making a tick dirty skips it.
 	reaped := tmuxtest.PollUntil(t, hookCleanupObservationBudget, hookCleanupPollTick, func() bool {
-		_, present := readHookKeys(t, env)[staleHookKey]
+		_, present := readHookKeys(t, env)[hookstest.ReapableSeedA]
 		return !present
 	})
 	if !reaped {
@@ -198,11 +188,11 @@ func TestDaemon_ThrottledHookCleanup_ReapsStaleRetainsLiveOnIdleServer(t *testin
 			"cleanup MUST reap entries whose paneKey is not in the live pane set\n"+
 			"  remaining hooks.json keys: %v\n"+
 			"--- hooks.json (%s) ---\n%s\n--- portal.log ---\n%s",
-			staleHookKey, hookCleanupObservationBudget, hookCleanupIntervalMirror,
+			hookstest.ReapableSeedA, hookCleanupObservationBudget, hookCleanupIntervalMirror,
 			sortedKeys(finalKeys), hooksPath, string(hookstest.HooksJSONBytes(t, env)),
 			portaltest.ReadPortalLogSafe(stateDir))
 	}
-	t.Logf("stale key %q reaped after the throttle interval on the idle server", staleHookKey)
+	t.Logf("stale key %q reaped after the throttle interval on the idle server", hookstest.ReapableSeedA)
 
 	postKeys := readHookKeys(t, env)
 	if _, ok := postKeys[liveHookKey]; !ok {
@@ -212,8 +202,8 @@ func TestDaemon_ThrottledHookCleanup_ReapsStaleRetainsLiveOnIdleServer(t *testin
 			liveHookKey, sortedKeys(postKeys), hooksPath,
 			string(hookstest.HooksJSONBytes(t, env)), portaltest.ReadPortalLogSafe(stateDir))
 	}
-	if _, ok := postKeys[staleHookKey]; ok {
-		t.Fatalf("stale key %q reappeared after reap; keys=%v", staleHookKey, sortedKeys(postKeys))
+	if _, ok := postKeys[hookstest.ReapableSeedA]; ok {
+		t.Fatalf("stale key %q reappeared after reap; keys=%v", hookstest.ReapableSeedA, sortedKeys(postKeys))
 	}
 	t.Logf("live key %q retained after stale reap; final keys=%v", liveHookKey, sortedKeys(postKeys))
 }

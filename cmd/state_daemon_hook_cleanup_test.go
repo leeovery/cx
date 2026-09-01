@@ -20,7 +20,7 @@ import (
 // A daemon-sweep fixture that expects an entry to survive must key it on a
 // token the enumeration reports, or the entry survives on the reaper's
 // retention of keys it cannot judge and the fixture stops measuring liveness.
-var livePaneRowOut = liveSeedA + "|live:0.0"
+var livePaneRowOut = hookstest.LiveSeedA + "|live:0.0"
 
 func hookCleanupDeps(fc *daemonFakeCommander, store *hooks.Store, logger *slog.Logger) *daemonDeps {
 	return &daemonDeps{
@@ -37,7 +37,7 @@ func discardDaemonLogger() *slog.Logger {
 func TestMaybeRunHookCleanup_DoesNotRunBeforeInterval(t *testing.T) {
 	seed := fmt.Sprintf(`{
   %q: {"on-resume": "cmd-stale"}
-}`, reapableSeedA)
+}`, hookstest.ReapableSeedA)
 	store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 	fc := &daemonFakeCommander{panesOut: livePaneRowOut}
 	deps := hookCleanupDeps(fc, store, discardDaemonLogger())
@@ -51,7 +51,7 @@ func TestMaybeRunHookCleanup_DoesNotRunBeforeInterval(t *testing.T) {
 	if err != nil {
 		t.Fatalf("store.Load: %v", err)
 	}
-	if _, ok := postRun[reapableSeedA]; !ok {
+	if _, ok := postRun[hookstest.ReapableSeedA]; !ok {
 		t.Errorf("stale entry reaped before interval elapsed; hooks=%v", keysOf(postRun))
 	}
 
@@ -65,11 +65,7 @@ func TestMaybeRunHookCleanup_DoesNotRunBeforeInterval(t *testing.T) {
 }
 
 func TestMaybeRunHookCleanup_RunsAndResetsOnceIntervalElapsed(t *testing.T) {
-	seed := fmt.Sprintf(`{
-  %q: {"on-resume": "cmd-stale"},
-  %q: {"on-resume": "cmd-live"}
-}`, reapableSeedA, liveSeedA)
-	store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
+	store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hookstest.StaleHookSeed})
 	fc := &daemonFakeCommander{panesOut: livePaneRowOut}
 	deps := hookCleanupDeps(fc, store, discardDaemonLogger())
 
@@ -82,10 +78,10 @@ func TestMaybeRunHookCleanup_RunsAndResetsOnceIntervalElapsed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("store.Load: %v", err)
 	}
-	if _, ok := postRun[reapableSeedA]; ok {
+	if _, ok := postRun[hookstest.ReapableSeedA]; ok {
 		t.Errorf("stale entry not reaped once interval elapsed; hooks=%v", keysOf(postRun))
 	}
-	if _, ok := postRun[liveSeedA]; !ok {
+	if _, ok := postRun[hookstest.LiveSeedA]; !ok {
 		t.Errorf("live entry wrongly reaped; hooks=%v", keysOf(postRun))
 	}
 
@@ -97,7 +93,7 @@ func TestMaybeRunHookCleanup_RunsAndResetsOnceIntervalElapsed(t *testing.T) {
 func TestMaybeRunHookCleanup_FiresAtIntervalBoundary(t *testing.T) {
 	seed := fmt.Sprintf(`{
   %q: {"on-resume": "cmd-stale"}
-}`, reapableSeedA)
+}`, hookstest.ReapableSeedA)
 	store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 	fc := &daemonFakeCommander{panesOut: livePaneRowOut}
 	deps := hookCleanupDeps(fc, store, discardDaemonLogger())
@@ -110,7 +106,7 @@ func TestMaybeRunHookCleanup_FiresAtIntervalBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatalf("store.Load: %v", err)
 	}
-	if _, ok := postRun[reapableSeedA]; ok {
+	if _, ok := postRun[hookstest.ReapableSeedA]; ok {
 		t.Errorf("cleanup did not fire at the interval boundary; hooks=%v", keysOf(postRun))
 	}
 }
@@ -124,7 +120,7 @@ func TestMaybeRunHookCleanup_LogsWarnAndSwallowsCleanupError(t *testing.T) {
 	// create.
 	store, _ := hookstest.StageStore(t, hookstest.Staging{
 		Dir:          filepath.Join(t.TempDir(), "write-denied"),
-		Seed:         staleHookSeed,
+		Seed:         hookstest.StaleHookSeed,
 		WritesDenied: true,
 	})
 
@@ -151,7 +147,7 @@ func TestMaybeRunHookCleanup_LogsWarnAndSwallowsCleanupError(t *testing.T) {
 func TestMaybeRunHookCleanup_ListPanesErrorSwallowedNoReap(t *testing.T) {
 	seed := fmt.Sprintf(`{
   %q: {"on-resume": "cmd-stale"}
-}`, reapableSeedA)
+}`, hookstest.ReapableSeedA)
 	store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 	fc := &daemonFakeCommander{panesErr: errors.New("tmux dead")}
 	logger, sink := newCaptureLoggerForComponent(t, "daemon")
@@ -166,7 +162,7 @@ func TestMaybeRunHookCleanup_ListPanesErrorSwallowedNoReap(t *testing.T) {
 	if err != nil {
 		t.Fatalf("store.Load: %v", err)
 	}
-	if _, ok := postRun[reapableSeedA]; !ok {
+	if _, ok := postRun[hookstest.ReapableSeedA]; !ok {
 		t.Errorf("entry reaped despite ListAllPanes error; hooks=%v", keysOf(postRun))
 	}
 
@@ -207,7 +203,7 @@ func TestMaybeRunHookCleanup_ReusesMassDeletionGuard(t *testing.T) {
 	seed := fmt.Sprintf(`{
   %q: {"on-resume": "cmd-a"},
   %q: {"on-resume": "cmd-b"}
-}`, reapableSeedA, reapableSeedB)
+}`, hookstest.ReapableSeedA, hookstest.ReapableSeedB)
 	store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 	fc := &daemonFakeCommander{panesOut: ""}
 	logger, sink := newCaptureLoggerForComponent(t, "daemon")

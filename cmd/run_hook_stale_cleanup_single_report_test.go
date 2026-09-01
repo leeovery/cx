@@ -112,10 +112,10 @@ func TestHookSweepReportsAStoreReadStandDownOnce(t *testing.T) {
 // process handler.
 func TestHookSweepCountsLogger(t *testing.T) {
 	t.Run("it emits the count lines under the component the signature names", func(t *testing.T) {
-		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: staleHookSeed})
+		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hookstest.StaleHookSeed})
 		injected, injectedSink := newCaptureLoggerForComponent(t, "daemon")
 
-		outcome, err := runHookStaleCleanup(&stubStaleSweepReader{rows: tokenRows(liveSeedA)}, store, injected)
+		outcome, err := runHookStaleCleanup(&stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA)}, store, injected)
 		if err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
@@ -134,11 +134,11 @@ func TestHookSweepCountsLogger(t *testing.T) {
 	})
 
 	t.Run("it emits no stand-down under the injected component", func(t *testing.T) {
-		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: staleHookSeed})
+		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hookstest.StaleHookSeed})
 		sink := logtest.Install(t)
 		injected, injectedSink := newCaptureLoggerForComponent(t, "daemon")
 
-		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA), restoring: true}
+		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA), restoring: true}
 		if _, err := runHookStaleCleanup(lister, store, injected); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}

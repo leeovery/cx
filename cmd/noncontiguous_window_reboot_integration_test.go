@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/leeovery/portal/internal/hooks"
+	"github.com/leeovery/portal/internal/hookstest"
 	"github.com/leeovery/portal/internal/portaltest"
 	"github.com/leeovery/portal/internal/restoretest"
 	"github.com/leeovery/portal/internal/state"
@@ -236,13 +237,13 @@ func newDivergentRebootFixture(t *testing.T) *divergentRebootFixture {
 		binDir:        binDir,
 		sideEffectDir: sideEffectDir,
 		store:         hooks.NewStore(hooksPath),
-		staleKey:      reapableSeedA,
+		staleKey:      hookstest.ReapableSeedA,
 		stamped: []divergentPane{
 			{
 				role:       "first-window",
 				savedWin:   0,
 				savedPane:  0,
-				token:      liveSeedA,
+				token:      hookstest.LiveSeedA,
 				markerFile: filepath.Join(sideEffectDir, "hook-first.txt"),
 				markerText: divergentFirstMarker,
 			},
@@ -250,7 +251,7 @@ func newDivergentRebootFixture(t *testing.T) *divergentRebootFixture {
 				role:       "last-window",
 				savedWin:   divergentKilledWindow + 1,
 				savedPane:  0,
-				token:      liveSeedB,
+				token:      hookstest.LiveSeedB,
 				markerFile: filepath.Join(sideEffectDir, "hook-last.txt"),
 				markerText: divergentLastMarker,
 			},

@@ -550,11 +550,7 @@ func TestDaemonTick_RunsHookCleanupOnIdleTick(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
 
-	seed := fmt.Sprintf(`{
-  %q: {"on-resume": "cmd-stale"},
-  %q: {"on-resume": "cmd-live"}
-}`, reapableSeedA, liveSeedA)
-	store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
+	store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hookstest.StaleHookSeed})
 
 	// The stale key is absent from panesOut so the cleanup reaps it; no
 	// sessionsOut, because capture must not run on an idle tick.
@@ -571,10 +567,10 @@ func TestDaemonTick_RunsHookCleanupOnIdleTick(t *testing.T) {
 	if err != nil {
 		t.Fatalf("store.Load: %v", err)
 	}
-	if _, ok := postRun[reapableSeedA]; ok {
+	if _, ok := postRun[hookstest.ReapableSeedA]; ok {
 		t.Errorf("stale hook entry not reaped on idle tick; hooks=%v", keysOf(postRun))
 	}
-	if _, ok := postRun[liveSeedA]; !ok {
+	if _, ok := postRun[hookstest.LiveSeedA]; !ok {
 		t.Errorf("live hook entry wrongly reaped on idle tick; hooks=%v", keysOf(postRun))
 	}
 
@@ -589,7 +585,7 @@ func TestDaemonTick_SkipsHookCleanupWhenRestoring(t *testing.T) {
 
 	seed := fmt.Sprintf(`{
   %q: {"on-resume": "cmd-stale"}
-}`, reapableSeedA)
+}`, hookstest.ReapableSeedA)
 	store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 
 	fc := &daemonFakeCommander{
@@ -607,7 +603,7 @@ func TestDaemonTick_SkipsHookCleanupWhenRestoring(t *testing.T) {
 	if err != nil {
 		t.Fatalf("store.Load: %v", err)
 	}
-	if _, ok := postRun[reapableSeedA]; !ok {
+	if _, ok := postRun[hookstest.ReapableSeedA]; !ok {
 		t.Errorf("stale hook entry reaped during restore window; cleanup must be skipped; hooks=%v", keysOf(postRun))
 	}
 
@@ -622,7 +618,7 @@ func TestDaemonTick_SkipsHookCleanupOnDirtyCaptureTick(t *testing.T) {
 
 	seed := fmt.Sprintf(`{
   %q: {"on-resume": "cmd-stale"}
-}`, reapableSeedA)
+}`, hookstest.ReapableSeedA)
 	store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 
 	sess, panes := oneSession()
@@ -642,7 +638,7 @@ func TestDaemonTick_SkipsHookCleanupOnDirtyCaptureTick(t *testing.T) {
 	if err != nil {
 		t.Fatalf("store.Load: %v", err)
 	}
-	if _, ok := postRun[reapableSeedA]; !ok {
+	if _, ok := postRun[hookstest.ReapableSeedA]; !ok {
 		t.Errorf("stale hook entry reaped on a capture-pending tick; cleanup must be skipped; hooks=%v", keysOf(postRun))
 	}
 }
@@ -653,7 +649,7 @@ func TestDaemonTick_SkipsHookCleanupOnMaxGapCaptureTick(t *testing.T) {
 
 	seed := fmt.Sprintf(`{
   %q: {"on-resume": "cmd-stale"}
-}`, reapableSeedA)
+}`, hookstest.ReapableSeedA)
 	store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 
 	sess, panes := oneSession()
@@ -673,7 +669,7 @@ func TestDaemonTick_SkipsHookCleanupOnMaxGapCaptureTick(t *testing.T) {
 	if err != nil {
 		t.Fatalf("store.Load: %v", err)
 	}
-	if _, ok := postRun[reapableSeedA]; !ok {
+	if _, ok := postRun[hookstest.ReapableSeedA]; !ok {
 		t.Errorf("stale hook entry reaped on a max-gap capture tick; cleanup must be skipped; hooks=%v", keysOf(postRun))
 	}
 }

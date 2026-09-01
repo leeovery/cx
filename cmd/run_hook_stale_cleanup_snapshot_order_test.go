@@ -16,10 +16,10 @@ import (
 // registration that lands in that window out of the delete set.
 func TestHookSweepSnapshotPrecedesEnumeration(t *testing.T) {
 	t.Run("it retains an entry written during the pane enumeration", func(t *testing.T) {
-		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: fmt.Sprintf(`{%q: {"on-resume": "cmd-live"}}`, liveSeedA)})
+		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: fmt.Sprintf(`{%q: {"on-resume": "cmd-live"}}`, hookstest.LiveSeedA)})
 
-		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA), during: func() {
-			if err := store.Set(reapableSeedA, "on-resume", "cmd-fresh", hooks.ViaCLI); err != nil {
+		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA), during: func() {
+			if err := store.Set(hookstest.ReapableSeedA, "on-resume", "cmd-fresh", hooks.ViaCLI); err != nil {
 				t.Errorf("register a hook during the enumeration: %v", err)
 			}
 		}}
@@ -32,20 +32,20 @@ func TestHookSweepSnapshotPrecedesEnumeration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("store.Load post-run: %v", err)
 		}
-		if _, ok := postRun[reapableSeedA]; !ok {
+		if _, ok := postRun[hookstest.ReapableSeedA]; !ok {
 			t.Errorf("an entry registered during the enumeration was reaped; file holds %v (%s)",
 				keysOf(postRun), readFileBytes(t, path))
 		}
-		if _, ok := postRun[liveSeedA]; !ok {
+		if _, ok := postRun[hookstest.LiveSeedA]; !ok {
 			t.Errorf("the live entry was reaped; file holds %v", keysOf(postRun))
 		}
 	})
 
 	t.Run("it holds no lock while enumerating", func(t *testing.T) {
-		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: fmt.Sprintf(`{%q: {"on-resume": "cmd-live"}}`, liveSeedA)})
+		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: fmt.Sprintf(`{%q: {"on-resume": "cmd-live"}}`, hookstest.LiveSeedA)})
 
 		probed := false
-		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA), during: func() {
+		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA), during: func() {
 			probed = true
 			// A tmux read must sit outside the lock.
 			hookstest.AssertSidecarFree(t, path)
@@ -64,7 +64,7 @@ func TestHookSweepSnapshotPrecedesEnumeration(t *testing.T) {
   %q: {"on-resume": "cmd-live"},
   %q: {"on-resume": "cmd-b"},
   %q: {"on-resume": "cmd-c"}
-}`, liveSeedA, reapableSeedB, reapableSeedC)
+}`, hookstest.LiveSeedA, hookstest.ReapableSeedB, hookstest.ReapableSeedC)
 		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 
 		// Both mid-cycle windows at once, so the callback is measured against
@@ -73,11 +73,11 @@ func TestHookSweepSnapshotPrecedesEnumeration(t *testing.T) {
 		// snapshot holds and the sweep would otherwise have reaped — while a
 		// registration lands for seed D. C leaves the file by someone else's
 		// hand and D never enters the snapshot, so neither may be named.
-		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA), during: func() {
-			if _, err := store.Remove(reapableSeedC, "on-resume", hooks.ViaCLI); err != nil {
+		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA), during: func() {
+			if _, err := store.Remove(hookstest.ReapableSeedC, "on-resume", hooks.ViaCLI); err != nil {
 				t.Errorf("remove a hook during the enumeration: %v", err)
 			}
-			if err := store.Set(reapableSeedD, "on-resume", "cmd-fresh", hooks.ViaCLI); err != nil {
+			if err := store.Set(hookstest.ReapableSeedD, "on-resume", "cmd-fresh", hooks.ViaCLI); err != nil {
 				t.Errorf("register a hook during the enumeration: %v", err)
 			}
 		}}
@@ -89,7 +89,7 @@ func TestHookSweepSnapshotPrecedesEnumeration(t *testing.T) {
 		reported := slices.Clone(outcome.Removed)
 		slices.Sort(reported)
 
-		want := []string{reapableSeedB}
+		want := []string{hookstest.ReapableSeedB}
 		if !slices.Equal(reported, want) {
 			t.Errorf("Removed reported %v, want only %v — the outcome names this sweep's deletions, not a prediction over the file (file holds %s)",
 				reported, want, readFileBytes(t, path))
@@ -105,7 +105,7 @@ func TestHookSweepTakesNoLockWithNothingPersisted(t *testing.T) {
 	configDir := filepath.Join(configRoot, "portal")
 	hooksPath := filepath.Join(configDir, "hooks.json")
 
-	lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA)}
+	lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA)}
 	if err := sweepErr(lister, hooks.NewStore(hooksPath), nil); err != nil {
 		t.Fatalf("runHookStaleCleanup: %v", err)
 	}

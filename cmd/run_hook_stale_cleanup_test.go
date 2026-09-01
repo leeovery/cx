@@ -24,7 +24,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		seed := fmt.Sprintf(`{
   %q: {"on-resume": "cmd-a"},
   %q: {"on-resume": "cmd-b"}
-}`, reapableSeedA, reapableSeedB)
+}`, hookstest.ReapableSeedA, hookstest.ReapableSeedB)
 		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 		before := readFileBytes(t, path)
 
@@ -79,7 +79,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 	})
 
 	t.Run("ListAllPanes error stands the cycle down and returns nil", func(t *testing.T) {
-		seed := fmt.Sprintf(`{%q: {"on-resume": "cmd-a"}}`, reapableSeedA)
+		seed := fmt.Sprintf(`{%q: {"on-resume": "cmd-a"}}`, hookstest.ReapableSeedA)
 		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 		before := readFileBytes(t, path)
 
@@ -106,7 +106,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		store, _ := hookstest.StageStore(t, hookstest.Staging{Unreadable: true})
 
 		logger, loggerSink := newCaptureLoggerForComponent(t, "bootstrap")
-		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA), err: nil}
+		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA), err: nil}
 
 		sink := logtest.Install(t)
 
@@ -131,11 +131,11 @@ func TestRunHookStaleCleanup(t *testing.T) {
   %q: {"on-resume": "cmd-b"},
   %q: {"on-resume": "cmd-c"},
   %q: {"on-resume": "cmd-d"}
-}`, liveSeedA, reapableSeedB, reapableSeedC, reapableSeedD)
+}`, hookstest.LiveSeedA, hookstest.ReapableSeedB, hookstest.ReapableSeedC, hookstest.ReapableSeedD)
 		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 
 		logger, _ := newCaptureLoggerForComponent(t, "bootstrap")
-		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA), err: nil}
+		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA), err: nil}
 
 		outcome, err := runHookStaleCleanup(lister, store, logger)
 		if err != nil {
@@ -144,7 +144,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		removedSeen := outcome.Removed
 
 		// CleanStale iterates a map, so removal order varies — assert set equality.
-		want := map[string]struct{}{reapableSeedB: {}, reapableSeedC: {}, reapableSeedD: {}}
+		want := map[string]struct{}{hookstest.ReapableSeedB: {}, hookstest.ReapableSeedC: {}, hookstest.ReapableSeedD: {}}
 		if len(removedSeen) != len(want) {
 			t.Errorf("Removed = %d (%v), want %d (%v)", len(removedSeen), removedSeen, len(want), want)
 		}
@@ -161,11 +161,11 @@ func TestRunHookStaleCleanup(t *testing.T) {
   %q: {"on-resume": "cmd-b"},
   %q: {"on-resume": "cmd-c"},
   %q: {"on-resume": "cmd-d"}
-}`, liveSeedA, liveSeedB, liveSeedC, reapableSeedD)
+}`, hookstest.LiveSeedA, hookstest.LiveSeedB, hookstest.LiveSeedC, hookstest.ReapableSeedD)
 		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 
 		logger, loggerSink := newCaptureLoggerForComponent(t, "bootstrap")
-		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA, liveSeedB, liveSeedC), err: nil}
+		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA, hookstest.LiveSeedB, hookstest.LiveSeedC), err: nil}
 
 		if err := sweepErr(lister, store, logger); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
@@ -175,12 +175,12 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		if err != nil {
 			t.Fatalf("store.Load post-run: %v", err)
 		}
-		wantKeys := map[string]struct{}{liveSeedA: {}, liveSeedB: {}, liveSeedC: {}}
+		wantKeys := map[string]struct{}{hookstest.LiveSeedA: {}, hookstest.LiveSeedB: {}, hookstest.LiveSeedC: {}}
 		if len(postRun) != len(wantKeys) {
 			t.Errorf("post-run hook count = %d (keys=%v), want %d", len(postRun), keysOf(postRun), len(wantKeys))
 		}
-		if _, ok := postRun[reapableSeedD]; ok {
-			t.Errorf("post-run hooks still contains stale key %s; got %v", reapableSeedD, keysOf(postRun))
+		if _, ok := postRun[hookstest.ReapableSeedD]; ok {
+			t.Errorf("post-run hooks still contains stale key %s; got %v", hookstest.ReapableSeedD, keysOf(postRun))
 		}
 
 		if got := len(loggerSink.RecordsWith("bootstrap", entryDebugFmt).AtExactLevel(slog.LevelDebug)); got != 1 {
@@ -197,9 +197,9 @@ func TestRunHookStaleCleanup(t *testing.T) {
 	})
 
 	t.Run("nil logger does not panic", func(t *testing.T) {
-		seed := fmt.Sprintf(`{%q: {"on-resume": "cmd-a"}}`, liveSeedA)
+		seed := fmt.Sprintf(`{%q: {"on-resume": "cmd-a"}}`, hookstest.LiveSeedA)
 		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
-		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA), err: nil}
+		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA), err: nil}
 
 		if err := sweepErr(lister, store, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup with nil logger: %v", err)
@@ -207,11 +207,11 @@ func TestRunHookStaleCleanup(t *testing.T) {
 	})
 
 	t.Run("it enumerates live keys via ListAllPaneHookKeys not ListAllPanes", func(t *testing.T) {
-		seed := fmt.Sprintf(`{%q: {"on-resume": "cmd-a"}}`, liveSeedA)
+		seed := fmt.Sprintf(`{%q: {"on-resume": "cmd-a"}}`, hookstest.LiveSeedA)
 		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 
 		logger, _ := newCaptureLoggerForComponent(t, "bootstrap")
-		rec := &stubStaleSweepReader{rows: tokenRows(liveSeedA)}
+		rec := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA)}
 
 		if err := sweepErr(rec, store, logger); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
@@ -226,11 +226,11 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		seed := fmt.Sprintf(`{
   %q: {"on-resume": "cmd-live"},
   %q: {"on-resume": "cmd-stale"}
-}`, liveSeedA, reapableSeedA)
+}`, hookstest.LiveSeedA, hookstest.ReapableSeedA)
 		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 
 		logger, _ := newCaptureLoggerForComponent(t, "bootstrap")
-		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA), err: nil}
+		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA), err: nil}
 
 		if err := sweepErr(lister, store, logger); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
@@ -240,11 +240,11 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		if err != nil {
 			t.Fatalf("store.Load post-run: %v", err)
 		}
-		if _, ok := postRun[liveSeedA]; !ok {
-			t.Errorf("hook %s keyed on a live pane's token was removed; want preserved (present in live set); got %v", liveSeedA, keysOf(postRun))
+		if _, ok := postRun[hookstest.LiveSeedA]; !ok {
+			t.Errorf("hook %s keyed on a live pane's token was removed; want preserved (present in live set); got %v", hookstest.LiveSeedA, keysOf(postRun))
 		}
-		if _, ok := postRun[reapableSeedA]; ok {
-			t.Errorf("truly-stale hook %s survived; want removed; got %v", reapableSeedA, keysOf(postRun))
+		if _, ok := postRun[hookstest.ReapableSeedA]; ok {
+			t.Errorf("truly-stale hook %s survived; want removed; got %v", hookstest.ReapableSeedA, keysOf(postRun))
 		}
 	})
 }
@@ -253,15 +253,15 @@ func TestRunHookStaleCleanup(t *testing.T) {
 // neither entry point may take it — however the sweep is reached.
 func TestUnjudgeableHookKeyRetention(t *testing.T) {
 	t.Run("it retains a non-token-shaped key across the daemon sweep", func(t *testing.T) {
-		retained := unjudgeableSeedA
+		retained := hookstest.UnjudgeableSeedA
 		seed := fmt.Sprintf(`{
   %q: {"on-resume": "cmd-live"},
   %q: {"on-resume": "cmd-old"}
-}`, liveSeedA, retained)
+}`, hookstest.LiveSeedA, retained)
 		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 		before := readFileBytes(t, path)
 
-		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA)}
+		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA)}
 		if err := sweepErr(lister, store, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
@@ -280,9 +280,9 @@ func TestUnjudgeableHookKeyRetention(t *testing.T) {
 	t.Run("it retains a non-token-shaped key across doctor --fix", func(t *testing.T) {
 		dir := t.TempDir()
 		seedHealthyStateDir(t, dir)
-		hookStore, hooksPath := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(unjudgeableSeedA)})
+		hookStore, hooksPath := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(hookstest.UnjudgeableSeedA)})
 		projectStore, _ := seedProjectsJSON(t, t.TempDir())
-		deps := staleDeps(dir, &stubStaleSweepReader{rows: tokenRows(liveSeedA)}, hookStore, projectStore)
+		deps := staleDeps(dir, &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA)}, hookStore, projectStore)
 
 		outBuf, _, err := runDoctorWith(t, deps, "--fix")
 		if err != nil {
@@ -293,10 +293,10 @@ func TestUnjudgeableHookKeyRetention(t *testing.T) {
 		if err != nil {
 			t.Fatalf("read hooks.json: %v", err)
 		}
-		if !strings.Contains(string(after), unjudgeableSeedA) {
+		if !strings.Contains(string(after), hookstest.UnjudgeableSeedA) {
 			t.Errorf("doctor --fix pruned the non-token-shaped entry:\n%s", after)
 		}
-		if strings.Contains(outBuf.String(), "Pruned stale hook: "+unjudgeableSeedA) {
+		if strings.Contains(outBuf.String(), "Pruned stale hook: "+hookstest.UnjudgeableSeedA) {
 			t.Errorf("doctor --fix reported pruning a retained entry:\n%s", outBuf.String())
 		}
 	})
@@ -304,9 +304,9 @@ func TestUnjudgeableHookKeyRetention(t *testing.T) {
 	t.Run("it exits 0 from portal doctor with only retained non-token-shaped entries present", func(t *testing.T) {
 		dir := t.TempDir()
 		seedHealthyStateDir(t, dir)
-		hookStore, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(unjudgeableSeedA, unjudgeableSeedB)})
+		hookStore, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(hookstest.UnjudgeableSeedA, hookstest.UnjudgeableSeedB)})
 		projectStore, _ := seedProjectsJSON(t, t.TempDir())
-		deps := staleDeps(dir, &stubStaleSweepReader{rows: tokenRows(liveSeedA)}, hookStore, projectStore)
+		deps := staleDeps(dir, &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA)}, hookStore, projectStore)
 
 		outBuf, _, err := runDoctorWith(t, deps)
 		if err != nil {
@@ -323,10 +323,10 @@ func TestUnjudgeableHookKeyRetention(t *testing.T) {
 // there would reap every token-keyed entry on the machine.
 func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 	t.Run("it deletes nothing while the restore marker is set", func(t *testing.T) {
-		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: staleHookSeed})
+		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: hookstest.StaleHookSeed})
 		before := readFileBytes(t, path)
 
-		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA), restoring: true}
+		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA), restoring: true}
 
 		if err := sweepErr(lister, store, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
@@ -339,11 +339,11 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 	})
 
 	t.Run("it treats a failed marker read as a set marker", func(t *testing.T) {
-		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: staleHookSeed})
+		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: hookstest.StaleHookSeed})
 		before := readFileBytes(t, path)
 
 		sentinel := errors.New("tmux dead")
-		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA), restoringErr: sentinel}
+		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA), restoringErr: sentinel}
 
 		sink := &logtest.Sink{}
 		log.SetTestHandler(t, sink)
@@ -368,7 +368,7 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 		// marker — rather than the store read — proves it was never loaded.
 		store, _ := hookstest.StageStore(t, hookstest.Staging{Unreadable: true})
 
-		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA), restoring: true}
+		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA), restoring: true}
 
 		outcome, err := runHookStaleCleanup(lister, store, nil)
 		if err != nil {
@@ -387,8 +387,8 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 	})
 
 	t.Run("it logs the stand-down at DEBUG and never WARN", func(t *testing.T) {
-		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: staleHookSeed})
-		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA), restoring: true}
+		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hookstest.StaleHookSeed})
+		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA), restoring: true}
 
 		sink := &logtest.Sink{}
 		log.SetTestHandler(t, sink)
@@ -404,8 +404,8 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 	})
 
 	t.Run("it sweeps normally when the marker is absent", func(t *testing.T) {
-		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: staleHookSeed})
-		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA)}
+		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hookstest.StaleHookSeed})
+		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA)}
 
 		if err := sweepErr(lister, store, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
@@ -418,10 +418,10 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 		if err != nil {
 			t.Fatalf("store.Load post-run: %v", err)
 		}
-		if _, ok := postRun[reapableSeedA]; ok {
-			t.Errorf("stale key %s survived a marker-absent sweep; got %v", reapableSeedA, keysOf(postRun))
+		if _, ok := postRun[hookstest.ReapableSeedA]; ok {
+			t.Errorf("stale key %s survived a marker-absent sweep; got %v", hookstest.ReapableSeedA, keysOf(postRun))
 		}
-		if _, ok := postRun[liveSeedA]; !ok {
+		if _, ok := postRun[hookstest.LiveSeedA]; !ok {
 			t.Errorf("live key was reaped; got %v", keysOf(postRun))
 		}
 	})
@@ -436,7 +436,7 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 		if err != nil {
 			t.Fatalf("read hooks.json: %v", err)
 		}
-		if !strings.Contains(string(after), reapableSeedA) {
+		if !strings.Contains(string(after), hookstest.ReapableSeedA) {
 			t.Errorf("doctor --fix pruned a hook during a restore:\n%s", after)
 		}
 		if strings.Contains(outBuf.String(), "Pruned stale hook:") {
@@ -445,7 +445,7 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 	})
 
 	t.Run("it leaves the daemon's tick behaviour unchanged", func(t *testing.T) {
-		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: staleHookSeed})
+		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hookstest.StaleHookSeed})
 		fc := &daemonFakeCommander{
 			panesOut:     livePaneRowOut,
 			optionByName: map[string]string{state.RestoringMarkerName: "1"},
@@ -465,7 +465,7 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 		if err != nil {
 			t.Fatalf("store.Load post-run: %v", err)
 		}
-		if _, ok := postRun[reapableSeedA]; !ok {
+		if _, ok := postRun[hookstest.ReapableSeedA]; !ok {
 			t.Errorf("tick reaped a hook despite the restoring marker; got %v", keysOf(postRun))
 		}
 	})
@@ -519,9 +519,9 @@ func standDownWant(level slog.Level) hooksRecordWant {
 // found nothing to do, so every stand-down reports itself to its caller.
 func TestHookSweepReportsStandDown(t *testing.T) {
 	t.Run("it reports the restore stand-down to the caller", func(t *testing.T) {
-		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: staleHookSeed})
+		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: hookstest.StaleHookSeed})
 		before := readFileBytes(t, path)
-		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA), restoring: true}
+		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA), restoring: true}
 
 		outcome, err := runHookStaleCleanup(lister, store, nil)
 		if err != nil {
@@ -538,7 +538,7 @@ func TestHookSweepReportsStandDown(t *testing.T) {
 	})
 
 	t.Run("it reports the empty-pane-read stand-down to the caller", func(t *testing.T) {
-		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: staleHookSeed})
+		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: hookstest.StaleHookSeed})
 		before := readFileBytes(t, path)
 		lister := &stubStaleSweepReader{rows: tokenRows()}
 
@@ -588,7 +588,7 @@ func TestHookSweepReportsStandDown(t *testing.T) {
 	})
 
 	t.Run("it reports the failed enumeration as a stand-down on the hooks component", func(t *testing.T) {
-		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: staleHookSeed})
+		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hookstest.StaleHookSeed})
 		sentinel := errors.New("tmux dead")
 		lister := &stubStaleSweepReader{err: sentinel}
 
@@ -623,7 +623,7 @@ func TestHookSweepGuardCountsPaneRowsNotTokens(t *testing.T) {
 		seed := fmt.Sprintf(`{
   %q: {"on-resume": "cmd-old"},
   %q: {"on-resume": "cmd-live"}
-}`, unjudgeableSeedA, unjudgeableSeedB)
+}`, hookstest.UnjudgeableSeedA, hookstest.UnjudgeableSeedB)
 		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 		before := readFileBytes(t, path)
 
@@ -650,10 +650,10 @@ func TestHookSweepGuardCountsPaneRowsNotTokens(t *testing.T) {
 	})
 
 	t.Run("it still deletes a token-shaped key absent from the live token set", func(t *testing.T) {
-		seed := fmt.Sprintf(`{%q: {"on-resume": "cmd-gone"}}`, reapableSeedA)
+		seed := fmt.Sprintf(`{%q: {"on-resume": "cmd-gone"}}`, hookstest.ReapableSeedA)
 		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 
-		lister := &stubStaleSweepReader{rows: append(tokenRows(reapableSeedB), unstampedRows(1)...)}
+		lister := &stubStaleSweepReader{rows: append(tokenRows(hookstest.ReapableSeedB), unstampedRows(1)...)}
 		if err := sweepErr(lister, store, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
@@ -662,13 +662,13 @@ func TestHookSweepGuardCountsPaneRowsNotTokens(t *testing.T) {
 		if err != nil {
 			t.Fatalf("store.Load post-run: %v", err)
 		}
-		if _, ok := postRun[reapableSeedA]; ok {
-			t.Errorf("token-shaped key %s absent from the live token set survived; got %v", reapableSeedA, keysOf(postRun))
+		if _, ok := postRun[hookstest.ReapableSeedA]; ok {
+			t.Errorf("token-shaped key %s absent from the live token set survived; got %v", hookstest.ReapableSeedA, keysOf(postRun))
 		}
 	})
 
 	t.Run("it takes the empty-pane-read branch only on zero rows", func(t *testing.T) {
-		seed := fmt.Sprintf(`{%q: {"on-resume": "cmd-gone"}}`, reapableSeedA)
+		seed := fmt.Sprintf(`{%q: {"on-resume": "cmd-gone"}}`, hookstest.ReapableSeedA)
 		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 
 		outcome, err := runHookStaleCleanup(&stubStaleSweepReader{rows: nil}, store, nil)
@@ -683,13 +683,13 @@ func TestHookSweepGuardCountsPaneRowsNotTokens(t *testing.T) {
 		if err != nil {
 			t.Fatalf("store.Load post-run: %v", err)
 		}
-		if _, ok := postRun[reapableSeedA]; !ok {
+		if _, ok := postRun[hookstest.ReapableSeedA]; !ok {
 			t.Errorf("a zero-row read reaped an entry; got %v", keysOf(postRun))
 		}
 	})
 
 	t.Run("it counts the rows, not the tokens, on the counts line", func(t *testing.T) {
-		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: fmt.Sprintf(`{%q: {"on-resume": "cmd-live"}}`, unjudgeableSeedB)})
+		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: fmt.Sprintf(`{%q: {"on-resume": "cmd-live"}}`, hookstest.UnjudgeableSeedB)})
 
 		logger, loggerSink := newCaptureLoggerForComponent(t, "bootstrap")
 		lister := &stubStaleSweepReader{rows: unstampedRows(4)}
@@ -712,7 +712,7 @@ func TestHookSweepGuardCountsPaneRowsNotTokens(t *testing.T) {
 		seed := fmt.Sprintf(`{
   "": {"on-resume": "cmd-empty"},
   %q: {"on-resume": "cmd-old"}
-}`, unjudgeableSeedA)
+}`, hookstest.UnjudgeableSeedA)
 		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 
 		lister := &stubStaleSweepReader{rows: unstampedRows(2)}
@@ -730,7 +730,7 @@ func TestHookSweepGuardCountsPaneRowsNotTokens(t *testing.T) {
 		if _, ok := postRun[""]; ok {
 			t.Errorf("empty-keyed entry survived alongside unstamped panes; got %v", keysOf(postRun))
 		}
-		if _, ok := postRun[unjudgeableSeedA]; !ok {
+		if _, ok := postRun[hookstest.UnjudgeableSeedA]; !ok {
 			t.Errorf("unjudgeable entry was swept; got %v", keysOf(postRun))
 		}
 	})

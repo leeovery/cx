@@ -18,7 +18,7 @@ func TestHookSweepDeclineReasonTravelsWithTheError(t *testing.T) {
 		logger, _ := newCaptureLoggerForComponent(t, "bootstrap")
 		enumerate := liveTokenEnumeration(&stubStaleSweepReader{rows: nil}, logger)
 
-		tokens, err := enumerate(hooks.Snapshot{reapableSeedA: {"on-resume": "cmd-gone"}})
+		tokens, err := enumerate(hooks.Snapshot{hookstest.ReapableSeedA: {"on-resume": "cmd-gone"}})
 
 		if tokens != nil {
 			t.Errorf("tokens = %v, want none on a decline", tokens)
@@ -36,8 +36,8 @@ func TestHookSweepDeclineReasonTravelsWithTheError(t *testing.T) {
 	})
 
 	t.Run("it leaves DeclineReason empty for a cycle that ran and removed nothing", func(t *testing.T) {
-		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(liveSeedA, liveSeedB)})
-		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA, liveSeedB)}
+		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(hookstest.LiveSeedA, hookstest.LiveSeedB)})
+		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA, hookstest.LiveSeedB)}
 
 		sink := &logtest.Sink{}
 		log.SetTestHandler(t, sink)
@@ -61,7 +61,7 @@ func TestHookSweepDeclineReasonTravelsWithTheError(t *testing.T) {
 
 	t.Run("it still returns nothing-persisted without a stand-down line", func(t *testing.T) {
 		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody()})
-		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA)}
+		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA)}
 
 		sink := &logtest.Sink{}
 		log.SetTestHandler(t, sink)

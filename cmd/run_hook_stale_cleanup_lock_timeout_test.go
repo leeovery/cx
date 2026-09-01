@@ -21,12 +21,12 @@ import (
 func lockedSweepFixture(t *testing.T, bound time.Duration) (*hooks.Store, string, func()) {
 	t.Helper()
 	hooks.SetLockTimeoutForTest(t, bound)
-	store, path := hookstest.StageStore(t, hookstest.Staging{Seed: staleHookSeed})
+	store, path := hookstest.StageStore(t, hookstest.Staging{Seed: hookstest.StaleHookSeed})
 	return store, path, hookstest.HoldHooksSidecar(t, path)
 }
 
 func TestHookSweepStandsDownOnLockTimeout(t *testing.T) {
-	lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA)}
+	lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA)}
 
 	t.Run("it deletes nothing when the sweep cannot take the lock", func(t *testing.T) {
 		store, path, _ := lockedSweepFixture(t, lockBound)
@@ -120,17 +120,17 @@ func TestHookSweepStandsDownOnLockTimeout(t *testing.T) {
 			t.Fatalf("runHookStaleCleanup after release: %v", err)
 		}
 
-		if len(outcome.Removed) != 1 || outcome.Removed[0] != reapableSeedA {
-			t.Errorf("Removed = %v, want [%s]", outcome.Removed, reapableSeedA)
+		if len(outcome.Removed) != 1 || outcome.Removed[0] != hookstest.ReapableSeedA {
+			t.Errorf("Removed = %v, want [%s]", outcome.Removed, hookstest.ReapableSeedA)
 		}
 		postRun, err := store.Load(hooks.ViaInternal)
 		if err != nil {
 			t.Fatalf("store.Load post-run: %v", err)
 		}
-		if _, ok := postRun[reapableSeedA]; ok {
-			t.Errorf("stale key %s survived the retry; got %v", reapableSeedA, keysOf(postRun))
+		if _, ok := postRun[hookstest.ReapableSeedA]; ok {
+			t.Errorf("stale key %s survived the retry; got %v", hookstest.ReapableSeedA, keysOf(postRun))
 		}
-		if _, ok := postRun[liveSeedA]; !ok {
+		if _, ok := postRun[hookstest.LiveSeedA]; !ok {
 			t.Errorf("live key was reaped by the retry; got %v", keysOf(postRun))
 		}
 	})
@@ -158,12 +158,12 @@ func TestHookSweepStandsDownOnLockTimeout(t *testing.T) {
 }
 
 func TestHookSweepDiscriminatesLockTimeoutFromFailure(t *testing.T) {
-	lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA)}
+	lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA)}
 
 	t.Run("it still returns an error for a save failure", func(t *testing.T) {
 		store, _ := hookstest.StageStore(t, hookstest.Staging{
 			Dir:          filepath.Join(t.TempDir(), "write-denied"),
-			Seed:         staleHookSeed,
+			Seed:         hookstest.StaleHookSeed,
 			WritesDenied: true,
 		})
 		sink := logtest.Install(t)
@@ -196,7 +196,7 @@ func TestHookSweepDiscriminatesLockTimeoutFromFailure(t *testing.T) {
 	t.Run("it never matches on error text", func(t *testing.T) {
 		store, _ := hookstest.StageStore(t, hookstest.Staging{
 			Dir:          filepath.Join(t.TempDir(), hooks.ErrLockHeld.Error()),
-			Seed:         staleHookSeed,
+			Seed:         hookstest.StaleHookSeed,
 			WritesDenied: true,
 		})
 		sink := logtest.Install(t)
@@ -236,10 +236,10 @@ func TestDoctorFixReportsLockedHookPrune(t *testing.T) {
 	// entry is reported as the stale hook it is rather than as a lock problem.
 	t.Run("it reports the un-pruned entry as stale in the same window", func(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, lockBound)
-		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: staleHookSeed})
+		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: hookstest.StaleHookSeed})
 		hookstest.HoldHooksSidecar(t, path)
 
-		got := checkStaleHooks(&stubStaleSweepReader{rows: tokenRows(liveSeedA)}, store)
+		got := checkStaleHooks(&stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA)}, store)
 		if got.status != checkFail {
 			t.Errorf("status = %v, want checkFail under a held lock", got.status)
 		}
@@ -255,10 +255,10 @@ func TestDoctorFixReportsLockedHookPrune(t *testing.T) {
 		// so the post-repair diagnosis finds nothing stale.
 		dir := t.TempDir()
 		seedHealthyStateDir(t, dir)
-		hookStore, hooksPath := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(liveSeedA)})
+		hookStore, hooksPath := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(hookstest.LiveSeedA)})
 		hookstest.HoldHooksSidecar(t, hooksPath)
 		projectStore, _ := seedProjectsJSON(t, t.TempDir())
-		deps := staleDeps(dir, &stubStaleSweepReader{rows: tokenRows(liveSeedA)}, hookStore, projectStore)
+		deps := staleDeps(dir, &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA)}, hookStore, projectStore)
 
 		outBuf, _, err := runDoctorWith(t, deps, "--fix")
 		if err != nil {
@@ -271,10 +271,10 @@ func TestDoctorFixReportsLockedHookPrune(t *testing.T) {
 		// The same stand-down with a genuinely failing check still exits non-zero.
 		failingDir := t.TempDir()
 		seedHealthyStateDir(t, failingDir)
-		failingHooks, failingPath := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(liveSeedA)})
+		failingHooks, failingPath := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(hookstest.LiveSeedA)})
 		hookstest.HoldHooksSidecar(t, failingPath)
 		failingProjects, _ := seedProjectsJSON(t, t.TempDir())
-		failingDeps := staleDeps(failingDir, &stubStaleSweepReader{rows: tokenRows(liveSeedA)}, failingHooks, failingProjects)
+		failingDeps := staleDeps(failingDir, &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA)}, failingHooks, failingProjects)
 		failingDeps.SaverPresent = func() (bool, error) { return false, nil }
 
 		failBuf, _, failErr := runDoctorWith(t, failingDeps, "--fix")

@@ -1,8 +1,10 @@
-// The hook-key subject vocabulary shared across the cmd test suites: the seed
-// keys, the hooks.json bodies they seed, the enumeration rows they arrive in,
-// and the seam fakes that answer with them. Staging — how a test is set up and
-// driven, including the store and file fixtures these bodies are staged into —
-// lives in testhelpers_test.go.
+// The hook-key subject vocabulary shared across the cmd test suites: the
+// hooks.json bodies the seed keys are written into, the enumeration rows they
+// arrive in, and the seam fakes that answer with them. The seed keys themselves
+// — and the stale-beside-live body — are named once in internal/hookstest, so
+// no suite can re-point a name at a different key. Staging — how a test is set
+// up and driven, including the store and file fixtures these bodies are staged
+// into — lives in testhelpers_test.go.
 package cmd
 
 import (
@@ -11,28 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/leeovery/portal/internal/hookstest"
 	"github.com/leeovery/portal/internal/tmux"
-)
-
-// The hook-key seed vocabulary the cmd suites share: a reapable key is one the
-// staleness rule can judge, so it is swept once absent from the live set; an
-// unjudgeable key is retained whatever the live set says.
-var (
-	reapableSeedA = hookstest.ReapableHookKey(0)
-	reapableSeedB = hookstest.ReapableHookKey(1)
-	reapableSeedC = hookstest.ReapableHookKey(2)
-	reapableSeedD = hookstest.ReapableHookKey(3)
-
-	unjudgeableSeedA = hookstest.UnjudgeableHookKey(0)
-	unjudgeableSeedB = hookstest.UnjudgeableHookKey(1)
-
-	// The live half of the vocabulary: token-shaped keys the enumeration
-	// reports, so an entry under one is preserved because its pane is live and
-	// not because the reaper cannot judge its shape.
-	liveSeedA = hookstest.ReapableHookKey(4)
-	liveSeedB = hookstest.ReapableHookKey(5)
-	liveSeedC = hookstest.ReapableHookKey(6)
 )
 
 // hooksBody renders a hooks.json body registering one on-resume entry per key,
@@ -49,14 +30,6 @@ func hooksBody(keys ...string) string {
 	}
 	return "{\n" + strings.Join(entries, ",\n") + "\n}"
 }
-
-// staleHookSeed is one genuinely stale token-shaped entry beside one live one,
-// so a sweep that runs reaps exactly the stale key and is measurably
-// distinguishable from one that stood down.
-var staleHookSeed = fmt.Sprintf(`{
-  %q: {"on-resume": "cmd-gone"},
-  %q: {"on-resume": "cmd-live"}
-}`, reapableSeedA, liveSeedA)
 
 // tokenRows models the enumeration's answer for stamped panes, and
 // unstampedRows for panes carrying no token. The location half is display-only,

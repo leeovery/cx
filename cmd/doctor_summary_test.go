@@ -19,7 +19,7 @@ func healthyDoctorDeps(t *testing.T) *DoctorDeps {
 	seedHealthyStateDir(t, dir)
 	hookStore, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody()})
 	projectStore, _ := seedProjectsJSON(t, t.TempDir())
-	return staleDeps(dir, &stubStaleSweepReader{rows: tokenRows(liveSeedA)}, hookStore, projectStore)
+	return staleDeps(dir, &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA)}, hookStore, projectStore)
 }
 
 func TestDoctorSummary_AllChecksPassed(t *testing.T) {
@@ -170,9 +170,9 @@ func TestDoctorSummary_IsTheLastLine(t *testing.T) {
 func TestDoctorSummary_FixPathRendersTwo(t *testing.T) {
 	dir := t.TempDir()
 	seedHealthyStateDir(t, dir)
-	hookStore, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(reapableSeedA)})
+	hookStore, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(hookstest.ReapableSeedA)})
 	projectStore, _ := seedProjectsJSON(t, t.TempDir())
-	deps := staleDeps(dir, &stubStaleSweepReader{rows: tokenRows(liveSeedB)}, hookStore, projectStore)
+	deps := staleDeps(dir, &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedB)}, hookStore, projectStore)
 
 	outBuf, _, err := runDoctorWith(t, deps, "--fix")
 	if err != nil {

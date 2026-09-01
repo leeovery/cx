@@ -20,8 +20,8 @@ func TestHookSweepOutcomeNamesEveryDecline(t *testing.T) {
 		{
 			name: "restore marker set",
 			setup: func(t *testing.T) (staleSweepReader, *hooks.Store) {
-				store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: staleHookSeed})
-				return &stubStaleSweepReader{rows: tokenRows(liveSeedA), restoring: true}, store
+				store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hookstest.StaleHookSeed})
+				return &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA), restoring: true}, store
 			},
 			want: skipReasonRestoring,
 		},
@@ -29,14 +29,14 @@ func TestHookSweepOutcomeNamesEveryDecline(t *testing.T) {
 			name: "hooks.json unreadable",
 			setup: func(t *testing.T) (staleSweepReader, *hooks.Store) {
 				store, _ := hookstest.StageStore(t, hookstest.Staging{Unreadable: true})
-				return &stubStaleSweepReader{rows: tokenRows(liveSeedA)}, store
+				return &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA)}, store
 			},
 			want: skipReasonStoreReadFailed,
 		},
 		{
 			name: "pane enumeration failed",
 			setup: func(t *testing.T) (staleSweepReader, *hooks.Store) {
-				store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: staleHookSeed})
+				store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hookstest.StaleHookSeed})
 				return &stubStaleSweepReader{err: errors.New("tmux dead")}, store
 			},
 			want: skipReasonPaneReadFailed,
@@ -44,7 +44,7 @@ func TestHookSweepOutcomeNamesEveryDecline(t *testing.T) {
 		{
 			name: "pane enumeration came back empty",
 			setup: func(t *testing.T) (staleSweepReader, *hooks.Store) {
-				store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: staleHookSeed})
+				store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hookstest.StaleHookSeed})
 				return &stubStaleSweepReader{rows: nil}, store
 			},
 			want: skipReasonEmptyPaneRead,
@@ -53,7 +53,7 @@ func TestHookSweepOutcomeNamesEveryDecline(t *testing.T) {
 			name: "hooks.json locked",
 			setup: func(t *testing.T) (staleSweepReader, *hooks.Store) {
 				store, _, _ := lockedSweepFixture(t, lockBound)
-				return &stubStaleSweepReader{rows: tokenRows(liveSeedA)}, store
+				return &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA)}, store
 			},
 			want: skipReasonLockTimeout,
 		},
@@ -121,10 +121,10 @@ func TestStaleHookVerdictParity(t *testing.T) {
 		persisted []string
 		judgeable bool
 	}{
-		{"empty rows with entries present", &stubStaleSweepReader{rows: tokenRows()}, []string{reapableSeedA}, false},
-		{"enumeration error", &stubStaleSweepReader{err: errors.New("tmux transient")}, []string{reapableSeedA}, false},
-		{"restore marker set", restoringHookLister(), []string{reapableSeedA}, false},
-		{"live rows with unstamped panes", &stubStaleSweepReader{rows: unstampedRows(2)}, []string{unjudgeableSeedA}, true},
+		{"empty rows with entries present", &stubStaleSweepReader{rows: tokenRows()}, []string{hookstest.ReapableSeedA}, false},
+		{"enumeration error", &stubStaleSweepReader{err: errors.New("tmux transient")}, []string{hookstest.ReapableSeedA}, false},
+		{"restore marker set", restoringHookLister(), []string{hookstest.ReapableSeedA}, false},
+		{"live rows with unstamped panes", &stubStaleSweepReader{rows: unstampedRows(2)}, []string{hookstest.UnjudgeableSeedA}, true},
 	}
 
 	for _, tc := range cases {

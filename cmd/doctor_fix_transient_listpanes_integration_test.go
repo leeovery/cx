@@ -97,13 +97,11 @@ func TestDoctorFix_TmuxTransient_DoesNotWipeHooks(t *testing.T) {
 		}
 		// The entry must survive because its pane is live, so the pane carries a
 		// token-shaped key the reaper can judge.
-		liveKey := liveSeedA
-		sock.StampPaneToken(t, "live:0.0", liveKey)
+		sock.StampPaneToken(t, "live:0.0", hookstest.LiveSeedA)
 
-		staleKey := reapableSeedA
 		seedEntries := map[string]string{
-			liveKey:  "echo live",
-			staleKey: "echo gone",
+			hookstest.LiveSeedA:     "echo live",
+			hookstest.ReapableSeedA: "echo gone",
 		}
 		hookstest.SeedHooksJSON(t, env, seedEntries)
 
@@ -118,20 +116,20 @@ func TestDoctorFix_TmuxTransient_DoesNotWipeHooks(t *testing.T) {
 		}
 
 		afterStr := string(hookstest.HooksJSONBytes(t, env))
-		if !strings.Contains(afterStr, `"`+liveKey+`"`) {
+		if !strings.Contains(afterStr, `"`+hookstest.LiveSeedA+`"`) {
 			t.Fatalf("normal path destroyed the live entry %q; want it preserved\n"+
-				"  hooks.json after: %s", liveKey, afterStr)
+				"  hooks.json after: %s", hookstest.LiveSeedA, afterStr)
 		}
-		if strings.Contains(afterStr, `"`+staleKey+`"`) {
+		if strings.Contains(afterStr, `"`+hookstest.ReapableSeedA+`"`) {
 			t.Fatalf("normal path failed to remove the stale entry %q; want it removed\n"+
-				"  hooks.json after: %s", staleKey, afterStr)
+				"  hooks.json after: %s", hookstest.ReapableSeedA, afterStr)
 		}
 
-		wantLine := "Pruned stale hook: " + staleKey
+		wantLine := "Pruned stale hook: " + hookstest.ReapableSeedA
 		if !strings.Contains(output, wantLine) {
 			t.Fatalf("normal-path stdout missing %q\n  full output:\n%s", wantLine, output)
 		}
-		unwantLine := "Pruned stale hook: " + liveKey
+		unwantLine := "Pruned stale hook: " + hookstest.LiveSeedA
 		if strings.Contains(output, unwantLine) {
 			t.Fatalf("normal-path stdout unexpectedly reported %q (live entry must survive)\n  full output:\n%s", unwantLine, output)
 		}

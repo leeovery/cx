@@ -16,9 +16,9 @@ import (
 func TestDoctorStaleHooksDegradedRead(t *testing.T) {
 	t.Run("it keeps the stale-hooks check green under a degraded read", func(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, 40*time.Millisecond)
-		lister := &stubStaleSweepReader{rows: tokenRows(liveSeedA)}
+		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA)}
 
-		unlockedStore, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(liveSeedA)})
+		unlockedStore, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(hookstest.LiveSeedA)})
 		baseline, err := runDoctorDiagnosis(staleDeps(t.TempDir(), lister, unlockedStore, nil))
 		if err != nil {
 			t.Fatalf("runDoctorDiagnosis: %v", err)
@@ -26,7 +26,7 @@ func TestDoctorStaleHooksDegradedRead(t *testing.T) {
 		want := findCheck(t, baseline, "stale hooks")
 		wantUnhealthy := doctorUnhealthy(baseline)
 
-		heldStore, heldPath := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(liveSeedA)})
+		heldStore, heldPath := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(hookstest.LiveSeedA)})
 		hookstest.HoldHooksSidecar(t, heldPath)
 
 		sink := logtest.Install(t)
@@ -56,7 +56,7 @@ func TestDoctorStaleHooksDegradedRead(t *testing.T) {
 		store := hooks.NewStore(filepath.Join(configDir, "hooks.json"))
 		before := dirListing(t, configDir)
 
-		if _, err := runDoctorDiagnosis(staleDeps(t.TempDir(), &stubStaleSweepReader{rows: tokenRows(liveSeedA)}, store, nil)); err != nil {
+		if _, err := runDoctorDiagnosis(staleDeps(t.TempDir(), &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA)}, store, nil)); err != nil {
 			t.Fatalf("runDoctorDiagnosis: %v", err)
 		}
 
@@ -117,7 +117,7 @@ func TestSweepPreReadBound(t *testing.T) {
 		hooks.SetSnapshotLockTimeoutForTest(t, short)
 		hooks.SetLockTimeoutForTest(t, 5*time.Second)
 
-		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: `{"` + reapableSeedA + `": {"on-resume": "cmd-a"}}`})
+		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: `{"` + hookstest.ReapableSeedA + `": {"on-resume": "cmd-a"}}`})
 		hookstest.HoldHooksSidecar(t, path)
 
 		// An empty live set stands the cycle down after the pre-read, so the
