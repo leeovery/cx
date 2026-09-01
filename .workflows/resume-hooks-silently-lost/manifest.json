@@ -250,7 +250,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 7,
-          "current_task": "resume-hooks-silently-lost-7-34",
+          "current_task": "resume-hooks-silently-lost-7-13",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -358,7 +358,8 @@
             "resume-hooks-silently-lost-7-30",
             "resume-hooks-silently-lost-7-31",
             "resume-hooks-silently-lost-7-32",
-            "resume-hooks-silently-lost-7-33"
+            "resume-hooks-silently-lost-7-33",
+            "resume-hooks-silently-lost-7-34"
           ],
           "staging": {
             "p1": {
@@ -1796,6 +1797,47 @@
               "detail": "specification.md:479 reads \"The project lane rule is unchanged and binding: every test that spawns a portal state daemon or execs a built portal binary carries //go:build integration\". After 7-33 the rule has three clauses — a test that BUILDS a portal binary also qualifies. No test placement the spec prescribes is invalidated (every integration test it names still qualifies), so this is a stale description rather than implementation drift. Adds to the two already-banked stale spec claims (the panetoken.go forwarder and ListAllPanes); the Corrigenda section is the established mechanism and the phase boundary should append all three at once.",
               "files": [
                 ".workflows/resume-hooks-silently-lost/specification/resume-hooks-silently-lost/specification.md"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-34",
+              "source": "executor",
+              "summary": "Two of the five stand-down reasons are unreachable through checkStaleHooks today, so their copy is defensive completeness",
+              "detail": "lock-timeout and store-read-failed cannot be reached through checkStaleHooks as the code stands: a lock-timeout read degrades to an unlocked read rather than standing down, and a failed Load is reported with its own hardcoded detail rather than routing through notEvaluableDetails. 7-34 pinned their diagnosis lines through renderDoctorReport over a synthetic checkResult — the real renderer, so the assertion still reads the user line, but the path is not exercised end to end. Worth deciding whether those two reasons should be reachable (in which case the degrade-to-unlocked and hardcoded-detail behaviours are the bug) or whether the enum carries two members the diagnosis surface can never produce.",
+              "files": [
+                "cmd/doctor.go",
+                "cmd/run_hook_stale_cleanup.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-34",
+              "source": "executor",
+              "summary": "Specification 5.4 cites a stale location for the empty-live-set guard",
+              "detail": "Spec 5.4 cites cmd/run_hook_stale_cleanup.go:41-47 for the empty-live-set guard; the guard now lives in judgeAgainstLivePanes at :99-118. Spec text rather than code, and outside 7-34 scope. Adds to the three already-banked stale spec claims (the panetoken.go forwarder, ListAllPanes, and the two-clause lane rule) — the phase boundary should append one corrigendum covering all of them.",
+              "files": [
+                ".workflows/resume-hooks-silently-lost/specification/resume-hooks-silently-lost/specification.md"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-34",
+              "source": "reviewer",
+              "summary": "The stand-down copy is now pinned in four files, so a wording change needs four edits",
+              "detail": "cmd/doctor_stand_down_copy_test.go:142-145 duplicates cmd/doctor_test.go:1568-1570 exactly (same helper, same lister, same expected string), and :138-140 duplicates cmd/run_hook_stale_cleanup_outcome_test.go:93-99 in substance. cmd/run_hook_stale_cleanup_lock_timeout_test.go:231 and cmd/run_hook_stale_cleanup_single_report_test.go:58 pin two more of the same lines. The 7-34 executor was following the task named test list so this is not a defect in the work — but the new file was MEANT to be the one place this copy is pinned, and it is not. Consolidation crosses prior tasks output, so it belongs at the phase boundary.",
+              "files": [
+                "cmd/doctor_stand_down_copy_test.go",
+                "cmd/doctor_test.go",
+                "cmd/run_hook_stale_cleanup_outcome_test.go",
+                "cmd/run_hook_stale_cleanup_lock_timeout_test.go",
+                "cmd/run_hook_stale_cleanup_single_report_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-34",
+              "source": "reviewer",
+              "summary": "The duplicate-detection loop in the new stand-down copy test guards the table, not production",
+              "detail": "cmd/doctor_stand_down_copy_test.go:165-172 compares the TABLE expected values rather than the rendered ones, so it catches a copy-paste author rather than two production reasons converging on the same phrase. The reviewer proved it: pointing notEvaluableDetails[lock-timeout] at another reason phrase was caught by the exact-line assertions but NOT by the borrows check. No coverage gap — the exact-line assertions cover it — but the check is narrower than its message implies, so a reader may trust it for something it does not do.",
+              "files": [
+                "cmd/doctor_stand_down_copy_test.go"
               ]
             }
           ]
