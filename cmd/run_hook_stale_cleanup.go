@@ -20,6 +20,50 @@ const (
 	skipReasonLockTimeout     = "lock-timeout"
 )
 
+// skipReasons makes the reasons above enumerable, so anything that must cover
+// every one of them ranges over the set rather than restating it. A reason
+// declared and left out of it is invisible to everything that works from it.
+var skipReasons = []string{
+	skipReasonRestoring,
+	skipReasonStoreReadFailed,
+	skipReasonPaneReadFailed,
+	skipReasonEmptyPaneRead,
+	skipReasonLockTimeout,
+}
+
+const restoreStandDownPhrase = "restore in progress"
+
+// skippedPrunePhrases completes "Skipped stale hook prune: …" for a user who
+// asked for a repair. A failed enumeration and a successful one that answered
+// nothing are separate conditions, so neither borrows the other's words.
+var skippedPrunePhrases = map[string]string{
+	skipReasonRestoring:       restoreStandDownPhrase,
+	skipReasonStoreReadFailed: "could not read hooks.json",
+	skipReasonPaneReadFailed:  "could not enumerate live panes",
+	skipReasonEmptyPaneRead:   "live pane list came back empty",
+	skipReasonLockTimeout:     "hooks.json is locked",
+}
+
+// notEvaluableDetails renders a stand-down reason as the reason the count cannot
+// be taken, so the diagnostic reports exactly what the reaper declined to judge.
+var notEvaluableDetails = map[string]string{
+	skipReasonRestoring:       restoreStandDownPhrase + " (not evaluable)",
+	skipReasonStoreReadFailed: "could not read hooks.json",
+	skipReasonPaneReadFailed:  "could not enumerate live panes",
+	skipReasonEmptyPaneRead:   "zero live panes with hooks present (not evaluable)",
+	skipReasonLockTimeout:     "hooks.json is locked (not evaluable)",
+}
+
+// phraseFor renders a stand-down reason through one of the surface vocabularies
+// above. An unmapped reason falls through to its raw value, so no stand-down can
+// print nothing — a last-resort net, not a licence to leave a reason unmapped.
+func phraseFor(m map[string]string, reason string) string {
+	if phrase, ok := m[reason]; ok {
+		return phrase
+	}
+	return reason
+}
+
 // standDownMsg and standDownAttrs give every stand-down one line shape, so a
 // single grep answers whether the prune declined and why.
 const standDownMsg = "clean-stale-skipped"

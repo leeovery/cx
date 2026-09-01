@@ -72,7 +72,7 @@ func TestHookSweepOutcomeNamesEveryDecline(t *testing.T) {
 			if len(outcome.Removed) != 0 {
 				t.Errorf("Removed = %v, want none on a declined cycle", outcome.Removed)
 			}
-			if phrase := skippedPrunePhrase(outcome.DeclineReason); phrase == outcome.DeclineReason {
+			if phrase := phraseFor(skippedPrunePhrases, outcome.DeclineReason); phrase == outcome.DeclineReason {
 				t.Errorf("reason %q renders as its own raw value; want a user-facing phrase", outcome.DeclineReason)
 			}
 		})

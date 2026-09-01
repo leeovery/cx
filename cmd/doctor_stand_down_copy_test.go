@@ -123,7 +123,7 @@ func renderStaleHooksLine(reason string) string {
 	renderDoctorReport(buf, []checkResult{{
 		name:   "stale hooks",
 		status: checkNotEvaluable,
-		detail: notEvaluableDetail(reason),
+		detail: phraseFor(notEvaluableDetails, reason),
 	}}, nil)
 	for line := range strings.SplitSeq(buf.String(), "\n") {
 		if strings.Contains(line, "stale hooks:") {
@@ -181,11 +181,11 @@ func TestStandDownCopy(t *testing.T) {
 
 	t.Run("it renders no raw reason slug on either surface", func(t *testing.T) {
 		for _, tc := range standDownCopyCases() {
-			if phrase := skippedPrunePhrase(tc.reason); phrase == tc.reason || strings.Contains(phrase, tc.reason) {
-				t.Errorf("skippedPrunePhrase(%q) = %q; want a user-facing phrase, not the enum value", tc.reason, phrase)
+			if phrase := phraseFor(skippedPrunePhrases, tc.reason); phrase == tc.reason || strings.Contains(phrase, tc.reason) {
+				t.Errorf("phraseFor(skippedPrunePhrases, %q) = %q; want a user-facing phrase, not the enum value", tc.reason, phrase)
 			}
-			if detail := notEvaluableDetail(tc.reason); detail == tc.reason || strings.Contains(detail, tc.reason) {
-				t.Errorf("notEvaluableDetail(%q) = %q; want a user-facing phrase, not the enum value", tc.reason, detail)
+			if detail := phraseFor(notEvaluableDetails, tc.reason); detail == tc.reason || strings.Contains(detail, tc.reason) {
+				t.Errorf("phraseFor(notEvaluableDetails, %q) = %q; want a user-facing phrase, not the enum value", tc.reason, detail)
 			}
 		}
 	})
@@ -196,10 +196,10 @@ func TestStandDownCopy(t *testing.T) {
 	t.Run("it renders the withdrawn pane-read phrase on neither surface", func(t *testing.T) {
 		const withdrawn = "could not read live panes"
 		for _, tc := range standDownCopyCases() {
-			if strings.Contains(skippedPrunePhrase(tc.reason), withdrawn) {
+			if strings.Contains(phraseFor(skippedPrunePhrases, tc.reason), withdrawn) {
 				t.Errorf("reason %q still renders the withdrawn phrase %q in the skipped-prune line", tc.reason, withdrawn)
 			}
-			if strings.Contains(notEvaluableDetail(tc.reason), withdrawn) {
+			if strings.Contains(phraseFor(notEvaluableDetails, tc.reason), withdrawn) {
 				t.Errorf("reason %q still renders the withdrawn phrase %q in the diagnosis", tc.reason, withdrawn)
 			}
 		}
@@ -209,11 +209,11 @@ func TestStandDownCopy(t *testing.T) {
 	// removes, so an unmapped reason still prints something.
 	t.Run("it renders an unmapped reason as itself on both surfaces", func(t *testing.T) {
 		const unmapped = "unmapped-reason"
-		if got := skippedPrunePhrase(unmapped); got != unmapped {
-			t.Errorf("skippedPrunePhrase(%q) = %q, want the raw reason", unmapped, got)
+		if got := phraseFor(skippedPrunePhrases, unmapped); got != unmapped {
+			t.Errorf("phraseFor(skippedPrunePhrases, %q) = %q, want the raw reason", unmapped, got)
 		}
-		if got := notEvaluableDetail(unmapped); got != unmapped {
-			t.Errorf("notEvaluableDetail(%q) = %q, want the raw reason", unmapped, got)
+		if got := phraseFor(notEvaluableDetails, unmapped); got != unmapped {
+			t.Errorf("phraseFor(notEvaluableDetails, %q) = %q, want the raw reason", unmapped, got)
 		}
 	})
 

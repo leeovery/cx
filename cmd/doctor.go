@@ -206,31 +206,8 @@ func pruneDoctorStaleHooks(w io.Writer, deps *DoctorDeps) {
 		_, _ = fmt.Fprintf(w, "Pruned stale hook: %s\n", key)
 	}
 	if outcome.DeclineReason != "" {
-		_, _ = fmt.Fprintf(w, "Skipped stale hook prune: %s\n", skippedPrunePhrase(outcome.DeclineReason))
+		_, _ = fmt.Fprintf(w, "Skipped stale hook prune: %s\n", phraseFor(skippedPrunePhrases, outcome.DeclineReason))
 	}
-}
-
-const restoreStandDownPhrase = "restore in progress"
-
-// skippedPrunePhrases completes "Skipped stale hook prune: …" for a user who
-// asked for a repair. A failed enumeration and a successful one that answered
-// nothing are separate conditions, so neither borrows the other's words.
-var skippedPrunePhrases = map[string]string{
-	skipReasonRestoring:       restoreStandDownPhrase,
-	skipReasonStoreReadFailed: "could not read hooks.json",
-	skipReasonPaneReadFailed:  "could not enumerate live panes",
-	skipReasonEmptyPaneRead:   "live pane list came back empty",
-	skipReasonLockTimeout:     "hooks.json is locked",
-}
-
-// skippedPrunePhrase renders a stand-down reason for a user who asked for a
-// repair. An unmapped reason falls through to its raw value, so no stand-down
-// can print nothing.
-func skippedPrunePhrase(reason string) string {
-	if phrase, ok := skippedPrunePhrases[reason]; ok {
-		return phrase
-	}
-	return reason
 }
 
 func pruneDoctorStaleProjects(w io.Writer, deps *DoctorDeps) {
@@ -305,24 +282,6 @@ func checkHostTerminal(detector TerminalDetector, resolve spawn.AdapterResolver)
 	return checkResult{name: name, status: checkInfo, detail: fmt.Sprintf("%s (supported)", id.Name)}
 }
 
-// notEvaluableDetails renders a stand-down reason as the reason the count cannot
-// be taken, so the diagnostic reports exactly what the reaper declined to judge.
-// An unmapped reason falls through to its raw value.
-var notEvaluableDetails = map[string]string{
-	skipReasonRestoring:       restoreStandDownPhrase + " (not evaluable)",
-	skipReasonStoreReadFailed: "could not read hooks.json",
-	skipReasonPaneReadFailed:  "could not enumerate live panes",
-	skipReasonEmptyPaneRead:   "zero live panes with hooks present (not evaluable)",
-	skipReasonLockTimeout:     "hooks.json is locked (not evaluable)",
-}
-
-func notEvaluableDetail(reason string) string {
-	if detail, ok := notEvaluableDetails[reason]; ok {
-		return detail
-	}
-	return reason
-}
-
 // The check reads its store first and hands the result to the shared ladder,
 // so an unreadable hooks.json is reported as itself rather than as whatever the
 // tmux reads make of it. Past the ladder every judgeable entry is counted: an
@@ -341,12 +300,12 @@ func checkStaleHooks(reader staleSweepReader, store *hooks.Store) checkResult {
 	}
 
 	if decline := hookStalenessStandDown(reader); decline.declined() {
-		return checkResult{name: name, status: checkNotEvaluable, detail: notEvaluableDetail(decline.reason)}
+		return checkResult{name: name, status: checkNotEvaluable, detail: phraseFor(notEvaluableDetails, decline.reason)}
 	}
 
 	view := judgeAgainstLivePanes(reader, len(persisted))
 	if view.Decline.declined() {
-		return checkResult{name: name, status: checkNotEvaluable, detail: notEvaluableDetail(view.Decline.reason)}
+		return checkResult{name: name, status: checkNotEvaluable, detail: phraseFor(notEvaluableDetails, view.Decline.reason)}
 	}
 	if view.PaneRows == 0 && len(persisted) == 0 {
 		return checkResult{name: name, status: checkPass, detail: "no hooks"}
