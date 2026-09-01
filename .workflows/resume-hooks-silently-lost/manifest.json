@@ -250,7 +250,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 7,
-          "current_task": "resume-hooks-silently-lost-7-30",
+          "current_task": "resume-hooks-silently-lost-7-31",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -354,7 +354,8 @@
             "resume-hooks-silently-lost-7-27",
             "resume-hooks-silently-lost-7-15",
             "resume-hooks-silently-lost-7-28",
-            "resume-hooks-silently-lost-7-29"
+            "resume-hooks-silently-lost-7-29",
+            "resume-hooks-silently-lost-7-30"
           ],
           "staging": {
             "p1": {
@@ -1703,6 +1704,25 @@
                 "internal/xdg",
                 "internal/nanoid/leaf_guard_test.go",
                 "internal/sourceguardtest/packagedeps.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-30",
+              "source": "reviewer",
+              "summary": "The specification second corrigendum is now stale — it says internal/session/panetoken.go forwards to the nanoid predicate, and that file is gone",
+              "detail": "The Corrigenda entry appended during the approval walk states that the pane-token predicate lives in internal/nanoid and that internal/session/panetoken.go forwards to it. 7-30 deleted that forwarder; cmd/hooks.go now reaches internal/nanoid directly and internal/session holds nothing about panes. The phase boundary should append a corrigendum recording this, since the specification is what every agent dispatch is told to read first — a stale corrigendum is worse than a stale body, because it is presented as the correction.",
+              "files": [
+                ".workflows/resume-hooks-silently-lost/specification/resume-hooks-silently-lost/specification.md"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-30",
+              "source": "reviewer",
+              "summary": "The re-homed pane-token width guard scans package cmd only, so a mint site added elsewhere would be invisible to it",
+              "detail": "TestHookSeams_MintsTokensAtThePaneTokenWidth parses cmd non-test sources for the TokenMinter assignment. That is the whole production mint surface today — the only other SetPaneOption(..., state.PortalPaneIDOption, ...) writer is internal/restore/session.go:166, which RE-STAMPS a saved token rather than minting one. A future mint site outside cmd would escape the guard. This is a scope property of pinning the seam default rather than the mint itself, not a defect; noted so whoever adds a second mint site knows the guard will not object.",
+              "files": [
+                "cmd/hooks_pane_token_width_guard_test.go",
+                "internal/restore/session.go"
               ]
             }
           ]
