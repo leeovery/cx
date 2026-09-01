@@ -374,23 +374,6 @@ func (c *Client) ShowAllServerOptions() (string, error) {
 	return out, nil
 }
 
-func parsePaneOutput(output string) []string {
-	if output == "" {
-		return []string{}
-	}
-
-	lines := strings.Split(output, "\n")
-	panes := make([]string, 0, len(lines))
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		panes = append(panes, line)
-	}
-	return panes
-}
-
 type PaneCoord struct {
 	Window int
 	Pane   int
@@ -564,17 +547,6 @@ func (c *Client) ListWindowsAndPanesInSession(session string) ([]WindowGroup, er
 		sort.Ints(groups[i].PaneIndices)
 	}
 	return groups, nil
-}
-
-// ListPanes returns the structural key of every pane in the named session's
-// current window: list-panes without -s addresses one window. Unlike pane IDs,
-// these keys survive a server restart.
-func (c *Client) ListPanes(sessionName string) ([]string, error) {
-	output, err := c.cmd.Run("list-panes", "-t", ExactCoordTarget(sessionName), "-F", StructuralKeyFormat)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list panes for session %q: %w", sessionName, err)
-	}
-	return parsePaneOutput(output), nil
 }
 
 // ListAllPanesWithFormat enumerates every pane on the server under a caller-

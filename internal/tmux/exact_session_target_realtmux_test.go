@@ -24,15 +24,10 @@ const (
 // the second window current. A single-window sibling would let a form that
 // resolves only the current window pass as if it had resolved the whole
 // session.
-var (
-	siblingAllCoords = []tmux.PaneCoord{
-		{Window: 0, Pane: 0}, {Window: 0, Pane: 1},
-		{Window: 1, Pane: 0}, {Window: 1, Pane: 1},
-	}
-	// list-panes without -s addresses one window, so this is the whole session
-	// minus its first window.
-	siblingCurrentWindowPaneKeys = []string{prefixSibling + ":1.0", prefixSibling + ":1.1"}
-)
+var siblingAllCoords = []tmux.PaneCoord{
+	{Window: 0, Pane: 0}, {Window: 0, Pane: 1},
+	{Window: 1, Pane: 0}, {Window: 1, Pane: 1},
+}
 
 // seedPrefixSiblingServer starts an isolated server holding prefixSibling and
 // nothing else, shaped to siblingAllCoords, and returns the socket, its client,
@@ -117,15 +112,6 @@ func TestSessionTargets_GoneSessionDoesNotReachPrefixSibling(t *testing.T) {
 		groups, err := client.ListWindowsAndPanesInSession(goneSession)
 		if err == nil {
 			t.Fatalf("ListWindowsAndPanesInSession(%q) succeeded with %v, want a tmux failure", goneSession, groups)
-		}
-	})
-
-	t.Run("ListPanes", func(t *testing.T) {
-		_, client, _ := seedPrefixSiblingServer(t)
-
-		keys, err := client.ListPanes(goneSession)
-		if err == nil {
-			t.Fatalf("ListPanes(%q) succeeded with %v, want a tmux failure", goneSession, keys)
 		}
 	})
 
@@ -225,18 +211,6 @@ func TestSessionTargets_LiveSessionStillResolves(t *testing.T) {
 			if group.WindowIndex != i || !slices.Equal(group.PaneIndices, []int{0, 1}) {
 				t.Errorf("window %d = %+v, want index %d holding panes [0 1]", i, group, i)
 			}
-		}
-	})
-
-	t.Run("ListPanes", func(t *testing.T) {
-		_, client, _ := seedPrefixSiblingServer(t)
-
-		keys, err := client.ListPanes(prefixSibling)
-		if err != nil {
-			t.Fatalf("ListPanes(%q): %v", prefixSibling, err)
-		}
-		if !slices.Equal(keys, siblingCurrentWindowPaneKeys) {
-			t.Errorf("ListPanes(%q) = %v, want %v — the current window's panes, not the session's", prefixSibling, keys, siblingCurrentWindowPaneKeys)
 		}
 	})
 

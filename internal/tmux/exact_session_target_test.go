@@ -74,12 +74,6 @@ func TestSessionTargetsAreComposedExactly(t *testing.T) {
 			want:    coordTargetForm,
 			invoke:  func(c *tmux.Client) { _, _ = c.ListWindowsAndPanesInSession(session) },
 		},
-		{
-			name:    "ListPanes",
-			command: "list-panes",
-			want:    coordTargetForm,
-			invoke:  func(c *tmux.Client) { _, _ = c.ListPanes(session) },
-		},
 	}
 
 	for _, tc := range cases {
