@@ -250,7 +250,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 7,
-          "current_task": "resume-hooks-silently-lost-7-28",
+          "current_task": "resume-hooks-silently-lost-7-29",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -352,7 +352,8 @@
             "resume-hooks-silently-lost-7-25",
             "resume-hooks-silently-lost-7-26",
             "resume-hooks-silently-lost-7-27",
-            "resume-hooks-silently-lost-7-15"
+            "resume-hooks-silently-lost-7-15",
+            "resume-hooks-silently-lost-7-28"
           ],
           "staging": {
             "p1": {
@@ -1626,6 +1627,36 @@
               "files": [
                 "internal/logtest/capture_test.go",
                 "internal/logtest/capture.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-28",
+              "source": "executor",
+              "summary": "Two hydrate cases outside the three converted suites still carry a load-bearing nil HookStore without saying so",
+              "detail": "7-28 made the nil HookStore explicit in the eight cases whose assertions depend on it (nil = bare-shell exec path). TestHydrateTimeoutLog_SignalTimeoutPrecedesExecINFO (cmd/state_hydrate_timeout_log_test.go) carries the same load-bearing nil and the same reason but sits outside the three suites the task scoped, so it was left untouched. Related: TestHydrateTimeoutLog_NilHandleTimeout_NoSignalTimeoutNoExec (:127) is deliberately still an inline literal because its SUBJECT is the nil HandleTimeout fall-through, which the builder structurally cannot express — worth deciding whether the builder should grow a way to say explicit-nil, or whether that case should stay the documented exception.",
+              "files": [
+                "cmd/state_hydrate_timeout_log_test.go",
+                "cmd/state_hydrate_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-28",
+              "source": "reviewer",
+              "summary": "runHydrate nil-HandleFileMissing fall-throughs have no test, at HEAD or now",
+              "detail": "cmd/state_hydrate.go:122 and :137 are the nil-HandleFileMissing fall-through branches. Neither has a test at HEAD or after 7-28. Unreachable in production (the cobra wiring always sets the handler), so it is a latent gap rather than a live one — but note the SIBLING fall-through (nil HandleTimeout) does have a dedicated test, TestHydrateTimeoutLog_NilHandleTimeout_NoSignalTimeoutNoExec, which 7-28 deliberately preserved as an inline literal precisely because it is the standing proof that path still exists. The file-missing side has no such proof.",
+              "files": [
+                "cmd/state_hydrate.go",
+                "cmd/state_hydrate_file_missing_log_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-28",
+              "source": "reviewer",
+              "summary": "The surviving inline hydrateConfig literal means a new required field lands in two places, not one",
+              "detail": "7-28 Outcome is that a new required hydrateConfig field is added once rather than 52 times. One inline literal survives by design — TestHydrateTimeoutLog_NilHandleTimeout_NoSignalTimeoutNoExec (cmd/state_hydrate_timeout_log_test.go:127), whose SUBJECT is the nil-handler fall-through the builder structurally cannot express. So the real figure is two places, not one. Unavoidable without giving the builder a way to say explicit-nil; worth knowing rather than fixing, and worth stating wherever the one-route claim is made.",
+              "files": [
+                "cmd/state_hydrate_timeout_log_test.go",
+                "cmd/state_hydrate_test.go"
               ]
             }
           ]
