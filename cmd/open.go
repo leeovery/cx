@@ -71,8 +71,6 @@ type AttachConnector struct {
 	tmuxPath string
 }
 
-// The target is "="-prefixed so tmux resolves it by exact match rather than
-// prefix match.
 func (ac *AttachConnector) Connect(name string) error {
 	tmuxPath := ac.tmuxPath
 	if tmuxPath == "" {
@@ -87,7 +85,7 @@ func (ac *AttachConnector) Connect(name string) error {
 		ex = &realExecer{}
 	}
 
-	argv := []string{"tmux", "attach-session", "-t", "=" + name}
+	argv := []string{"tmux", "attach-session", "-t", tmux.ExactSessionTarget(name)}
 
 	logExecHandoff(argv)
 

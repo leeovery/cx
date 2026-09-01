@@ -2740,28 +2740,25 @@ func (r *recordingExecer) Exec(argv0 string, argv []string, _ []string) error {
 }
 
 func TestAttachConnectorConnectArgv(t *testing.T) {
-	rec := &recordingExecer{}
-	ac := &AttachConnector{
-		execer:   rec,
-		tmuxPath: "/usr/bin/tmux",
-	}
-
-	if err := ac.Connect("foo"); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if rec.argv0 != "/usr/bin/tmux" {
-		t.Errorf("argv0 = %q, want %q", rec.argv0, "/usr/bin/tmux")
-	}
-	want := []string{"tmux", "attach-session", "-t", "=foo"}
-	if len(rec.argv) != len(want) {
-		t.Fatalf("argv = %v, want %v", rec.argv, want)
-	}
-	for i := range want {
-		if rec.argv[i] != want[i] {
-			t.Errorf("argv[%d] = %q, want %q", i, rec.argv[i], want[i])
+	t.Run("it attaches through ExactSessionTarget", func(t *testing.T) {
+		rec := &recordingExecer{}
+		ac := &AttachConnector{
+			execer:   rec,
+			tmuxPath: "/usr/bin/tmux",
 		}
-	}
+
+		if err := ac.Connect("foo"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if rec.argv0 != "/usr/bin/tmux" {
+			t.Errorf("argv0 = %q, want %q", rec.argv0, "/usr/bin/tmux")
+		}
+		want := []string{"tmux", "attach-session", "-t", "=foo"}
+		if !slices.Equal(rec.argv, want) {
+			t.Errorf("argv = %v, want %v", rec.argv, want)
+		}
+	})
 }
 
 func assertResolveAttr(t *testing.T, rec logtest.Record, key, want string) {

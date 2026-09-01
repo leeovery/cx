@@ -2,20 +2,96 @@ package tmux_test
 
 import (
 	"errors"
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"maps"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"slices"
+	"strings"
+	"sync"
 	"testing"
 
 	"github.com/leeovery/portal/internal/sourceguardtest"
 )
 
-// The packages that compose a tmux `-t` argument. internal/tmux holds the
-// vocabulary; internal/session composes an exec chain the client never runs,
-// and internal/restore composes the skeleton target it hands the client.
-var targetComposingPackages = []string{".", "../session", "../restore"}
+const (
+	tmuxImportPath = "github.com/leeovery/portal/internal/tmux"
+	cmdImportPath  = "github.com/leeovery/portal/cmd"
+)
+
+// targetComposingPackages returns the directory of every package that can
+// compose a tmux `-t` argument, sorted so a scan's findings come out in a
+// deterministic order.
+func targetComposingPackages(t *testing.T) []string {
+	t.Helper()
+	return slices.Sorted(maps.Values(targetComposingPackageDirs(t)))
+}
+
+// targetComposingPackageDirs maps the import path of every package that can
+// compose a tmux `-t` argument to its directory: those importing internal/tmux,
+// plus internal/tmux itself, which holds the vocabulary. The set is derived from
+// the import graph rather than listed, so a package that starts addressing tmux
+// joins the scan by construction instead of by someone remembering to add it.
+func targetComposingPackageDirs(t *testing.T) map[string]string {
+	t.Helper()
+
+	listing, err := modulePackageListing()
+	if err != nil {
+		t.Fatal(err)
+	}
+	dirs, err := importersOfTmux(listing)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return dirs
+}
+
+// modulePackageListing reads the module's packages once per test binary: the
+// listing is the same for every caller, and `go list` over the whole module is
+// the expensive part of this guard.
+//
+// The scan parses every non-test source in a package whatever tag gates it, so
+// the importer set is resolved with the integration tag in force too: a package
+// reaching tmux only from a tagged file composes targets the scan would
+// otherwise read from a directory it never visited.
+var modulePackageListing = sync.OnceValues(func() (string, error) {
+	out, err := exec.Command("go", "list",
+		"-tags", "integration",
+		"-f", "{{.ImportPath}}\t{{.Dir}}\t{{join .Imports \" \"}}",
+		"github.com/leeovery/portal/...",
+	).CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("go list the module's packages: %w\n%s", err, out)
+	}
+	return string(out), nil
+})
+
+// importersOfTmux reads a `go list` listing of "import path, directory, imports"
+// lines into the import path → directory map of the packages addressing tmux.
+// Resolving none is an error rather than an empty map: a scan that has stopped
+// looking would otherwise report a clean repository forever, which is the
+// failure the derivation exists to prevent.
+func importersOfTmux(listing string) (map[string]string, error) {
+	dirs := map[string]string{}
+	for line := range strings.SplitSeq(strings.TrimSpace(listing), "\n") {
+		fields := strings.Split(line, "\t")
+		if len(fields) != 3 {
+			continue
+		}
+		importPath, dir, imports := fields[0], fields[1], strings.Fields(fields[2])
+		if importPath == tmuxImportPath || slices.Contains(imports, tmuxImportPath) {
+			dirs[importPath] = dir
+		}
+	}
+	if len(dirs) == 0 {
+		return nil, errors.New("no package importing internal/tmux was found, so the guard would scan nothing")
+	}
+	return dirs, nil
+}
 
 // exactTargetHelpers is the whole vocabulary a composed target may be drawn
 // from. Their bare siblings (PaneTarget, windowTarget) are absent on purpose:
@@ -28,9 +104,11 @@ var exactTargetHelpers = map[string]bool{
 	"PaneTargetExact":    true,
 }
 
-// passThroughTargetParams names the parameters that arrive already composed, so
-// their provenance is the caller's, which this scan checks wherever that caller
-// sits in one of the packages above.
+// passThroughTargetParams names the parameters and named results that hold an
+// already-composed target. A parameter's provenance is its caller's, which this
+// scan checks wherever that caller sits in one of the derived packages; a named
+// result's provenance is the declaring body itself, which the scan does not
+// check.
 // The allow-list is deliberately narrow rather than "any parameter": a method
 // taking a session *name* must still pin it, which is what makes a bare
 // `-t name` a finding rather than a pass-through. Widening it is the point at
@@ -48,13 +126,81 @@ var passThroughTargetParams = map[string]bool{
 // the exactness rule has been rediscovered a call site at a time, so it is
 // enforced here rather than left to whoever writes the next one.
 func TestTmuxTargetsAreComposedThroughTheExactnessVocabulary(t *testing.T) {
-	findings, err := scanBareTargets(targetComposingPackages)
+	findings, err := scanBareTargets(targetComposingPackages(t))
 	if err != nil {
 		t.Fatalf("scan for bare targets: %v", err)
 	}
 	for _, finding := range findings {
 		t.Errorf("%s: %s", finding.pos, finding.detail)
 	}
+}
+
+func TestBareTargetGuard_ScansEveryPackageAddressingTmux(t *testing.T) {
+	t.Run("it derives the scanned package set from the packages importing internal/tmux", func(t *testing.T) {
+		byPath := targetComposingPackageDirs(t)
+
+		for _, want := range []string{cmdImportPath, tmuxImportPath, "github.com/leeovery/portal/internal/restore"} {
+			if _, ok := byPath[want]; !ok {
+				t.Errorf("derived package set %v holds no entry for %s", slices.Sorted(maps.Keys(byPath)), want)
+			}
+		}
+	})
+
+	t.Run("it flags a bare target composed in cmd", func(t *testing.T) {
+		dirs := targetComposingPackages(t)
+		cmdDir := targetComposingPackageDirs(t)[cmdImportPath]
+		probed := stagePackageWithProbe(t, cmdDir, `package cmd
+
+func probeRun(args ...string) {}
+
+func probeAddressSession(name string) { probeRun("has-session", "-t", name) }
+`)
+		cmdAt := slices.Index(dirs, cmdDir)
+		if cmdAt < 0 {
+			t.Fatalf("the derived package set %v holds no cmd directory to stage a probe over", dirs)
+		}
+		dirs[cmdAt] = probed
+
+		findings, err := scanBareTargets(dirs)
+		if err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		if len(findings) != 1 {
+			t.Fatalf("scan of the derived set with one bare target staged in cmd found %d findings, want 1: %v",
+				len(findings), findings)
+		}
+		if !strings.Contains(findings[0].pos, probeFileName) {
+			t.Errorf("finding %v does not name the staged probe", findings[0])
+		}
+	})
+}
+
+const probeFileName = "zz_probe.go"
+
+// stagePackageWithProbe copies src's production sources into a temp directory
+// and adds probe alongside them, so the scan reads the package's real sources
+// with one authored offender among them. The copy is what keeps the repository
+// untouched: nothing is ever written into src.
+func stagePackageWithProbe(t *testing.T, src, probe string) string {
+	t.Helper()
+	paths, err := sourceguardtest.PackageGoFiles(src, false)
+	if err != nil {
+		t.Fatalf("enumerate %s: %v", src, err)
+	}
+	dir := t.TempDir()
+	for _, path := range paths {
+		body, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, filepath.Base(path)), body, 0o600); err != nil {
+			t.Fatalf("stage %s: %v", path, err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(dir, probeFileName), []byte(probe), 0o600); err != nil {
+		t.Fatalf("write probe: %v", err)
+	}
+	return dir
 }
 
 func TestBareTargetGuard_FlagsAPackageComposingABareTarget(t *testing.T) {
@@ -122,6 +268,17 @@ func addressSession(c *Client, name string) {
 			t.Errorf("scan flagged %v, want nothing", findings)
 		}
 	})
+}
+
+// The same reasoning one rule up: an import scan resolving no importer is a
+// derivation that has stopped looking, not a repository that has stopped
+// composing targets.
+func TestBareTargetGuard_ErrorsWhenTheImportScanResolvesNothing(t *testing.T) {
+	listing := "github.com/leeovery/portal/internal/alias\t/repo/internal/alias\tfmt os\n"
+
+	if _, err := importersOfTmux(listing); err == nil {
+		t.Fatal("an import scan resolving no importer of internal/tmux succeeded, want an error")
+	}
 }
 
 // A guard that stopped finding sources would otherwise report a clean scan
@@ -323,16 +480,16 @@ func targetIsExact(target ast.Expr, bound map[string]bool) bool {
 	return isExactTargetCall(target)
 }
 
-// boundTargets names the identifiers the declaration may spend as a target: its
-// pass-through parameters, its closures' pass-through parameters, and its locals
-// assigned from the vocabulary.
+// boundTargets names the identifiers the declaration may spend as a target: the
+// pass-through names its signature declares, those its closures declare, and its
+// locals assigned from the vocabulary.
 func boundTargets(decl *ast.FuncDecl) map[string]bool {
 	bound := map[string]bool{}
-	bindParams(bound, decl.Type)
+	bindSignature(bound, decl.Type)
 	ast.Inspect(decl, func(n ast.Node) bool {
 		switch node := n.(type) {
 		case *ast.FuncLit:
-			bindParams(bound, node.Type)
+			bindSignature(bound, node.Type)
 		case *ast.AssignStmt:
 			bindVocabularyAssignments(bound, node)
 		}
@@ -341,8 +498,19 @@ func boundTargets(decl *ast.FuncDecl) map[string]bool {
 	return bound
 }
 
-func bindParams(bound map[string]bool, sig *ast.FuncType) {
-	for _, field := range sig.Params.List {
+// A named result carries the same word as a parameter would and is declared in
+// the same signature, so it is read the same way: a function returning a
+// composed target names it in its own signature rather than in its caller's.
+func bindSignature(bound map[string]bool, sig *ast.FuncType) {
+	bindFields(bound, sig.Params)
+	bindFields(bound, sig.Results)
+}
+
+func bindFields(bound map[string]bool, fields *ast.FieldList) {
+	if fields == nil {
+		return
+	}
+	for _, field := range fields.List {
 		for _, name := range field.Names {
 			if passThroughTargetParams[name.Name] {
 				bound[name.Name] = true

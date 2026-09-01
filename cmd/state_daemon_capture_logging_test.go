@@ -254,8 +254,8 @@ func TestDaemonTick_CapturePaneFailureLogsWarnWithPaneKey(t *testing.T) {
 }
 
 // sessionFromExactTarget undoes the "=" exact-match prefix the tmux client
-// composes onto a session target, so a fake resolves the same session real tmux
-// would.
+// composes onto a session or pane target, so a fake resolves the same target
+// real tmux would.
 func sessionFromExactTarget(target string) string {
 	return strings.TrimPrefix(target, "=")
 }
@@ -267,4 +267,32 @@ func showEnvironmentFor(session string) func(args []string) bool {
 		return len(args) >= 3 && args[0] == "show-environment" && args[1] == "-t" &&
 			sessionFromExactTarget(args[2]) == session
 	}
+}
+
+// TestCaptureAndCommit_AddressesEachPaneThroughThePinnedTarget pins the capture
+// read's target form. A session killed between the structure read and the
+// capture leaves an unpinned target resolving onto a prefix sibling's pane,
+// whose scrollback would then be written under the gone pane's key.
+func TestCaptureAndCommit_AddressesEachPaneThroughThePinnedTarget(t *testing.T) {
+	t.Run("it captures a pane through the pinned pane target", func(t *testing.T) {
+		dir := t.TempDir()
+		t.Setenv("PORTAL_STATE_DIR", dir)
+
+		sess, panes := oneSession()
+		fc := &daemonFakeCommander{sessionsOut: sess, panesOut: panes}
+		deps := makeCaptureDeps(t, dir, fc)
+
+		if err := captureAndCommit(context.Background(), deps); err != nil {
+			t.Fatalf("captureAndCommit: %v", err)
+		}
+
+		calls := fc.callsContaining("capture-pane")
+		if len(calls) != 1 {
+			t.Fatalf("capture-pane calls = %d, want 1: %v", len(calls), calls)
+		}
+		got := calls[0][len(calls[0])-1]
+		if want := "=work:0.0"; got != want {
+			t.Errorf("capture-pane target = %q, want %q", got, want)
+		}
+	})
 }

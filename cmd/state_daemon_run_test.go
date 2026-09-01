@@ -124,7 +124,9 @@ func (c *daemonFakeCommander) dispatch(args []string) (string, error) {
 	case "capture-pane":
 		var target string
 		if len(args) >= 7 {
-			target = args[6]
+			// Keyed on the plain coordinate, the way real tmux resolves the
+			// client's exact-match target.
+			target = sessionFromExactTarget(args[6])
 		}
 		if err, ok := c.captureErrByTarget[target]; ok {
 			return "", err

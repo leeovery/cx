@@ -274,7 +274,7 @@ func captureAndCommit(ctx context.Context, deps *daemonDeps) error {
 				}
 				panes++
 				captureLogger.Debug("pane captured", "pane_key", paneKey, "session", sess.Name)
-				target := tmux.PaneTarget(sess.Name, win.Index, pane.Index)
+				target := tmux.PaneTargetExact(sess.Name, win.Index, pane.Index)
 				data, hash, err := state.CaptureAndHashPane(deps.Client, target)
 				if err != nil {
 					if isPaneVanishedError(err) {
@@ -283,7 +283,10 @@ func captureAndCommit(ctx context.Context, deps *daemonDeps) error {
 						continue
 					}
 					anomalous++
-					deps.Logger.Warn("capture pane failed", "pane_key", target, "error", err)
+					// The plain coordinate, not the pinned target: the "=" is an
+					// addressing detail of the failed read, not part of a key.
+					coord := tmux.PaneTarget(sess.Name, win.Index, pane.Index)
+					deps.Logger.Warn("capture pane failed", "pane_key", coord, "error", err)
 					continue
 				}
 				written, err := state.WriteScrollbackIfChanged(deps.Dir, paneKey, data, hash, deps.HashMap)
