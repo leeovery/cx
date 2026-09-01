@@ -250,7 +250,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 7,
-          "current_task": "resume-hooks-silently-lost-7-29",
+          "current_task": "resume-hooks-silently-lost-7-30",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -353,7 +353,8 @@
             "resume-hooks-silently-lost-7-26",
             "resume-hooks-silently-lost-7-27",
             "resume-hooks-silently-lost-7-15",
-            "resume-hooks-silently-lost-7-28"
+            "resume-hooks-silently-lost-7-28",
+            "resume-hooks-silently-lost-7-29"
           ],
           "staging": {
             "p1": {
@@ -1657,6 +1658,51 @@
               "files": [
                 "cmd/state_hydrate_timeout_log_test.go",
                 "cmd/state_hydrate_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-29",
+              "source": "executor",
+              "summary": "The precedence is now single-sourced but each config file identity (env var + filename) is still restated at every call site",
+              "detail": "7-29 moved the RULE into internal/xdg, but the pair identifying each config file is still written out per site: cmd/hooks.go:256 passes the literals (PORTAL_HOOKS_FILE, hooks.json), cmd/config.go re-lists the filenames in configFileComponents, and internal/hookstest/hooks.go:38-42 now declares its own copy of the same pair. So renaming an env var is still an N-site edit that reaches into a test-only package — the same divergence class 7-29 closed for the rule, one level down. Fixing it means deciding where a file identity lives (an exported table beside configFileComponents, or per-owning-package constants) and touching cmd/alias.go, cmd/hooks.go, cmd/config.go and internal/restoretest/restoretest.go:146 together.",
+              "files": [
+                "cmd/config.go",
+                "cmd/hooks.go",
+                "cmd/alias.go",
+                "internal/hookstest/hooks.go",
+                "internal/restoretest/restoretest.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-29",
+              "source": "reviewer",
+              "summary": "CONFIRMED AND REPRODUCED: go test ./cmd moves the developer real legacy config out of ~/Library/Application Support/portal",
+              "detail": "Makes the logged inbox bug config-path-tests-can-move-real-config (2026-08-04) concrete. cmd/config_test.go:10 and :57 call the real configFilePath(\"TEST_CONFIG_UNSET\", \"projects.json\") with t.Setenv(\"XDG_CONFIG_HOME\",\"\") and the developer REAL $HOME; cmd/prefs_path_test.go:41 does the same via prefsFilePath(). On any machine still holding the old macOS config dir, the UNIT lane silently os.Renames projects.json and prefs.json into ~/.config/portal/. The reviewer reproduced it on BOTH the pre-change and post-change trees under a staged fake HOME, three runs each, byte-identical outcomes — so 7-29 neither caused nor fixed it. Fix: t.Setenv(\"HOME\", t.TempDir()) in those subtests, asserting against that temp home.",
+              "files": [
+                "cmd/config_test.go",
+                "cmd/prefs_path_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-29",
+              "source": "reviewer",
+              "summary": "Two more production sites restate the env-var-then-base/portal/x precedence xdg.ConfigFilePath now declares",
+              "detail": "internal/state/paths.go:28-35 (state.Dir: PORTAL_STATE_DIR then <base>/portal/state) and cmd/config.go:208-217 (themesDirPath: PORTAL_THEMES_DIR then <base>/portal/themes) each re-author the shape 7-29 single-sourced for config FILES; the `portal/` literal now sits in three production sites. Consolidation crosses into internal/state and into the deliberate themes-dir carve-out (a _DIR rather than a _FILE, with no migration), so it was out of 7-29 reach — but it is the same divergence class one level out.",
+              "files": [
+                "internal/state/paths.go",
+                "cmd/config.go",
+                "internal/xdg/configfile.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-29",
+              "source": "reviewer",
+              "summary": "internal/xdg has no leaf guard, and a test-only package now depends on its purity",
+              "detail": "go list -deps confirms internal/xdg is stdlib-only today, but nothing pins it — unlike internal/nanoid, internal/prefs, internal/hooks and internal/theme, which each pin their dependency set with sourceguardtest.PackageDeps. 7-29 made internal/hookstest depend on xdg for seed/read path parity, so the leaf property now underwrites a test-isolation guarantee rather than just tidiness. A ~15-line guard modelled on internal/nanoid/leaf_guard_test.go is cheap insurance, and sourceguardtest.PackageDeps (added by 7-24) is the primitive to write it with.",
+              "files": [
+                "internal/xdg",
+                "internal/nanoid/leaf_guard_test.go",
+                "internal/sourceguardtest/packagedeps.go"
               ]
             }
           ]
