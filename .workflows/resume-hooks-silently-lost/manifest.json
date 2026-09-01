@@ -263,7 +263,7 @@
         "resume-hooks-silently-lost": {
           "status": "in-progress",
           "task_gate_mode": "auto",
-          "fix_gate_mode": "gated",
+          "fix_gate_mode": "auto",
           "analysis_gate_mode": "auto",
           "consolidation_gate_mode": "gated",
           "fix_attempts": 0,
@@ -300,7 +300,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 8,
-          "current_task": "resume-hooks-silently-lost-8-3",
+          "current_task": "resume-hooks-silently-lost-8-4",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -413,7 +413,8 @@
             "resume-hooks-silently-lost-7-13",
             "resume-hooks-silently-lost-7-35",
             "resume-hooks-silently-lost-8-1",
-            "resume-hooks-silently-lost-8-2"
+            "resume-hooks-silently-lost-8-2",
+            "resume-hooks-silently-lost-8-3"
           ],
           "staging": {
             "p1": {
@@ -674,6 +675,53 @@
                 "internal/tmux/exact_session_target_test.go",
                 "internal/tmux/session_name_test.go",
                 "internal/tmux/target_composition_guard_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-3",
+              "source": "executor",
+              "summary": "Widening ValidateSessionName makes the TUI rename-refusal flash name the wrong character for a $-leading rename.",
+              "detail": "internal/tui/model.go:2667 discards the validation error and sets a fixed flash, renameColonRefusedFlash at internal/tui/sessions_flash.go:55 = \": isnt allowed in a session name — tmux reads it as a separator\". A rename to $foo is now correctly refused but reported as a colon problem. The refusal error already carries the offending character verbatim, so the band could render it, but the copy is user-visible with no wording in the governing spec — needs a copy decision and a visual gate. Note: sibling task 8-6 already owns documenting this refusal and putting the flash copy through the visual gate, so the two are best settled together.",
+              "files": [
+                "internal/tui/model.go",
+                "internal/tui/sessions_flash.go",
+                "internal/tmux/errors.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-3",
+              "source": "reviewer",
+              "summary": "ValidateSessionName accepts a leading -, which tmux refuses as a rename target.",
+              "detail": "Measured on tmux 3.7c: rename-session -t =old -bar-abc123 fails with \"unknown flag -b\" — the new name is a bare positional at internal/tmux/tmux.go:286 and Portal composes no -- terminator. ValidateSessionName (internal/tmux/errors.go:80) returns nil for such a name, so the TUI rename modal lets it through to a failure tmux words as a flag error. No live defect from this task — generated names only reach -s/-t optargs where a leading - is safe — but it is the same two-definitions-of-an-unwritable-name class, and this task now routes $-leading project directories into leading-hyphen names, joining the pre-existing empty-project -abc123 path. Widening the validator with a third rule is a task/spec-level decision.",
+              "files": [
+                "internal/tmux/errors.go",
+                "internal/tmux/tmux.go",
+                "internal/tui/model.go",
+                "internal/tui/sessions_flash.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-3",
+              "source": "reviewer",
+              "summary": "A period-bearing session name is unaddressable through ExactSessionTarget and is silently dropped by the capture loop — third character in this work unit own failure class. The task premise that a.b resolves both bare and exact is FALSE, and acceptance criterion 2 pins acceptance of it.",
+              "detail": "Measured on tmux 3.7c against isolated -L sockets. show-environment -t =a.b succeeds on a server holding only a.b, but fails with no such session: =a.b as soon as any OTHER session name is a longer prefix-extension of the pre-period component (anchor, apple reproduce; a, b, zzz do not). tmux splits a colon-free target on . into window.pane, so the session lookup is a fallback the prefix candidate displaces. Reproduced Portal-shaped: with _portal-bootstrap, my-cool-app-abc123 and user session my.app, show-environment -t =my.app exits 1 with no such session — which internal/state/capture.go:71-74 classifies as natural churn and logs as vanished, dropping a live session and its scrollback from sessions.json. has-session and kill-session fail identically. Remedy already in the codebase: tmux.ExactCoordTarget (internal/tmux/tmux.go:442, = + name + :) resolves all three correctly in every tested case. Likely fix is a per-command target-form audit of the remaining ExactSessionTarget call sites — internal/tmux/tmux.go:88,97,272,287,295,580,768 and internal/tmux/clients.go:19 — not widening the validator. Same decision should settle a leading -: rename-session -t =orig -foo fails with unknown flag -f, so a TUI rename to -foo dies on a raw tmux flag error rather than a clean refusal (loud, not silent, and pre-existing).",
+              "files": [
+                "internal/tmux/tmux.go",
+                "internal/tmux/errors.go",
+                "internal/tmux/clients.go",
+                "internal/state/capture.go",
+                "internal/session/naming.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-3",
+              "source": "reviewer",
+              "summary": "The unaddressable-session-name machinery is undocumented in CLAUDE.md across three sibling tasks.",
+              "detail": "ValidateSessionName / ErrUnaddressableSessionName (7-1), the per-session-op classification (8-2) and now the $ rule plus the generation-recognition guard (8-3) are absent from both the tmux and session rows of the architecture table. The session row still describes name generation only as {project}-{nanoid} (CLAUDE.md:64) with no mention that the fragment is sanitised or that generation is pinned to the recogniser. Documenting it is one paragraph once the cycle three tasks are consolidated, not three partial edits.",
+              "files": [
+                "CLAUDE.md",
+                "internal/tmux/errors.go",
+                "internal/session/naming.go"
               ]
             }
           ]
