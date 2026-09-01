@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/restore"
+	"github.com/leeovery/portal/internal/restoretest"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
 )
@@ -16,16 +17,12 @@ type progressCall struct {
 
 func newProgressOrchestrator(t *testing.T, mock *mockCommander, dir string, calls *[]progressCall) *restore.Orchestrator {
 	t.Helper()
-	client := tmux.NewClient(mock)
 	logger, _ := newCaptureLogger(t)
-	return &restore.Orchestrator{
-		Client:   client,
-		StateDir: dir,
-		Logger:   logger,
-		Progress: func(n, m int) {
-			*calls = append(*calls, progressCall{n: n, m: m})
-		},
+	o := restoretest.NewFakeExeOrchestrator(t, tmux.NewClient(mock), dir, logger)
+	o.Progress = func(n, m int) {
+		*calls = append(*calls, progressCall{n: n, m: m})
 	}
+	return o
 }
 
 func TestProgress_FiresOncePerSessionWithNAdvancingAgainstFixedM(t *testing.T) {
@@ -196,14 +193,9 @@ func TestProgress_NilCallbackLeavesRestoreOutcomesUnchanged(t *testing.T) {
 		writeValidIndex(t, dir, sessions)
 		rf := &orchestratorRunFunc{listSessionsOut: "", listPanesOut: "0:0"}
 		mock := &mockCommander{RunFunc: rf.run}
-		client := tmux.NewClient(mock)
 		logger, _ := newCaptureLogger(t)
-		o := &restore.Orchestrator{
-			Client:   client,
-			StateDir: dir,
-			Logger:   logger,
-			Progress: progress,
-		}
+		o := restoretest.NewFakeExeOrchestrator(t, tmux.NewClient(mock), dir, logger)
+		o.Progress = progress
 		if _, err := o.Restore(); err != nil {
 			t.Fatalf("Restore: %v", err)
 		}

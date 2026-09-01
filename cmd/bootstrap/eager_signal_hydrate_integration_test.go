@@ -24,8 +24,9 @@ func TestPhase1Integration_EagerSignalHydrate_MultiSessionMarkersClearedWithin2s
 	tmuxtest.SkipIfNoTmux(t)
 
 	// Restored panes respawn into this binary's `state hydrate`, pinned through
-	// restoreAdapterFor, so the helper that unsets the markers polled for below
-	// is the build under test rather than whatever release is installed.
+	// restoretest.StagedRestoreAdapter, so the helper that unsets the markers
+	// polled for below is the build under test rather than whatever release is
+	// installed.
 	binDir := restoretest.BuildPortalBinaryDir(t)
 
 	cases := []struct {
@@ -46,8 +47,6 @@ func TestPhase1Integration_EagerSignalHydrate_MultiSessionMarkersClearedWithin2s
 func runEagerSignalMultiSessionAC1(t *testing.T, binDir string, sessions []string) {
 	t.Helper()
 
-	restoretest.PrependPATH(t, binDir)
-
 	_, stateDir := newIntegrationStateDir(t)
 
 	restoretest.SeedSessionsJSON(t, stateDir, sessions...)
@@ -67,7 +66,7 @@ func runEagerSignalMultiSessionAC1(t *testing.T, binDir string, sessions []strin
 	logger := restoretest.OpenTestLogger(t, stateDir)
 
 	o := buildIntegrationOrchestrator(t, client, orchestratorOpts{
-		Restore: restoreAdapterFor(t, client, stateDir, logger, binDir),
+		Restore: restoretest.StagedRestoreAdapter(t, client, stateDir, logger, binDir),
 		Logger:  logger,
 	})
 
@@ -107,7 +106,6 @@ func TestPhase1Integration_DaemonResumesCaptureAfterEagerSignal_AC4(t *testing.T
 	tmuxtest.SkipIfNoTmux(t)
 
 	binDir := restoretest.BuildPortalBinaryDir(t)
-	restoretest.PrependPATH(t, binDir)
 
 	_, stateDir := newIntegrationStateDir(t)
 
@@ -129,7 +127,7 @@ func TestPhase1Integration_DaemonResumesCaptureAfterEagerSignal_AC4(t *testing.T
 	logger := restoretest.OpenTestLogger(t, stateDir)
 
 	o := buildIntegrationOrchestrator(t, client, orchestratorOpts{
-		Restore: restoreAdapterFor(t, client, stateDir, logger, binDir),
+		Restore: restoretest.StagedRestoreAdapter(t, client, stateDir, logger, binDir),
 		Logger:  logger,
 	})
 
@@ -181,7 +179,6 @@ func TestPhase1Integration_DaemonSkipsCaptureWithoutEagerSignal_AC4NegativeContr
 	tmuxtest.SkipIfNoTmux(t)
 
 	binDir := restoretest.BuildPortalBinaryDir(t)
-	restoretest.PrependPATH(t, binDir)
 
 	_, stateDir := newIntegrationStateDir(t)
 
@@ -203,7 +200,7 @@ func TestPhase1Integration_DaemonSkipsCaptureWithoutEagerSignal_AC4NegativeContr
 	logger := restoretest.OpenTestLogger(t, stateDir)
 
 	o := buildIntegrationOrchestrator(t, client, orchestratorOpts{
-		Restore:       restoreAdapterFor(t, client, stateDir, logger, binDir),
+		Restore:       restoretest.StagedRestoreAdapter(t, client, stateDir, logger, binDir),
 		EagerSignaler: bootstrap.NoOpEagerHydrateSignaler{},
 		Logger:        logger,
 	})

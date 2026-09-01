@@ -21,8 +21,9 @@ import (
 
 // BuildPortalBinaryDir compiles `portal` into a fresh t.TempDir. A restored pane
 // respawns into `portal state hydrate`, so a test driving a real restore must
-// reach that binary — via StagedHydrateExe, or via PrependPATH where something
-// other than the restore invokes `portal` by name.
+// reach that binary — via StagedHydrateExe (or the constructors over it), and
+// via PrependPATH only where something other than the restore invokes `portal`
+// by name.
 func BuildPortalBinaryDir(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -73,8 +74,15 @@ func stagedHydrateExe(t fataller, binDir string) restore.ExecutableResolver {
 	return func() (string, error) { return path, nil }
 }
 
-// PrependPATH goes through t.Setenv, so subprocesses — notably tmux server
-// forks — inherit the change and it is restored on test exit.
+// PrependPATH stages binDir ahead of the ambient PATH for a fixture that has
+// something invoking `portal` by name: the global hook bodies (`portal state
+// notify` and siblings, run through run-shell) and the `_portal-saver` pane's
+// `portal state daemon`. It is NOT the route for the hydrate helper a restore
+// arms its panes with — that is pinned by path through StagedHydrateExe, so a
+// fixture whose only portal subprocess is that helper needs no PATH staging.
+//
+// It goes through t.Setenv, so subprocesses — notably tmux server forks —
+// inherit the change and it is restored on test exit.
 func PrependPATH(t *testing.T, dir string) {
 	t.Helper()
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))

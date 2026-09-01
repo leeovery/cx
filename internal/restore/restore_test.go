@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/leeovery/portal/internal/restore"
+	"github.com/leeovery/portal/internal/restoretest"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
 )
@@ -65,12 +66,7 @@ func writeRawIndex(t *testing.T, dir string, raw []byte) {
 
 func newOrchestrator(t *testing.T, mock *mockCommander, dir string, logger *slog.Logger) *restore.Orchestrator {
 	t.Helper()
-	client := tmux.NewClient(mock)
-	return &restore.Orchestrator{
-		Client:   client,
-		StateDir: dir,
-		Logger:   logger,
-	}
+	return restoretest.NewFakeExeOrchestrator(t, tmux.NewClient(mock), dir, logger)
 }
 
 func openTestLogger(t *testing.T, dir string) (*slog.Logger, *captureSink) {

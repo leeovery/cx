@@ -8,7 +8,6 @@
 package cmd
 
 import (
-	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
@@ -30,10 +29,16 @@ var reattachBuildOnce sync.Once
 var reattachBinDir string
 var reattachBuildErr error
 
+// ensurePortalOnPATH stages a built portal ahead of the ambient PATH, for the
+// fixtures whose bootstrap starts the `_portal-saver` pane, which runs `portal
+// state daemon` by name. It returns the staging directory, so a caller that also
+// needs the binary by path — pinning a restore's pane-arming to it — has it
+// without a second accessor.
+//
 // The build dir must outlive the test that triggered the once-Do, so this uses
 // BuildPortalBinaryStable rather than t.TempDir — later tests would otherwise
 // point at a deleted path.
-func ensurePortalOnPATH(t *testing.T) {
+func ensurePortalOnPATH(t *testing.T) string {
 	t.Helper()
 	reattachBuildOnce.Do(func() {
 		reattachBinDir, reattachBuildErr = restoretest.BuildPortalBinaryStable()
@@ -42,23 +47,7 @@ func ensurePortalOnPATH(t *testing.T) {
 		t.Fatalf("build portal: %v", reattachBuildErr)
 	}
 	t.Setenv("PATH", reattachBinDir+string(os.PathListSeparator)+os.Getenv("PATH"))
-}
-
-// stagedRestoreAdapter points the restore's pane-arming at the staged binary.
-// Production resolves it from os.Executable, which under `go test` is the test
-// binary — which would re-run its own suite inside the pane and exit, taking the
-// restored session with it.
-//
-// It stages the binary itself rather than requiring a caller to run
-// ensurePortalOnPATH first: reattachBinDir is empty until that once-Do
-// populates it, and StagedHydrateExe rejects an empty dir. Both calls are
-// idempotent.
-func stagedRestoreAdapter(t *testing.T, client *tmux.Client, stateDir string, logger *slog.Logger) *bootstrapadapter.RestoreAdapter {
-	t.Helper()
-	ensurePortalOnPATH(t)
-	a := bootstrapadapter.NewRestoreAdapter(client, stateDir, logger)
-	a.Inner.Exe = restoretest.StagedHydrateExe(t, reattachBinDir)
-	return a
+	return reattachBinDir
 }
 
 func buildReattachOrchestrator(t *testing.T, client *tmux.Client, stateDir string) *bootstrap.Orchestrator {
@@ -69,7 +58,7 @@ func buildReattachOrchestrator(t *testing.T, client *tmux.Client, stateDir strin
 		stateDir,
 		logger,
 		&bootstrapadapter.RestoringMarker{Client: client},
-		bootstrap.WithRestore(stagedRestoreAdapter(t, client, stateDir, logger)),
+		bootstrap.WithRestore(restoretest.StagedRestoreAdapter(t, client, stateDir, logger, ensurePortalOnPATH(t))),
 	)
 }
 

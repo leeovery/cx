@@ -22,10 +22,10 @@ func TestPhase2_HookFiresOnNonAttachedSession_AC2(t *testing.T) {
 	tmuxtest.SkipIfNoTmux(t)
 
 	// Restored panes respawn into this binary's `state hydrate`, pinned through
-	// restoreAdapterFor, so the helper that fires the on-resume hook waited on
-	// below is the build under test rather than whatever release is installed.
+	// restoretest.StagedRestoreAdapter, so the helper that fires the on-resume
+	// hook waited on below is the build under test rather than whatever release
+	// is installed.
 	binDir := restoretest.BuildPortalBinaryDir(t)
-	restoretest.PrependPATH(t, binDir)
 
 	_, stateDir := newIntegrationStateDir(t)
 
@@ -63,7 +63,7 @@ func TestPhase2_HookFiresOnNonAttachedSession_AC2(t *testing.T) {
 	logger := restoretest.OpenTestLogger(t, stateDir)
 
 	o := buildIntegrationOrchestrator(t, client, orchestratorOpts{
-		Restore: restoreAdapterFor(t, client, stateDir, logger, binDir),
+		Restore: restoretest.StagedRestoreAdapter(t, client, stateDir, logger, binDir),
 		Logger:  logger,
 	})
 

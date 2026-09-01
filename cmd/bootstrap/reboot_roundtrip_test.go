@@ -57,10 +57,9 @@ func runRebootRoundTrip(t *testing.T, cfg roundTripCfg) {
 	t.Helper()
 
 	// Restored panes respawn into this binary's `state hydrate`, pinned through
-	// restoreAdapterFor, so the pane survives to the assertions on the build
-	// under test rather than on whatever release is installed.
+	// restoretest.StagedRestoreAdapter, so the pane survives to the assertions on
+	// the build under test rather than on whatever release is installed.
 	binDir := restoretest.BuildPortalBinaryDir(t)
-	restoretest.PrependPATH(t, binDir)
 
 	env, stateDir := newIntegrationStateDir(t)
 
@@ -110,19 +109,15 @@ func runRebootRoundTrip(t *testing.T, cfg roundTripCfg) {
 
 	verifyCapturedIndex(t, idx, cfg)
 
-	ts.KillServer()
-	if _, err := ts.TryRun("list-sessions"); err == nil {
-		t.Fatalf("list-sessions succeeded after kill-server; expected error")
-	}
-
-	ts.Run(t, "new-session", "-d", "-s", "_seed")
-	ts.WaitForSession(t, "_seed", 2*time.Second)
+	restoretest.RebootServer(t, ts, client)
+	// Base indices are server-lifetime options, so the drift under test is
+	// re-applied onto the fresh server.
 	tmuxtest.ApplyBaseIndices(t, ts, cfg.restoreBase, cfg.restorePaneBase)
 
 	logger := restoretest.OpenTestLogger(t, stateDir)
 
 	o := buildIntegrationOrchestrator(t, client, orchestratorOpts{
-		Restore: restoreAdapterFor(t, client, stateDir, logger, binDir),
+		Restore: restoretest.StagedRestoreAdapter(t, client, stateDir, logger, binDir),
 		Sweeper: &bootstrapadapter.FIFOSweeper{
 			Client:   client,
 			StateDir: stateDir,
@@ -136,7 +131,7 @@ func runRebootRoundTrip(t *testing.T, cfg roundTripCfg) {
 	}
 
 	verifyPostBootstrapSessionSet(t, ts, client,
-		[]string{tmux.PortalBootstrapName, tmux.PortalSaverName, "_seed"},
+		[]string{tmux.PortalBootstrapName, tmux.PortalSaverName},
 		[]string{"alpha", "beta"})
 
 	verifyLiveStructure(t, ts, cfg)
@@ -435,7 +430,6 @@ func TestPhase5RebootRoundTripBothSessionsHydrateViaSignalHydrateBinary(t *testi
 	tmuxtest.SkipIfNoTmux(t)
 
 	binDir := restoretest.BuildPortalBinaryDir(t)
-	restoretest.PrependPATH(t, binDir)
 
 	env, stateDir := newIntegrationStateDir(t)
 
@@ -461,15 +455,14 @@ func TestPhase5RebootRoundTripBothSessionsHydrateViaSignalHydrateBinary(t *testi
 		t.Fatalf("captured %d sessions; want 2", got)
 	}
 
-	ts.KillServer()
-	if _, err := ts.TryRun("list-sessions"); err == nil {
-		t.Fatalf("list-sessions succeeded after kill-server; expected error")
-	}
+	// The gap only: this fixture's bootstrap starts the server itself at step 1,
+	// and finding one already up would answer the question it is here to ask.
+	restoretest.OpenRebootGap(t, ts)
 
 	logger := restoretest.OpenTestLogger(t, stateDir)
 
 	o := buildIntegrationOrchestrator(t, client, orchestratorOpts{
-		Restore: restoreAdapterFor(t, client, stateDir, logger, binDir),
+		Restore: restoretest.StagedRestoreAdapter(t, client, stateDir, logger, binDir),
 		Sweeper: &bootstrapadapter.FIFOSweeper{
 			Client:   client,
 			StateDir: stateDir,
@@ -482,7 +475,7 @@ func TestPhase5RebootRoundTripBothSessionsHydrateViaSignalHydrateBinary(t *testi
 	}
 
 	verifyPostBootstrapSessionSet(t, ts, client,
-		[]string{tmux.PortalBootstrapName, tmux.PortalSaverName, "_seed"},
+		[]string{tmux.PortalBootstrapName, tmux.PortalSaverName},
 		[]string{"alpha", "beta"})
 
 	markersBefore, err := state.ListSkeletonMarkers(client)
@@ -570,6 +563,9 @@ func TestRebootRoundTrip_LeadingDashSessionName(t *testing.T) {
 	const restoreBase, restorePaneBase = 1, 1
 
 	binDir := restoretest.BuildPortalBinaryDir(t)
+	// This fixture registers the real global hooks, whose bodies invoke `portal`
+	// by name through run-shell — so unlike its siblings it needs the staged
+	// binary on PATH as well as pinned into the restore's arming.
 	restoretest.PrependPATH(t, binDir)
 
 	env, stateDir := newIntegrationStateDir(t)
@@ -600,20 +596,16 @@ func TestRebootRoundTrip_LeadingDashSessionName(t *testing.T) {
 	restoretest.SeedScrollback(t, stateDir, sessionName, saveBase+0, savePaneBase+0,
 		[]byte(restoretest.ANSIScrollback))
 
-	ts.KillServer()
-	if _, err := ts.TryRun("list-sessions"); err == nil {
-		t.Fatalf("list-sessions succeeded after kill-server; expected error")
-	}
-
-	ts.Run(t, "new-session", "-d", "-s", "_seed")
-	ts.WaitForSession(t, "_seed", 2*time.Second)
+	restoretest.RebootServer(t, ts, client)
+	// Base indices are server-lifetime options, so they are re-applied onto the
+	// fresh server.
 	tmuxtest.ApplyBaseIndices(t, ts, restoreBase, restorePaneBase)
 
 	logger := restoretest.OpenTestLogger(t, stateDir)
 
 	o := buildIntegrationOrchestrator(t, client, orchestratorOpts{
 		Hooks:   &bootstrapadapter.HookRegistrar{Client: client, Logger: logger},
-		Restore: restoreAdapterFor(t, client, stateDir, logger, binDir),
+		Restore: restoretest.StagedRestoreAdapter(t, client, stateDir, logger, binDir),
 		Sweeper: &bootstrapadapter.FIFOSweeper{
 			Client:   client,
 			StateDir: stateDir,

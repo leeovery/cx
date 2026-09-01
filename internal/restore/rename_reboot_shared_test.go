@@ -41,14 +41,13 @@ type renameRebootFixture struct {
 }
 
 // newRenameRebootFixture builds that pane on its own tmux socket, isolating the
-// state, hooks and PATH the reboot will run against. The hook is keyed on the
+// state and hooks the reboot will run against. The hook is keyed on the
 // token the pane is stamped with, which is what must survive both the rename and
 // the reboot.
 func newRenameRebootFixture(t *testing.T, socketPrefix string) *renameRebootFixture {
 	t.Helper()
 
 	fx := &renameRebootFixture{binDir: restoretest.BuildPortalBinaryDir(t)}
-	restoretest.PrependPATH(t, fx.binDir)
 
 	portaltest.IsolateStateForTest(t)
 

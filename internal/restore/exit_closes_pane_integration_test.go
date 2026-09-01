@@ -13,7 +13,6 @@ import (
 
 	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/portaltest"
-	"github.com/leeovery/portal/internal/restore"
 	"github.com/leeovery/portal/internal/restoretest"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
@@ -105,7 +104,6 @@ func setupExitClosesPane(t *testing.T, hookCmd string) (string, *tmuxtest.Socket
 	t.Helper()
 
 	binDir := restoretest.BuildPortalBinaryDir(t)
-	restoretest.PrependPATH(t, binDir)
 
 	_, stateDir := portaltest.IsolateStateForTest(t)
 	t.Setenv("PORTAL_STATE_DIR", stateDir)
@@ -155,22 +153,9 @@ func setupExitClosesPane(t *testing.T, hookCmd string) (string, *tmuxtest.Socket
 		t.Fatalf("write sessions.json: %v", err)
 	}
 
-	ts.KillServer()
-	if _, err := ts.TryRun("list-sessions"); err == nil {
-		t.Fatalf("list-sessions succeeded after kill-server; expected error")
-	}
-	if _, err := client.EnsureServer(); err != nil {
-		t.Fatalf("EnsureServer: %v", err)
-	}
+	restoretest.RebootServer(t, ts, client)
 
-	logger := restoretest.OpenTestLogger(t, stateDir)
-
-	o := &restore.Orchestrator{
-		Client:   client,
-		StateDir: stateDir,
-		Logger:   logger,
-		Exe:      restoretest.StagedHydrateExe(t, binDir),
-	}
+	o := restoretest.NewRestoreOrchestrator(t, client, stateDir, binDir)
 	if err := restoretest.RestoreWithMarker(t, client, o); err != nil {
 		t.Fatalf("restoreWithMarker: %v", err)
 	}

@@ -222,7 +222,6 @@ func newDivergentRebootFixture(t *testing.T) *divergentRebootFixture {
 	t.Helper()
 
 	binDir := restoretest.BuildPortalBinaryDir(t)
-	restoretest.PrependPATH(t, binDir)
 
 	_, stateDir := portaltest.IsolateStateForTest(t)
 	t.Setenv("PORTAL_STATE_DIR", stateDir)

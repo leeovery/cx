@@ -38,7 +38,7 @@ func TestPhase5_RestoreCreatesMissingSession(t *testing.T) {
 	logger := restoretest.OpenTestLogger(t, stateDir)
 
 	o := buildIntegrationOrchestrator(t, client, orchestratorOpts{
-		Restore: restoreAdapterFor(t, client, stateDir, logger, binDir),
+		Restore: restoretest.StagedRestoreAdapter(t, client, stateDir, logger, binDir),
 		// The NoOp opt-out is load-bearing: a real eager signaler would let the
 		// pane die and step 9 unset the very marker this test asserts survives.
 		EagerSignaler: bootstrap.NoOpEagerHydrateSignaler{},
@@ -97,7 +97,7 @@ func TestPhase5_FIFOSweeperRemovesOrphansAfterRestore(t *testing.T) {
 	logger := restoretest.OpenTestLogger(t, stateDir)
 
 	o := buildIntegrationOrchestrator(t, client, orchestratorOpts{
-		Restore: restoreAdapterFor(t, client, stateDir, logger, binDir),
+		Restore: restoretest.StagedRestoreAdapter(t, client, stateDir, logger, binDir),
 		Sweeper: &bootstrapadapter.FIFOSweeper{
 			Client:   client,
 			StateDir: stateDir,

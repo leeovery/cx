@@ -48,7 +48,7 @@ func TestPhase5_RestoringMarkerSuppressesCaptures_NonVacuous(t *testing.T) {
 	logger := restoretest.OpenTestLogger(t, stateDir)
 
 	o := buildIntegrationOrchestrator(t, client, orchestratorOpts{
-		Restore: restoreAdapterFor(t, client, stateDir, logger, binDir),
+		Restore: restoretest.StagedRestoreAdapter(t, client, stateDir, logger, binDir),
 	})
 
 	if _, _, err := o.Run(context.Background()); err != nil {

@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/leeovery/portal/internal/portaltest"
-	"github.com/leeovery/portal/internal/restore"
 	"github.com/leeovery/portal/internal/restoretest"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmuxtest"
@@ -18,7 +17,7 @@ import (
 func TestPhase3Integration_SaveRestoreRoundTrip(t *testing.T) {
 	tmuxtest.SkipIfNoTmux(t)
 
-	hydrateExe := restoretest.StagedHydrateExe(t, restoretest.BuildPortalBinaryDir(t))
+	binDir := restoretest.BuildPortalBinaryDir(t)
 
 	_, stateDir := portaltest.IsolateStateForTest(t)
 	t.Setenv("PORTAL_STATE_DIR", stateDir)
@@ -52,24 +51,9 @@ func TestPhase3Integration_SaveRestoreRoundTrip(t *testing.T) {
 		t.Fatalf("write sessions.json: %v", err)
 	}
 
-	ts.KillServer()
-	if _, err := ts.TryRun("list-sessions"); err == nil {
-		t.Fatalf("expected list-sessions to error after kill-server")
-	}
+	restoretest.RebootServer(t, ts, client)
 
-	// The orchestrator assumes a live server, and set-option does not start one.
-	if _, err := client.EnsureServer(); err != nil {
-		t.Fatalf("EnsureServer: %v", err)
-	}
-
-	logger := restoretest.OpenTestLogger(t, stateDir)
-
-	o := &restore.Orchestrator{
-		Client:   client,
-		StateDir: stateDir,
-		Logger:   logger,
-		Exe:      hydrateExe,
-	}
+	o := restoretest.NewRestoreOrchestrator(t, client, stateDir, binDir)
 	if err := restoretest.RestoreWithMarker(t, client, o); err != nil {
 		t.Fatalf("restoreWithMarker: %v", err)
 	}
@@ -101,7 +85,7 @@ func TestPhase3Integration_SaveRestoreRoundTrip(t *testing.T) {
 func TestPhase3Integration_RestoreUsesLiveIndicesUnderBaseIndexDrift(t *testing.T) {
 	tmuxtest.SkipIfNoTmux(t)
 
-	hydrateExe := restoretest.StagedHydrateExe(t, restoretest.BuildPortalBinaryDir(t))
+	binDir := restoretest.BuildPortalBinaryDir(t)
 
 	_, stateDir := portaltest.IsolateStateForTest(t)
 	t.Setenv("PORTAL_STATE_DIR", stateDir)
@@ -138,20 +122,12 @@ func TestPhase3Integration_RestoreUsesLiveIndicesUnderBaseIndexDrift(t *testing.
 		t.Fatalf("write sessions.json: %v", err)
 	}
 
-	ts.KillServer()
-
-	ts.Run(t, "new-session", "-d", "-s", "_bootstrap")
-	ts.WaitForSession(t, "_bootstrap", 2*time.Second)
+	restoretest.RebootServer(t, ts, client)
+	// Server-lifetime options do not survive the kill, so the drift this test is
+	// about is re-applied onto the fresh server.
 	tmuxtest.ApplyBaseIndices(t, ts, 1, 1)
 
-	logger := restoretest.OpenTestLogger(t, stateDir)
-
-	o := &restore.Orchestrator{
-		Client:   client,
-		StateDir: stateDir,
-		Logger:   logger,
-		Exe:      hydrateExe,
-	}
+	o := restoretest.NewRestoreOrchestrator(t, client, stateDir, binDir)
 	if err := restoretest.RestoreWithMarker(t, client, o); err != nil {
 		t.Fatalf("restoreWithMarker: %v", err)
 	}

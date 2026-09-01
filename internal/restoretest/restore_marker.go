@@ -36,7 +36,7 @@ func RestoreWithMarker(t *testing.T, client *tmux.Client, o *restore.Orchestrato
 // it a restore driven with no marker set would be indistinguishable from one
 // driven with it, and the daemon stand-down window this fixture exists to open
 // would never be exercised.
-func assertRestoringSet(t *testing.T, client *tmux.Client) {
+func assertRestoringSet(t fataller, client *tmux.Client) {
 	t.Helper()
 	set, err := state.IsRestoringSet(client)
 	if err != nil {

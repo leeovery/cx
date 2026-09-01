@@ -5,17 +5,20 @@ import (
 
 	"github.com/leeovery/portal/cmd/bootstrap"
 	"github.com/leeovery/portal/internal/bootstrapadapter"
-	"github.com/leeovery/portal/internal/restore"
+	"github.com/leeovery/portal/internal/restoretest"
 	"github.com/leeovery/portal/internal/tmux"
 )
 
+// The restore adapters below are never run — what is under test is which eager
+// signaler the builder picks from a real-vs-nil RestoreAdapter — so their inner
+// orchestrator is the no-staged-binary constructor, with nothing to arm.
 func TestBuildIntegrationOrchestrator_EagerSignalerDefaultsToRealWhenRestoreReal(t *testing.T) {
 	t.Setenv("PORTAL_STATE_DIR", t.TempDir())
 
 	client := &tmux.Client{}
 
 	o := buildIntegrationOrchestrator(t, client, orchestratorOpts{
-		Restore: &bootstrapadapter.RestoreAdapter{Inner: &restore.Orchestrator{}},
+		Restore: &bootstrapadapter.RestoreAdapter{Inner: restoretest.NewFakeExeOrchestrator(t, nil, "", nil)},
 	})
 
 	if _, ok := o.EagerSignaler.(*bootstrap.EagerSignalCore); !ok {
@@ -38,7 +41,7 @@ func TestBuildIntegrationOrchestrator_EagerSignalerExplicitOptOutHonoured(t *tes
 	client := &tmux.Client{}
 
 	o := buildIntegrationOrchestrator(t, client, orchestratorOpts{
-		Restore:       &bootstrapadapter.RestoreAdapter{Inner: &restore.Orchestrator{}},
+		Restore:       &bootstrapadapter.RestoreAdapter{Inner: restoretest.NewFakeExeOrchestrator(t, nil, "", nil)},
 		EagerSignaler: bootstrap.NoOpEagerHydrateSignaler{},
 	})
 

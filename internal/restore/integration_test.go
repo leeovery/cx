@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/portaltest"
-	"github.com/leeovery/portal/internal/restore"
 	"github.com/leeovery/portal/internal/restoretest"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
@@ -70,13 +69,7 @@ func TestPhase3Integration_CorruptSessionsJSON(t *testing.T) {
 	if _, err := client.EnsureServer(); err != nil {
 		t.Fatalf("EnsureServer: %v", err)
 	}
-	logger := restoretest.OpenTestLogger(t, stateDir)
-
-	o := &restore.Orchestrator{
-		Client:   client,
-		StateDir: stateDir,
-		Logger:   logger,
-	}
+	o := restoretest.NewFakeExeOrchestrator(t, client, stateDir, restoretest.OpenTestLogger(t, stateDir))
 	rwmErr := restoretest.RestoreWithMarker(t, client, o)
 	if rwmErr == nil {
 		t.Fatal("restoreWithMarker returned nil; expected wrapped state.ErrCorruptIndex")
