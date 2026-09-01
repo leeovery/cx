@@ -1,7 +1,7 @@
 {
   "leeovery/agentic-workflows": {
-    "ref": "v0.7.19",
-    "commit": "9c901486dc8edc0f7278189a8b66336da0d555a8",
+    "ref": "v0.7.21",
+    "commit": "8109b99f1322a8c5bdfcb1d0ac0d06a1e02d8b01",
     "agents": [
       "claude"
     ],
@@ -598,7 +598,7 @@
     ],
     "type": "plugin",
     "cloneUrl": "https://github.com/leeovery/agentic-workflows.git",
-    "installedAt": "2026-08-30T16:12:33.461Z",
+    "installedAt": "2026-09-01T14:42:47.230Z",
     "constraint": "^0.7.0"
   },
   "samber/cc-skills-golang": {
