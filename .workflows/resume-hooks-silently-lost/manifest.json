@@ -262,7 +262,7 @@
       "items": {
         "resume-hooks-silently-lost": {
           "status": "in-progress",
-          "task_gate_mode": "gated",
+          "task_gate_mode": "auto",
           "fix_gate_mode": "gated",
           "analysis_gate_mode": "auto",
           "consolidation_gate_mode": "gated",
@@ -299,8 +299,8 @@
             ".claude/skills/golang-spf13-cobra",
             ".claude/skills/golang-dependency-management"
           ],
-          "current_phase": 7,
-          "current_task": null,
+          "current_phase": 8,
+          "current_task": "resume-hooks-silently-lost-8-2",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -411,7 +411,8 @@
             "resume-hooks-silently-lost-7-33",
             "resume-hooks-silently-lost-7-34",
             "resume-hooks-silently-lost-7-13",
-            "resume-hooks-silently-lost-7-35"
+            "resume-hooks-silently-lost-7-35",
+            "resume-hooks-silently-lost-8-1"
           ],
           "staging": {
             "p1": {
@@ -599,6 +600,60 @@
             5,
             6,
             7
+          ],
+          "bank": [
+            {
+              "task": "resume-hooks-silently-lost-8-1",
+              "source": "executor",
+              "summary": "The ambient-$HOME migration hazard is structurally unguarded — nothing stops the next test reintroducing it.",
+              "detail": "cmd/config.go:62-79 runs the one-shot Application Support move as a side effect of any non-overridden resolve, and cmd/testmain_isolation_test.go:14 poisons the five PORTAL_* vars and TMUX but not HOME. A package-wide HOME poison, or a source guard over cmd/*_test.go requiring a HOME pin near any configFilePath/prefsFilePath call, would make this class fail loudly in the same shape as the existing tmux poison. Out of task scope: changes TestMain package-wide contract.",
+              "files": [
+                "cmd/testmain_isolation_test.go",
+                "cmd/config.go",
+                "cmd/config_test.go",
+                "cmd/prefs_path_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-1",
+              "source": "executor",
+              "summary": "Two TestConfigFilePath subtests are now byte-identical in setup and assertion.",
+              "detail": "cmd/config_test.go:13 and cmd/config_test.go:58 both set XDG_CONFIG_HOME=\"\" with a temp HOME and assert the same path — the no-vars-at-all vs explicitly-empty distinction does not exist, since t.Setenv(\"XDG_CONFIG_HOME\", \"\") is the only way either can be written. Deduping is a test-inventory decision beyond this task.",
+              "files": [
+                "cmd/config_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-1",
+              "source": "executor",
+              "summary": "Several cmd subtests still assert against hardcoded /tmp/xdg-config paths.",
+              "detail": "cmd/config_test.go:45,75,91, cmd/prefs_path_test.go:13,29 and cmd/config_themes_test.go:14,29,44 use literal /tmp/xdg-config, /tmp/cfg and /tmp/h rather than t.TempDir(). Inert now, but it is the shared-mutable-path shape that let the earlier residue land there, and it spans three files.",
+              "files": [
+                "cmd/config_test.go",
+                "cmd/prefs_path_test.go",
+                "cmd/config_themes_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-1",
+              "source": "reviewer",
+              "summary": "Make the temp-HOME rule structural rather than per-subtest discipline.",
+              "detail": "cmd TestMain already poisons the five PORTAL_* path vars and TMUX package-wide so a missed isolation fails loudly (cmd/testmain_isolation_test.go:15-21). HOME is the one isolation boundary left to per-test discipline, and this task exists because that discipline slipped. Preferred: os.Setenv(HOME, os.MkdirTemp) in TestMain — mirrors the existing poison; after this task no cmd test asserts against the ambient home. Alternative: a sourceguardtest-idiom guard requiring a HOME pin at every configFilePath/prefsFilePath call. Cross-scope: changes package-wide setup affecting every cmd test file.",
+              "files": [
+                "cmd/testmain_isolation_test.go",
+                "cmd/config_test.go",
+                "cmd/prefs_path_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-1",
+              "source": "reviewer",
+              "summary": "Two TestConfigFilePath subtests are now provably the same scenario — fold them.",
+              "detail": "config_test.go:13 and config_test.go:58 have byte-identical bodies: same temp HOME, same XDG_CONFIG_HOME=\"\", same configFilePath(TEST_CONFIG_UNSET, projects.json), same expectation. The duplication predates this task but the rename made it visible — t.Setenv cannot express genuinely-unset, so there is no distinct case for the second to cover.",
+              "files": [
+                "cmd/config_test.go"
+              ]
+            }
           ]
         }
       }
