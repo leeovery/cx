@@ -300,7 +300,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 8,
-          "current_task": "resume-hooks-silently-lost-8-6",
+          "current_task": "resume-hooks-silently-lost-8-7",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -416,7 +416,8 @@
             "resume-hooks-silently-lost-8-2",
             "resume-hooks-silently-lost-8-3",
             "resume-hooks-silently-lost-8-4",
-            "resume-hooks-silently-lost-8-5"
+            "resume-hooks-silently-lost-8-5",
+            "resume-hooks-silently-lost-8-6"
           ],
           "staging": {
             "p1": {
@@ -785,6 +786,28 @@
               "detail": "cmd/run_hook_stale_cleanup_outcome_test.go:14-88 tables one case per decline path and is not derived from skipReasons, so it covers five of six paths under a docstring reading \"every way of declining has to name itself\". Not a coverage gap — the new path is pinned by the new tests — and the non-derivation predates this task. Worth a row, or a derivation from skipReasons, whenever that file is next opened.",
               "files": [
                 "cmd/run_hook_stale_cleanup_outcome_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-6",
+              "source": "reviewer",
+              "summary": "The refusal copy is now a literal in four places with nothing tying them together; CLAUDE.md states the coupling as discipline.",
+              "detail": "Constants at internal/tui/sessions_flash.go:59-60, the table at internal/capture/capture_test.go:926/930, the table at internal/capture/swap_harness_test.go:45-46, and the README prose at README.md:197. The test copies are unavoidable today (the constants are unexported and the tests live in capture_test), but a wording change currently leaves README stale with no failing test. Consolidation could export the two strings as a small vocabulary the capture tables read, or add a unit-lane guard asserting README contains both — the same shape as the repo other source guards. Crosses this task and the 8-2/8-3 outputs that authored the strings.",
+              "files": [
+                "internal/tui/sessions_flash.go",
+                "internal/capture/capture_test.go",
+                "internal/capture/swap_harness_test.go",
+                "README.md"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-6",
+              "source": "reviewer",
+              "summary": "CLAUDE.md ExactSessionTarget call-site enumeration omits attach-session, and reads as complete.",
+              "detail": "attach-session is used at cmd/open.go:88 and internal/session/quickstart.go:62 — the latter being exactly the \"a caller composing a tmux argv the client does not run — an exec chain, say\" case ExactSessionTarget own doc comment calls out. Adding attach-session would make the list true. Also: the refusal is documented only in README hook section; a reader who never registers a hook and hits the refusal from the picker r will not find it, and the keymap table at README.md:273 carries no pointer.",
+              "files": [
+                "CLAUDE.md",
+                "README.md"
               ]
             }
           ]
