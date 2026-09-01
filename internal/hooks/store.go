@@ -25,8 +25,10 @@ type Hook struct {
 	Command string
 }
 
-// hooksFile is the on-disk shape: map[hook_key]map[event]command.
-type hooksFile = map[string]map[string]string
+// Snapshot is the on-disk shape: map[hook_key]map[event]command. The clean also
+// names its pre-enumeration read of the file by this type — the older view a
+// deletion may be narrowed by.
+type Snapshot map[string]map[string]string
 
 type Store struct {
 	path string
@@ -39,7 +41,7 @@ func NewStore(path string) *Store {
 // Load reads hooks from the JSON file, returning an empty map when the file is
 // missing or holds malformed JSON. via names the calling surface for the
 // degradation breadcrumb.
-func (s *Store) Load(via Via) (hooksFile, error) {
+func (s *Store) Load(via Via) (Snapshot, error) {
 	return s.loadShared(via)
 }
 
@@ -47,12 +49,12 @@ func (s *Store) Load(via Via) (hooksFile, error) {
 // pre-read bound, so a clean — which takes the sidecar twice, shared here and
 // exclusive in deleteStale — never spends two full lockTimeouts waiting on a
 // wedged writer.
-func (s *Store) loadSnapshot() (hooksFile, error) {
+func (s *Store) loadSnapshot() (Snapshot, error) {
 	return s.loadSharedBounded(ViaInternal, snapshotLockBound())
 }
 
 // loadShared reads under the shared hold every ordinary read takes.
-func (s *Store) loadShared(via Via) (hooksFile, error) {
+func (s *Store) loadShared(via Via) (Snapshot, error) {
 	return s.loadSharedBounded(via, lockTimeout)
 }
 
@@ -64,7 +66,7 @@ func (s *Store) loadShared(via Via) (hooksFile, error) {
 // a reader sees the pre-state or the post-state, never a torn one), and failing
 // a read would forfeit a hook for nothing. The bound is a parameter and is
 // never derived from via, which is a log attr.
-func (s *Store) loadSharedBounded(via Via, bound time.Duration) (hooksFile, error) {
+func (s *Store) loadSharedBounded(via Via, bound time.Duration) (Snapshot, error) {
 	f, err := s.acquireSharedLock(bound)
 	if err != nil {
 		logger.Debug("load-unlocked", "op", "load-unlocked", "via", via.String(), "error", err)
@@ -78,18 +80,18 @@ func (s *Store) loadSharedBounded(via Via, bound time.Duration) (hooksFile, erro
 // load is the non-locking read the mutations use from inside their own hold: a
 // second acquisition from the same process is not re-entrant and would block
 // against that hold until the bound.
-func (s *Store) load() (hooksFile, error) {
+func (s *Store) load() (Snapshot, error) {
 	data, err := os.ReadFile(s.path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return hooksFile{}, nil
+			return Snapshot{}, nil
 		}
 		return nil, err
 	}
 
-	var h hooksFile
+	var h Snapshot
 	if err := json.Unmarshal(data, &h); err != nil {
-		return hooksFile{}, nil
+		return Snapshot{}, nil
 	}
 
 	return h, nil
@@ -97,7 +99,7 @@ func (s *Store) load() (hooksFile, error) {
 
 // save atomically writes hooks to the JSON file, creating the parent directory
 // if it does not exist. Non-locking, like load: it is called from inside a hold.
-func (s *Store) save(h hooksFile) error {
+func (s *Store) save(h Snapshot) error {
 	data, err := json.MarshalIndent(h, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal hooks: %w", err)
@@ -147,7 +149,7 @@ func (s *Store) Set(key, event, command string, via Via) error {
 	return nil
 }
 
-func classifySet(h hooksFile, key, event, command string) string {
+func classifySet(h Snapshot, key, event, command string) string {
 	events, ok := h[key]
 	if !ok {
 		return "set"
@@ -238,7 +240,7 @@ func (s *Store) List(via Via) ([]Hook, error) {
 // absent from live and its shape is one the rule can judge — token-shaped, or
 // empty. A key of any other shape cannot be told apart from an entry that has
 // not been converted to a pane token yet, so it is retained.
-func staleKeys(persisted hooksFile, live []string) []string {
+func staleKeys(persisted Snapshot, live []string) []string {
 	liveSet := make(map[string]struct{}, len(live))
 	for _, k := range live {
 		liveSet[k] = struct{}{}
@@ -270,13 +272,9 @@ func narrowToSnapshot(candidates []string, snapshot Snapshot) []string {
 // staleness rule can judge; a key it cannot judge is retained. It carries no
 // mass-deletion guard: an empty live set makes every judgeable persisted key
 // stale, and deferring on that is the caller's repair-safety policy.
-func StaleKeys(persisted map[string]map[string]string, live []string) []string {
+func StaleKeys(persisted Snapshot, live []string) []string {
 	return staleKeys(persisted, live)
 }
-
-// Snapshot is the file as the clean found it before the enumeration ran: the
-// older view a deletion may be narrowed by.
-type Snapshot map[string]map[string]string
 
 // ErrSnapshotRead reports that the clean's own pre-read of the file failed, so
 // the enumeration never ran and nothing was judged — as distinct from a failure
@@ -300,11 +298,10 @@ var ErrSnapshotRead = errors.New("failed to read hooks snapshot")
 // a caller can carry its own reasons through. A failed snapshot read returns
 // ErrSnapshotRead and never calls it.
 func (s *Store) CleanStale(enumerateLive func(Snapshot) ([]string, error)) ([]string, error) {
-	h, err := s.loadSnapshot()
+	snapshot, err := s.loadSnapshot()
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrSnapshotRead, err)
 	}
-	snapshot := Snapshot(h)
 
 	live, err := enumerateLive(snapshot)
 	if err != nil {
