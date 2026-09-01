@@ -250,7 +250,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 7,
-          "current_task": "resume-hooks-silently-lost-7-24",
+          "current_task": "resume-hooks-silently-lost-7-25",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -347,7 +347,8 @@
             "resume-hooks-silently-lost-7-20",
             "resume-hooks-silently-lost-7-21",
             "resume-hooks-silently-lost-7-22",
-            "resume-hooks-silently-lost-7-23"
+            "resume-hooks-silently-lost-7-23",
+            "resume-hooks-silently-lost-7-24"
           ],
           "staging": {
             "p1": {
@@ -1402,6 +1403,79 @@
               "files": [
                 "internal/hookstest/hooks_test.go",
                 "internal/hookstest/hooks.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-24",
+              "source": "executor",
+              "summary": "A fifth hand-rolled go list -deps survives in cmd/capturetool, outside the four guards 7-24 consolidated",
+              "detail": "goListDeps at cmd/capturetool/import_guard_test.go:15-28 duplicates the new sourceguardtest.PackageDeps but additionally sets cmd.Dir = portalbintest.ProjectRoot(). Folding it in is a behaviour decision rather than a substitution: PackageDeps does not anchor at the module root, and making it do so would change how the other four callers resolve their package argument. Left out of 7-24 because it reaches past that task's four-guard surface.",
+              "files": [
+                "cmd/capturetool/import_guard_test.go",
+                "internal/sourceguardtest/packagedeps.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-24",
+              "source": "executor",
+              "summary": "Nothing structurally pins internal/sourceguardtest own stdlib-only untagged contract",
+              "detail": "The property is stated in internal/sourceguardtest/doc.go:1-13 and in CLAUDE.md, and it is what keeps ~20 source guards in the unit lane — but it is enforced only by contributor discipline, unlike internal/nanoid which has leaf_guard_test.go pinning exactly this. 7-24 added PackageDeps, so the package now shells out via os/exec, making the next addition likelier to reach for a non-stdlib helper. A guard modelled on the nanoid one would close it. The executor verified the property manually (go list -deps returns only the package plus stdlib; no go:build lines) but did not add the guard, as it is outside the task Do list.",
+              "files": [
+                "internal/sourceguardtest/doc.go",
+                "internal/sourceguardtest/packagedeps.go",
+                "internal/nanoid/leaf_guard_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-24",
+              "source": "executor",
+              "summary": "One more plain Ident/Selector callee-name switch in cmd, now subsumed by sourceguardtest.CalleeName",
+              "detail": "cmd/state_daemon_lock_pid_ordering_test.go:233-243 matches a call name with the same two-arm switch CalleeName now owns; it could collapse to sourceguardtest.CalleeName(call) == name. The executor checked the other ast.SelectorExpr sites across cmd, internal/tui and internal/capture and found them qualifier-aware (they need the package or receiver ident too), so those are correctly left alone — this is the only remaining plain copy.",
+              "files": [
+                "cmd/state_daemon_lock_pid_ordering_test.go",
+                "internal/sourceguardtest/calleename.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-24",
+              "source": "reviewer",
+              "summary": "Two more callee-name unwrappers survive in theme and tmux, beyond the cmd one already banked",
+              "detail": "internal/theme/slug_collapse_guard_test.go:83-92 (calledName) is a functional duplicate of the new sourceguardtest.CalleeName over ast.Expr, and internal/tmux/target_composition_guard_test.go:365-377 (isExactTargetCall) folds the same unwrap into a set-membership test. Together with cmd/state_daemon_lock_pid_ordering_test.go:233-243 (banked separately) and cmd/capturetool/import_guard_test.go:16-29 (the fifth go list -deps), these are the residue 7-24 left outside its four-file Do list.",
+              "files": [
+                "internal/theme/slug_collapse_guard_test.go",
+                "internal/tmux/target_composition_guard_test.go",
+                "internal/sourceguardtest/calleename.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-24",
+              "source": "reviewer",
+              "summary": "The scanPackageCalls skeleton 7-24 extracted has near-identical siblings in three other packages",
+              "detail": "internal/session/panetoken_test.go:47-75 is the same enumerate/parse/scanned++/ForEachFuncCall/empty-check sequence down to the `guard scanned no files` fatal wording; internal/tmux/target_composition_guard_test.go:179+ and cmd/open_theme_nomination_test.go:249+ carry variants. 7-24 was instructed to extract it LOCALLY to internal/hooks, so promoting the now-plant-proven helper into sourceguardtest is the follow-on: it would land all three and let the empty-scan fatal be proven once rather than per package.",
+              "files": [
+                "internal/hooks/cleanstale_staleness_guard_test.go",
+                "internal/session/panetoken_test.go",
+                "internal/tmux/target_composition_guard_test.go",
+                "cmd/open_theme_nomination_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-24",
+              "source": "reviewer",
+              "summary": "One more callee unwrapper in internal/tui; the ~30 other Sel.Name sites are correctly not candidates",
+              "detail": "internal/tui/restore_source_guard_test.go:199-206 is another Ident/Selector callee unwrap that collapses to sourceguardtest.CalleeName(call) == restoreHelperName. The reviewer checked the remaining ~30 Sel.Name sites across the tree and found them receiver-qualified MATCHERS rather than unwrappers, so this is the last genuine candidate — the earlier bank entries name the cmd and theme/tmux ones.",
+              "files": [
+                "internal/tui/restore_source_guard_test.go",
+                "internal/sourceguardtest/calleename.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-24",
+              "source": "reviewer",
+              "summary": "scanRecorderT.msg is written and never read, so the empty-scan test does not pin WHICH fatal it exercises",
+              "detail": "internal/hooks/cleanstale_staleness_guard_scan_test.go:33 records the fatal message but never asserts on it — unlike its twin recordingT.msg, which is read at packagedeps_test.go:41. The reviewer had to add a temporary Logf to establish which fatal actually fires (the enumerate-error one, not the scanned-zero backstop). Asserting the message would make the field earn its place and pin the distinction scanPackageCalls own doc comment now draws between its two fatals.",
+              "files": [
+                "internal/hooks/cleanstale_staleness_guard_scan_test.go"
               ]
             }
           ]
