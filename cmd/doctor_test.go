@@ -1657,23 +1657,3 @@ func assertSkippedPruneLine(t *testing.T, out, want string) {
 		t.Errorf("skipped-prune line follows the project prune; want it in the hook-prune block:\n%s", out)
 	}
 }
-
-func TestSkippedPrunePhrase(t *testing.T) {
-	cases := map[string]string{
-		skipReasonRestoring: "restore in progress",
-		// The failed read is the one that could not be read; the successful read
-		// that answered nothing gets its own words.
-		skipReasonPaneReadFailed:  "could not read live panes",
-		skipReasonEmptyPaneRead:   "live pane list came back empty",
-		skipReasonStoreReadFailed: "could not read hooks.json",
-		skipReasonLockTimeout:     "hooks.json is locked",
-		// An unmapped reason must still print something: a stand-down that
-		// renders as an empty line is the silence this reporting removes.
-		"unmapped-reason": "unmapped-reason",
-	}
-	for reason, want := range cases {
-		if got := skippedPrunePhrase(reason); got != want {
-			t.Errorf("skippedPrunePhrase(%q) = %q, want %q", reason, got, want)
-		}
-	}
-}

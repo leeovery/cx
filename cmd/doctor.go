@@ -212,10 +212,13 @@ func pruneDoctorStaleHooks(w io.Writer, deps *DoctorDeps) {
 
 const restoreStandDownPhrase = "restore in progress"
 
+// skippedPrunePhrases completes "Skipped stale hook prune: …" for a user who
+// asked for a repair. A failed enumeration and a successful one that answered
+// nothing are separate conditions, so neither borrows the other's words.
 var skippedPrunePhrases = map[string]string{
 	skipReasonRestoring:       restoreStandDownPhrase,
 	skipReasonStoreReadFailed: "could not read hooks.json",
-	skipReasonPaneReadFailed:  "could not read live panes",
+	skipReasonPaneReadFailed:  "could not enumerate live panes",
 	skipReasonEmptyPaneRead:   "live pane list came back empty",
 	skipReasonLockTimeout:     "hooks.json is locked",
 }
@@ -310,6 +313,7 @@ var notEvaluableDetails = map[string]string{
 	skipReasonStoreReadFailed: "could not read hooks.json",
 	skipReasonPaneReadFailed:  "could not enumerate live panes",
 	skipReasonEmptyPaneRead:   "zero live panes with hooks present (not evaluable)",
+	skipReasonLockTimeout:     "hooks.json is locked (not evaluable)",
 }
 
 func notEvaluableDetail(reason string) string {

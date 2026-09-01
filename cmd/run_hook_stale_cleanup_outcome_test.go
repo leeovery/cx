@@ -95,7 +95,7 @@ func TestDoctorFixReportsStandDownOnReadFailures(t *testing.T) {
 
 		outBuf, _, _ := runDoctorWith(t, deps, "--fix")
 
-		assertSkippedPruneLine(t, outBuf.String(), "Skipped stale hook prune: could not read live panes")
+		assertSkippedPruneLine(t, outBuf.String(), "Skipped stale hook prune: could not enumerate live panes")
 	})
 
 	t.Run("it prints the skipped-prune line when hooks.json cannot be read", func(t *testing.T) {
