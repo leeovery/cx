@@ -300,7 +300,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 8,
-          "current_task": "resume-hooks-silently-lost-8-5",
+          "current_task": "resume-hooks-silently-lost-8-6",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -415,7 +415,8 @@
             "resume-hooks-silently-lost-8-1",
             "resume-hooks-silently-lost-8-2",
             "resume-hooks-silently-lost-8-3",
-            "resume-hooks-silently-lost-8-4"
+            "resume-hooks-silently-lost-8-4",
+            "resume-hooks-silently-lost-8-5"
           ],
           "staging": {
             "p1": {
@@ -765,6 +766,25 @@
                 "internal/tmux/target_composition_guard_test.go",
                 "cmd/state_daemon.go",
                 "internal/state/scrollback.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-5",
+              "source": "reviewer",
+              "summary": "SPEC CORRIGENDUM OWED: the specification says five stand-down reasons and that a failed marker read produces the same result as a set marker. There are now six, and the result differs.",
+              "detail": "Three sites in .workflows/resume-hooks-silently-lost/specification/resume-hooks-silently-lost/specification.md are now false: §5.4 line 310 \"The sweep declines to run for five distinct reasons\"; the requirement table line 504 \"a failed marker read produces the same result as a set marker\"; and the 2026-09-01 corrigendum line 552 \"all five reasons render a phrase on both surfaces\". After task 8-5 there are six reasons, and a failed read produces the same POSTURE but a different PHRASE. This is the orchestrator role at the phase boundary, not an executor edit. Note task 8-45 also touches the stand-down reason vocabulary, so write one corrigendum covering both rather than two.",
+              "files": [
+                ".workflows/resume-hooks-silently-lost/specification/resume-hooks-silently-lost/specification.md",
+                "cmd/run_hook_stale_cleanup.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-5",
+              "source": "reviewer",
+              "summary": "TestHookSweepOutcomeNamesEveryDecline tables decline paths by hand and now covers five of six.",
+              "detail": "cmd/run_hook_stale_cleanup_outcome_test.go:14-88 tables one case per decline path and is not derived from skipReasons, so it covers five of six paths under a docstring reading \"every way of declining has to name itself\". Not a coverage gap — the new path is pinned by the new tests — and the non-derivation predates this task. Worth a row, or a derivation from skipReasons, whenever that file is next opened.",
+              "files": [
+                "cmd/run_hook_stale_cleanup_outcome_test.go"
               ]
             }
           ]
