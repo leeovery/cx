@@ -250,7 +250,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 7,
-          "current_task": "resume-hooks-silently-lost-7-32",
+          "current_task": "resume-hooks-silently-lost-7-33",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -356,7 +356,8 @@
             "resume-hooks-silently-lost-7-28",
             "resume-hooks-silently-lost-7-29",
             "resume-hooks-silently-lost-7-30",
-            "resume-hooks-silently-lost-7-31"
+            "resume-hooks-silently-lost-7-31",
+            "resume-hooks-silently-lost-7-32"
           ],
           "staging": {
             "p1": {
@@ -1735,6 +1736,35 @@
                 "internal/tmux/tmux.go",
                 "cmd/bootstrap/eager_signal_hydrate_integration_test.go",
                 "internal/restore/exit_closes_pane_integration_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-32",
+              "source": "executor",
+              "summary": "ResolveSessionDir keeps an ErrNoSuchSession branch that *tmux.Client can no longer reach on this path",
+              "detail": "7-32 established that display-message exits 0 with an empty expansion for an unmatched target, so ActivePaneCurrentPath cannot return ErrNoSuchSession — the wrapNoSuchSession call was removed as unreachable. internal/session/dirresolve.go RETAINS its errors.Is(err, tmux.ErrNoSuchSession) || errors.Is(err, tmux.ErrEmptyPaneList) branch, deliberately: it classifies the PaneCurrentPathReader INTERFACE contract rather than claiming what tmux emits, and it has real coverage through a fake reader. The executor annotated it and renamed its test so no reader infers the production client produces it. Worth a deliberate decision at the phase boundary on whether a seam should classify sentinels its only production implementation cannot emit — defensible as interface hygiene, or dead weight depending on the view taken.",
+              "files": [
+                "internal/session/dirresolve.go",
+                "internal/tmux/tmux.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-32",
+              "source": "reviewer",
+              "summary": "ResolveSessionDir error return is discarded at its only consumer, so its sentinel classification distinguishes cases nothing reads",
+              "detail": "internal/tui/model.go:1163 tests `ok && err == nil` and drops err. So ResolveSessionDir careful classification of ErrNoSuchSession/ErrEmptyPaneList into an unresolvable-vs-fatal distinction is invisible: every non-ok outcome degrades identically at the only call site. Pre-existing and orthogonal to 7-32 (which correctly kept the branch as interface-contract hygiene), but it means the seam is doing work no caller consumes. Any fix reaches into the TUI grouped-render path.",
+              "files": [
+                "internal/session/dirresolve.go",
+                "internal/tui/model.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-32",
+              "source": "reviewer",
+              "summary": "The specification still names ListAllPanes at line 43 as a live sibling method",
+              "detail": "7-31 deleted Client.ListPanes and an earlier task deleted Client.ListAllPanes, but the specification body still lists ListAllPanes among the live tmux client methods. Adds to the already-banked stale corrigendum about internal/session/panetoken.go. The phase boundary should append a corrigendum covering both, since every agent dispatch is instructed to read the specification and its Corrigenda first — a stale claim there propagates into task bodies, which is how several of this phase task bodies came to be wrong.",
+              "files": [
+                ".workflows/resume-hooks-silently-lost/specification/resume-hooks-silently-lost/specification.md"
               ]
             }
           ]
