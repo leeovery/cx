@@ -250,7 +250,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 7,
-          "current_task": "resume-hooks-silently-lost-7-25",
+          "current_task": "resume-hooks-silently-lost-7-26",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -348,7 +348,8 @@
             "resume-hooks-silently-lost-7-21",
             "resume-hooks-silently-lost-7-22",
             "resume-hooks-silently-lost-7-23",
-            "resume-hooks-silently-lost-7-24"
+            "resume-hooks-silently-lost-7-24",
+            "resume-hooks-silently-lost-7-25"
           ],
           "staging": {
             "p1": {
@@ -1476,6 +1477,31 @@
               "detail": "internal/hooks/cleanstale_staleness_guard_scan_test.go:33 records the fatal message but never asserts on it — unlike its twin recordingT.msg, which is read at packagedeps_test.go:41. The reviewer had to add a temporary Logf to establish which fatal actually fires (the enumerate-error one, not the scanned-zero backstop). Asserting the message would make the field earn its place and pin the distinction scanPackageCalls own doc comment now draws between its two fatals.",
               "files": [
                 "internal/hooks/cleanstale_staleness_guard_scan_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-25",
+              "source": "executor",
+              "summary": "The seam guard derives its identifier set from production sources — a pattern the repo other ~20 guards could adopt",
+              "detail": "7-25 built cmd/deps_seam_guard_test.go so declaredSeams scans the package own production files for `var xDeps *XDeps` and derives the guarded set, rather than hardcoding nine identifiers. A seam declared tomorrow is therefore guarded the day it appears, and the coverage assertion compares the derived set against the helper table so adding a seam without a helper fails. Most of the repo other source guards hardcode what they police (the closed component/attr vocabularies, the theme token list, the target-composition function set), so each carries the same silent-shrink risk this one now forecloses. Worth deciding which of them can derive rather than restate.",
+              "files": [
+                "cmd/deps_seam_guard_test.go",
+                "internal/sourceguardtest/packagedeps.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-25",
+              "source": "reviewer",
+              "summary": "cmd carries a SECOND seam family — nine package-level function vars at 113 sites — with the identical leak vector and invisible to the new guard",
+              "detail": "runOpenBurstFunc, openRawArgs (cmd/open_burst.go:12,18), openTUIFunc, openPathFunc, openSessionFunc (cmd/open.go:30,32,34), daemonTickLoopFunc, osExit (cmd/state_daemon.go:69,76), hydrateRunFunc (cmd/state_hydrate.go:257) and signalHydrateRunFunc (cmd/state_signal_hydrate.go:58) are installed at 113 sites across 21 test files, each a bare assignment plus a separate t.Cleanup — exactly the pattern 7-25 closed for the *Deps seams. They are invisible to the new guard because declaredSeams matches only `var xDeps *XDeps`. The shape differs: the production default is a real value, not nil, so the helper must capture-and-restore rather than restore-to-nil, and declaredSeams needs a second recogniser. Sized like 7-25 itself.",
+              "files": [
+                "cmd/open.go",
+                "cmd/open_burst.go",
+                "cmd/state_daemon.go",
+                "cmd/state_hydrate.go",
+                "cmd/state_signal_hydrate.go",
+                "cmd/testhelpers_test.go",
+                "cmd/deps_seam_guard_test.go"
               ]
             }
           ]
