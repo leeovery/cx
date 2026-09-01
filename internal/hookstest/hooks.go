@@ -13,6 +13,7 @@ import (
 	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/nanoid"
+	"github.com/leeovery/portal/internal/xdg"
 )
 
 // reapableSeedPrefix keeps a reapable seed key legible in test output. It is
@@ -33,28 +34,38 @@ var paneTokenWidth = sync.OnceValue(func() int {
 	return len(token)
 })
 
-// ResolveHooksFilePathFromEnv resolves hooks.json the way production does, but
-// against a supplied env slice rather than os.Getenv: PORTAL_HOOKS_FILE wins,
-// else XDG_CONFIG_HOME. Neither present is an isolation regression and fatals.
+// hooksFileEnvVar and hooksFileName are the pair cmd/hooks.go hands the shared
+// precedence for hooks.json.
+const (
+	hooksFileEnvVar = "PORTAL_HOOKS_FILE"
+	hooksFileName   = "hooks.json"
+	xdgConfigHome   = "XDG_CONFIG_HOME"
+)
+
+// ResolveHooksFilePathFromEnv answers where a binary run with this env slice
+// will look for hooks.json, by the same rule that binary resolves it with:
+// xdg.ConfigFilePath, read against the slice rather than the process
+// environment. Delegating rather than restating the precedence is what keeps a
+// seeded file and a read file the same file — a seeder resolving by its own
+// rule seeds where nothing reads and passes on it.
+//
+// The rule's home fallback is deliberately out of reach here: a slice carrying
+// neither variable means the test's isolation has regressed, which is a fatal
+// rather than a path. That tripwire is this helper's own, not the precedence's
+// — production reading the same slice would legitimately fall back to home.
+//
+// It resolves and nothing more, so no migration runs and nothing is created.
 func ResolveHooksFilePathFromEnv(t *testing.T, env []string) string {
 	t.Helper()
-	const (
-		hooksFileKey = "PORTAL_HOOKS_FILE="
-		xdgKey       = "XDG_CONFIG_HOME="
-	)
-	var xdg string
-	for _, e := range env {
-		if after, ok := strings.CutPrefix(e, hooksFileKey); ok {
-			return after
-		}
-		if after, ok := strings.CutPrefix(e, xdgKey); ok {
-			xdg = after
-		}
+	lookup := xdg.EnvSlice(env)
+	if lookup(hooksFileEnvVar) == "" && lookup(xdgConfigHome) == "" {
+		t.Fatalf("hookstest.ResolveHooksFilePathFromEnv: env slice contains neither %s nor %s — IsolateStateForTest isolation regression", hooksFileEnvVar, xdgConfigHome)
 	}
-	if xdg == "" {
-		t.Fatalf("hookstest.ResolveHooksFilePathFromEnv: env slice contains neither PORTAL_HOOKS_FILE nor XDG_CONFIG_HOME — IsolateStateForTest isolation regression")
+	resolved, err := xdg.ConfigFilePath(lookup, hooksFileEnvVar, hooksFileName)
+	if err != nil {
+		t.Fatalf("hookstest.ResolveHooksFilePathFromEnv: resolve %s: %v", hooksFileName, err)
 	}
-	return filepath.Join(xdg, "portal", "hooks.json")
+	return resolved.Path
 }
 
 // SeedHooksJSON writes a hooks.json of {hookKey: onResumeCommand} entries via

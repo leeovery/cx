@@ -54,9 +54,19 @@ func migrateConfigFile(oldPath, newPath, component string) {
 	_ = os.Remove(filepath.Dir(oldPath))
 }
 
+// configFilePath is the production route into the shared precedence declared by
+// xdg.ConfigFilePath, read against the process environment. The one-shot
+// Application Support migration lives here and only here: it is a side effect of
+// production reading its default location, never part of resolving a path, so a
+// caller resolving the same rule against some other environment — a test seeder
+// asking where the binary under test will look — can never move a real file.
 func configFilePath(envVar, filename string) (string, error) {
-	if envPath := os.Getenv(envVar); envPath != "" {
-		return envPath, nil
+	resolved, err := xdg.ConfigFilePath(xdg.OSEnv, envVar, filename)
+	if err != nil {
+		return "", err
+	}
+	if resolved.Overridden {
+		return resolved.Path, nil
 	}
 
 	homeDir, err := os.UserHomeDir()
@@ -64,16 +74,10 @@ func configFilePath(envVar, filename string) (string, error) {
 		return "", fmt.Errorf("failed to determine home directory: %w", err)
 	}
 
-	configDir, err := xdg.ConfigBase()
-	if err != nil {
-		return "", err
-	}
-	newPath := filepath.Join(configDir, "portal", filename)
-
 	oldPath := filepath.Join(homeDir, "Library", "Application Support", "portal", filename)
-	migrateConfigFile(oldPath, newPath, configFileComponents[filename])
+	migrateConfigFile(oldPath, resolved.Path, configFileComponents[filename])
 
-	return newPath, nil
+	return resolved.Path, nil
 }
 
 func loadProjectStore() (*project.Store, error) {
