@@ -300,7 +300,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 8,
-          "current_task": "resume-hooks-silently-lost-8-4",
+          "current_task": "resume-hooks-silently-lost-8-5",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -414,7 +414,8 @@
             "resume-hooks-silently-lost-7-35",
             "resume-hooks-silently-lost-8-1",
             "resume-hooks-silently-lost-8-2",
-            "resume-hooks-silently-lost-8-3"
+            "resume-hooks-silently-lost-8-3",
+            "resume-hooks-silently-lost-8-4"
           ],
           "staging": {
             "p1": {
@@ -722,6 +723,48 @@
                 "CLAUDE.md",
                 "internal/tmux/errors.go",
                 "internal/session/naming.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-4",
+              "source": "executor",
+              "summary": "The bare-target guard argument rule reaches methods only, so a package-level function taking an already-composed target is unscanned.",
+              "detail": "targetTakingMethods (internal/tmux/target_composition_guard_test.go:471) skips any FuncDecl with a nil receiver, so state.CaptureAndHashPane(c PaneCapturer, target string) (internal/state/scrollback.go:62) — the exact route by which the daemon unpinned target reached CapturePane — is invisible to the rule even now that cmd is scanned. Widening it to plain functions would also pull internal/state (which composes no -t but declares the target parameter) into the question of whether the derived set should follow declarations as well as imports.",
+              "files": [
+                "internal/tmux/target_composition_guard_test.go",
+                "internal/state/scrollback.go",
+                "cmd/state_daemon.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-4",
+              "source": "executor",
+              "summary": "The daemon capture loop names two different values pane_key across its own emissions.",
+              "detail": "cmd/state_daemon.go:276 and :290 log the sanitized state.SanitizePaneKey form (work__0.0); :287 capture pane failed WARN logs a tmux coordinate (work:0.0). One attr key, two vocabularies on adjacent lines. Reconciling it changes a log contract asserted in cmd/state_daemon_capture_logging_test.go:249 and touches the closed attr vocabulary.",
+              "files": [
+                "cmd/state_daemon.go",
+                "cmd/state_daemon_capture_logging_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-4",
+              "source": "reviewer",
+              "summary": "pane_key means two different things in one loop body, and this task entrenched the split.",
+              "detail": "cmd/state_daemon.go:289 logs pane_key as the tmux coordinate (work:0.0, recomposed via tmux.PaneTarget purely for the log), while cmd/state_daemon.go:295 logs pane_key as the sanitized scrollback key (work__0.0) from the same iteration. Reconciling them touches the log-attr contract and the assertion pinned at cmd/state_daemon_capture_logging_test.go:249, so it reaches past this task. (Near-duplicate of the executor entry for the same task — fold at the boundary.)",
+              "files": [
+                "cmd/state_daemon.go",
+                "cmd/state_daemon_capture_logging_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-4",
+              "source": "reviewer",
+              "summary": "The guard still cannot see the shape of the very site step 1 fixed: a bare target handed to a package-level function.",
+              "detail": "targetTakingMethods skips any declaration without a receiver (internal/tmux/target_composition_guard_test.go:368), so state.CaptureAndHashPane(deps.Client, target) (cmd/state_daemon.go:278, internal/state/scrollback.go:62) is unchecked — reverting line 277 to tmux.PaneTarget would be caught by the new unit test but not by the guard. Dropping the fn.Recv == nil clause looks free today: bareTargetArguments only inspects selector calls, and CaptureAndHashPane is the only qualified cross-package call to a target/paneID-taking function in the scanned set — the other three (singleMissError, emitResolveDecision, swingPortalLogSymlink, where target means a user raw input or a symlink path) are all called unqualified. Confirm at consolidation before committing.",
+              "files": [
+                "internal/tmux/target_composition_guard_test.go",
+                "cmd/state_daemon.go",
+                "internal/state/scrollback.go"
               ]
             }
           ]
