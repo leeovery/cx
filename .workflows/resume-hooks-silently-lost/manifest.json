@@ -300,7 +300,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 8,
-          "current_task": "resume-hooks-silently-lost-8-2",
+          "current_task": "resume-hooks-silently-lost-8-3",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -412,7 +412,8 @@
             "resume-hooks-silently-lost-7-34",
             "resume-hooks-silently-lost-7-13",
             "resume-hooks-silently-lost-7-35",
-            "resume-hooks-silently-lost-8-1"
+            "resume-hooks-silently-lost-8-1",
+            "resume-hooks-silently-lost-8-2"
           ],
           "staging": {
             "p1": {
@@ -652,6 +653,27 @@
               "detail": "config_test.go:13 and config_test.go:58 have byte-identical bodies: same temp HOME, same XDG_CONFIG_HOME=\"\", same configFilePath(TEST_CONFIG_UNSET, projects.json), same expectation. The duplication predates this task but the rename made it visible — t.Setenv cannot express genuinely-unset, so there is no distinct case for the second to cover.",
               "files": [
                 "cmd/config_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-2",
+              "source": "reviewer",
+              "summary": "cmd/uninstall.go substring-matches tmux stderr for session absence — now unnecessary, and internal/tmux own doc forbids it.",
+              "detail": "isSessionAbsentError (cmd/uninstall.go:106-109) does strings.Contains(strings.ToLower(err.Error()), \"cant find session\") on KillSession error. internal/tmux/errors.go:14-15 states the rule: layers above internal/tmux must not substring-match tmux stderr — tmux phrasing is not a stable contract. KillSession now carries ErrNoSuchSession, so this collapses to errors.Is(err, tmux.ErrNoSuchSession), which also closes the colon-named residual since the substring match reports a live unaddressable saver as absent. Fix lands in cmd, beyond this task files.",
+              "files": [
+                "cmd/uninstall.go",
+                "internal/tmux/errors.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-2",
+              "source": "reviewer",
+              "summary": "Two parallel hand-maintained per-session op enumerations, neither derived from the client method set.",
+              "detail": "perSessionRoutes (internal/tmux/exact_session_target_test.go:40) and perSessionOps (internal/tmux/session_name_test.go:128) enumerate overlapping subsets of the same client surface by hand. This task derived coverage between the two composition guards, but the classification set — the one whose hand-listing produced the finding — is still hand-maintained, so an eighth per-session op added without classification passes every guard. internal/tmux/target_composition_guard_test.go AST scan is the shape that would close it by construction, and sibling task 8-4 is already reworking that file package derivation, so settle the two together.",
+              "files": [
+                "internal/tmux/exact_session_target_test.go",
+                "internal/tmux/session_name_test.go",
+                "internal/tmux/target_composition_guard_test.go"
               ]
             }
           ]
