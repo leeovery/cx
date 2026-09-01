@@ -95,12 +95,15 @@ func parseSource(t *testing.T, src string) *ast.File {
 	return file
 }
 
+// callName labels a visited call for the order assertions: the callee's own
+// name where it has one, and an explicit marker for the immediately-invoked
+// literal the fixtures use, which names none.
 func callName(t *testing.T, call *ast.CallExpr) string {
 	t.Helper()
-	switch fun := call.Fun.(type) {
-	case *ast.Ident:
-		return fun.Name
-	case *ast.FuncLit:
+	if name := sourceguardtest.CalleeName(call); name != "" {
+		return name
+	}
+	if _, isLiteral := call.Fun.(*ast.FuncLit); isLiteral {
 		return "<func literal>"
 	}
 	t.Fatalf("fixture call %T is neither a bare identifier nor an immediately-invoked literal", call.Fun)

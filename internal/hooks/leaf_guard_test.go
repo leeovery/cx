@@ -4,7 +4,6 @@ import (
 	"go/parser"
 	"go/token"
 	"maps"
-	"os/exec"
 	"slices"
 	"strconv"
 	"strings"
@@ -56,12 +55,7 @@ func TestHooksPackage_ImportsOnlyLeaves(t *testing.T) {
 	})
 
 	t.Run("it drags in no session, tmux or state tree transitively", func(t *testing.T) {
-		out, err := exec.Command("go", "list", "-deps", modulePrefix+hooksPkgPath).CombinedOutput()
-		if err != nil {
-			t.Fatalf("go list -deps internal/hooks: %v\n%s", err, out)
-		}
-
-		for dep := range strings.FieldsSeq(string(out)) {
+		for _, dep := range sourceguardtest.PackageDeps(t, modulePrefix+hooksPkgPath) {
 			internalPath, isInternal := strings.CutPrefix(dep, modulePrefix)
 			if internalPath == hooksPkgPath {
 				continue

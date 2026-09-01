@@ -14,41 +14,13 @@ import (
 // set it has already loaded, and the exported query is free to grow
 // caller-facing behaviour that must not run inside the clean's own pass.
 func TestCleanStaleDoesNotCallStaleKeys(t *testing.T) {
-	paths, err := sourceguardtest.PackageGoFiles(".", false)
-	if err != nil {
-		t.Fatalf("enumerate package sources: %v", err)
-	}
-
 	cleanPath := map[string]bool{"CleanStale": true, "deleteStale": true}
 
-	scanned := 0
-	for _, path := range paths {
-		file, parseErr := parser.ParseFile(token.NewFileSet(), path, nil, parser.SkipObjectResolution)
-		if parseErr != nil {
-			t.Fatalf("parse %s: %v", path, parseErr)
+	scanPackageCalls(t, ".", func(path string, fset *token.FileSet, funcName string, call *ast.CallExpr) {
+		if cleanPath[funcName] && sourceguardtest.CalleeName(call) == "StaleKeys" {
+			t.Errorf("%s: the clean calls StaleKeys — both must reach the staleness rule through the unexported implementation", path)
 		}
-		scanned++
-		sourceguardtest.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
-			if cleanPath[funcName] && calleeName(call) == "StaleKeys" {
-				t.Errorf("%s: the clean calls StaleKeys — both must reach the staleness rule through the unexported implementation", path)
-			}
-			return true
-		})
-	}
-
-	if scanned == 0 {
-		t.Fatal("guard scanned no files")
-	}
-}
-
-func calleeName(call *ast.CallExpr) string {
-	switch fun := call.Fun.(type) {
-	case *ast.Ident:
-		return fun.Name
-	case *ast.SelectorExpr:
-		return fun.Sel.Name
-	}
-	return ""
+	})
 }
 
 // Every mutation takes the file under one exclusive hold, so each must reach
@@ -59,11 +31,6 @@ func calleeName(call *ast.CallExpr) string {
 // a test. The read front doors are named alongside Load/Save because they
 // acquire the same sidecar, shared — which an exclusive holder still blocks.
 func TestMutationsDoNotCallExportedLoadOrSave(t *testing.T) {
-	paths, err := sourceguardtest.PackageGoFiles(".", false)
-	if err != nil {
-		t.Fatalf("enumerate package sources: %v", err)
-	}
-
 	mutations := map[string]bool{"Set": true, "Remove": true, "deleteStale": true}
 	forbidden := map[string]bool{
 		"Load":              true,
@@ -75,25 +42,47 @@ func TestMutationsDoNotCallExportedLoadOrSave(t *testing.T) {
 		"loadSharedBounded": true,
 	}
 
+	scanPackageCalls(t, ".", func(path string, fset *token.FileSet, funcName string, call *ast.CallExpr) {
+		callee := sourceguardtest.CalleeName(call)
+		if mutations[funcName] && forbidden[callee] && calleeReceiverName(call) == "s" {
+			t.Errorf("%s: %s calls s.%s — a mutation must reach the file through the unexported load/save, never re-enter a locking front door", fset.Position(call.Pos()), funcName, callee)
+		}
+	})
+}
+
+// scanPackageCalls parses every production source of the package in dir and
+// reports each call expression under the function declaring it, so a guard is
+// only its predicate. Enumerating no source and failing to parse one are both
+// fatal: a guard that scanned nothing would otherwise pass by having stopped
+// looking. The closing scanned-zero fatal is a backstop for that same rule —
+// PackageGoFiles already errors on an empty match, so it is unreachable while
+// that contract holds and is the thing that would fail loudly if it stopped.
+func scanPackageCalls(t sourceguardtest.TestingT, dir string, visit func(path string, fset *token.FileSet, funcName string, call *ast.CallExpr)) {
+	t.Helper()
+
+	paths, err := sourceguardtest.PackageGoFiles(dir, false)
+	if err != nil {
+		t.Fatalf("enumerate package sources: %v", err)
+		return
+	}
+
 	scanned := 0
 	for _, path := range paths {
 		fset := token.NewFileSet()
 		file, parseErr := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
 		if parseErr != nil {
 			t.Fatalf("parse %s: %v", path, parseErr)
+			return
 		}
 		scanned++
 		sourceguardtest.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
-			callee := calleeName(call)
-			if mutations[funcName] && forbidden[callee] && calleeReceiverName(call) == "s" {
-				t.Errorf("%s: %s calls s.%s — a mutation must reach the file through the unexported load/save, never re-enter a locking front door", fset.Position(call.Pos()), funcName, callee)
-			}
+			visit(path, fset, funcName, call)
 			return true
 		})
 	}
 
 	if scanned == 0 {
-		t.Fatal("guard scanned no files")
+		t.Fatalf("guard scanned no files under %s", dir)
 	}
 }
 

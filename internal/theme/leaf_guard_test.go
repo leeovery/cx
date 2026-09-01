@@ -4,7 +4,6 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -22,12 +21,7 @@ const themesDirEnvVar = "PORTAL_THEMES_DIR"
 
 func TestThemePackage_ResolvesNoPaths(t *testing.T) {
 	t.Run("does not depend on internal/xdg", func(t *testing.T) {
-		out, err := exec.Command("go", "list", "-deps", themePkg).CombinedOutput()
-		if err != nil {
-			t.Fatalf("go list -deps %s: %v\n%s", themePkg, err, out)
-		}
-
-		for dep := range strings.FieldsSeq(string(out)) {
+		for _, dep := range sourceguardtest.PackageDeps(t, themePkg) {
 			if dep == xdgPkg {
 				t.Fatalf("internal/theme transitively imports %s — the themes directory is resolved by cmd/config.go's themesDirPath and injected, never looked up here", xdgPkg)
 			}

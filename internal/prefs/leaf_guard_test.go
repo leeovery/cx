@@ -1,9 +1,10 @@
 package prefs_test
 
 import (
-	"os/exec"
 	"strings"
 	"testing"
+
+	"github.com/leeovery/portal/internal/sourceguardtest"
 )
 
 const prefsPkg = "github.com/leeovery/portal/internal/prefs"
@@ -17,13 +18,7 @@ var forbiddenLeafDeps = []string{
 func TestPrefsIsALeaf(t *testing.T) {
 	// Anchored at the import path so it resolves regardless of the test
 	// binary's runtime CWD.
-	cmd := exec.Command("go", "list", "-deps", prefsPkg)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("go list -deps %s: %v\n%s", prefsPkg, err, out)
-	}
-
-	deps := strings.Fields(string(out))
+	deps := sourceguardtest.PackageDeps(t, prefsPkg)
 	for _, dep := range deps {
 		for _, forbidden := range forbiddenLeafDeps {
 			if dep == forbidden {
