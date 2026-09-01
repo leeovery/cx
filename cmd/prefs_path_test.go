@@ -24,6 +24,7 @@ func TestPrefsFilePath(t *testing.T) {
 	})
 
 	t.Run("returns the XDG path for prefs.json when XDG_CONFIG_HOME is set", func(t *testing.T) {
+		t.Setenv("HOME", t.TempDir())
 		t.Setenv("PORTAL_PREFS_FILE", "")
 		t.Setenv("XDG_CONFIG_HOME", "/tmp/xdg-config")
 
@@ -38,14 +39,14 @@ func TestPrefsFilePath(t *testing.T) {
 		}
 	})
 
-	t.Run("falls back to ~/.config/portal/prefs.json", func(t *testing.T) {
+	// HOME is a temp dir because the non-overridden path runs the one-shot
+	// Application Support migration: against the ambient home it would move the
+	// developer's real prefs.json.
+	t.Run("it resolves prefs.json under the temp home when XDG_CONFIG_HOME is empty", func(t *testing.T) {
+		homeDir := t.TempDir()
+		t.Setenv("HOME", homeDir)
 		t.Setenv("PORTAL_PREFS_FILE", "")
 		t.Setenv("XDG_CONFIG_HOME", "")
-
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			t.Fatalf("failed to get home dir: %v", err)
-		}
 
 		got, err := prefsFilePath()
 		if err != nil {

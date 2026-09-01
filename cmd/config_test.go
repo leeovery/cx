@@ -7,13 +7,13 @@ import (
 )
 
 func TestConfigFilePath(t *testing.T) {
-	t.Run("returns ~/.config/portal/<file> when no env vars are set", func(t *testing.T) {
+	// Pin HOME to a temp dir in any subtest that resolves the default location:
+	// the non-overridden path runs the one-shot Application Support migration,
+	// which against the ambient home would move the developer's real config files.
+	t.Run("it resolves projects.json under the temp home when XDG_CONFIG_HOME is empty", func(t *testing.T) {
+		homeDir := t.TempDir()
+		t.Setenv("HOME", homeDir)
 		t.Setenv("XDG_CONFIG_HOME", "")
-
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			t.Fatalf("failed to get home dir: %v", err)
-		}
 
 		got, err := configFilePath("TEST_CONFIG_UNSET", "projects.json")
 		if err != nil {
@@ -41,6 +41,7 @@ func TestConfigFilePath(t *testing.T) {
 	})
 
 	t.Run("respects XDG_CONFIG_HOME when set", func(t *testing.T) {
+		t.Setenv("HOME", t.TempDir())
 		t.Setenv("XDG_CONFIG_HOME", "/tmp/xdg-config")
 
 		got, err := configFilePath("TEST_CONFIG_UNSET", "projects.json")
@@ -55,12 +56,9 @@ func TestConfigFilePath(t *testing.T) {
 	})
 
 	t.Run("treats empty XDG_CONFIG_HOME as unset", func(t *testing.T) {
+		homeDir := t.TempDir()
+		t.Setenv("HOME", homeDir)
 		t.Setenv("XDG_CONFIG_HOME", "")
-
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			t.Fatalf("failed to get home dir: %v", err)
-		}
 
 		got, err := configFilePath("TEST_CONFIG_UNSET", "projects.json")
 		if err != nil {
@@ -89,6 +87,7 @@ func TestConfigFilePath(t *testing.T) {
 	})
 
 	t.Run("XDG_CONFIG_HOME with trailing slash is normalized", func(t *testing.T) {
+		t.Setenv("HOME", t.TempDir())
 		t.Setenv("XDG_CONFIG_HOME", "/tmp/xdg-config/")
 
 		got, err := configFilePath("TEST_CONFIG_UNSET", "hooks.json")
@@ -378,6 +377,43 @@ func TestConfigFilePathMigration(t *testing.T) {
 
 		if _, err := os.Stat(oldPath); err != nil {
 			t.Errorf("old file should still exist when env var override is active: %v", err)
+		}
+	})
+
+	t.Run("it migrates only the temp home's legacy config directory", func(t *testing.T) {
+		home := t.TempDir()
+		t.Setenv("HOME", home)
+		t.Setenv("XDG_CONFIG_HOME", "")
+
+		oldDir := filepath.Join(home, "Library", "Application Support", "portal")
+		if err := os.MkdirAll(oldDir, 0o755); err != nil {
+			t.Fatalf("failed to create old dir: %v", err)
+		}
+		oldPath := filepath.Join(oldDir, "projects.json")
+		if err := os.WriteFile(oldPath, []byte(`{"projects":[]}`), 0o644); err != nil {
+			t.Fatalf("failed to write old file: %v", err)
+		}
+
+		got, err := configFilePath("TEST_MIGRATE_HOME_UNSET", "projects.json")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		want := filepath.Join(home, ".config", "portal", "projects.json")
+		if got != want {
+			t.Errorf("configFilePath() = %q, want %q", got, want)
+		}
+
+		if _, err := os.Stat(oldPath); !os.IsNotExist(err) {
+			t.Errorf("stat the legacy file = %v, want it moved out of the temp home", err)
+		}
+
+		data, err := os.ReadFile(want)
+		if err != nil {
+			t.Fatalf("failed to read the migrated file: %v", err)
+		}
+		if string(data) != `{"projects":[]}` {
+			t.Errorf("migrated file content = %q, want %q", string(data), `{"projects":[]}`)
 		}
 	})
 
