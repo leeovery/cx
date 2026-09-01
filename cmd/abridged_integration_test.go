@@ -199,8 +199,7 @@ func TestAbridged_OutcomeMatrix_OpenSatisfied_AbridgedInstantPicker(t *testing.T
 	resetBootstrapWarnings(t)
 
 	runner := &recordingRunner{started: false}
-	bootstrapDeps = &BootstrapDeps{Orchestrator: runner, Client: client}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: runner, Client: client})
 
 	var deferredSeen, serverStarted bool
 	origFunc := openTUIFunc
@@ -232,8 +231,7 @@ func TestAbridged_OutcomeMatrix_OpenNotSatisfied_ConcurrentDeferred(t *testing.T
 	_, client, _, _ := setupAbridgedEnv(t)
 
 	runner := &recordingRunner{started: true}
-	bootstrapDeps = &BootstrapDeps{Orchestrator: runner, Client: client}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: runner, Client: client})
 
 	var deferredSeen bool
 	origFunc := openTUIFunc
@@ -266,8 +264,7 @@ func TestAbridged_OutcomeMatrix_CLISatisfied_AbridgedSync(t *testing.T) {
 	resetBootstrapWarnings(t)
 
 	runner := &recordingRunner{started: false}
-	bootstrapDeps = &BootstrapDeps{Orchestrator: runner, Client: client}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: runner, Client: client})
 
 	installMockList(t)
 
@@ -286,8 +283,7 @@ func TestAbridged_OutcomeMatrix_CLINotSatisfied_SynchronousFull(t *testing.T) {
 	_, client, _, _ := setupAbridgedEnv(t)
 
 	runner := &recordingRunner{started: false}
-	bootstrapDeps = &BootstrapDeps{Orchestrator: runner, Client: client}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: runner, Client: client})
 
 	installMockList(t)
 

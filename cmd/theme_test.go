@@ -36,8 +36,7 @@ func execThemeExport(t *testing.T, args ...string) themeExportRun {
 	t.Helper()
 
 	runner := &recordingRunner{}
-	bootstrapDeps = &BootstrapDeps{Orchestrator: runner}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: runner})
 
 	var stdout, stderr bytes.Buffer
 	resetRootCmd()

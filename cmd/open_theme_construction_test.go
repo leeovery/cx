@@ -348,8 +348,7 @@ func TestConstruction_StartupCanvasHexFromSelectedMember(t *testing.T) {
 func TestOpenTUI_FatalBeforeModelConstruction(t *testing.T) {
 	setPrefsFile(t, `{"theme":"no-such-theme"}`)
 
-	openDeps = &OpenDeps{ThemeLoader: brokenBuiltinLoader(theme.DefaultDarkSlug)}
-	t.Cleanup(func() { openDeps = nil })
+	withOpenDeps(t, OpenDeps{ThemeLoader: brokenBuiltinLoader(theme.DefaultDarkSlug)})
 
 	bootstrapWarnings.Drain()
 	staged := bootstrap.Warning{Lines: []string{"staged: must survive the fatal"}}

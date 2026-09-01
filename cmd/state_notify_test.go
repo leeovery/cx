@@ -170,8 +170,7 @@ func TestStateNotify_DoesNotReadOrCreateOtherStateFiles(t *testing.T) {
 }
 
 func TestStateNotify_DoesNotInvokeBootstrap(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: panicRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: panicRunner{}})
 
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)

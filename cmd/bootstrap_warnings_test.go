@@ -185,14 +185,12 @@ func TestPersistentPreRunE_EmitsWarningsToStderrOnCLIPath(t *testing.T) {
 			bootstrap.CorruptSessionsJSONWarning(),
 		},
 	}
-	bootstrapDeps = &BootstrapDeps{Orchestrator: runner}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: runner})
 
-	listDeps = &ListDeps{
+	withListDeps(t, ListDeps{
 		Lister: &mockSessionLister{sessions: nil},
 		IsTTY:  func() bool { return false },
-	}
-	t.Cleanup(func() { listDeps = nil })
+	})
 
 	resetRootCmd()
 	var stderr bytes.Buffer
@@ -235,8 +233,7 @@ func TestPersistentPreRunE_DoesNotEmitWarningsForOpenWithNoArgs(t *testing.T) {
 	runner := &recordingRunner{
 		warnings: []bootstrap.Warning{bootstrap.SaverDownWarning()},
 	}
-	bootstrapDeps = &BootstrapDeps{Orchestrator: runner}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: runner})
 
 	resetRootCmd()
 	var stderr bytes.Buffer
@@ -264,8 +261,7 @@ func TestPersistentPreRunE_EmitsWarningsForOpenWithPositionalArg(t *testing.T) {
 	}
 	// The session-domain check at the front of open resolution reads the tmux
 	// client production's PersistentPreRunE always injects into context.
-	bootstrapDeps = &BootstrapDeps{Orchestrator: runner, Client: tmux.NewClient(&stubCommander{})}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: runner, Client: tmux.NewClient(&stubCommander{})})
 
 	// Resolution fails on the non-existent path; warning emission happens before
 	// RunE, so that failure is irrelevant here.

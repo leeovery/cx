@@ -214,8 +214,7 @@ func TestPersistentPreRunE_LatchedTUI_ReadsLatchExactlyOnce(t *testing.T) {
 	rec := satisfiedLatchAliveSaverCommander()
 	client := tmux.NewClient(rec)
 	runner := &recordingRunner{started: false} // warm: server already running
-	bootstrapDeps = &BootstrapDeps{Orchestrator: runner, Client: client}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: runner, Client: client})
 
 	var capturedServerStarted bool
 	var openTUIReached bool

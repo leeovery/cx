@@ -1302,8 +1302,7 @@ func runDoctorWith(t *testing.T, deps *DoctorDeps, args ...string) (*bytes.Buffe
 	// terminals.json is read eagerly when the deps resolve; isolate it so
 	// Execute never touches the developer's real config file.
 	isolateTerminalsFile(t)
-	doctorDeps = deps
-	t.Cleanup(func() { doctorDeps = nil })
+	withDoctorDeps(t, *deps)
 
 	outBuf := new(bytes.Buffer)
 	errBuf := new(bytes.Buffer)

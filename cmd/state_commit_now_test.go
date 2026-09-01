@@ -83,7 +83,6 @@ type commitInvocation struct {
 
 func installCommitNowDeps(t *testing.T, f *commitNowFixture) {
 	t.Helper()
-	prev := commitNowDeps
 	deps := &CommitNowDeps{
 		NewClient: func() state.CaptureClient { return f.client },
 		CaptureStructure: func(c state.CaptureClient, skipSet map[string]struct{}, p *state.Index, logger *slog.Logger) (state.Index, error) {
@@ -121,8 +120,7 @@ func installCommitNowDeps(t *testing.T, f *commitNowFixture) {
 			return f.readIdxReturn, f.readIdxSkip, f.readIdxErr
 		}
 	}
-	commitNowDeps = deps
-	t.Cleanup(func() { commitNowDeps = prev })
+	withCommitNowDeps(t, *deps)
 }
 
 func readSessionsJSON(t *testing.T, dir string) state.Index {
@@ -347,16 +345,14 @@ func TestStateCommitNow_OmitsUnderscorePrefixedSessions(t *testing.T) {
 		env: map[string]string{"work": "", "_portal-saver": ""},
 	}
 
-	prev := commitNowDeps
-	commitNowDeps = &CommitNowDeps{
+	withCommitNowDeps(t, CommitNowDeps{
 		NewClient:        func() state.CaptureClient { return client },
 		CaptureStructure: state.CaptureStructure,
 		Commit:           state.Commit,
 		// Must be injected: a nil IsRestoring falls through to a live query
 		// against whatever server the ambient TMUX names.
 		IsRestoring: func() (bool, error) { return false, nil },
-	}
-	t.Cleanup(func() { commitNowDeps = prev })
+	})
 
 	if _, _, err := runStateCommitNow(t); err != nil {
 		t.Fatalf("unexpected error: %v", err)

@@ -13,8 +13,7 @@ import (
 // that to help-printed plus a nil error.
 func TestBarePortalPrintsHelpAndDoesNotLaunchPicker(t *testing.T) {
 	runner := &recordingRunner{}
-	bootstrapDeps = &BootstrapDeps{Orchestrator: runner}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: runner})
 
 	tuiLaunched := false
 	origTUI := openTUIFunc

@@ -73,8 +73,7 @@ func (t *testSessionLister) ListSessionNames() ([]string, error) {
 func TestOpenCommand_PathArgument_NonExistentPath(t *testing.T) {
 	// The session-domain pre-check reads the tmux client from context before
 	// path resolution runs.
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}, Client: tmux.NewClient(&stubCommander{})}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}, Client: tmux.NewClient(&stubCommander{})})
 
 	resetRootCmd()
 	buf := new(bytes.Buffer)
@@ -96,8 +95,7 @@ func TestOpenCommand_PathArgument_NonExistentPath(t *testing.T) {
 func TestOpenCommand_PathArgument_FileNotDirectory(t *testing.T) {
 	// The session-domain pre-check reads the tmux client from context before
 	// path resolution runs.
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}, Client: tmux.NewClient(&stubCommander{})}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}, Client: tmux.NewClient(&stubCommander{})})
 
 	dir := t.TempDir()
 	filePath := filepath.Join(dir, "file.txt")
@@ -138,16 +136,14 @@ func TestOpenCommand_PathArgument_SkipsTUI(t *testing.T) {
 }
 
 func TestOpenCommand_QueryResolution_AliasNotFound(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
-	openDeps = &OpenDeps{
+	withOpenDeps(t, OpenDeps{
 		SessionLister: &testSessionLister{},
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{"myapp": "/nonexistent/alias/path"}},
 		Zoxide:        &testZoxideQuerier{err: resolver.ErrNoMatch},
 		DirValidator:  &testDirValidator{existing: map[string]bool{}},
-	}
-	t.Cleanup(func() { openDeps = nil })
+	})
 
 	resetRootCmd()
 	buf := new(bytes.Buffer)
@@ -167,16 +163,14 @@ func TestOpenCommand_QueryResolution_AliasNotFound(t *testing.T) {
 }
 
 func TestOpenCommand_QueryResolution_ZoxideNotFound(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
-	openDeps = &OpenDeps{
+	withOpenDeps(t, OpenDeps{
 		SessionLister: &testSessionLister{},
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{}},
 		Zoxide:        &testZoxideQuerier{result: "/gone/zoxide/dir"},
 		DirValidator:  &testDirValidator{existing: map[string]bool{}},
-	}
-	t.Cleanup(func() { openDeps = nil })
+	})
 
 	resetRootCmd()
 	buf := new(bytes.Buffer)
@@ -196,16 +190,14 @@ func TestOpenCommand_QueryResolution_ZoxideNotFound(t *testing.T) {
 }
 
 func TestOpenCommand_SessionNameHit_RoutesToSessionConnector(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
-	openDeps = &OpenDeps{
+	withOpenDeps(t, OpenDeps{
 		SessionLister: &testSessionLister{names: []string{"api-x7Kd9a"}},
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{}},
 		Zoxide:        &testZoxideQuerier{err: resolver.ErrNoMatch},
 		DirValidator:  &testDirValidator{existing: map[string]bool{}},
-	}
-	t.Cleanup(func() { openDeps = nil })
+	})
 
 	var connectedTo string
 	origSession := openSessionFunc
@@ -249,16 +241,14 @@ func TestOpenCommand_SessionNameHit_RoutesToSessionConnector(t *testing.T) {
 }
 
 func TestOpenCommand_SessionPin_ExactHit_RoutesToConnector(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
-	openDeps = &OpenDeps{
+	withOpenDeps(t, OpenDeps{
 		SessionLister: &testSessionLister{names: []string{"api-x7Kd9a"}},
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{}},
 		Zoxide:        &testZoxideQuerier{err: resolver.ErrNoMatch},
 		DirValidator:  &testDirValidator{existing: map[string]bool{}},
-	}
-	t.Cleanup(func() { openDeps = nil })
+	})
 
 	var connectedTo string
 	origSession := openSessionFunc
@@ -302,16 +292,14 @@ func TestOpenCommand_SessionPin_ExactHit_RoutesToConnector(t *testing.T) {
 }
 
 func TestOpenCommand_BareSessionAttach_WithCommand_UsageError(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
-	openDeps = &OpenDeps{
+	withOpenDeps(t, OpenDeps{
 		SessionLister: &testSessionLister{names: []string{"dev"}},
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{}},
 		Zoxide:        &testZoxideQuerier{err: resolver.ErrNoMatch},
 		DirValidator:  &testDirValidator{existing: map[string]bool{}},
-	}
-	t.Cleanup(func() { openDeps = nil })
+	})
 
 	sessionCalled := false
 	origSession := openSessionFunc
@@ -341,16 +329,14 @@ func TestOpenCommand_BareSessionAttach_WithCommand_UsageError(t *testing.T) {
 }
 
 func TestOpenCommand_BareSessionAttach_WithDashDashCommand_UsageError(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
-	openDeps = &OpenDeps{
+	withOpenDeps(t, OpenDeps{
 		SessionLister: &testSessionLister{names: []string{"dev"}},
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{}},
 		Zoxide:        &testZoxideQuerier{err: resolver.ErrNoMatch},
 		DirValidator:  &testDirValidator{existing: map[string]bool{}},
-	}
-	t.Cleanup(func() { openDeps = nil })
+	})
 
 	sessionCalled := false
 	origSession := openSessionFunc
@@ -380,16 +366,14 @@ func TestOpenCommand_BareSessionAttach_WithDashDashCommand_UsageError(t *testing
 }
 
 func TestOpenCommand_SessionPin_WithCommand_UsageError(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
-	openDeps = &OpenDeps{
+	withOpenDeps(t, OpenDeps{
 		SessionLister: &testSessionLister{names: []string{"dev"}},
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{}},
 		Zoxide:        &testZoxideQuerier{err: resolver.ErrNoMatch},
 		DirValidator:  &testDirValidator{existing: map[string]bool{}},
-	}
-	t.Cleanup(func() { openDeps = nil })
+	})
 
 	sessionCalled := false
 	origSession := openSessionFunc
@@ -423,16 +407,14 @@ func TestOpenCommand_SessionPin_Glob_HardFailsNoFirstMatch(t *testing.T) {
 	// holds no "open" token), so a glob-bearing -s reaches ResolveSessionPin
 	// directly — where it must hard-fail loudly rather than attach the first
 	// match. Glob fan-out is the burst's job alone.
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
-	openDeps = &OpenDeps{
+	withOpenDeps(t, OpenDeps{
 		SessionLister: &testSessionLister{names: []string{"api-1", "api-2"}},
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{}},
 		Zoxide:        &testZoxideQuerier{err: resolver.ErrNoMatch},
 		DirValidator:  &testDirValidator{existing: map[string]bool{}},
-	}
-	t.Cleanup(func() { openDeps = nil })
+	})
 
 	attached := false
 	origSession := openSessionFunc
@@ -458,16 +440,14 @@ func TestOpenCommand_SessionPin_Glob_HardFailsNoFirstMatch(t *testing.T) {
 }
 
 func TestOpenCommand_SessionPin_Miss_HardFailsNoPicker(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
-	openDeps = &OpenDeps{
+	withOpenDeps(t, OpenDeps{
 		SessionLister: &testSessionLister{names: []string{"web-abc"}},
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{}},
 		Zoxide:        &testZoxideQuerier{err: resolver.ErrNoMatch},
 		DirValidator:  &testDirValidator{existing: map[string]bool{}},
-	}
-	t.Cleanup(func() { openDeps = nil })
+	})
 
 	tuiCalled := false
 	origTUI := openTUIFunc
@@ -508,16 +488,14 @@ func TestOpenCommand_SessionPin_Miss_HardFailsNoPicker(t *testing.T) {
 }
 
 func TestOpenCommand_SessionPin_EmitsNoResolveLine(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
-	openDeps = &OpenDeps{
+	withOpenDeps(t, OpenDeps{
 		SessionLister: &testSessionLister{names: []string{"dev"}},
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{}},
 		Zoxide:        &testZoxideQuerier{err: resolver.ErrNoMatch},
 		DirValidator:  &testDirValidator{existing: map[string]bool{}},
-	}
-	t.Cleanup(func() { openDeps = nil })
+	})
 
 	origSession := openSessionFunc
 	openSessionFunc = func(_ *cobra.Command, _ string) error { return nil }
@@ -538,16 +516,14 @@ func TestOpenCommand_SessionPin_EmitsNoResolveLine(t *testing.T) {
 }
 
 func TestOpenCommand_PathPin_Mints_NoPicker(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
-	openDeps = &OpenDeps{
+	withOpenDeps(t, OpenDeps{
 		SessionLister: &testSessionLister{},
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{}},
 		Zoxide:        &testZoxideQuerier{err: resolver.ErrNoMatch},
 		DirValidator:  &testDirValidator{existing: map[string]bool{}},
-	}
-	t.Cleanup(func() { openDeps = nil })
+	})
 
 	dir := t.TempDir()
 
@@ -593,16 +569,14 @@ func TestOpenCommand_PathPin_Mints_NoPicker(t *testing.T) {
 }
 
 func TestOpenCommand_PathPin_GlobNamedDir_Mints(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
-	openDeps = &OpenDeps{
+	withOpenDeps(t, OpenDeps{
 		SessionLister: &testSessionLister{},
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{}},
 		Zoxide:        &testZoxideQuerier{err: resolver.ErrNoMatch},
 		DirValidator:  &testDirValidator{existing: map[string]bool{}},
-	}
-	t.Cleanup(func() { openDeps = nil })
+	})
 
 	tmp := t.TempDir()
 	globDir := filepath.Join(tmp, "foo[1]")
@@ -630,16 +604,14 @@ func TestOpenCommand_PathPin_GlobNamedDir_Mints(t *testing.T) {
 }
 
 func TestOpenCommand_PathPin_Miss_HardFailsNoPicker(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
-	openDeps = &OpenDeps{
+	withOpenDeps(t, OpenDeps{
 		SessionLister: &testSessionLister{},
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{}},
 		Zoxide:        &testZoxideQuerier{err: resolver.ErrNoMatch},
 		DirValidator:  &testDirValidator{existing: map[string]bool{}},
-	}
-	t.Cleanup(func() { openDeps = nil })
+	})
 
 	missDir := filepath.Join(t.TempDir(), "does-not-exist")
 
@@ -682,16 +654,14 @@ func TestOpenCommand_PathPin_Miss_HardFailsNoPicker(t *testing.T) {
 }
 
 func TestOpenCommand_PathPin_ThreadsCommandIntoMint(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
-	openDeps = &OpenDeps{
+	withOpenDeps(t, OpenDeps{
 		SessionLister: &testSessionLister{},
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{}},
 		Zoxide:        &testZoxideQuerier{err: resolver.ErrNoMatch},
 		DirValidator:  &testDirValidator{existing: map[string]bool{}},
-	}
-	t.Cleanup(func() { openDeps = nil })
+	})
 
 	dir := t.TempDir()
 
@@ -721,16 +691,14 @@ func TestOpenCommand_PathPin_ThreadsCommandIntoMint(t *testing.T) {
 }
 
 func TestOpenCommand_PathPin_EmitsNoResolveLine(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
-	openDeps = &OpenDeps{
+	withOpenDeps(t, OpenDeps{
 		SessionLister: &testSessionLister{},
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{}},
 		Zoxide:        &testZoxideQuerier{err: resolver.ErrNoMatch},
 		DirValidator:  &testDirValidator{existing: map[string]bool{}},
-	}
-	t.Cleanup(func() { openDeps = nil })
+	})
 
 	dir := t.TempDir()
 
@@ -753,18 +721,16 @@ func TestOpenCommand_PathPin_EmitsNoResolveLine(t *testing.T) {
 }
 
 func TestOpenCommand_AliasPin_Mints_NoPicker(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
 	dir := t.TempDir()
 
-	openDeps = &OpenDeps{
+	withOpenDeps(t, OpenDeps{
 		SessionLister: &testSessionLister{names: []string{"myapp"}},
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{"myapp": dir}},
 		Zoxide:        &testZoxideQuerier{err: resolver.ErrNoMatch},
 		DirValidator:  &testDirValidator{existing: map[string]bool{dir: true}},
-	}
-	t.Cleanup(func() { openDeps = nil })
+	})
 
 	var mintedPath string
 	origPath := openPathFunc
@@ -808,16 +774,14 @@ func TestOpenCommand_AliasPin_Mints_NoPicker(t *testing.T) {
 }
 
 func TestOpenCommand_AliasPin_UnknownKey_HardFailsNoPicker(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
-	openDeps = &OpenDeps{
+	withOpenDeps(t, OpenDeps{
 		SessionLister: &testSessionLister{},
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{"known": "/code/known"}},
 		Zoxide:        &testZoxideQuerier{err: resolver.ErrNoMatch},
 		DirValidator:  &testDirValidator{existing: map[string]bool{}},
-	}
-	t.Cleanup(func() { openDeps = nil })
+	})
 
 	tuiCalled := false
 	origTUI := openTUIFunc
@@ -858,18 +822,16 @@ func TestOpenCommand_AliasPin_UnknownKey_HardFailsNoPicker(t *testing.T) {
 }
 
 func TestOpenCommand_AliasPin_ThreadsCommandIntoMint(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
 	dir := t.TempDir()
 
-	openDeps = &OpenDeps{
+	withOpenDeps(t, OpenDeps{
 		SessionLister: &testSessionLister{},
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{"myapp": dir}},
 		Zoxide:        &testZoxideQuerier{err: resolver.ErrNoMatch},
 		DirValidator:  &testDirValidator{existing: map[string]bool{dir: true}},
-	}
-	t.Cleanup(func() { openDeps = nil })
+	})
 
 	var gotPath string
 	var gotCommand []string
@@ -897,18 +859,16 @@ func TestOpenCommand_AliasPin_ThreadsCommandIntoMint(t *testing.T) {
 }
 
 func TestOpenCommand_AliasPin_EmitsNoResolveLine(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
 	dir := t.TempDir()
 
-	openDeps = &OpenDeps{
+	withOpenDeps(t, OpenDeps{
 		SessionLister: &testSessionLister{},
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{"myapp": dir}},
 		Zoxide:        &testZoxideQuerier{err: resolver.ErrNoMatch},
 		DirValidator:  &testDirValidator{existing: map[string]bool{dir: true}},
-	}
-	t.Cleanup(func() { openDeps = nil })
+	})
 
 	origPath := openPathFunc
 	openPathFunc = func(_ *cobra.Command, _ string, _ []string) error { return nil }
@@ -929,18 +889,16 @@ func TestOpenCommand_AliasPin_EmitsNoResolveLine(t *testing.T) {
 }
 
 func TestOpenCommand_ZoxidePin_Mints_NoPicker(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
 	dir := t.TempDir()
 
-	openDeps = &OpenDeps{
+	withOpenDeps(t, OpenDeps{
 		SessionLister: &testSessionLister{},
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{}},
 		Zoxide:        &testZoxideQuerier{result: dir},
 		DirValidator:  &testDirValidator{existing: map[string]bool{dir: true}},
-	}
-	t.Cleanup(func() { openDeps = nil })
+	})
 
 	var mintedPath string
 	origPath := openPathFunc
@@ -984,16 +942,14 @@ func TestOpenCommand_ZoxidePin_Mints_NoPicker(t *testing.T) {
 }
 
 func TestOpenCommand_ZoxidePin_NotInstalled_ErrorsNoPicker(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
-	openDeps = &OpenDeps{
+	withOpenDeps(t, OpenDeps{
 		SessionLister: &testSessionLister{},
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{}},
 		Zoxide:        &testZoxideQuerier{err: resolver.ErrZoxideNotInstalled},
 		DirValidator:  &testDirValidator{existing: map[string]bool{}},
-	}
-	t.Cleanup(func() { openDeps = nil })
+	})
 
 	tuiCalled := false
 	origTUI := openTUIFunc
@@ -1030,16 +986,14 @@ func TestOpenCommand_ZoxidePin_NotInstalled_ErrorsNoPicker(t *testing.T) {
 }
 
 func TestOpenCommand_ZoxidePin_NoMatch_HardFailsNoPicker(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
-	openDeps = &OpenDeps{
+	withOpenDeps(t, OpenDeps{
 		SessionLister: &testSessionLister{},
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{}},
 		Zoxide:        &testZoxideQuerier{err: resolver.ErrNoMatch},
 		DirValidator:  &testDirValidator{existing: map[string]bool{}},
-	}
-	t.Cleanup(func() { openDeps = nil })
+	})
 
 	tuiCalled := false
 	origTUI := openTUIFunc
@@ -1080,18 +1034,16 @@ func TestOpenCommand_ZoxidePin_NoMatch_HardFailsNoPicker(t *testing.T) {
 }
 
 func TestOpenCommand_ZoxidePin_ThreadsCommandIntoMint(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
 	dir := t.TempDir()
 
-	openDeps = &OpenDeps{
+	withOpenDeps(t, OpenDeps{
 		SessionLister: &testSessionLister{},
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{}},
 		Zoxide:        &testZoxideQuerier{result: dir},
 		DirValidator:  &testDirValidator{existing: map[string]bool{dir: true}},
-	}
-	t.Cleanup(func() { openDeps = nil })
+	})
 
 	var gotPath string
 	var gotCommand []string
@@ -1119,18 +1071,16 @@ func TestOpenCommand_ZoxidePin_ThreadsCommandIntoMint(t *testing.T) {
 }
 
 func TestOpenCommand_ZoxidePin_EmitsNoResolveLine(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
 	dir := t.TempDir()
 
-	openDeps = &OpenDeps{
+	withOpenDeps(t, OpenDeps{
 		SessionLister: &testSessionLister{},
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{}},
 		Zoxide:        &testZoxideQuerier{result: dir},
 		DirValidator:  &testDirValidator{existing: map[string]bool{dir: true}},
-	}
-	t.Cleanup(func() { openDeps = nil })
+	})
 
 	origPath := openPathFunc
 	openPathFunc = func(_ *cobra.Command, _ string, _ []string) error { return nil }
@@ -1978,16 +1928,14 @@ func TestProcessTUIResult(t *testing.T) {
 }
 
 func TestOpenCommand_TotalMiss_HardFails(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
-	openDeps = &OpenDeps{
+	withOpenDeps(t, OpenDeps{
 		SessionLister: &testSessionLister{},
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{}},
 		Zoxide:        &testZoxideQuerier{err: resolver.ErrNoMatch},
 		DirValidator:  &testDirValidator{existing: map[string]bool{}},
-	}
-	t.Cleanup(func() { openDeps = nil })
+	})
 
 	tuiCalled := false
 	origFunc := openTUIFunc
@@ -2017,16 +1965,14 @@ func TestOpenCommand_TotalMiss_HardFails(t *testing.T) {
 }
 
 func TestOpenCommand_ResolveLog_SessionHit(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
-	openDeps = &OpenDeps{
+	withOpenDeps(t, OpenDeps{
 		SessionLister: &testSessionLister{names: []string{"dev"}},
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{}},
 		Zoxide:        &testZoxideQuerier{err: resolver.ErrNoMatch},
 		DirValidator:  &testDirValidator{existing: map[string]bool{}},
-	}
-	t.Cleanup(func() { openDeps = nil })
+	})
 
 	origSession := openSessionFunc
 	openSessionFunc = func(_ *cobra.Command, _ string) error { return nil }
@@ -2055,16 +2001,14 @@ func TestOpenCommand_ResolveLog_SessionHit(t *testing.T) {
 }
 
 func TestOpenCommand_ResolveLog_ZoxideMint(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
-	openDeps = &OpenDeps{
+	withOpenDeps(t, OpenDeps{
 		SessionLister: &testSessionLister{},
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{}},
 		Zoxide:        &testZoxideQuerier{result: "/Users/lee/Code/blog"},
 		DirValidator:  &testDirValidator{existing: map[string]bool{"/Users/lee/Code/blog": true}},
-	}
-	t.Cleanup(func() { openDeps = nil })
+	})
 
 	origPath := openPathFunc
 	openPathFunc = func(_ *cobra.Command, _ string, _ []string) error { return nil }
@@ -2093,16 +2037,14 @@ func TestOpenCommand_ResolveLog_ZoxideMint(t *testing.T) {
 }
 
 func TestOpenCommand_ResolveLog_Miss(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
-	openDeps = &OpenDeps{
+	withOpenDeps(t, OpenDeps{
 		SessionLister: &testSessionLister{},
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{}},
 		Zoxide:        &testZoxideQuerier{err: resolver.ErrNoMatch},
 		DirValidator:  &testDirValidator{existing: map[string]bool{}},
-	}
-	t.Cleanup(func() { openDeps = nil })
+	})
 
 	h := newCapturingHandler()
 	log.SetTestHandler(t, h)
@@ -2132,16 +2074,14 @@ func TestOpenCommand_ResolveLog_Miss(t *testing.T) {
 }
 
 func TestOpenCommand_ResolveLog_GlobEmitsNoLine(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
-	openDeps = &OpenDeps{
+	withOpenDeps(t, OpenDeps{
 		SessionLister: &testSessionLister{names: []string{"dev-1", "dev-2"}},
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{}},
 		Zoxide:        &testZoxideQuerier{err: resolver.ErrNoMatch},
 		DirValidator:  &testDirValidator{existing: map[string]bool{}},
-	}
-	t.Cleanup(func() { openDeps = nil })
+	})
 
 	origBurst := runOpenBurstFunc
 	runOpenBurstFunc = func(_ *cobra.Command, _ []spawn.Surface, _ []string) error { return nil }
@@ -2235,16 +2175,14 @@ func TestLogExecHandoff_Helper(t *testing.T) {
 }
 
 func TestOpenCommand_BareProjectName_MintsNeverAttaches(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
-	openDeps = &OpenDeps{
+	withOpenDeps(t, OpenDeps{
 		SessionLister: &testSessionLister{names: []string{"api-x7Kd9a"}},
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{"api": "/Users/lee/Code/api"}},
 		Zoxide:        &testZoxideQuerier{err: resolver.ErrNoMatch},
 		DirValidator:  &testDirValidator{existing: map[string]bool{"/Users/lee/Code/api": true}},
-	}
-	t.Cleanup(func() { openDeps = nil })
+	})
 
 	var mintedPath string
 	origPath := openPathFunc
@@ -2277,16 +2215,14 @@ func TestOpenCommand_BareProjectName_MintsNeverAttaches(t *testing.T) {
 }
 
 func TestOpenCommand_CommandThreadsIntoMintedTarget(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
-	openDeps = &OpenDeps{
+	withOpenDeps(t, OpenDeps{
 		SessionLister: &testSessionLister{},
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{"api": "/Users/lee/Code/api"}},
 		Zoxide:        &testZoxideQuerier{err: resolver.ErrNoMatch},
 		DirValidator:  &testDirValidator{existing: map[string]bool{"/Users/lee/Code/api": true}},
-	}
-	t.Cleanup(func() { openDeps = nil })
+	})
 
 	var gotPath string
 	var gotCommand []string
@@ -2315,8 +2251,7 @@ func TestOpenCommand_CommandThreadsIntoMintedTarget(t *testing.T) {
 
 func TestOpenCommand_DirectTUI_PassesServerStarted(t *testing.T) {
 	runner := &recordingRunner{started: true}
-	bootstrapDeps = &BootstrapDeps{Orchestrator: runner}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: runner})
 
 	var capturedServerStarted bool
 	origFunc := openTUIFunc
@@ -2349,17 +2284,15 @@ func (r *recordingFilterLister) ListSessionNames() ([]string, error) {
 }
 
 func TestOpenCommand_Filter_OpensPickerPrefilteredAndSkipsResolution(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
 	lister := &recordingFilterLister{}
-	openDeps = &OpenDeps{
+	withOpenDeps(t, OpenDeps{
 		SessionLister: lister,
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{}},
 		Zoxide:        &testZoxideQuerier{err: resolver.ErrNoMatch},
 		DirValidator:  &testDirValidator{existing: map[string]bool{}},
-	}
-	t.Cleanup(func() { openDeps = nil })
+	})
 
 	var gotFilter string
 	var gotCommand []string
@@ -2394,17 +2327,15 @@ func TestOpenCommand_Filter_OpensPickerPrefilteredAndSkipsResolution(t *testing.
 }
 
 func TestOpenCommand_Filter_WithPositionalTarget_UsageError(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
 	lister := &recordingFilterLister{}
-	openDeps = &OpenDeps{
+	withOpenDeps(t, OpenDeps{
 		SessionLister: lister,
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{}},
 		Zoxide:        &testZoxideQuerier{err: resolver.ErrNoMatch},
 		DirValidator:  &testDirValidator{existing: map[string]bool{}},
-	}
-	t.Cleanup(func() { openDeps = nil })
+	})
 
 	tuiCalled := false
 	origFunc := openTUIFunc
@@ -2449,17 +2380,15 @@ func TestOpenCommand_Filter_WithPin_UsageError(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-			t.Cleanup(func() { bootstrapDeps = nil })
+			withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
 			lister := &recordingFilterLister{}
-			openDeps = &OpenDeps{
+			withOpenDeps(t, OpenDeps{
 				SessionLister: lister,
 				AliasLookup:   &testAliasLookup{aliases: map[string]string{}},
 				Zoxide:        &testZoxideQuerier{err: resolver.ErrNoMatch},
 				DirValidator:  &testDirValidator{existing: map[string]bool{}},
-			}
-			t.Cleanup(func() { openDeps = nil })
+			})
 
 			tuiCalled := false
 			origTUI := openTUIFunc
@@ -2513,17 +2442,15 @@ func TestOpenCommand_Filter_WithPin_UsageError(t *testing.T) {
 }
 
 func TestOpenCommand_Filter_WithMultiplePins_UsageError(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
 	lister := &recordingFilterLister{}
-	openDeps = &OpenDeps{
+	withOpenDeps(t, OpenDeps{
 		SessionLister: lister,
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{}},
 		Zoxide:        &testZoxideQuerier{err: resolver.ErrNoMatch},
 		DirValidator:  &testDirValidator{existing: map[string]bool{}},
-	}
-	t.Cleanup(func() { openDeps = nil })
+	})
 
 	tuiCalled := false
 	origTUI := openTUIFunc
@@ -2556,8 +2483,7 @@ func TestOpenCommand_Filter_WithMultiplePins_UsageError(t *testing.T) {
 }
 
 func TestOpenCommand_Filter_EmptyValue_UsageError(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
 	tuiCalled := false
 	origFunc := openTUIFunc
@@ -2587,8 +2513,7 @@ func TestOpenCommand_Filter_EmptyValue_UsageError(t *testing.T) {
 }
 
 func TestOpenCommand_NoArgs_NoFilter_LaunchesPicker(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
 	var gotFilter string
 	tuiCalled := false
@@ -2615,17 +2540,15 @@ func TestOpenCommand_NoArgs_NoFilter_LaunchesPicker(t *testing.T) {
 }
 
 func TestOpenCommand_CommandNoTarget_ExecFlag_OpensProjectsPicker(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
 	lister := &recordingFilterLister{}
-	openDeps = &OpenDeps{
+	withOpenDeps(t, OpenDeps{
 		SessionLister: lister,
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{}},
 		Zoxide:        &testZoxideQuerier{err: resolver.ErrNoMatch},
 		DirValidator:  &testDirValidator{existing: map[string]bool{}},
-	}
-	t.Cleanup(func() { openDeps = nil })
+	})
 
 	var gotFilter string
 	var gotCommand []string
@@ -2680,17 +2603,15 @@ func TestOpenCommand_CommandNoTarget_ExecFlag_OpensProjectsPicker(t *testing.T) 
 }
 
 func TestOpenCommand_CommandNoTarget_DashDash_OpensProjectsPicker(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
 	lister := &recordingFilterLister{}
-	openDeps = &OpenDeps{
+	withOpenDeps(t, OpenDeps{
 		SessionLister: lister,
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{}},
 		Zoxide:        &testZoxideQuerier{err: resolver.ErrNoMatch},
 		DirValidator:  &testDirValidator{existing: map[string]bool{}},
-	}
-	t.Cleanup(func() { openDeps = nil })
+	})
 
 	var gotFilter string
 	var gotCommand []string
@@ -2745,8 +2666,7 @@ func TestOpenCommand_CommandNoTarget_DashDash_OpensProjectsPicker(t *testing.T) 
 }
 
 func TestOpenCommand_Filter_ThreadsCommandToPicker(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
 	var gotFilter string
 	var gotCommand []string
@@ -2774,8 +2694,7 @@ func TestOpenCommand_Filter_ThreadsCommandToPicker(t *testing.T) {
 }
 
 func TestOpenCommand_Filter_ThreadsDashDashCommandToPicker(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
 	var gotFilter string
 	var gotCommand []string
@@ -3301,17 +3220,15 @@ func (c *countingSessionLister) ListSessionNames() ([]string, error) {
 }
 
 func TestOpenCommand_Ack_MalformedValue_UsageErrorBeforeTmux(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
 	lister := &countingSessionLister{names: []string{"dev"}}
-	openDeps = &OpenDeps{
+	withOpenDeps(t, OpenDeps{
 		SessionLister: lister,
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{}},
 		Zoxide:        &testZoxideQuerier{err: resolver.ErrNoMatch},
 		DirValidator:  &testDirValidator{existing: map[string]bool{}},
-	}
-	t.Cleanup(func() { openDeps = nil })
+	})
 
 	sessionCalled := false
 	origSession := openSessionFunc
@@ -3355,19 +3272,17 @@ func TestOpenCommand_Ack_MalformedValue_UsageErrorBeforeTmux(t *testing.T) {
 }
 
 func TestOpenCommand_Ack_MarkerWrittenBeforeSessionAttach(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
 	var order []string
 	ackWriter := &mockAckWriter{order: &order}
-	openDeps = &OpenDeps{
+	withOpenDeps(t, OpenDeps{
 		SessionLister: &testSessionLister{names: []string{"dev"}},
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{}},
 		Zoxide:        &testZoxideQuerier{err: resolver.ErrNoMatch},
 		DirValidator:  &testDirValidator{existing: map[string]bool{}},
 		AckWriter:     ackWriter,
-	}
-	t.Cleanup(func() { openDeps = nil })
+	})
 
 	var connectedTo string
 	origSession := openSessionFunc
@@ -3400,19 +3315,17 @@ func TestOpenCommand_Ack_MarkerWrittenBeforeSessionAttach(t *testing.T) {
 }
 
 func TestOpenCommand_Ack_MarkerWrittenBeforePathMint(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
 	var order []string
 	ackWriter := &mockAckWriter{order: &order}
-	openDeps = &OpenDeps{
+	withOpenDeps(t, OpenDeps{
 		SessionLister: &testSessionLister{},
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{}},
 		Zoxide:        &testZoxideQuerier{err: resolver.ErrNoMatch},
 		DirValidator:  &testDirValidator{existing: map[string]bool{}},
 		AckWriter:     ackWriter,
-	}
-	t.Cleanup(func() { openDeps = nil })
+	})
 
 	dir := t.TempDir()
 
@@ -3447,19 +3360,17 @@ func TestOpenCommand_Ack_MarkerWrittenBeforePathMint(t *testing.T) {
 }
 
 func TestOpenCommand_Ack_WriteFailureStillConnects(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
 	t.Run("session attach", func(t *testing.T) {
 		ackWriter := &mockAckWriter{err: fmt.Errorf("set-option failed")}
-		openDeps = &OpenDeps{
+		withOpenDeps(t, OpenDeps{
 			SessionLister: &testSessionLister{names: []string{"dev"}},
 			AliasLookup:   &testAliasLookup{aliases: map[string]string{}},
 			Zoxide:        &testZoxideQuerier{err: resolver.ErrNoMatch},
 			DirValidator:  &testDirValidator{existing: map[string]bool{}},
 			AckWriter:     ackWriter,
-		}
-		t.Cleanup(func() { openDeps = nil })
+		})
 
 		var connectedTo string
 		origSession := openSessionFunc
@@ -3485,14 +3396,13 @@ func TestOpenCommand_Ack_WriteFailureStillConnects(t *testing.T) {
 
 	t.Run("path mint", func(t *testing.T) {
 		ackWriter := &mockAckWriter{err: fmt.Errorf("set-option failed")}
-		openDeps = &OpenDeps{
+		withOpenDeps(t, OpenDeps{
 			SessionLister: &testSessionLister{},
 			AliasLookup:   &testAliasLookup{aliases: map[string]string{}},
 			Zoxide:        &testZoxideQuerier{err: resolver.ErrNoMatch},
 			DirValidator:  &testDirValidator{existing: map[string]bool{}},
 			AckWriter:     ackWriter,
-		}
-		t.Cleanup(func() { openDeps = nil })
+		})
 
 		dir := t.TempDir()
 
@@ -3520,18 +3430,16 @@ func TestOpenCommand_Ack_WriteFailureStillConnects(t *testing.T) {
 }
 
 func TestOpenCommand_Ack_CommandAttachGuardFiresBeforeWrite(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
 	ackWriter := &mockAckWriter{}
-	openDeps = &OpenDeps{
+	withOpenDeps(t, OpenDeps{
 		SessionLister: &testSessionLister{names: []string{"dev"}},
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{}},
 		Zoxide:        &testZoxideQuerier{err: resolver.ErrNoMatch},
 		DirValidator:  &testDirValidator{existing: map[string]bool{}},
 		AckWriter:     ackWriter,
-	}
-	t.Cleanup(func() { openDeps = nil })
+	})
 
 	origSession := openSessionFunc
 	openSessionFunc = func(_ *cobra.Command, _ string) error {

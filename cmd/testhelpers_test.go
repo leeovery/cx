@@ -39,6 +39,76 @@ func withoutHooksDeps(t *testing.T) {
 	t.Cleanup(func() { hooksDeps = nil })
 }
 
+// The seams below are staged the same way, for the same reason. Each is a
+// package-level pointer the production command body reads, so an install
+// without its paired restore outlives the test that made it and answers for
+// every later test in the package. Writing the install and the restore in one
+// place is what makes the pair impossible to separate at a call site.
+
+// withBootstrapDeps installs deps as the package-level bootstrap seam for the
+// rest of the test and registers the restore in the same breath.
+func withBootstrapDeps(t *testing.T, deps BootstrapDeps) {
+	t.Helper()
+	bootstrapDeps = &deps
+	t.Cleanup(func() { bootstrapDeps = nil })
+}
+
+// withOpenDeps installs deps as the package-level open seam for the rest of the
+// test and registers the restore in the same breath.
+func withOpenDeps(t *testing.T, deps OpenDeps) {
+	t.Helper()
+	openDeps = &deps
+	t.Cleanup(func() { openDeps = nil })
+}
+
+// withOpenBurstDeps installs deps as the package-level open-burst seam for the
+// rest of the test and registers the restore in the same breath.
+func withOpenBurstDeps(t *testing.T, deps OpenBurstDeps) {
+	t.Helper()
+	openBurstDeps = &deps
+	t.Cleanup(func() { openBurstDeps = nil })
+}
+
+// withDoctorDeps installs deps as the package-level doctor seam for the rest of
+// the test and registers the restore in the same breath.
+func withDoctorDeps(t *testing.T, deps DoctorDeps) {
+	t.Helper()
+	doctorDeps = &deps
+	t.Cleanup(func() { doctorDeps = nil })
+}
+
+// withKillDeps installs deps as the package-level kill seam for the rest of the
+// test and registers the restore in the same breath.
+func withKillDeps(t *testing.T, deps KillDeps) {
+	t.Helper()
+	killDeps = &deps
+	t.Cleanup(func() { killDeps = nil })
+}
+
+// withListDeps installs deps as the package-level list seam for the rest of the
+// test and registers the restore in the same breath.
+func withListDeps(t *testing.T, deps ListDeps) {
+	t.Helper()
+	listDeps = &deps
+	t.Cleanup(func() { listDeps = nil })
+}
+
+// withCommitNowDeps installs deps as the package-level commit-now seam for the
+// rest of the test and registers the restore in the same breath.
+func withCommitNowDeps(t *testing.T, deps CommitNowDeps) {
+	t.Helper()
+	commitNowDeps = &deps
+	t.Cleanup(func() { commitNowDeps = nil })
+}
+
+// withUninstallDeps installs deps as the package-level uninstall seam for the
+// rest of the test and registers the restore in the same breath.
+func withUninstallDeps(t *testing.T, deps UninstallDeps) {
+	t.Helper()
+	uninstallDeps = &deps
+	t.Cleanup(func() { uninstallDeps = nil })
+}
+
 // readFileBytes returns nil on ENOENT, so callers can distinguish "file absent"
 // from "file empty".
 func readFileBytes(t *testing.T, path string) []byte {

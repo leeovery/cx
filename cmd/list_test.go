@@ -17,8 +17,7 @@ func (m *mockSessionLister) ListSessions() ([]tmux.Session, error) {
 }
 
 func TestListCommand(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
 	t.Run("TTY output includes name status and window count", func(t *testing.T) {
 		lister := &mockSessionLister{
@@ -27,11 +26,10 @@ func TestListCommand(t *testing.T) {
 				{Name: "claude-lab", Windows: 1, Attached: false},
 			},
 		}
-		listDeps = &ListDeps{
+		withListDeps(t, ListDeps{
 			Lister: lister,
 			IsTTY:  func() bool { return true },
-		}
-		t.Cleanup(func() { listDeps = nil })
+		})
 
 		resetRootCmd()
 		buf := new(bytes.Buffer)
@@ -57,11 +55,10 @@ func TestListCommand(t *testing.T) {
 				{Name: "claude-lab", Windows: 1, Attached: false},
 			},
 		}
-		listDeps = &ListDeps{
+		withListDeps(t, ListDeps{
 			Lister: lister,
 			IsTTY:  func() bool { return false },
-		}
-		t.Cleanup(func() { listDeps = nil })
+		})
 
 		resetRootCmd()
 		buf := new(bytes.Buffer)
@@ -87,11 +84,10 @@ func TestListCommand(t *testing.T) {
 				{Name: "claude-lab", Windows: 1, Attached: false},
 			},
 		}
-		listDeps = &ListDeps{
+		withListDeps(t, ListDeps{
 			Lister: lister,
 			IsTTY:  func() bool { return true },
-		}
-		t.Cleanup(func() { listDeps = nil })
+		})
 
 		resetRootCmd()
 		buf := new(bytes.Buffer)
@@ -117,11 +113,10 @@ func TestListCommand(t *testing.T) {
 				{Name: "claude-lab", Windows: 1, Attached: false},
 			},
 		}
-		listDeps = &ListDeps{
+		withListDeps(t, ListDeps{
 			Lister: lister,
 			IsTTY:  func() bool { return false },
-		}
-		t.Cleanup(func() { listDeps = nil })
+		})
 
 		resetRootCmd()
 		buf := new(bytes.Buffer)
@@ -144,11 +139,10 @@ func TestListCommand(t *testing.T) {
 		lister := &mockSessionLister{
 			sessions: []tmux.Session{},
 		}
-		listDeps = &ListDeps{
+		withListDeps(t, ListDeps{
 			Lister: lister,
 			IsTTY:  func() bool { return true },
-		}
-		t.Cleanup(func() { listDeps = nil })
+		})
 
 		resetRootCmd()
 		buf := new(bytes.Buffer)
@@ -170,11 +164,10 @@ func TestListCommand(t *testing.T) {
 		lister := &mockSessionLister{
 			sessions: []tmux.Session{},
 		}
-		listDeps = &ListDeps{
+		withListDeps(t, ListDeps{
 			Lister: lister,
 			IsTTY:  func() bool { return true },
-		}
-		t.Cleanup(func() { listDeps = nil })
+		})
 
 		resetRootCmd()
 		buf := new(bytes.Buffer)
@@ -195,11 +188,10 @@ func TestListCommand(t *testing.T) {
 				{Name: "other-session", Windows: 1, Attached: false},
 			},
 		}
-		listDeps = &ListDeps{
+		withListDeps(t, ListDeps{
 			Lister: lister,
 			IsTTY:  func() bool { return true },
-		}
-		t.Cleanup(func() { listDeps = nil })
+		})
 
 		t.Setenv("TMUX", "/tmp/tmux-501/default,12345,0")
 
@@ -228,11 +220,10 @@ func TestListCommand(t *testing.T) {
 				{Name: "many-win", Windows: 10, Attached: true},
 			},
 		}
-		listDeps = &ListDeps{
+		withListDeps(t, ListDeps{
 			Lister: lister,
 			IsTTY:  func() bool { return true },
-		}
-		t.Cleanup(func() { listDeps = nil })
+		})
 
 		resetRootCmd()
 		buf := new(bytes.Buffer)
@@ -257,11 +248,10 @@ func TestListCommand(t *testing.T) {
 				{Name: "test", Windows: 1, Attached: false},
 			},
 		}
-		listDeps = &ListDeps{
+		withListDeps(t, ListDeps{
 			Lister: lister,
 			IsTTY:  func() bool { return true },
-		}
-		t.Cleanup(func() { listDeps = nil })
+		})
 
 		resetRootCmd()
 		buf := new(bytes.Buffer)

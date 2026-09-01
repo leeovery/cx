@@ -80,11 +80,10 @@ func notSatisfiedLatchClient() *tmux.Client {
 
 func installMockList(t *testing.T) {
 	t.Helper()
-	listDeps = &ListDeps{
+	withListDeps(t, ListDeps{
 		Lister: &mockSessionLister{sessions: []tmux.Session{}},
 		IsTTY:  func() bool { return false },
-	}
-	t.Cleanup(func() { listDeps = nil })
+	})
 }
 
 func TestPersistentPreRunE_FullBootstrap_WhenNotSatisfied(t *testing.T) {
@@ -132,8 +131,7 @@ func TestPersistentPreRunE_FullBootstrap_WhenNotSatisfied(t *testing.T) {
 				},
 			})
 			runner := &recordingRunner{started: false}
-			bootstrapDeps = &BootstrapDeps{Orchestrator: runner, Client: client}
-			t.Cleanup(func() { bootstrapDeps = nil })
+			withBootstrapDeps(t, BootstrapDeps{Orchestrator: runner, Client: client})
 
 			installMockList(t)
 
@@ -158,8 +156,7 @@ func TestPersistentPreRunE_Abridged_EmitsWarningsToStderrOnCLIPath(t *testing.T)
 
 	client := tmux.NewClient(satisfiedLatchSaverAbsentCommander())
 	runner := &recordingRunner{started: false}
-	bootstrapDeps = &BootstrapDeps{Orchestrator: runner, Client: client}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: runner, Client: client})
 
 	installMockList(t)
 
@@ -190,8 +187,7 @@ func TestPersistentPreRunE_Abridged_LeavesWarningsForOpenTUIOnTUIPath(t *testing
 
 	client := tmux.NewClient(satisfiedLatchSaverAbsentCommander())
 	runner := &recordingRunner{started: false}
-	bootstrapDeps = &BootstrapDeps{Orchestrator: runner, Client: client}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: runner, Client: client})
 
 	var pendingAtOpenTUI []bootstrap.Warning
 	origFunc := openTUIFunc
@@ -224,12 +220,10 @@ func TestPersistentPreRunE_Abridged_OpenSessionTakesAbridgedPath(t *testing.T) {
 
 	client := tmux.NewClient(satisfiedLatchAliveSaverCommander())
 	runner := &recordingRunner{started: false}
-	bootstrapDeps = &BootstrapDeps{Orchestrator: runner, Client: client}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: runner, Client: client})
 
 	connector := &mockSessionConnector{}
-	openDeps = &OpenDeps{SessionLister: &testSessionLister{names: []string{"proj-abc123"}}}
-	t.Cleanup(func() { openDeps = nil })
+	withOpenDeps(t, OpenDeps{SessionLister: &testSessionLister{names: []string{"proj-abc123"}}})
 
 	origSession := openSessionFunc
 	openSessionFunc = func(_ *cobra.Command, name string) error { return connector.Connect(name) }

@@ -80,9 +80,7 @@ func callIndex(calls [][]string, op, targetSubstr string) int {
 
 func installUninstallDeps(t *testing.T, deps *UninstallDeps) {
 	t.Helper()
-	prev := uninstallDeps
-	uninstallDeps = deps
-	t.Cleanup(func() { uninstallDeps = prev })
+	withUninstallDeps(t, *deps)
 }
 
 func runUninstall(t *testing.T, args ...string) (*bytes.Buffer, *bytes.Buffer, error) {
@@ -470,8 +468,7 @@ func TestUninstall_LogsInfoWhenSaverKilledSuccessfully(t *testing.T) {
 }
 
 func TestUninstall_DoesNotInvokeBootstrap(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: panicRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: panicRunner{}})
 
 	cmder := &recordingCommander{
 		RunFunc: func(args ...string) (string, error) {

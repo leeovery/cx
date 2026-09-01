@@ -15,8 +15,7 @@ func TestThemeFatal_TravelsExecuteUnaltered(t *testing.T) {
 	resetBootstrapOnce(t)
 
 	fatal := theme.BrokenBuiltinError(theme.DefaultDarkSlug)
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &errRunner{err: fatal}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &errRunner{err: fatal}})
 
 	var fatalStream bytes.Buffer
 	originalWriter := fatalErrorStderr

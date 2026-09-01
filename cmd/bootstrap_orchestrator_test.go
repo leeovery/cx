@@ -26,14 +26,12 @@ func TestPersistentPreRunE_OrchestratorMemoisedAcrossInvocations(t *testing.T) {
 	resetBootstrapOnce(t)
 
 	runner := &recordingRunner{started: true}
-	bootstrapDeps = &BootstrapDeps{Orchestrator: runner, ForceMemoise: true}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: runner, ForceMemoise: true})
 
-	listDeps = &ListDeps{
+	withListDeps(t, ListDeps{
 		Lister: &mockSessionLister{sessions: []tmux.Session{}},
 		IsTTY:  func() bool { return false },
-	}
-	t.Cleanup(func() { listDeps = nil })
+	})
 
 	for i := range 3 {
 		resetRootCmd()
@@ -53,8 +51,7 @@ func TestPersistentPreRunE_PopulatesServerStartedFromOrchestrator(t *testing.T) 
 		resetBootstrapOnce(t)
 
 		runner := &recordingRunner{started: true}
-		bootstrapDeps = &BootstrapDeps{Orchestrator: runner}
-		t.Cleanup(func() { bootstrapDeps = nil })
+		withBootstrapDeps(t, BootstrapDeps{Orchestrator: runner})
 
 		var got bool
 		var ran bool
@@ -86,8 +83,7 @@ func TestPersistentPreRunE_PopulatesServerStartedFromOrchestrator(t *testing.T) 
 		resetBootstrapOnce(t)
 
 		runner := &recordingRunner{started: false}
-		bootstrapDeps = &BootstrapDeps{Orchestrator: runner}
-		t.Cleanup(func() { bootstrapDeps = nil })
+		withBootstrapDeps(t, BootstrapDeps{Orchestrator: runner})
 
 		var got bool
 		var ran bool
@@ -121,8 +117,7 @@ func TestPersistentPreRunE_OrchestratorErrorPropagatesAndContextNotPopulated(t *
 
 	sentinel := errors.New("orchestrator boom")
 	runner := &recordingRunner{started: true, err: sentinel}
-	bootstrapDeps = &BootstrapDeps{Orchestrator: runner}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: runner})
 
 	probeRan := false
 	probe := &cobra.Command{
@@ -164,8 +159,7 @@ func TestPersistentPreRunE_DoesNotInvokeOrchestratorForExemptCommands(t *testing
 			resetBootstrapOnce(t)
 
 			runner := &recordingRunner{}
-			bootstrapDeps = &BootstrapDeps{Orchestrator: runner}
-			t.Cleanup(func() { bootstrapDeps = nil })
+			withBootstrapDeps(t, BootstrapDeps{Orchestrator: runner})
 
 			resetRootCmd()
 			resetStateCmdFlags()

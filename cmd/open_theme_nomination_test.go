@@ -78,15 +78,13 @@ func TestOpenExecPath_DoesNoThemeWork(t *testing.T) {
 func execOpenSession(t *testing.T, name string) string {
 	t.Helper()
 
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
-	openDeps = &OpenDeps{
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
+	withOpenDeps(t, OpenDeps{
 		SessionLister: &testSessionLister{names: []string{name}},
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{}},
 		Zoxide:        &testZoxideQuerier{err: resolver.ErrNoMatch},
 		DirValidator:  &testDirValidator{existing: map[string]bool{}},
-	}
-	t.Cleanup(func() { openDeps = nil })
+	})
 
 	var attached string
 	previous := openSessionFunc

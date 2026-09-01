@@ -147,18 +147,16 @@ func TestReattachIntegration_SteadyStateReattachZeroStructuralRewrites(t *testin
 	restoretest.SeedSessionsJSONWithSavedAt(t, stateDir, preRunSavedAt, "alpha")
 
 	connector := &mockSessionConnector{}
-	openDeps = &OpenDeps{SessionLister: client}
-	t.Cleanup(func() { openDeps = nil })
+	withOpenDeps(t, OpenDeps{SessionLister: client})
 
 	origSession := openSessionFunc
 	openSessionFunc = func(_ *cobra.Command, name string) error { return connector.Connect(name) }
 	t.Cleanup(func() { openSessionFunc = origSession })
 
-	bootstrapDeps = &BootstrapDeps{
+	withBootstrapDeps(t, BootstrapDeps{
 		Orchestrator: buildReattachOrchestrator(t, client, stateDir),
 		Client:       client,
-	}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "--session", "alpha"})
@@ -218,18 +216,16 @@ func TestReattachIntegration_HasSessionPostBootstrapForSavedNames(t *testing.T) 
 	}
 
 	connector := &mockSessionConnector{}
-	openDeps = &OpenDeps{SessionLister: client}
-	t.Cleanup(func() { openDeps = nil })
+	withOpenDeps(t, OpenDeps{SessionLister: client})
 
 	origSession := openSessionFunc
 	openSessionFunc = func(_ *cobra.Command, name string) error { return connector.Connect(name) }
 	t.Cleanup(func() { openSessionFunc = origSession })
 
-	bootstrapDeps = &BootstrapDeps{
+	withBootstrapDeps(t, BootstrapDeps{
 		Orchestrator: buildReattachOrchestrator(t, client, stateDir),
 		Client:       client,
-	}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "--session", "ghost-foo"})
@@ -269,18 +265,16 @@ func TestReattachIntegration_AttachInsideTmuxSwitchClientPath(t *testing.T) {
 	switcher := &mockSwitchClient{}
 	connector := &SwitchConnector{client: switcher}
 
-	openDeps = &OpenDeps{SessionLister: client}
-	t.Cleanup(func() { openDeps = nil })
+	withOpenDeps(t, OpenDeps{SessionLister: client})
 
 	origSession := openSessionFunc
 	openSessionFunc = func(_ *cobra.Command, name string) error { return connector.Connect(name) }
 	t.Cleanup(func() { openSessionFunc = origSession })
 
-	bootstrapDeps = &BootstrapDeps{
+	withBootstrapDeps(t, BootstrapDeps{
 		Orchestrator: buildReattachOrchestrator(t, client, stateDir),
 		Client:       client,
-	}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "--session", "switched-foo"})
@@ -312,18 +306,16 @@ func TestReattachIntegration_AttachOutsideTmuxAttachSessionPath(t *testing.T) {
 	// Stands in for AttachConnector, whose Connect calls syscall.Exec and would
 	// replace the test process.
 	connector := &mockSessionConnector{}
-	openDeps = &OpenDeps{SessionLister: client}
-	t.Cleanup(func() { openDeps = nil })
+	withOpenDeps(t, OpenDeps{SessionLister: client})
 
 	origSession := openSessionFunc
 	openSessionFunc = func(_ *cobra.Command, name string) error { return connector.Connect(name) }
 	t.Cleanup(func() { openSessionFunc = origSession })
 
-	bootstrapDeps = &BootstrapDeps{
+	withBootstrapDeps(t, BootstrapDeps{
 		Orchestrator: buildReattachOrchestrator(t, client, stateDir),
 		Client:       client,
-	}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "--session", "attached-foo"})
@@ -351,18 +343,16 @@ func TestReattachIntegration_UnknownNameNotFoundError(t *testing.T) {
 	// No sessions.json at all — the simplest "neither live nor saved" world.
 
 	connector := &mockSessionConnector{}
-	openDeps = &OpenDeps{SessionLister: client}
-	t.Cleanup(func() { openDeps = nil })
+	withOpenDeps(t, OpenDeps{SessionLister: client})
 
 	origSession := openSessionFunc
 	openSessionFunc = func(_ *cobra.Command, name string) error { return connector.Connect(name) }
 	t.Cleanup(func() { openSessionFunc = origSession })
 
-	bootstrapDeps = &BootstrapDeps{
+	withBootstrapDeps(t, BootstrapDeps{
 		Orchestrator: buildReattachOrchestrator(t, client, stateDir),
 		Client:       client,
-	}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "--session", "nope-not-here"})
@@ -391,11 +381,10 @@ func TestReattachIntegration_OpenLaunchesTUIAfterRestoredSkeleton(t *testing.T) 
 
 	restoretest.SeedSessionsJSON(t, stateDir, "tui-ghost")
 
-	bootstrapDeps = &BootstrapDeps{
+	withBootstrapDeps(t, BootstrapDeps{
 		Orchestrator: buildReattachOrchestrator(t, client, stateDir),
 		Client:       client,
-	}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	})
 
 	// Warm-but-unlatched means the bootstrap is deferred to openTUI, so this
 	// stub must drive the deferred runner itself or restore step 6 never runs.
@@ -451,21 +440,19 @@ func TestReattachIntegration_OpenPathResolvesSavedOnlySession(t *testing.T) {
 		t.Fatalf("%s unexpectedly live before bootstrap", savedSession)
 	}
 
-	openDeps = &OpenDeps{
+	withOpenDeps(t, OpenDeps{
 		// "mysaved" is not a live session, so the session-domain pre-check
 		// misses and resolution falls through to the alias chain.
 		SessionLister: client,
 		AliasLookup:   &testAliasLookup{aliases: map[string]string{"mysaved": projectDir}},
 		Zoxide:        &testZoxideQuerier{err: resolver.ErrNoMatch},
 		DirValidator:  &resolver.OSDirValidator{},
-	}
-	t.Cleanup(func() { openDeps = nil })
+	})
 
-	bootstrapDeps = &BootstrapDeps{
+	withBootstrapDeps(t, BootstrapDeps{
 		Orchestrator: buildReattachOrchestrator(t, client, stateDir),
 		Client:       client,
-	}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	})
 
 	// Substitutes for openPath, which would call tmux switch-client (needs a
 	// live attached client) or syscall.Exec (would replace the test process).

@@ -203,13 +203,11 @@ func TestTmuxDependentCommandsSucceedWithTmux(t *testing.T) {
 			// bootstrap against the developer's real tmux server.
 			stub := &stubVersionChecker{}
 			installStubVersionChecker(t, stub)
-			bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-			t.Cleanup(func() { bootstrapDeps = nil })
-			listDeps = &ListDeps{
+			withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
+			withListDeps(t, ListDeps{
 				Lister: &mockSessionLister{sessions: []tmux.Session{}},
 				IsTTY:  func() bool { return false },
-			}
-			t.Cleanup(func() { listDeps = nil })
+			})
 
 			resetRootCmd()
 			rootCmd.SetArgs(tt.args)
@@ -245,14 +243,12 @@ func (r *errRunner) Run(_ context.Context) (bool, []bootstrap.Warning, error) {
 func TestPersistentPreRunE_CallsEnsureServer(t *testing.T) {
 	t.Run("orchestrator Run called for tmux-requiring commands", func(t *testing.T) {
 		runner := &recordingRunner{}
-		bootstrapDeps = &BootstrapDeps{Orchestrator: runner}
-		t.Cleanup(func() { bootstrapDeps = nil })
+		withBootstrapDeps(t, BootstrapDeps{Orchestrator: runner})
 
-		listDeps = &ListDeps{
+		withListDeps(t, ListDeps{
 			Lister: &mockSessionLister{sessions: []tmux.Session{}},
 			IsTTY:  func() bool { return false },
-		}
-		t.Cleanup(func() { listDeps = nil })
+		})
 
 		resetRootCmd()
 		rootCmd.SetArgs([]string{"list"})
@@ -268,8 +264,7 @@ func TestPersistentPreRunE_CallsEnsureServer(t *testing.T) {
 
 	t.Run("orchestrator error propagates to caller", func(t *testing.T) {
 		runner := &recordingRunner{err: fmt.Errorf("failed to start tmux server: permission denied")}
-		bootstrapDeps = &BootstrapDeps{Orchestrator: runner}
-		t.Cleanup(func() { bootstrapDeps = nil })
+		withBootstrapDeps(t, BootstrapDeps{Orchestrator: runner})
 
 		resetRootCmd()
 		rootCmd.SetArgs([]string{"list"})
@@ -307,8 +302,7 @@ func TestPersistentPreRunE_CallsEnsureServer(t *testing.T) {
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				runner := &recordingRunner{}
-				bootstrapDeps = &BootstrapDeps{Orchestrator: runner}
-				t.Cleanup(func() { bootstrapDeps = nil })
+				withBootstrapDeps(t, BootstrapDeps{Orchestrator: runner})
 
 				// Without these the command reaches real tmux and the
 				// developer's config dir.
@@ -352,8 +346,7 @@ func TestPersistentPreRunE_CallsEnsureServer(t *testing.T) {
 
 	t.Run("PersistentPreRunE stores serverStarted=true in context", func(t *testing.T) {
 		runner := &recordingRunner{started: true}
-		bootstrapDeps = &BootstrapDeps{Orchestrator: runner}
-		t.Cleanup(func() { bootstrapDeps = nil })
+		withBootstrapDeps(t, BootstrapDeps{Orchestrator: runner})
 
 		var gotStarted bool
 		testCmd := &cobra.Command{
@@ -380,8 +373,7 @@ func TestPersistentPreRunE_CallsEnsureServer(t *testing.T) {
 
 	t.Run("PersistentPreRunE stores serverStarted=false in context", func(t *testing.T) {
 		runner := &recordingRunner{started: false}
-		bootstrapDeps = &BootstrapDeps{Orchestrator: runner}
-		t.Cleanup(func() { bootstrapDeps = nil })
+		withBootstrapDeps(t, BootstrapDeps{Orchestrator: runner})
 
 		var gotStarted bool
 		var runCalled bool
@@ -439,18 +431,16 @@ func TestPersistentPreRunE_RegistersPortalHooks(t *testing.T) {
 		client := notSatisfiedLatchClient()
 		registrar := &recordingHookRegistrar{want: client}
 
-		bootstrapDeps = &BootstrapDeps{
+		withBootstrapDeps(t, BootstrapDeps{
 			Orchestrator:  runner,
 			Client:        client,
 			RegisterHooks: registrar.Register,
-		}
-		t.Cleanup(func() { bootstrapDeps = nil })
+		})
 
-		listDeps = &ListDeps{
+		withListDeps(t, ListDeps{
 			Lister: &mockSessionLister{sessions: []tmux.Session{}},
 			IsTTY:  func() bool { return false },
-		}
-		t.Cleanup(func() { listDeps = nil })
+		})
 
 		resetRootCmd()
 		rootCmd.SetArgs([]string{"list"})
@@ -483,11 +473,10 @@ func TestPersistentPreRunE_RegistersPortalHooks(t *testing.T) {
 		for _, tt := range exempt {
 			t.Run(tt.name, func(t *testing.T) {
 				registrar := &recordingHookRegistrar{}
-				bootstrapDeps = &BootstrapDeps{
+				withBootstrapDeps(t, BootstrapDeps{
 					Orchestrator:  &nopRunner{},
 					RegisterHooks: registrar.Register,
-				}
-				t.Cleanup(func() { bootstrapDeps = nil })
+				})
 
 				resetRootCmd()
 				resetStateCmdFlags()
@@ -511,18 +500,16 @@ func TestPersistentPreRunE_RegistersPortalHooks(t *testing.T) {
 		client := notSatisfiedLatchClient()
 		registrar := &recordingHookRegistrar{err: sentinel}
 
-		bootstrapDeps = &BootstrapDeps{
+		withBootstrapDeps(t, BootstrapDeps{
 			Orchestrator:  &nopRunner{},
 			Client:        client,
 			RegisterHooks: registrar.Register,
-		}
-		t.Cleanup(func() { bootstrapDeps = nil })
+		})
 
-		listDeps = &ListDeps{
+		withListDeps(t, ListDeps{
 			Lister: &mockSessionLister{sessions: []tmux.Session{}},
 			IsTTY:  func() bool { return false },
-		}
-		t.Cleanup(func() { listDeps = nil })
+		})
 
 		resetRootCmd()
 		rootCmd.SetArgs([]string{"list"})
@@ -578,8 +565,7 @@ func TestPersistentPreRunE_WrapsVersionCheckErrorAsFatal(t *testing.T) {
 	}
 	t.Cleanup(func() { versionChecker = original })
 
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"list"})
@@ -604,8 +590,7 @@ func TestPersistentPreRunE_OrchestratorFatalErrorPropagatesUnwrapped(t *testing.
 	cause := errors.New("hooks boom")
 	want := "Portal failed to register tmux hooks: hooks boom"
 	runner := &fatalRunner{fatal: bootstrap.NewFatal(want, cause)}
-	bootstrapDeps = &BootstrapDeps{Orchestrator: runner}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: runner})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"list"})
@@ -631,8 +616,7 @@ func TestExecute_EmitsFatalUserMessageToStderr(t *testing.T) {
 
 	want := "Portal failed to register tmux hooks: synthetic"
 	runner := &fatalRunner{fatal: bootstrap.NewFatal(want, errors.New("synthetic"))}
-	bootstrapDeps = &BootstrapDeps{Orchestrator: runner}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: runner})
 
 	var stderr bytes.Buffer
 	originalWriter := fatalErrorStderr
@@ -665,8 +649,7 @@ func TestExecute_NonFatalErrorWritesNothingToFatalStream(t *testing.T) {
 
 	// errRunner returns its error unwrapped, so nothing here is a FatalError.
 	runner := &errRunner{err: errors.New("transient")}
-	bootstrapDeps = &BootstrapDeps{Orchestrator: runner}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: runner})
 
 	var stderr bytes.Buffer
 	originalWriter := fatalErrorStderr

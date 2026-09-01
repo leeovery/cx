@@ -37,8 +37,7 @@ func TestVersionGuard_InvokedForNonExemptOpen(t *testing.T) {
 
 	// A client must be in context: open's session-domain pre-check reaches for it
 	// before path resolution runs.
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}, Client: tmux.NewClient(&stubCommander{})}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}, Client: tmux.NewClient(&stubCommander{})})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "/nonexistent/path/that/does/not/exist"})
@@ -61,19 +60,17 @@ func TestVersionGuard_InvokedForOtherNonExemptCommands(t *testing.T) {
 			name: "portal list",
 			args: []string{"list"},
 			setup: func(t *testing.T) {
-				listDeps = &ListDeps{
+				withListDeps(t, ListDeps{
 					Lister: &mockSessionLister{sessions: []tmux.Session{}},
 					IsTTY:  func() bool { return false },
-				}
-				t.Cleanup(func() { listDeps = nil })
+				})
 			},
 		},
 		{
 			name: "portal open --session",
 			args: []string{"open", "--session", "my-session"},
 			setup: func(t *testing.T) {
-				openDeps = &OpenDeps{SessionLister: &testSessionLister{names: []string{"my-session"}}}
-				t.Cleanup(func() { openDeps = nil })
+				withOpenDeps(t, OpenDeps{SessionLister: &testSessionLister{names: []string{"my-session"}}})
 
 				// A no-op so no real connector fires.
 				origSession := openSessionFunc
@@ -85,11 +82,10 @@ func TestVersionGuard_InvokedForOtherNonExemptCommands(t *testing.T) {
 			name: "portal kill",
 			args: []string{"kill", "my-session"},
 			setup: func(t *testing.T) {
-				killDeps = &KillDeps{
+				withKillDeps(t, KillDeps{
 					Killer:    &mockSessionKiller{},
 					Validator: &mockSessionValidator{sessions: map[string]bool{"my-session": true}},
-				}
-				t.Cleanup(func() { killDeps = nil })
+				})
 			},
 		},
 	}
@@ -99,8 +95,7 @@ func TestVersionGuard_InvokedForOtherNonExemptCommands(t *testing.T) {
 			stub := &stubVersionChecker{}
 			installStubVersionChecker(t, stub)
 
-			bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-			t.Cleanup(func() { bootstrapDeps = nil })
+			withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
 			tt.setup(t)
 
@@ -179,14 +174,12 @@ func TestVersionGuard_RunsExactlyOnceAcrossRepeatedInvocations(t *testing.T) {
 	stub := &stubVersionChecker{}
 	installStubVersionChecker(t, stub)
 
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
-	listDeps = &ListDeps{
+	withListDeps(t, ListDeps{
 		Lister: &mockSessionLister{sessions: []tmux.Session{}},
 		IsTTY:  func() bool { return false },
-	}
-	t.Cleanup(func() { listDeps = nil })
+	})
 
 	for i := range 3 {
 		resetRootCmd()
@@ -205,8 +198,7 @@ func TestVersionGuard_ShortCircuitsBootstrapOnFailure(t *testing.T) {
 	stub := &stubVersionChecker{err: errors.New("Portal requires tmux \u2265 3.0 (found 2.9). Please upgrade.")}
 	installStubVersionChecker(t, stub)
 
-	bootstrapDeps = &BootstrapDeps{Orchestrator: panicRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: panicRunner{}})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"list"})
@@ -231,8 +223,7 @@ func TestVersionGuard_PropagatesExactCheckerError(t *testing.T) {
 	stub := &stubVersionChecker{err: errors.New(wantMsg)}
 	installStubVersionChecker(t, stub)
 
-	bootstrapDeps = &BootstrapDeps{Orchestrator: panicRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: panicRunner{}})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"list"})

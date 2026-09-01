@@ -24,8 +24,7 @@ func TestPersistentPreRunE_ColdTUI_DefersBootstrap(t *testing.T) {
 
 	client := tmux.NewClient(coldCommander())
 	runner := &recordingRunner{started: true}
-	bootstrapDeps = &BootstrapDeps{Orchestrator: runner, Client: client}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: runner, Client: client})
 
 	var deferredSeen bool
 	origFunc := openTUIFunc
@@ -55,8 +54,7 @@ func TestPersistentPreRunE_LatchedTUI_TakesAbridgedPath(t *testing.T) {
 
 	client := tmux.NewClient(satisfiedLatchAliveSaverCommander())
 	runner := &recordingRunner{started: false}
-	bootstrapDeps = &BootstrapDeps{Orchestrator: runner, Client: client}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: runner, Client: client})
 
 	var deferredSeen bool
 	var serverStarted bool
@@ -90,14 +88,12 @@ func TestPersistentPreRunE_ColdCLI_RunsSynchronously(t *testing.T) {
 
 	client := tmux.NewClient(coldCommander())
 	runner := &recordingRunner{started: true}
-	bootstrapDeps = &BootstrapDeps{Orchestrator: runner, Client: client}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: runner, Client: client})
 
-	listDeps = &ListDeps{
+	withListDeps(t, ListDeps{
 		Lister: &mockSessionLister{sessions: []tmux.Session{}},
 		IsTTY:  func() bool { return false },
-	}
-	t.Cleanup(func() { listDeps = nil })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"list"})

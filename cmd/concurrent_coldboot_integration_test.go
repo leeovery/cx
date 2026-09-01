@@ -398,8 +398,7 @@ func TestConcurrentColdBoot_WarmUnlatchedOpen_TakesConcurrentDeferredRoute(t *te
 	resetBootstrapWarnings(t)
 
 	runner := &recordingRunner{started: true}
-	bootstrapDeps = &BootstrapDeps{Orchestrator: runner, Client: client}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: runner, Client: client})
 
 	var deferredSeen bool
 	origFunc := openTUIFunc

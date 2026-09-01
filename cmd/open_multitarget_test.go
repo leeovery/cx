@@ -21,11 +21,9 @@ type burstCapture struct {
 func installOpenMultiTargetSeams(t *testing.T, deps *OpenDeps, rawArgs []string) *burstCapture {
 	t.Helper()
 
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
-	openDeps = deps
-	t.Cleanup(func() { openDeps = nil })
+	withOpenDeps(t, *deps)
 
 	bc := &burstCapture{}
 

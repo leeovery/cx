@@ -18,7 +18,7 @@ go test -tags integration ./cmd -run TestCommitNowSymptom   # run single integra
 
 Lint via `golangci-lint run` (config in `.golangci.yml`: the standard set plus the `modernize` linter). The config sets the `integration` build tag and uncaps both issue limits, so one bare invocation covers the integration-tagged files too and reports every finding — there is no second `--build-tags integration` run to remember. What it cannot see is a file gated `//go:build !integration`, which that tag swaps out of the build. Not wired into CI — it's run locally / from the Mint release step. No code generation.
 
-Tests **must not** use `t.Parallel()` — the cmd package injects mocks via package-level mutable state (`bootstrapDeps`, `openDeps`, `doctorDeps`, etc.) and cleans up with `t.Cleanup()`.
+Tests **must not** use `t.Parallel()` — the cmd package injects mocks via package-level mutable state (`bootstrapDeps`, `openDeps`, `doctorDeps`, etc.), staged through the `withXDeps` helpers in `cmd/testhelpers_test.go`, which register their own `t.Cleanup` restore.
 
 ### Visual capture harness
 
@@ -102,7 +102,7 @@ All logging flows through `internal/log` — bind a component logger once per pa
 
 ### DI / testing pattern
 
-All external dependencies use small interfaces (1-3 methods). Commands expose package-level `*Deps` structs (e.g., `bootstrapDeps`, `openDeps`, `hooksDeps`) — tests set these to mock implementations and restore via `t.Cleanup()`. A test that Executes a real command body MUST inject every tmux-touching `*Deps` seam (see the tmux boundary bullet under "Test isolation" — cmd's `TestMain` poisons `TMUX` and the `PORTAL_*` paths package-wide so a missed injection fails loudly). Integration-tagged tests that exec the built binary (e.g. `cmd/root_integration_test.go`, the commit-now suite) build it via `portalbintest` (never a hand-rolled `go build` — the `-tags integration` sandbox must not be dropped) and drive it as a subprocess.
+All external dependencies use small interfaces (1-3 methods). Commands expose package-level `*Deps` structs (e.g., `bootstrapDeps`, `openDeps`, `hooksDeps`) — tests install mocks through the `withXDeps(t, deps)` staging helpers in `cmd/testhelpers_test.go`, each of which registers its own restore in the same breath — a source guard (`cmd/deps_seam_guard_test.go`) fails any `*_test.go` assigning a seam pointer directly, and derives the guarded set from the production `var xDeps *XDeps` declarations so a new seam is covered the day it appears. A test that Executes a real command body MUST inject every tmux-touching `*Deps` seam (see the tmux boundary bullet under "Test isolation" — cmd's `TestMain` poisons `TMUX` and the `PORTAL_*` paths package-wide so a missed injection fails loudly). Integration-tagged tests that exec the built binary (e.g. `cmd/root_integration_test.go`, the commit-now suite) build it via `portalbintest` (never a hand-rolled `go build` — the `-tags integration` sandbox must not be dropped) and drive it as a subprocess.
 
 #### Test isolation for daemon-spawning tests
 

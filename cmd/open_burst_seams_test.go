@@ -30,12 +30,11 @@ func TestBuildOpenBurstDeps_PartialInjectionKeepsInjectedFillsRest(t *testing.T)
 		}
 		injectedLogger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-		openBurstDeps = &OpenBurstDeps{
+		withOpenBurstDeps(t, OpenBurstDeps{
 			Resolve:   injectedResolve,
 			LocalMint: injectedMint,
 			Logger:    injectedLogger,
-		}
-		t.Cleanup(func() { openBurstDeps = nil })
+		})
 
 		// Records rather than executing the real openPath side effect, so an
 		// overwritten LocalMint surfaces as a recorded call instead of a real open.
@@ -97,10 +96,9 @@ func TestBuildOpenBurstDeps_PartialInjectionKeepsInjectedFillsRest(t *testing.T)
 		cmd := cmdWithClient(client)
 
 		// LocalMint deliberately absent so it takes the production default.
-		openBurstDeps = &OpenBurstDeps{
+		withOpenBurstDeps(t, OpenBurstDeps{
 			Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
-		}
-		t.Cleanup(func() { openBurstDeps = nil })
+		})
 
 		origOpenPath := openPathFunc
 		openPathRouted := false

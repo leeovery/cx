@@ -16,17 +16,15 @@ func (m *mockSessionKiller) KillSession(name string) error {
 }
 
 func TestKillCommand(t *testing.T) {
-	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-	t.Cleanup(func() { bootstrapDeps = nil })
+	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
 	t.Run("existing session calls kill-session and exits 0", func(t *testing.T) {
 		killer := &mockSessionKiller{}
 		validator := &mockSessionValidator{sessions: map[string]bool{"my-session": true}}
-		killDeps = &KillDeps{
+		withKillDeps(t, KillDeps{
 			Killer:    killer,
 			Validator: validator,
-		}
-		t.Cleanup(func() { killDeps = nil })
+		})
 
 		resetRootCmd()
 		rootCmd.SetArgs([]string{"kill", "my-session"})
@@ -44,11 +42,10 @@ func TestKillCommand(t *testing.T) {
 	t.Run("non-existent session prints error and exits 1", func(t *testing.T) {
 		killer := &mockSessionKiller{}
 		validator := &mockSessionValidator{sessions: map[string]bool{}}
-		killDeps = &KillDeps{
+		withKillDeps(t, KillDeps{
 			Killer:    killer,
 			Validator: validator,
-		}
-		t.Cleanup(func() { killDeps = nil })
+		})
 
 		resetRootCmd()
 		rootCmd.SetArgs([]string{"kill", "nonexistent"})
@@ -72,11 +69,10 @@ func TestKillCommand(t *testing.T) {
 	t.Run("uses exact name match", func(t *testing.T) {
 		killer := &mockSessionKiller{}
 		validator := &mockSessionValidator{sessions: map[string]bool{"my-session-abc123": true}}
-		killDeps = &KillDeps{
+		withKillDeps(t, KillDeps{
 			Killer:    killer,
 			Validator: validator,
-		}
-		t.Cleanup(func() { killDeps = nil })
+		})
 
 		resetRootCmd()
 		rootCmd.SetArgs([]string{"kill", "my-session"})
@@ -100,11 +96,10 @@ func TestKillCommand(t *testing.T) {
 	t.Run("no confirmation prompt in CLI mode", func(t *testing.T) {
 		killer := &mockSessionKiller{}
 		validator := &mockSessionValidator{sessions: map[string]bool{"target": true}}
-		killDeps = &KillDeps{
+		withKillDeps(t, KillDeps{
 			Killer:    killer,
 			Validator: validator,
-		}
-		t.Cleanup(func() { killDeps = nil })
+		})
 
 		resetRootCmd()
 		rootCmd.SetArgs([]string{"kill", "target"})
@@ -124,11 +119,10 @@ func TestKillCommand(t *testing.T) {
 
 		killer := &mockSessionKiller{}
 		validator := &mockSessionValidator{sessions: map[string]bool{"current-session": true}}
-		killDeps = &KillDeps{
+		withKillDeps(t, KillDeps{
 			Killer:    killer,
 			Validator: validator,
-		}
-		t.Cleanup(func() { killDeps = nil })
+		})
 
 		resetRootCmd()
 		rootCmd.SetArgs([]string{"kill", "current-session"})
@@ -146,11 +140,10 @@ func TestKillCommand(t *testing.T) {
 	t.Run("kill-session failure returns error", func(t *testing.T) {
 		killer := &mockSessionKiller{err: fmt.Errorf("failed to kill tmux session \"my-session\": exit status 1")}
 		validator := &mockSessionValidator{sessions: map[string]bool{"my-session": true}}
-		killDeps = &KillDeps{
+		withKillDeps(t, KillDeps{
 			Killer:    killer,
 			Validator: validator,
-		}
-		t.Cleanup(func() { killDeps = nil })
+		})
 
 		resetRootCmd()
 		rootCmd.SetArgs([]string{"kill", "my-session"})

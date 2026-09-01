@@ -22,8 +22,7 @@ func TestHooksListCommand(t *testing.T) {
 
 		// Stub bootstrap so the real orchestrator never runs against the test's
 		// tmux server.
-		bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-		t.Cleanup(func() { bootstrapDeps = nil })
+		withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
 		data := map[string]map[string]string{
 			"aaa111": {"on-resume": "claude --resume abc123"},
@@ -88,8 +87,7 @@ func TestHooksListCommand(t *testing.T) {
 
 		// Stub bootstrap so the real orchestrator never runs against the test's
 		// tmux server.
-		bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
-		t.Cleanup(func() { bootstrapDeps = nil })
+		withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
 		data := map[string]map[string]string{
 			"ccc333": {"on-resume": "claude --resume def456"},
