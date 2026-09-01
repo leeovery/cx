@@ -250,7 +250,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 7,
-          "current_task": "resume-hooks-silently-lost-7-27",
+          "current_task": "resume-hooks-silently-lost-7-28",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -350,7 +350,8 @@
             "resume-hooks-silently-lost-7-23",
             "resume-hooks-silently-lost-7-24",
             "resume-hooks-silently-lost-7-25",
-            "resume-hooks-silently-lost-7-26"
+            "resume-hooks-silently-lost-7-26",
+            "resume-hooks-silently-lost-7-27"
           ],
           "staging": {
             "p1": {
@@ -1540,6 +1541,48 @@
                 "cmd/scripted_commander_test.go",
                 "cmd/uninstall_test.go",
                 "cmd/abridged_saver_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-27",
+              "source": "executor",
+              "summary": "openTestLogger is now a pure pass-through with an ignored dir parameter — 7-15 ground",
+              "detail": "After 7-27 deleted internal/restore/logging_capture_test.go and routed its consumers at logtest.NewCaptureLogger directly, restore_test.go openTestLogger(t, dir) survives as a pass-through whose dir argument is ignored. It exists only because restore takes an injected logger, which is task 7-15 subject — flagged so 7-15 picks it up rather than leaving a parameter nothing reads.",
+              "files": [
+                "internal/restore/restore_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-27",
+              "source": "executor",
+              "summary": "logtest.Sink cannot model the production level gate — one test still needs a hand-rolled handler for it",
+              "detail": "cmd/open_test.go:3080 (TestExecMarker_VisibleAtWARN) keeps a warnBypassHandler because logtest.Sink Enabled admits EVERY level, so the Sink structurally cannot model the production level gate plus the lifecycle-marker bypass that the process: markers rely on. 7-27 rebuilt it to gate-then-forward into a Sink, so the records now read back through the Sink API and only the gate is bespoke — but if any other suite needs to assert level-gating behaviour it will hand-roll the same thing. Worth deciding whether logtest should offer a gated variant.",
+              "files": [
+                "cmd/open_test.go",
+                "internal/logtest/capture.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-27",
+              "source": "reviewer",
+              "summary": "No structural guard backs 7-27 outcome — the Install-only rule is held by discipline alone",
+              "detail": "The task Outcome asserts logtest.Install(t) is the only route to a package-level capture handler, paired by construction at every site. Nothing enforces it: a contributor can write the two lines by hand and nothing objects. Given the repo ~20 sourceguardtest-driven guards, a guard forbidding log.SetTestHandler with a logtest.Sink argument outside internal/logtest would make the Outcome true rather than merely currently-observed. It would need to encode the three sanctioned survivors (the pre-Init discard silencer, the level-gate handler, the JSON-rendering handler), which is why it reaches beyond this task.",
+              "files": [
+                "internal/logtest/install.go",
+                "internal/log/testhandler.go",
+                "cmd/logging_capture_test.go",
+                "cmd/open_test.go",
+                "internal/hooks/store_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-27",
+              "source": "reviewer",
+              "summary": "cmd/logging_capture_test.go:31 re-open-codes the exact expression behind log.Discard()",
+              "detail": "internal/log/discard.go:8 is the identical slog.New(slog.NewTextHandler(io.Discard, nil)). The test site could use log.Discard().Handler() and reuse the package own silent logger, dropping a pointless slog.New(...).Handler() round-trip. Pre-existing line, untouched by 7-27 diff — noted while auditing that site as one of the three sanctioned SetTestHandler survivors.",
+              "files": [
+                "cmd/logging_capture_test.go",
+                "internal/log/discard.go"
               ]
             }
           ]
