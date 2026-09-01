@@ -113,9 +113,8 @@ func TestHookListDegradedRead(t *testing.T) {
 
 func TestSweepPreReadBound(t *testing.T) {
 	t.Run("it degrades the sweep pre-read at the short bound", func(t *testing.T) {
-		short := 60 * time.Millisecond
-		hooks.SetSnapshotLockTimeoutForTest(t, short)
 		hooks.SetLockTimeoutForTest(t, 5*time.Second)
+		short := hooks.SnapshotLockBoundForTest(t)
 
 		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: `{"` + hookstest.ReapableSeedA + `": {"on-resume": "cmd-a"}}`})
 		hookstest.HoldHooksSidecar(t, path)
@@ -134,7 +133,7 @@ func TestSweepPreReadBound(t *testing.T) {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 		if elapsed >= time.Second {
-			t.Fatalf("the pre-read spent %v under a held lock — it waited at lockTimeout, not snapshotLockTimeout (%v)", elapsed, short)
+			t.Fatalf("the pre-read spent %v under a held lock — it waited at the mutation bound, not the derived pre-read bound (%v)", elapsed, short)
 		}
 		if elapsed < short {
 			t.Errorf("the sweep returned after %v — the pre-read did not wait out the %v short bound", elapsed, short)

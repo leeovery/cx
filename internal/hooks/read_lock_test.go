@@ -219,43 +219,10 @@ func TestReadSharedLock(t *testing.T) {
 }
 
 func TestReadSharedLockBoundSelection(t *testing.T) {
-	t.Run("it degrades the sweep pre-read at the short bound", func(t *testing.T) {
-		short := 60 * time.Millisecond
-		hooks.SetSnapshotLockTimeoutForTest(t, short)
-		hooks.SetLockTimeoutForTest(t, 5*time.Second)
-		store, path := hookstest.StageStore(t, hookstest.Staging{Entries: numberedEntries(2)})
-		hookstest.HoldHooksSidecar(t, path)
-
-		sink := logtest.Install(t)
-		var entries int
-		start := time.Now()
-		// Aborted at the enumeration, so the elapsed time measures the snapshot
-		// read alone rather than the exclusive acquire that would follow it
-		// against the same held sidecar.
-		_, err := store.CleanStale(abortingEnumeration(&entries))
-		elapsed := time.Since(start)
-
-		if !errors.Is(err, errAbortEnumeration) {
-			t.Fatalf("CleanStale: %v", err)
-		}
-		if entries != 2 {
-			t.Fatalf("the snapshot held %d entries, want 2", entries)
-		}
-		if elapsed < short {
-			t.Errorf("the snapshot read returned after %v — it did not wait out the %v short bound", elapsed, short)
-		}
-		if elapsed >= time.Second {
-			t.Fatalf("the snapshot read took %v — it waited at lockTimeout, not snapshotLockTimeout", elapsed)
-		}
-		hookstest.AssertDegradedRead(t, sink, "internal")
-	})
-
 	t.Run("it takes the bound from the parameter, not from via", func(t *testing.T) {
 		// via=internal identifies the sweep's pre-read uniquely today, so a
 		// via-driven branch would pass every other case here. An ordinary read
 		// carrying that same value must still wait at lockTimeout.
-		short := time.Millisecond
-		hooks.SetSnapshotLockTimeoutForTest(t, short)
 		bound := 120 * time.Millisecond
 		hooks.SetLockTimeoutForTest(t, bound)
 		store, path := hookstest.StageStore(t, hookstest.Staging{Entries: numberedEntries(1)})
@@ -271,7 +238,6 @@ func TestReadSharedLockBoundSelection(t *testing.T) {
 	})
 
 	t.Run("it waits at the ordinary bound for every other read", func(t *testing.T) {
-		hooks.SetSnapshotLockTimeoutForTest(t, time.Millisecond)
 		bound := 120 * time.Millisecond
 		hooks.SetLockTimeoutForTest(t, bound)
 		store, path := hookstest.StageStore(t, hookstest.Staging{Entries: numberedEntries(1)})
@@ -323,7 +289,6 @@ func TestReadSharedLockVia(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			hooks.SetLockTimeoutForTest(t, 20*time.Millisecond)
-			hooks.SetSnapshotLockTimeoutForTest(t, 20*time.Millisecond)
 			store, path := hookstest.StageStore(t, hookstest.Staging{Entries: numberedEntries(1)})
 			hookstest.HoldHooksSidecar(t, path)
 
@@ -390,4 +355,63 @@ func abortingEnumeration(entries *int) func(hooks.Snapshot) ([]string, error) {
 		}
 		return nil, errAbortEnumeration
 	}
+}
+
+// The clean's advisory pre-read is bounded as a fraction of the mutation bound
+// rather than at a figure of its own, so the relationship between the two is
+// visible at the declaration and a test that lowers one lowers both.
+func TestSnapshotLockBoundDerivation(t *testing.T) {
+	t.Run("it bounds the clean's pre-read below the mutation bound", func(t *testing.T) {
+		for _, mutation := range []time.Duration{2 * time.Second, 300 * time.Millisecond, 60 * time.Millisecond} {
+			hooks.SetLockTimeoutForTest(t, mutation)
+			preRead := hooks.SnapshotLockBoundForTest(t)
+			if preRead <= 0 {
+				t.Errorf("pre-read bound = %v at a %v mutation bound — it must still grant an uncontended lock", preRead, mutation)
+			}
+			if preRead >= mutation/2 {
+				t.Errorf("pre-read bound = %v at a %v mutation bound — a contended clean must cost one bound, not two", preRead, mutation)
+			}
+		}
+	})
+
+	t.Run("it lowers the pre-read bound with the mutation bound under test", func(t *testing.T) {
+		hooks.SetLockTimeoutForTest(t, 2*time.Second)
+		production := hooks.SnapshotLockBoundForTest(t)
+
+		hooks.SetLockTimeoutForTest(t, 200*time.Millisecond)
+		lowered := hooks.SnapshotLockBoundForTest(t)
+
+		if lowered >= production {
+			t.Errorf("pre-read bound stayed at %v when the mutation bound fell to 200ms (was %v at 2s)", lowered, production)
+		}
+	})
+
+	t.Run("it degrades the pre-read to an unlocked read when the sidecar is held", func(t *testing.T) {
+		hooks.SetLockTimeoutForTest(t, time.Second)
+		preRead := hooks.SnapshotLockBoundForTest(t)
+		store, path := hookstest.StageStore(t, hookstest.Staging{Entries: numberedEntries(2)})
+		hookstest.HoldHooksSidecar(t, path)
+
+		sink := logtest.Install(t)
+		var entries int
+		start := time.Now()
+		// Aborted at the enumeration, so the elapsed time measures the pre-read
+		// alone rather than the exclusive acquire that would follow it.
+		_, err := store.CleanStale(abortingEnumeration(&entries))
+		elapsed := time.Since(start)
+
+		if !errors.Is(err, errAbortEnumeration) {
+			t.Fatalf("CleanStale: %v", err)
+		}
+		if entries != 2 {
+			t.Errorf("the snapshot held %d entries, want 2 — the degraded read still read the file", entries)
+		}
+		if elapsed < preRead {
+			t.Errorf("the pre-read returned after %v — it did not wait out its %v bound", elapsed, preRead)
+		}
+		if elapsed >= 500*time.Millisecond {
+			t.Errorf("the pre-read took %v — it waited at the mutation bound, not the derived one", elapsed)
+		}
+		hookstest.AssertDegradedRead(t, sink, "internal")
+	})
 }

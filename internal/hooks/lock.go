@@ -20,17 +20,32 @@ var ErrLockHeld = errors.New("hooks lock held by another process")
 // inside the sweep's own cadence.
 var lockTimeout = 2 * time.Second
 
-// snapshotLockTimeout bounds the clean's advisory pre-read alone. A clean takes
+var lockPollInterval = 5 * time.Millisecond
+
+// snapshotLockFraction is the hundredth of lockTimeout the clean's advisory
+// pre-read waits, which is 20ms at the 2s bound above.
+const snapshotLockFraction = 100
+
+// snapshotLockBound bounds the clean's advisory pre-read alone. A clean takes
 // the sidecar twice — shared for that pre-read, exclusive for the deletion — so
 // at lockTimeout a writer that is alive but stuck would park the daemon's 1s
-// tick for 4s every cycle, which is the stall the bound exists to prevent. The
-// pre-read is advisory: it may degrade to an unlocked read at no cost to
-// correctness, so it is bounded at the cheapest figure that still grants an
-// uncontended lock — 20ms, four poll intervals above the sub-millisecond
-// critical section.
-var snapshotLockTimeout = 20 * time.Millisecond
-
-var lockPollInterval = 5 * time.Millisecond
+// tick for two full bounds every cycle, which is the stall this exists to
+// prevent: what it protects is the tick, not the read. It is derived from
+// lockTimeout rather than declared beside it so the relationship is visible
+// where the value is, and so lowering the mutation bound — which the unit lane
+// does, to drive a timeout without waiting out the production figure — lowers
+// this one with it instead of leaving a production figure behind. The pre-read
+// is advisory: it may degrade to an unlocked read at no cost to correctness,
+// paying one DEBUG breadcrumb, so it is bounded at the cheapest figure that
+// still grants an uncontended lock. The floor keeps that figure at one poll
+// interval, below which the figure named stops being the figure waited: the
+// acquire re-tests its deadline only after a poll sleep, so every shorter
+// bound costs that same one interval. The accepted price of a bound this
+// short is that ordinary contention degrades the pre-read where the full
+// bound would have waited it out.
+func snapshotLockBound() time.Duration {
+	return max(lockTimeout/snapshotLockFraction, lockPollInterval)
+}
 
 // lockPath is the sidecar the lock is taken on. It is never hooks.json itself:
 // AtomicWrite renames a temp file over the target, so a lock on the target is a

@@ -15,11 +15,11 @@ func SetLockTimeoutForTest(t *testing.T, d time.Duration) {
 	t.Cleanup(func() { lockTimeout = prev })
 }
 
-// SetSnapshotLockTimeoutForTest sets the sweep's advisory pre-read bound for the
-// duration of the test, so a test can raise it to make that read contend.
-func SetSnapshotLockTimeoutForTest(t *testing.T, d time.Duration) {
+// SnapshotLockBoundForTest reports the sweep's advisory pre-read bound as it is
+// derived from the current lockTimeout. There is no setter: the bound has no
+// value of its own to set, and a test that needs it elsewhere moves it by
+// lowering the mutation bound, which is the derivation under test.
+func SnapshotLockBoundForTest(t *testing.T) time.Duration {
 	t.Helper()
-	prev := snapshotLockTimeout
-	snapshotLockTimeout = d
-	t.Cleanup(func() { snapshotLockTimeout = prev })
+	return snapshotLockBound()
 }

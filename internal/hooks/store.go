@@ -43,12 +43,12 @@ func (s *Store) Load(via Via) (hooksFile, error) {
 	return s.loadShared(via)
 }
 
-// loadSnapshot is the clean's advisory pre-read. It reads at the sweep's short
-// bound, so a clean — which takes the sidecar twice, shared here and exclusive
-// in deleteStale — never spends two full lockTimeouts waiting on a wedged
-// writer.
+// loadSnapshot is the clean's advisory pre-read. It reads at the derived
+// pre-read bound, so a clean — which takes the sidecar twice, shared here and
+// exclusive in deleteStale — never spends two full lockTimeouts waiting on a
+// wedged writer.
 func (s *Store) loadSnapshot() (hooksFile, error) {
-	return s.loadSharedBounded(ViaInternal, snapshotLockTimeout)
+	return s.loadSharedBounded(ViaInternal, snapshotLockBound())
 }
 
 // loadShared reads under the shared hold every ordinary read takes.
