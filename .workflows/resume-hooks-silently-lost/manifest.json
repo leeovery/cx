@@ -250,7 +250,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 7,
-          "current_task": "resume-hooks-silently-lost-7-33",
+          "current_task": "resume-hooks-silently-lost-7-34",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -357,7 +357,8 @@
             "resume-hooks-silently-lost-7-29",
             "resume-hooks-silently-lost-7-30",
             "resume-hooks-silently-lost-7-31",
-            "resume-hooks-silently-lost-7-32"
+            "resume-hooks-silently-lost-7-32",
+            "resume-hooks-silently-lost-7-33"
           ],
           "staging": {
             "p1": {
@@ -1763,6 +1764,36 @@
               "source": "reviewer",
               "summary": "The specification still names ListAllPanes at line 43 as a live sibling method",
               "detail": "7-31 deleted Client.ListPanes and an earlier task deleted Client.ListAllPanes, but the specification body still lists ListAllPanes among the live tmux client methods. Adds to the already-banked stale corrigendum about internal/session/panetoken.go. The phase boundary should append a corrigendum covering both, since every agent dispatch is instructed to read the specification and its Corrigenda first — a stale claim there propagates into task bodies, which is how several of this phase task bodies came to be wrong.",
+              "files": [
+                ".workflows/resume-hooks-silently-lost/specification/resume-hooks-silently-lost/specification.md"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-33",
+              "source": "reviewer",
+              "summary": "The widened build-belongs-in-the-integration-lane rule has no structural enforcement",
+              "detail": "7-33 widened the lane rule to cover tests that BUILD a portal binary, not just those that exec one. It is now asserted in four prose places in CLAUDE.md and held only by discipline — in a repo whose house style is source guards (~20 of them via internal/sourceguardtest, e.g. cmd/deps_seam_guard_test.go). A guard failing when any untagged *_test.go references portalbintest.BuildPortalBinary/StagePortalBinary or restoretest.BuildPortalBinaryDir/BuildPortalBinaryStable would make the rule structural. Note the reviewer proved the current state empirically by instrumenting buildPortalBinaryInto (a PATH shim on `go` does not work — Go 1.24+ prepends the toolchain dir for test binaries), so the guard would also replace a check that is otherwise awkward to run.",
+              "files": [
+                "internal/portalbintest/build.go",
+                "internal/restoretest/restoretest.go",
+                "cmd/deps_seam_guard_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-33",
+              "source": "reviewer",
+              "summary": "cmd/capturetool hand-rolls go list -deps beside the shared sourceguardtest.PackageDeps helper",
+              "detail": "cmd/capturetool/import_guard_test.go:22 runs exec.Command(\"go\", \"list\", \"-deps\", ...) directly; internal/sourceguardtest/packagedeps.go:25 is the shared helper doing the same, added by task 7-24. The capturetool guard predates it and duplicates it, so the repo has two go-list invocation sites. Already banked from 7-24 as the fifth hand-rolled copy, with the blocker being that capturetool sets cmd.Dir = portalbintest.ProjectRoot() and PackageDeps has no equivalent knob — re-surfaced here independently, which strengthens the case for resolving that design question at the phase boundary.",
+              "files": [
+                "cmd/capturetool/import_guard_test.go",
+                "internal/sourceguardtest/packagedeps.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-7-33",
+              "source": "reviewer",
+              "summary": "Specification 9.1 states the lane rule with two clauses; 7-33 gave it a third",
+              "detail": "specification.md:479 reads \"The project lane rule is unchanged and binding: every test that spawns a portal state daemon or execs a built portal binary carries //go:build integration\". After 7-33 the rule has three clauses — a test that BUILDS a portal binary also qualifies. No test placement the spec prescribes is invalidated (every integration test it names still qualifies), so this is a stale description rather than implementation drift. Adds to the two already-banked stale spec claims (the panetoken.go forwarder and ListAllPanes); the Corrigenda section is the established mechanism and the phase boundary should append all three at once.",
               "files": [
                 ".workflows/resume-hooks-silently-lost/specification/resume-hooks-silently-lost/specification.md"
               ]
