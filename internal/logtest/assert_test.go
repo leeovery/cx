@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/leeovery/portal/internal/harnesstest"
 	"github.com/leeovery/portal/internal/logtest"
 )
 
@@ -33,10 +34,10 @@ func TestAssertRecord_ReportsEveryMismatchedProperty(t *testing.T) {
 		Via:       "internal",
 	}
 
-	spy := &fakeT{}
+	spy := &harnesstest.Recorder{}
 	logtest.AssertRecord(spy, rec, want)
 
-	if spy.errors != 5 {
-		t.Errorf("AssertRecord reported %d failures, want 5 (level, msg, component, op, via)", spy.errors)
+	if len(spy.Errors) != 5 {
+		t.Errorf("AssertRecord reported %d failures, want 5 (level, msg, component, op, via): %v", len(spy.Errors), spy.Errors)
 	}
 }

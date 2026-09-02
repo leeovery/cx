@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/portal/internal/harnesstest"
 	"github.com/leeovery/portal/internal/portalbintest"
-	"github.com/leeovery/portal/internal/sourceguardtest"
 )
 
 const (
@@ -135,20 +135,20 @@ func drive() {
 // clean tree forever.
 func TestSessionRestorerLiteralGuard_FatalsWhenItEnumeratesNoIntegrationTestFiles(t *testing.T) {
 	t.Run("it fatals when the session-restorer guard scans no files", func(t *testing.T) {
-		emptyTree := &recordingT{}
-		scanIntegrationSessionRestorerLiterals(emptyTree, t.TempDir())
-		if !emptyTree.fataled {
-			t.Fatal("scan of a directory holding no sources passed, want a fatal")
+		emptyTree := &harnesstest.Recorder{}
+		emptyTree.Run(func() { scanIntegrationSessionRestorerLiterals(emptyTree, t.TempDir()) })
+		if len(emptyTree.Fatals) != 1 {
+			t.Fatalf("scan of a directory holding no sources reported %d fatals, want 1: %v", len(emptyTree.Fatals), emptyTree.Fatals)
 		}
 
 		root := writeGuardFixture(t, "unit_test.go", "package fixture\n")
-		noIntegrationTests := &recordingT{}
-		scanIntegrationSessionRestorerLiterals(noIntegrationTests, root)
-		if !noIntegrationTests.fataled {
-			t.Fatal("scan of a tree holding no integration-tagged _test.go passed, want a fatal")
+		noIntegrationTests := &harnesstest.Recorder{}
+		noIntegrationTests.Run(func() { scanIntegrationSessionRestorerLiterals(noIntegrationTests, root) })
+		if len(noIntegrationTests.Fatals) != 1 {
+			t.Fatalf("scan of a tree holding no integration-tagged _test.go reported %d fatals, want 1: %v", len(noIntegrationTests.Fatals), noIntegrationTests.Fatals)
 		}
-		if !strings.Contains(noIntegrationTests.msg, "stopped looking") {
-			t.Errorf("fatal message %q does not say the guard would pass having stopped looking", noIntegrationTests.msg)
+		if !strings.Contains(noIntegrationTests.Fatals[0], "stopped looking") {
+			t.Errorf("fatal message %q does not say the guard would pass having stopped looking", noIntegrationTests.Fatals[0])
 		}
 	})
 }
@@ -157,7 +157,7 @@ func TestSessionRestorerLiteralGuard_FatalsWhenItEnumeratesNoIntegrationTestFile
 // session-restorer type in an integration-tagged _test.go under root, as
 // "<file>:<line>". It reads the AST rather than the text, so a mention of the
 // type inside a string — this guard's own fixtures — is not a finding.
-func scanIntegrationSessionRestorerLiterals(t sourceguardtest.TestingT, root string) (scanned int, findings []string) {
+func scanIntegrationSessionRestorerLiterals(t harnesstest.TestingT, root string) (scanned int, findings []string) {
 	t.Helper()
 
 	scanned, findings = scanGuardTestFiles(t, root, isIntegrationTagged, sessionRestorerLiteralsIn)

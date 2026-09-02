@@ -3,15 +3,9 @@ package sourceguardtest
 import (
 	"os/exec"
 	"strings"
-)
 
-// TestingT is the subset of *testing.T the fatal-on-failure primitives depend
-// on, so their own failure paths can be unit-tested without aborting the
-// harness.
-type TestingT interface {
-	Helper()
-	Fatalf(format string, args ...any)
-}
+	"github.com/leeovery/portal/internal/harnesstest"
+)
 
 // DepsOption adjusts how a dependency assertion resolves and judges its
 // package.
@@ -96,7 +90,7 @@ func (e *listError) Error() string {
 // resolution to a chosen directory for a caller that needs one. A package go
 // list cannot resolve, and a set that comes back empty, are both fatal: a
 // guard must fail rather than pass over nothing.
-func PackageDeps(t TestingT, pkg string, opts ...DepsOption) []string {
+func PackageDeps(t harnesstest.TestingT, pkg string, opts ...DepsOption) []string {
 	t.Helper()
 
 	var paths []string
@@ -106,7 +100,7 @@ func PackageDeps(t TestingT, pkg string, opts ...DepsOption) []string {
 	return paths
 }
 
-func packageDeps(t TestingT, pkg string, opts []DepsOption) []dep {
+func packageDeps(t harnesstest.TestingT, pkg string, opts []DepsOption) []dep {
 	t.Helper()
 
 	deps, err := listDeps(newDepsConfig(opts).dir, pkg)

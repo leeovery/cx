@@ -1,28 +1,23 @@
 // Package commandertest provides the shared tmux Commander fake. It lives
 // outside _test.go so any package's tests can import it; production code must
-// not. It is stdlib-only, and structurally typed against the tmux Commander
-// interface rather than importing it, so a test inside the tmux package itself
-// can use it without an import cycle.
+// not. Beyond the shared *testing.T stand-in it reports through, it is
+// stdlib-only, and structurally typed against the tmux Commander interface
+// rather than importing it, so a test inside the tmux package itself can use it
+// without an import cycle.
 package commandertest
 
 import (
 	"fmt"
 	"strings"
 	"sync"
+
+	"github.com/leeovery/portal/internal/harnesstest"
 )
 
 // Commander is the interface the fake satisfies and delegates to.
 type Commander interface {
 	Run(args ...string) (string, error)
 	RunRaw(args ...string) (string, error)
-}
-
-// TestingT is the *testing.T subset the fake reports through, so the fake's own
-// failure paths stay assertable.
-type TestingT interface {
-	Helper()
-	Errorf(format string, args ...any)
-	Fatalf(format string, args ...any)
 }
 
 // Matcher accepts the argv an entry answers for.
@@ -49,7 +44,7 @@ type AnswerFunc func(args ...string) (string, error)
 // it is legal from a non-test goroutine.
 type Scripted struct {
 	mu     sync.Mutex
-	tb     TestingT
+	tb     harnesstest.TestingT
 	script []Entry
 	calls  [][]string
 
@@ -74,7 +69,7 @@ type Entry struct {
 
 // New builds a fake whose script is consulted in declaration order, first match
 // winning. An argv no entry matches fails the test.
-func New(tb TestingT, entries ...Entry) *Scripted {
+func New(tb harnesstest.TestingT, entries ...Entry) *Scripted {
 	tb.Helper()
 	return &Scripted{tb: tb, script: entries}
 }

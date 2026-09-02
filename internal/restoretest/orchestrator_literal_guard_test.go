@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/portal/internal/harnesstest"
 	"github.com/leeovery/portal/internal/portalbintest"
-	"github.com/leeovery/portal/internal/sourceguardtest"
 )
 
 // The type no test may compose itself, and the constructors that compose it
@@ -111,20 +111,20 @@ var o = &restore.Orchestrator{}
 // forever.
 func TestOrchestratorLiteralGuard_FatalsWhenItEnumeratesNoTestFiles(t *testing.T) {
 	t.Run("it fatals when the orchestrator guard scans no files", func(t *testing.T) {
-		emptyTree := &recordingT{}
-		scanTestOrchestratorLiterals(emptyTree, t.TempDir())
-		if !emptyTree.fataled {
-			t.Fatal("scan of a directory holding no sources passed, want a fatal")
+		emptyTree := &harnesstest.Recorder{}
+		emptyTree.Run(func() { scanTestOrchestratorLiterals(emptyTree, t.TempDir()) })
+		if len(emptyTree.Fatals) != 1 {
+			t.Fatalf("scan of a directory holding no sources reported %d fatals, want 1: %v", len(emptyTree.Fatals), emptyTree.Fatals)
 		}
 
 		root := writeGuardFixture(t, "production.go", "package fixture\n")
-		noTests := &recordingT{}
-		scanTestOrchestratorLiterals(noTests, root)
-		if !noTests.fataled {
-			t.Fatal("scan of a tree holding no _test.go passed, want a fatal")
+		noTests := &harnesstest.Recorder{}
+		noTests.Run(func() { scanTestOrchestratorLiterals(noTests, root) })
+		if len(noTests.Fatals) != 1 {
+			t.Fatalf("scan of a tree holding no _test.go reported %d fatals, want 1: %v", len(noTests.Fatals), noTests.Fatals)
 		}
-		if !strings.Contains(noTests.msg, "stopped looking") {
-			t.Errorf("fatal message %q does not say the guard would pass having stopped looking", noTests.msg)
+		if !strings.Contains(noTests.Fatals[0], "stopped looking") {
+			t.Errorf("fatal message %q does not say the guard would pass having stopped looking", noTests.Fatals[0])
 		}
 	})
 }
@@ -135,7 +135,7 @@ func TestOrchestratorLiteralGuard_FatalsWhenItEnumeratesNoTestFiles(t *testing.T
 // guard's own fixtures — is not a finding. Every lane is policed: the
 // integration-tagged files are most of the subject, and an unpinned literal is
 // as silent in one lane as the other.
-func scanTestOrchestratorLiterals(t sourceguardtest.TestingT, root string) (scanned int, findings []string) {
+func scanTestOrchestratorLiterals(t harnesstest.TestingT, root string) (scanned int, findings []string) {
 	t.Helper()
 
 	scanned, findings = scanGuardTestFiles(t, root, everyTestFile, orchestratorLiteralsIn)

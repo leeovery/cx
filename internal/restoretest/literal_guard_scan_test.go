@@ -1,7 +1,6 @@
 package restoretest_test
 
 import (
-	"fmt"
 	"go/ast"
 	"go/token"
 	"os"
@@ -9,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/portal/internal/harnesstest"
 	"github.com/leeovery/portal/internal/sourceguardtest"
 )
 
@@ -27,7 +27,7 @@ const restorePkg = "restore"
 // Build tags are not honoured by the walk itself: a guard decides through
 // include which lane's files it polices, so the unit lane can police both.
 func scanGuardTestFiles(
-	t sourceguardtest.TestingT,
+	t harnesstest.TestingT,
 	root string,
 	include func(*ast.File) bool,
 	collect func(*token.FileSet, *ast.File) []string,
@@ -82,19 +82,4 @@ func writeGuardFile(t *testing.T, root, name, src string) {
 	if err := os.WriteFile(filepath.Join(root, name), []byte(src), 0o600); err != nil {
 		t.Fatalf("write fixture %s: %v", name, err)
 	}
-}
-
-// recordingT stands in for *testing.T so a scan's own fatal is observable. A
-// real Fatalf ends the goroutine; the recorder returns instead, which the
-// scan's explicit returns after each Fatalf accommodate.
-type recordingT struct {
-	fataled bool
-	msg     string
-}
-
-func (r *recordingT) Helper() {}
-
-func (r *recordingT) Fatalf(format string, args ...any) {
-	r.fataled = true
-	r.msg = fmt.Sprintf(format, args...)
 }

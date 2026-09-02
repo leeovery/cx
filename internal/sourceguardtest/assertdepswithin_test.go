@@ -1,10 +1,11 @@
 package sourceguardtest
 
 import (
-	"fmt"
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/leeovery/portal/internal/harnesstest"
 )
 
 const (
@@ -17,82 +18,82 @@ const (
 )
 
 func TestAssertDepsWithin_ReportsEveryDepOutsideTheAllowlist(t *testing.T) {
-	stub := &stubT{}
+	rec := &harnesstest.Recorder{}
 
-	AssertDepsWithin(stub, hooksPkg, []string{fileutilPkg})
+	rec.Run(func() { AssertDepsWithin(rec, hooksPkg, []string{fileutilPkg}) })
 
 	for _, want := range []string{logPkg, nanoidPkg, "internal/storelog"} {
-		if !stub.errored(want) {
-			t.Errorf("AssertDepsWithin did not report %s as outside the allowlist; reported %v", want, stub.errors)
+		if !errored(rec, want) {
+			t.Errorf("AssertDepsWithin did not report %s as outside the allowlist; reported %v", want, rec.Errors)
 		}
 	}
-	if stub.fataled {
-		t.Errorf("AssertDepsWithin fatalled on an allowlist whose entry is present: %q", stub.fatal)
+	if len(rec.Fatals) != 0 {
+		t.Errorf("AssertDepsWithin fatalled on an allowlist whose entry is present: %v", rec.Fatals)
 	}
 }
 
 func TestAssertDepsWithin_FatalsOnAnEmptyDepSet(t *testing.T) {
 	defer stubListDeps(t, nil, nil)()
-	stub := &stubT{}
+	rec := &harnesstest.Recorder{}
 
-	AssertDepsWithin(stub, hooksPkg, []string{fileutilPkg})
+	rec.Run(func() { AssertDepsWithin(rec, hooksPkg, []string{fileutilPkg}) })
 
-	if !stub.fataled {
-		t.Fatal("AssertDepsWithin did not fatal on an empty dependency set — the guard would pass over nothing")
+	if len(rec.Fatals) != 1 {
+		t.Fatalf("AssertDepsWithin reported %d fatals on an empty dependency set, want 1 — the guard would pass over nothing: %v", len(rec.Fatals), rec.Fatals)
 	}
 }
 
 func TestAssertDepsWithin_FatalsWhenTheSetDoesNotHoldThePackageItself(t *testing.T) {
 	defer stubListDeps(t, []dep{{Path: "strings"}}, nil)()
-	stub := &stubT{}
+	rec := &harnesstest.Recorder{}
 
-	AssertDepsWithin(stub, hooksPkg, nil)
+	rec.Run(func() { AssertDepsWithin(rec, hooksPkg, nil) })
 
-	if !stub.fataled {
-		t.Fatal("AssertDepsWithin did not fatal over a set that does not hold the package under test — it was asserting about something else")
+	if len(rec.Fatals) != 1 {
+		t.Fatalf("AssertDepsWithin reported %d fatals over a set that does not hold the package under test, want 1 — it was asserting about something else: %v", len(rec.Fatals), rec.Fatals)
 	}
 }
 
 func TestAssertDepsWithin_FatalsWhenNoAllowlistedInternalDepIsPresent(t *testing.T) {
-	stub := &stubT{}
+	rec := &harnesstest.Recorder{}
 
-	AssertDepsWithin(stub, nanoidPkg, []string{fileutilPkg})
+	rec.Run(func() { AssertDepsWithin(rec, nanoidPkg, []string{fileutilPkg}) })
 
-	if !stub.fataled {
-		t.Fatalf("AssertDepsWithin did not fatal when its allowlist named no dependency the package actually has; errors %v", stub.errors)
+	if len(rec.Fatals) != 1 {
+		t.Fatalf("AssertDepsWithin reported %d fatals when its allowlist named no dependency the package actually has, want 1; errors %v", len(rec.Fatals), rec.Errors)
 	}
-	if !strings.Contains(stub.fatal, fileutilPkg) {
-		t.Errorf("fatal message %q does not name the allowlist it could not see", stub.fatal)
+	if !strings.Contains(rec.Fatals[0], fileutilPkg) {
+		t.Errorf("fatal message %q does not name the allowlist it could not see", rec.Fatals[0])
 	}
 }
 
 func TestAssertDepsWithin_LeavesAnotherModuleAloneByDefault(t *testing.T) {
-	stub := &stubT{}
+	rec := &harnesstest.Recorder{}
 
-	AssertDepsWithin(stub, themePkg, []string{logPkg})
+	rec.Run(func() { AssertDepsWithin(rec, themePkg, []string{logPkg}) })
 
-	if stub.fataled || len(stub.errors) > 0 {
-		t.Errorf("AssertDepsWithin faulted a dependency outside the package's own module: fatal %q, errors %v", stub.fatal, stub.errors)
+	if rec.Failed() {
+		t.Errorf("AssertDepsWithin faulted a dependency outside the package's own module: %s", rec.Report())
 	}
 }
 
 func TestAssertDepsWithin_ForbiddingThirdPartyReportsAnotherModule(t *testing.T) {
-	stub := &stubT{}
+	rec := &harnesstest.Recorder{}
 
-	AssertDepsWithin(stub, themePkg, []string{logPkg}, ForbiddingThirdParty())
+	rec.Run(func() { AssertDepsWithin(rec, themePkg, []string{logPkg}, ForbiddingThirdParty()) })
 
-	if !stub.errored("lipgloss") {
-		t.Errorf("ForbiddingThirdParty did not report the third-party dependency; reported %v", stub.errors)
+	if !errored(rec, "lipgloss") {
+		t.Errorf("ForbiddingThirdParty did not report the third-party dependency; reported %v", rec.Errors)
 	}
 }
 
 func TestAssertDepsWithin_PassesForAStdlibOnlyPackageWithAnEmptyAllowlist(t *testing.T) {
-	stub := &stubT{}
+	rec := &harnesstest.Recorder{}
 
-	AssertDepsWithin(stub, nanoidPkg, nil, ForbiddingThirdParty())
+	rec.Run(func() { AssertDepsWithin(rec, nanoidPkg, nil, ForbiddingThirdParty()) })
 
-	if stub.fataled || len(stub.errors) > 0 {
-		t.Errorf("AssertDepsWithin faulted a stdlib-only package: fatal %q, errors %v", stub.fatal, stub.errors)
+	if rec.Failed() {
+		t.Errorf("AssertDepsWithin faulted a stdlib-only package: %s", rec.Report())
 	}
 }
 
@@ -117,31 +118,7 @@ func stubListDeps(t *testing.T, deps []dep, err error) func() {
 	return func() { listDeps = prior }
 }
 
-// stubT stands in for *testing.T so the failure paths are observable. A real
-// Fatalf ends the goroutine, which the recorder cannot do, so the code under
-// test must return explicitly after fatalling.
-type stubT struct {
-	errors  []string
-	fataled bool
-	fatal   string
-}
-
-func (s *stubT) Helper() {}
-
-func (s *stubT) Errorf(format string, args ...any) {
-	s.errors = append(s.errors, fmt.Sprintf(format, args...))
-}
-
-func (s *stubT) Fatalf(format string, args ...any) {
-	s.fataled = true
-	s.fatal = fmt.Sprintf(format, args...)
-}
-
-func (s *stubT) errored(substring string) bool {
-	for _, msg := range s.errors {
-		if strings.Contains(msg, substring) {
-			return true
-		}
-	}
-	return false
+// errored reports whether any of the recorded complaints carries substring.
+func errored(rec *harnesstest.Recorder, substring string) bool {
+	return slices.ContainsFunc(rec.Errors, func(msg string) bool { return strings.Contains(msg, substring) })
 }

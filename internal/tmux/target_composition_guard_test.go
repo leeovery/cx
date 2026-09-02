@@ -14,6 +14,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/leeovery/portal/internal/harnesstest"
 	"github.com/leeovery/portal/internal/sourceguardtest"
 )
 
@@ -271,15 +272,15 @@ func TestBareTargetGuard_ErrorsWhenTheImportScanResolvesNothing(t *testing.T) {
 // A guard that stopped finding sources would otherwise report a clean scan
 // forever.
 func TestBareTargetGuard_FatalsWhenItEnumeratesNoFiles(t *testing.T) {
-	stub := &recordingT{}
+	rec := &harnesstest.Recorder{}
 
-	scanBareTargets(stub, []string{t.TempDir()})
+	rec.Run(func() { scanBareTargets(rec, []string{t.TempDir()}) })
 
-	if !stub.fataled {
-		t.Fatal("scan of a directory holding no sources passed, want a fatal")
+	if len(rec.Fatals) != 1 {
+		t.Fatalf("scan of a directory holding no sources reported %d fatals, want 1: %v", len(rec.Fatals), rec.Fatals)
 	}
-	if !strings.Contains(stub.msg, "no .go files") {
-		t.Errorf("fatal message %q does not say the directory held no sources", stub.msg)
+	if !strings.Contains(rec.Fatals[0], "no .go files") {
+		t.Errorf("fatal message %q does not say the directory held no sources", rec.Fatals[0])
 	}
 }
 
@@ -294,15 +295,15 @@ func run(args ...string) {}
 func addressSession(session string) { run("has-session", session) }
 `)
 
-	stub := &recordingT{}
+	rec := &harnesstest.Recorder{}
 
-	scanBareTargets(stub, []string{dir})
+	rec.Run(func() { scanBareTargets(rec, []string{dir}) })
 
-	if !stub.fataled {
-		t.Fatal("scan of a package declaring no target-taking method passed, want a fatal")
+	if len(rec.Fatals) != 1 {
+		t.Fatalf("scan of a package declaring no target-taking method reported %d fatals, want 1: %v", len(rec.Fatals), rec.Fatals)
 	}
-	if !strings.Contains(stub.msg, "already-composed target") {
-		t.Errorf("fatal message %q does not say the method set was empty", stub.msg)
+	if !strings.Contains(rec.Fatals[0], "already-composed target") {
+		t.Errorf("fatal message %q does not say the method set was empty", rec.Fatals[0])
 	}
 }
 
@@ -330,7 +331,7 @@ const routeItThrough = "route it through ExactSessionTarget, ExactCoordTarget, w
 // rule is what reaches a target composed in one package and flagged with "-t" in
 // another, which is the shape a hand-built "<session>:" takes on its way to
 // SplitWindow.
-func scanBareTargets(t sourceguardtest.TestingT, dirs []string) []bareTargetFinding {
+func scanBareTargets(t harnesstest.TestingT, dirs []string) []bareTargetFinding {
 	t.Helper()
 
 	var sources []sourceguardtest.ParsedSource
@@ -553,19 +554,4 @@ func enclosingFunc(file *ast.File, pos token.Pos) *ast.FuncDecl {
 func isStringLit(expr ast.Expr, want string) bool {
 	lit, isLit := expr.(*ast.BasicLit)
 	return isLit && lit.Kind == token.STRING && lit.Value == `"`+want+`"`
-}
-
-// recordingT stands in for *testing.T so a scan's own fatal is observable. A
-// real Fatalf ends the goroutine; the recorder returns instead, which the
-// scan's explicit returns after each Fatalf accommodate.
-type recordingT struct {
-	fataled bool
-	msg     string
-}
-
-func (r *recordingT) Helper() {}
-
-func (r *recordingT) Fatalf(format string, args ...any) {
-	r.fataled = true
-	r.msg = fmt.Sprintf(format, args...)
 }

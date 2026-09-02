@@ -10,8 +10,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/leeovery/portal/internal/harnesstest"
 	"github.com/leeovery/portal/internal/hooks"
-	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/nanoid"
 	"github.com/leeovery/portal/internal/xdg"
 )
@@ -99,7 +99,7 @@ func HooksJSONBytes(t *testing.T, env []string) []byte {
 // nil when the file is absent, so a caller can compare a route's before and
 // after without an absent file — a state the route may legitimately leave —
 // fatalling. Any other read error fails the test.
-func HooksFileBytes(t logtest.TestingT, path string) []byte {
+func HooksFileBytes(t harnesstest.TestingT, path string) []byte {
 	t.Helper()
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -115,7 +115,7 @@ func HooksFileBytes(t logtest.TestingT, path string) []byte {
 // byte as it found it. An optional context names what the route must not have
 // done in place of the default, so a caller reporting something more specific
 // than a failing write keeps its own words in the failure.
-func AssertHooksFileUnchanged(t logtest.TestingT, path string, before []byte, context ...string) {
+func AssertHooksFileUnchanged(t harnesstest.TestingT, path string, before []byte, context ...string) {
 	t.Helper()
 	what := "changed on a failing route"
 	if len(context) > 0 {

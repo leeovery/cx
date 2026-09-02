@@ -1,6 +1,10 @@
 package logtest
 
-import "log/slog"
+import (
+	"log/slog"
+
+	"github.com/leeovery/portal/internal/harnesstest"
+)
 
 // RecordWant is the shape every audit-trail record shares: its level, its
 // message, the component it was emitted under, and the op and via attrs. The
@@ -17,7 +21,7 @@ type RecordWant struct {
 // AssertRecord checks the five shared properties, reporting each mismatch
 // separately. The attrs that belong to one emission — a stand-down's reason, a
 // failure's error — stay with their own caller.
-func AssertRecord(t TestingT, rec Record, want RecordWant) {
+func AssertRecord(t harnesstest.TestingT, rec Record, want RecordWant) {
 	t.Helper()
 	if rec.Level != want.Level {
 		t.Errorf("level = %v, want %v", rec.Level, want.Level)

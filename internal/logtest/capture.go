@@ -17,15 +17,9 @@ import (
 	"sync"
 	"testing"
 	"time"
-)
 
-// TestingT is the subset of *testing.T the failing-path accessors depend on, so
-// their own failure paths can be unit-tested without aborting the harness.
-type TestingT interface {
-	Helper()
-	Errorf(format string, args ...any)
-	Fatalf(format string, args ...any)
-}
+	"github.com/leeovery/portal/internal/harnesstest"
+)
 
 // Record is a flattened view of one captured slog.Record. Keys holds the attr
 // keys in order, including those bound via WithAttrs; Attrs maps the same keys
@@ -38,7 +32,7 @@ type Record struct {
 }
 
 // AttrString fails the test if the record carries no attr named key.
-func (r Record) AttrString(t TestingT, key string) string {
+func (r Record) AttrString(t harnesstest.TestingT, key string) string {
 	t.Helper()
 	v, ok := r.Attrs[key]
 	if !ok {
@@ -59,7 +53,7 @@ func (r Record) AttrOrEmpty(key string) string {
 }
 
 // IntAttr fails the test if the attr is absent or is not a slog.KindInt64 value.
-func (r Record) IntAttr(t TestingT, key string) int64 {
+func (r Record) IntAttr(t harnesstest.TestingT, key string) int64 {
 	t.Helper()
 	v, ok := r.Attrs[key]
 	if !ok {
@@ -72,7 +66,7 @@ func (r Record) IntAttr(t TestingT, key string) int64 {
 }
 
 // ErrorAttr fails the test if the attr is absent or carries a non-error value.
-func (r Record) ErrorAttr(t TestingT, key string) error {
+func (r Record) ErrorAttr(t harnesstest.TestingT, key string) error {
 	t.Helper()
 	v, ok := r.Attrs[key]
 	if !ok {
@@ -88,7 +82,7 @@ func (r Record) ErrorAttr(t TestingT, key string) error {
 // DurationAttr fails the test if the attr is absent or is not a
 // slog.KindDuration value. It checks the kind, not the rendering: a rendered
 // Duration is indistinguishable from a stringified one.
-func (r Record) DurationAttr(t TestingT, key string) time.Duration {
+func (r Record) DurationAttr(t harnesstest.TestingT, key string) time.Duration {
 	t.Helper()
 	v, ok := r.Attrs[key]
 	if !ok {
@@ -102,7 +96,7 @@ func (r Record) DurationAttr(t TestingT, key string) time.Duration {
 
 // RequireDuration asserts the attr's kind for a caller the value itself does not
 // concern — a measured elapsed time no assertion can pin.
-func (r Record) RequireDuration(t TestingT, key string) {
+func (r Record) RequireDuration(t harnesstest.TestingT, key string) {
 	t.Helper()
 	_ = r.DurationAttr(t, key)
 }
@@ -156,7 +150,7 @@ func (rs Records) matching(component, msg string) Records {
 // It terminates any query chain, the level-filtered ones included: the level
 // survives into the returned record. The description names the set in the
 // failure message.
-func (rs Records) Only(t TestingT, description string) Record {
+func (rs Records) Only(t harnesstest.TestingT, description string) Record {
 	t.Helper()
 	if len(rs) != 1 {
 		t.Fatalf("expected exactly 1 %s, got %d: %+v", description, len(rs), rs)

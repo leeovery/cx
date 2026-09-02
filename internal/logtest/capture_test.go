@@ -2,12 +2,12 @@ package logtest_test
 
 import (
 	"errors"
-	"fmt"
 	"log/slog"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/leeovery/portal/internal/harnesstest"
 	"github.com/leeovery/portal/internal/logtest"
 )
 
@@ -140,7 +140,7 @@ func TestRecord_AttrString(t *testing.T) {
 		t.Errorf("AttrString(op) = %q, want %q", got, "set")
 	}
 
-	if !expectFail(func(sub logtest.TestingT) { r.AttrString(sub, "nope") }) {
+	if !expectFail(func(sub harnesstest.TestingT) { r.AttrString(sub, "nope") }) {
 		t.Errorf("AttrString must fail the test for a missing key")
 	}
 }
@@ -177,13 +177,13 @@ func TestRecord_DurationAttr(t *testing.T) {
 	})
 
 	t.Run("it fatals when the attr is not a duration", func(t *testing.T) {
-		if !expectFail(func(sub logtest.TestingT) { _ = r.DurationAttr(sub, "entries") }) {
+		if !expectFail(func(sub harnesstest.TestingT) { _ = r.DurationAttr(sub, "entries") }) {
 			t.Errorf("DurationAttr must fail for a non-Duration attr")
 		}
 	})
 
 	t.Run("it fatals when the record carries no attr of that name", func(t *testing.T) {
-		if !expectFail(func(sub logtest.TestingT) { _ = r.DurationAttr(sub, "elapsed") }) {
+		if !expectFail(func(sub harnesstest.TestingT) { _ = r.DurationAttr(sub, "elapsed") }) {
 			t.Errorf("DurationAttr must fail for a missing key")
 		}
 	})
@@ -212,12 +212,12 @@ func TestRecords_Only(t *testing.T) {
 	})
 
 	t.Run("it fatals unless exactly one record matched", func(t *testing.T) {
-		if !expectFail(func(sub logtest.TestingT) {
+		if !expectFail(func(sub harnesstest.TestingT) {
 			_ = sink.RecordsWithMessage("orphan killed").Only(sub, "orphan-killed record")
 		}) {
 			t.Errorf("Only must fail when more than one record matched")
 		}
-		if !expectFail(func(sub logtest.TestingT) {
+		if !expectFail(func(sub harnesstest.TestingT) {
 			_ = sink.RecordsWithMessage("never emitted").Only(sub, "never-emitted record")
 		}) {
 			t.Errorf("Only must fail when no record matched")
@@ -225,7 +225,7 @@ func TestRecords_Only(t *testing.T) {
 	})
 
 	t.Run("it names the described set in its failure message", func(t *testing.T) {
-		failed, msg := captureFailure(func(sub logtest.TestingT) {
+		failed, msg := captureFailure(func(sub harnesstest.TestingT) {
 			_ = sink.RecordsWithMessage("never emitted").Only(sub, "never-emitted record")
 		})
 		if !failed {
@@ -246,7 +246,7 @@ func TestRecord_IntAttr(t *testing.T) {
 		t.Errorf("IntAttr(panes) = %d, want 7", got)
 	}
 
-	if !expectFail(func(sub logtest.TestingT) { r.IntAttr(sub, "msg") }) {
+	if !expectFail(func(sub harnesstest.TestingT) { r.IntAttr(sub, "msg") }) {
 		t.Errorf("IntAttr must fail for a non-Int64 attr")
 	}
 }
@@ -265,19 +265,19 @@ func TestRecord_ErrorAttr(t *testing.T) {
 	})
 
 	t.Run("it fails when the record carries no attr of that name", func(t *testing.T) {
-		if !expectFail(func(sub logtest.TestingT) { _ = r.ErrorAttr(sub, "cause") }) {
+		if !expectFail(func(sub harnesstest.TestingT) { _ = r.ErrorAttr(sub, "cause") }) {
 			t.Errorf("ErrorAttr must fail the test for a missing key")
 		}
 	})
 
 	t.Run("it fails when the attr value is not an error", func(t *testing.T) {
-		if !expectFail(func(sub logtest.TestingT) { _ = r.ErrorAttr(sub, "op") }) {
+		if !expectFail(func(sub harnesstest.TestingT) { _ = r.ErrorAttr(sub, "op") }) {
 			t.Errorf("ErrorAttr must fail for an attr carrying a non-error value")
 		}
 	})
 
 	t.Run("it reports the record's attrs in its failure message", func(t *testing.T) {
-		failed, msg := captureFailure(func(sub logtest.TestingT) { _ = r.ErrorAttr(sub, "cause") })
+		failed, msg := captureFailure(func(sub harnesstest.TestingT) { _ = r.ErrorAttr(sub, "cause") })
 		if !failed {
 			t.Fatalf("ErrorAttr(cause) did not fail")
 		}
@@ -294,7 +294,7 @@ func TestRecord_RequireDuration(t *testing.T) {
 	r := sink.Records().Only(t, "log record")
 	r.RequireDuration(t, "took")
 
-	if !expectFail(func(sub logtest.TestingT) { r.RequireDuration(sub, "entries") }) {
+	if !expectFail(func(sub harnesstest.TestingT) { r.RequireDuration(sub, "entries") }) {
 		t.Errorf("RequireDuration must fail for a non-Duration attr")
 	}
 }
@@ -384,41 +384,20 @@ func TestRecords_FilterChainCombinesLevelAndComponent(t *testing.T) {
 	}
 }
 
-type fakeT struct {
-	failed bool
-	errors int
-	msg    string
-}
-
-func (f *fakeT) Helper() {}
-
-func (f *fakeT) Errorf(string, ...any) {
-	f.errors++
-}
-
-func (f *fakeT) Fatalf(format string, args ...any) {
-	f.failed = true
-	f.msg = fmt.Sprintf(format, args...)
-	panic(fakeFatal{})
-}
-
-type fakeFatal struct{}
-
-func expectFail(fn func(logtest.TestingT)) bool {
+func expectFail(fn func(harnesstest.TestingT)) bool {
 	failed, _ := captureFailure(fn)
 	return failed
 }
 
-// captureFailure runs fn against a stand-in TestingT, absorbing the panic a
-// Fatalf raises, and reports whether it failed and with what message.
-func captureFailure(fn func(logtest.TestingT)) (failed bool, msg string) {
-	t := &fakeT{}
-	defer func() {
-		_ = recover()
-		failed, msg = t.failed, t.msg
-	}()
-	fn(t)
-	return t.failed, t.msg
+// captureFailure runs fn against the shared stand-in, which absorbs the abort a
+// Fatalf stands for, and reports whether it failed and with what message.
+func captureFailure(fn func(harnesstest.TestingT)) (failed bool, msg string) {
+	rec := &harnesstest.Recorder{}
+	rec.Run(func() { fn(rec) })
+	if len(rec.Fatals) == 0 {
+		return false, ""
+	}
+	return true, rec.Fatals[0]
 }
 
 func TestRecords_MsgFiltersOnMessageAloneAcrossComponents(t *testing.T) {

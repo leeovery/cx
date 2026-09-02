@@ -1,28 +1,14 @@
 package restoretest
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/leeovery/portal/internal/harnesstest"
 )
-
-type fakeFataller struct {
-	helperCalls int
-	fatalMsg    string
-	fatalCalled bool
-	name        string
-}
-
-func (f *fakeFataller) Helper()      { f.helperCalls++ }
-func (f *fakeFataller) Name() string { return f.name }
-
-func (f *fakeFataller) Fatalf(format string, args ...any) {
-	f.fatalCalled = true
-	f.fatalMsg = fmt.Sprintf(format, args...)
-}
 
 func TestWaitForFileExists_FilePresentImmediately(t *testing.T) {
 	dir := t.TempDir()
@@ -58,19 +44,19 @@ func TestWaitForFileExists_TimeoutFatals(t *testing.T) {
 	path := filepath.Join(dir, "never-appears")
 	budget := 50 * time.Millisecond
 
-	fake := &fakeFataller{}
-	waitForFileExists(fake, path, budget, 10*time.Millisecond)
+	rec := &harnesstest.Recorder{}
+	rec.Run(func() { waitForFileExists(rec, path, budget, 10*time.Millisecond) })
 
-	if !fake.fatalCalled {
-		t.Fatalf("expected Fatalf to be called when file never appears within %v", budget)
+	if len(rec.Fatals) != 1 {
+		t.Fatalf("got %d fatals, want exactly 1 when the file never appears within %v: %v", len(rec.Fatals), budget, rec.Fatals)
 	}
-	if !strings.Contains(fake.fatalMsg, path) {
-		t.Errorf("diagnostic %q missing absolute path %q", fake.fatalMsg, path)
+	if !strings.Contains(rec.Fatals[0], path) {
+		t.Errorf("diagnostic %q missing absolute path %q", rec.Fatals[0], path)
 	}
-	if !strings.Contains(fake.fatalMsg, budget.String()) {
-		t.Errorf("diagnostic %q missing budget %v", fake.fatalMsg, budget)
+	if !strings.Contains(rec.Fatals[0], budget.String()) {
+		t.Errorf("diagnostic %q missing budget %v", rec.Fatals[0], budget)
 	}
-	if fake.helperCalls == 0 {
+	if rec.HelperCalls == 0 {
 		t.Errorf("expected Helper() to be called at least once")
 	}
 }

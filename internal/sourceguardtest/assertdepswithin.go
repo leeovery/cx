@@ -1,13 +1,10 @@
 package sourceguardtest
 
-import "slices"
+import (
+	"slices"
 
-// AssertingT is TestingT plus the non-fatal verb, so an assertion can report
-// every offender it finds before deciding whether to abort.
-type AssertingT interface {
-	TestingT
-	Errorf(format string, args ...any)
-}
+	"github.com/leeovery/portal/internal/harnesstest"
+)
 
 // AssertDepsWithin asserts that pkg's transitive dependencies stay inside
 // allowed — the shape every leaf-package guard in this module states. allowed
@@ -24,7 +21,7 @@ type AssertingT interface {
 // the allowlist has drifted off the package it is meant to police. A package
 // whose allowlist is empty has no such anchor to check and rests on the first
 // two.
-func AssertDepsWithin(t AssertingT, pkg string, allowed []string, opts ...DepsOption) {
+func AssertDepsWithin(t harnesstest.TestingT, pkg string, allowed []string, opts ...DepsOption) {
 	t.Helper()
 
 	cfg := newDepsConfig(opts)

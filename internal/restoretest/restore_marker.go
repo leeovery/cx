@@ -3,6 +3,7 @@ package restoretest
 import (
 	"testing"
 
+	"github.com/leeovery/portal/internal/harnesstest"
 	"github.com/leeovery/portal/internal/restore"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
@@ -36,7 +37,7 @@ func RestoreWithMarker(t *testing.T, client *tmux.Client, o *restore.Orchestrato
 // it a restore driven with no marker set would be indistinguishable from one
 // driven with it, and the daemon stand-down window this fixture exists to open
 // would never be exercised.
-func assertRestoringSet(t fataller, client *tmux.Client) {
+func assertRestoringSet(t harnesstest.NamingT, client *tmux.Client) {
 	t.Helper()
 	set, err := state.IsRestoringSet(client)
 	if err != nil {

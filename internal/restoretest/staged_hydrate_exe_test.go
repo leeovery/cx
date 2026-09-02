@@ -6,6 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/leeovery/portal/internal/harnesstest"
+	"github.com/leeovery/portal/internal/restore"
 )
 
 func TestStagedHydrateExe(t *testing.T) {
@@ -23,17 +26,18 @@ func TestStagedHydrateExe(t *testing.T) {
 	})
 
 	t.Run("an empty binDir fatals rather than degrading to a PATH lookup", func(t *testing.T) {
-		fake := &fakeFataller{}
+		rec := &harnesstest.Recorder{}
 
-		resolver := stagedHydrateExe(fake, "")
+		var resolver restore.ExecutableResolver
+		rec.Run(func() { resolver = stagedHydrateExe(rec, "") })
 
-		if !fake.fatalCalled {
-			t.Fatalf("expected Fatalf for an empty binDir; resolver returned %v", resolver)
+		if len(rec.Fatals) != 1 {
+			t.Fatalf("got %d fatals for an empty binDir, want exactly 1; resolver returned %v", len(rec.Fatals), resolver)
 		}
-		if !strings.Contains(fake.fatalMsg, "binDir") {
-			t.Errorf("diagnostic %q does not name the empty parameter", fake.fatalMsg)
+		if !strings.Contains(rec.Fatals[0], "binDir") {
+			t.Errorf("diagnostic %q does not name the empty parameter", rec.Fatals[0])
 		}
-		if fake.helperCalls == 0 {
+		if rec.HelperCalls == 0 {
 			t.Error("expected Helper() to be called")
 		}
 	})

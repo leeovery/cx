@@ -1,12 +1,12 @@
 package hookstest_test
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/leeovery/portal/internal/harnesstest"
 	"github.com/leeovery/portal/internal/hookstest"
 	"github.com/leeovery/portal/internal/nanoid"
 )
@@ -83,36 +83,6 @@ func assertUnseen(t *testing.T, seen map[string]string, name, key string) {
 	seen[key] = name
 }
 
-// recordingT stands in for *testing.T so the assertion's own failing paths can
-// be exercised without failing the harness running them.
-type recordingT struct {
-	errors []string
-	fatals []string
-}
-
-func (r *recordingT) Helper() {}
-
-func (r *recordingT) Errorf(format string, args ...any) {
-	r.errors = append(r.errors, fmt.Sprintf(format, args...))
-}
-
-func (r *recordingT) Fatalf(format string, args ...any) {
-	r.fatals = append(r.fatals, fmt.Sprintf(format, args...))
-	panic(recordedFatal{})
-}
-
-type recordedFatal struct{}
-
-// captureAssert runs fn against the stand-in and reports what it said,
-// absorbing the panic a Fatalf raises so an unexpected fatal is a returned
-// message rather than an abort.
-func captureAssert(fn func(*recordingT)) (rec *recordingT) {
-	rec = &recordingT{}
-	defer func() { _ = recover() }()
-	fn(rec)
-	return rec
-}
-
 func stageHooksFile(t *testing.T, body string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "hooks.json")
@@ -127,12 +97,11 @@ func TestAssertHooksFileUnchanged(t *testing.T) {
 		path := stageHooksFile(t, `{"tok01":{"on-resume":"npm start"}}`)
 		before := hookstest.HooksFileBytes(t, path)
 
-		rec := captureAssert(func(rt *recordingT) {
-			hookstest.AssertHooksFileUnchanged(rt, path, before)
-		})
+		rec := &harnesstest.Recorder{}
+		rec.Run(func() { hookstest.AssertHooksFileUnchanged(rec, path, before) })
 
-		if len(rec.errors) != 0 || len(rec.fatals) != 0 {
-			t.Errorf("an unchanged file reported errors %v and fatals %v, want neither", rec.errors, rec.fatals)
+		if len(rec.Errors) != 0 || len(rec.Fatals) != 0 {
+			t.Errorf("an unchanged file reported errors %v and fatals %v, want neither", rec.Errors, rec.Fatals)
 		}
 	})
 
@@ -143,18 +112,17 @@ func TestAssertHooksFileUnchanged(t *testing.T) {
 			t.Fatalf("rewrite hooks.json: %v", err)
 		}
 
-		rec := captureAssert(func(rt *recordingT) {
-			hookstest.AssertHooksFileUnchanged(rt, path, before)
-		})
+		rec := &harnesstest.Recorder{}
+		rec.Run(func() { hookstest.AssertHooksFileUnchanged(rec, path, before) })
 
-		if len(rec.errors) != 1 {
-			t.Fatalf("got %d errors, want exactly 1: %v", len(rec.errors), rec.errors)
+		if len(rec.Errors) != 1 {
+			t.Fatalf("got %d errors, want exactly 1: %v", len(rec.Errors), rec.Errors)
 		}
-		if want := "changed on a failing route"; !strings.Contains(rec.errors[0], want) {
-			t.Errorf("failure message %q does not carry the default wording %q", rec.errors[0], want)
+		if want := "changed on a failing route"; !strings.Contains(rec.Errors[0], want) {
+			t.Errorf("failure message %q does not carry the default wording %q", rec.Errors[0], want)
 		}
-		if !strings.Contains(rec.errors[0], "npm starT") {
-			t.Errorf("failure message %q does not carry the after bytes", rec.errors[0])
+		if !strings.Contains(rec.Errors[0], "npm starT") {
+			t.Errorf("failure message %q does not carry the after bytes", rec.Errors[0])
 		}
 	})
 
@@ -165,18 +133,17 @@ func TestAssertHooksFileUnchanged(t *testing.T) {
 			t.Fatalf("rewrite hooks.json: %v", err)
 		}
 
-		rec := captureAssert(func(rt *recordingT) {
-			hookstest.AssertHooksFileUnchanged(rt, path, before, "rewritten on a stand-down")
-		})
+		rec := &harnesstest.Recorder{}
+		rec.Run(func() { hookstest.AssertHooksFileUnchanged(rec, path, before, "rewritten on a stand-down") })
 
-		if len(rec.errors) != 1 {
-			t.Fatalf("got %d errors, want exactly 1: %v", len(rec.errors), rec.errors)
+		if len(rec.Errors) != 1 {
+			t.Fatalf("got %d errors, want exactly 1: %v", len(rec.Errors), rec.Errors)
 		}
-		if want := "rewritten on a stand-down"; !strings.Contains(rec.errors[0], want) {
-			t.Errorf("failure message %q does not carry the caller's context %q", rec.errors[0], want)
+		if want := "rewritten on a stand-down"; !strings.Contains(rec.Errors[0], want) {
+			t.Errorf("failure message %q does not carry the caller's context %q", rec.Errors[0], want)
 		}
-		if unwanted := "changed on a failing route"; strings.Contains(rec.errors[0], unwanted) {
-			t.Errorf("failure message %q still carries the default wording %q", rec.errors[0], unwanted)
+		if unwanted := "changed on a failing route"; strings.Contains(rec.Errors[0], unwanted) {
+			t.Errorf("failure message %q still carries the default wording %q", rec.Errors[0], unwanted)
 		}
 	})
 
@@ -186,15 +153,14 @@ func TestAssertHooksFileUnchanged(t *testing.T) {
 			t.Fatalf("stage a directory at the hooks.json path: %v", err)
 		}
 
-		rec := captureAssert(func(rt *recordingT) {
-			hookstest.HooksFileBytes(rt, path)
-		})
+		rec := &harnesstest.Recorder{}
+		rec.Run(func() { hookstest.HooksFileBytes(rec, path) })
 
-		if len(rec.fatals) != 1 {
-			t.Fatalf("got %d fatals, want exactly 1: %v", len(rec.fatals), rec.fatals)
+		if len(rec.Fatals) != 1 {
+			t.Fatalf("got %d fatals, want exactly 1: %v", len(rec.Fatals), rec.Fatals)
 		}
-		if !strings.Contains(rec.fatals[0], path) {
-			t.Errorf("fatal message %q does not name the path it could not read", rec.fatals[0])
+		if !strings.Contains(rec.Fatals[0], path) {
+			t.Errorf("fatal message %q does not name the path it could not read", rec.Fatals[0])
 		}
 	})
 
@@ -206,15 +172,14 @@ func TestAssertHooksFileUnchanged(t *testing.T) {
 			t.Fatalf("HooksFileBytes of an absent file = %q, want nil", before)
 		}
 
-		rec := captureAssert(func(rt *recordingT) {
-			hookstest.AssertHooksFileUnchanged(rt, path, before)
-		})
+		rec := &harnesstest.Recorder{}
+		rec.Run(func() { hookstest.AssertHooksFileUnchanged(rec, path, before) })
 
-		if len(rec.fatals) != 0 {
-			t.Errorf("an absent file fatalled: %v", rec.fatals)
+		if len(rec.Fatals) != 0 {
+			t.Errorf("an absent file fatalled: %v", rec.Fatals)
 		}
-		if len(rec.errors) != 0 {
-			t.Errorf("an absent file before and after compared unequal: %v", rec.errors)
+		if len(rec.Errors) != 0 {
+			t.Errorf("an absent file before and after compared unequal: %v", rec.Errors)
 		}
 	})
 }

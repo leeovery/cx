@@ -33,7 +33,7 @@ func TestPackageDeps_FatalsWhenGoListCannotResolveThePackage(t *testing.T) {
 	deps := sourceguardtest.PackageDeps(stub, selfPkg+"/no-such-package")
 
 	if !stub.fataled {
-		t.Fatal("PackageDeps did not fatal on an unresolvable package — a leaf guard would pass over an empty dependency set")
+		t.Fatalf("PackageDeps did not fatal on an unresolvable package — a leaf guard would pass over an empty dependency set; errors %v", stub.errors)
 	}
 	if deps != nil {
 		t.Errorf("PackageDeps returned %v after fatalling, want nil", deps)
@@ -49,6 +49,7 @@ func TestPackageDeps_FatalsWhenGoListCannotResolveThePackage(t *testing.T) {
 type recordingT struct {
 	fataled bool
 	msg     string
+	errors  []string
 }
 
 func (r *recordingT) Helper() {}
@@ -56,4 +57,7 @@ func (r *recordingT) Helper() {}
 func (r *recordingT) Fatalf(format string, args ...any) {
 	r.fataled = true
 	r.msg = fmt.Sprintf(format, args...)
+}
+func (r *recordingT) Errorf(format string, args ...any) {
+	r.errors = append(r.errors, fmt.Sprintf(format, args...))
 }

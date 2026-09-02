@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/commandertest"
+	"github.com/leeovery/portal/internal/harnesstest"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
 )
@@ -118,11 +119,11 @@ func TestRestoreWithMarker_BracketsTheRestore(t *testing.T) {
 	// failure path is exercised rather than assumed.
 	t.Run("it fails a restore driven with the marker unset", func(t *testing.T) {
 		rec := newServerOptionRecorder()
-		fake := &fakeFataller{}
+		fake := &harnesstest.Recorder{}
 
-		assertRestoringSet(fake, tmux.NewClient(rec))
+		fake.Run(func() { assertRestoringSet(fake, tmux.NewClient(rec)) })
 
-		if !fake.fatalCalled {
+		if len(fake.Fatals) == 0 {
 			t.Fatalf("assertRestoringSet passed with %s unset; deleting the set half would leave every lane green",
 				state.RestoringMarkerName)
 		}

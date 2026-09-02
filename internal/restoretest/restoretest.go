@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/portal/internal/harnesstest"
 	"github.com/leeovery/portal/internal/portalbintest"
 	"github.com/leeovery/portal/internal/restore"
 	"github.com/leeovery/portal/internal/state"
@@ -64,7 +65,7 @@ func StagedHydrateExe(t *testing.T, binDir string) restore.ExecutableResolver {
 	return stagedHydrateExe(t, binDir)
 }
 
-func stagedHydrateExe(t fataller, binDir string) restore.ExecutableResolver {
+func stagedHydrateExe(t harnesstest.NamingT, binDir string) restore.ExecutableResolver {
 	t.Helper()
 	if binDir == "" {
 		t.Fatalf("StagedHydrateExe: empty binDir; stage one with BuildPortalBinaryDir first")

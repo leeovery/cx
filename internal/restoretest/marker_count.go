@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/leeovery/portal/internal/harnesstest"
 )
 
 const (
@@ -13,14 +15,6 @@ const (
 	HydrateBudget = 10 * time.Second
 	HydrateTick   = 50 * time.Millisecond
 )
-
-// markerReporter is the slice of *testing.T the marker assertion needs, so a
-// test can drive it without failing itself.
-type markerReporter interface {
-	Helper()
-	Errorf(format string, args ...any)
-	Fatalf(format string, args ...any)
-}
 
 // AssertMarkerCount polls a hook's side-effect file until it holds exactly want
 // occurrences of marker. A count short of want fails at the hydrate budget; a
@@ -51,7 +45,7 @@ type markerAssertion struct {
 	tick   time.Duration
 }
 
-func (a markerAssertion) run(t markerReporter) {
+func (a markerAssertion) run(t harnesstest.TestingT) {
 	t.Helper()
 
 	got, contents := a.wait(t)
@@ -71,7 +65,7 @@ func (a markerAssertion) run(t markerReporter) {
 }
 
 // wait returns the last count it read, along with the file contents behind it.
-func (a markerAssertion) wait(t markerReporter) (int, string) {
+func (a markerAssertion) wait(t harnesstest.TestingT) (int, string) {
 	t.Helper()
 
 	deadline := time.Now().Add(a.budget)
@@ -89,7 +83,7 @@ func (a markerAssertion) wait(t markerReporter) (int, string) {
 
 // read treats an absent file as a count of 0: until the hook fires, nothing has
 // created it.
-func (a markerAssertion) read(t markerReporter) (int, string) {
+func (a markerAssertion) read(t harnesstest.TestingT) (int, string) {
 	t.Helper()
 
 	data, err := os.ReadFile(a.path)

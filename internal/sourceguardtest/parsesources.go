@@ -4,6 +4,8 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+
+	"github.com/leeovery/portal/internal/harnesstest"
 )
 
 // ParseMode is the mode every guard's sources are parsed under. Comments are
@@ -25,7 +27,7 @@ type ParsedSource struct {
 // included only when includeTests is set, in the filename order PackageGoFiles
 // returns. Enumerating nothing, parsing nothing and failing to parse a file are
 // all fatal: a guard that scanned nothing reports a safety it is not providing.
-func ParsePackageSources(t TestingT, dir string, includeTests bool) []ParsedSource {
+func ParsePackageSources(t harnesstest.TestingT, dir string, includeTests bool) []ParsedSource {
 	t.Helper()
 
 	paths, err := PackageGoFiles(dir, includeTests)
@@ -39,7 +41,7 @@ func ParsePackageSources(t TestingT, dir string, includeTests bool) []ParsedSour
 // ParseSources parses each of paths in order. An unparseable file is fatal, as
 // is an empty result: a guard handed no source would otherwise pass by having
 // stopped looking.
-func ParseSources(t TestingT, paths []string) []ParsedSource {
+func ParseSources(t harnesstest.TestingT, paths []string) []ParsedSource {
 	t.Helper()
 
 	sources := make([]ParsedSource, 0, len(paths))

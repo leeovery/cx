@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/leeovery/portal/internal/logtest"
+	"github.com/leeovery/portal/internal/harnesstest"
 	"github.com/leeovery/portal/internal/sourceguardtest"
 )
 
@@ -40,7 +40,7 @@ func TestSeamsInstalledOnlyThroughTheStagingHelpers(t *testing.T) {
 //
 // It takes the TestingT subset rather than *testing.T so its own failure paths
 // are exercisable.
-func runSeamAssignmentGuard(t logtest.TestingT, paths []string, seams []string, helperFile string) {
+func runSeamAssignmentGuard(t harnesstest.TestingT, paths []string, seams []string, helperFile string) {
 	t.Helper()
 	var scanPaths []string
 	for _, path := range paths {
@@ -147,7 +147,7 @@ func TestSeamGuard(t *testing.T) {
 				path := writeSeamFixture(t, "offender_test.go", fmt.Sprintf(
 					"package cmd\n\nfunc TestOffender() {\n\t%s = nil\n}\n", seam))
 
-				failed, msg := captureSeamGuardFailure(func(sub logtest.TestingT) {
+				failed, msg := captureSeamGuardFailure(func(sub harnesstest.TestingT) {
 					runSeamAssignmentGuard(sub, []string{path}, declaredSeams(t), depsSeamHelperFile)
 				})
 
@@ -171,7 +171,7 @@ func TestSeamGuard(t *testing.T) {
 		body.WriteString("}\n")
 		path := writeSeamFixture(t, "wellbehaved_test.go", body.String())
 
-		failed, msg := captureSeamGuardFailure(func(sub logtest.TestingT) {
+		failed, msg := captureSeamGuardFailure(func(sub harnesstest.TestingT) {
 			runSeamAssignmentGuard(sub, []string{path}, declaredSeams(t), depsSeamHelperFile)
 		})
 		if failed {
@@ -186,7 +186,7 @@ func TestSeamGuard(t *testing.T) {
 			"only the helper file":      {depsSeamHelperFile},
 		} {
 			t.Run(name, func(t *testing.T) {
-				failed, msg := captureSeamGuardFailure(func(sub logtest.TestingT) {
+				failed, msg := captureSeamGuardFailure(func(sub harnesstest.TestingT) {
 					runSeamAssignmentGuard(sub, paths, declaredSeams(t), depsSeamHelperFile)
 				})
 				if !failed {
@@ -211,35 +211,11 @@ func writeSeamFixture(t *testing.T, name, body string) string {
 	return path
 }
 
-// seamGuardT stands in for *testing.T so the guard's own failing paths can be
-// asserted on. Fatalf panics, as the real one aborts, and captureSeamGuardFailure
-// absorbs it.
-type seamGuardT struct {
-	failed bool
-	msg    string
-}
-
-func (f *seamGuardT) Helper() {}
-
-func (f *seamGuardT) Errorf(format string, args ...any) {
-	f.failed = true
-	f.msg = fmt.Sprintf(format, args...)
-}
-
-func (f *seamGuardT) Fatalf(format string, args ...any) {
-	f.failed = true
-	f.msg = fmt.Sprintf(format, args...)
-	panic(seamGuardFatal{})
-}
-
-type seamGuardFatal struct{}
-
-func captureSeamGuardFailure(fn func(logtest.TestingT)) (failed bool, msg string) {
-	sub := &seamGuardT{}
-	defer func() {
-		_ = recover()
-		failed, msg = sub.failed, sub.msg
-	}()
-	fn(sub)
-	return sub.failed, sub.msg
+// captureSeamGuardFailure runs fn against the shared stand-in, which absorbs
+// the abort a Fatalf stands for, and reports whether the guard complained and
+// with what.
+func captureSeamGuardFailure(fn func(harnesstest.TestingT)) (failed bool, msg string) {
+	rec := &harnesstest.Recorder{}
+	rec.Run(func() { fn(rec) })
+	return rec.Failed(), rec.Report()
 }
