@@ -3,12 +3,10 @@ package tmux_test
 import (
 	"errors"
 	"maps"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/leeovery/portal/internal/tmux"
 	"github.com/leeovery/portal/internal/tmuxtest"
@@ -22,7 +20,7 @@ const (
 	prefixSibling = "sib-2"
 )
 
-// The shape seedPrefixSiblingServer builds: two windows of two panes each, with
+// The shape prefixSiblingFixture builds: two windows of two panes each, with
 // the second window current. A single-window sibling would let a form that
 // resolves only the current window pass as if it had resolved the whole
 // session.
@@ -31,35 +29,19 @@ var siblingAllCoords = []tmux.PaneCoord{
 	{Window: 1, Pane: 0}, {Window: 1, Pane: 1},
 }
 
-// seedPrefixSiblingServer starts an isolated server holding prefixSibling and
-// nothing else, shaped to siblingAllCoords, and returns the socket, its client,
-// and the dir every pane sits in as tmux reports it (macOS resolves the temp
-// dir through /private).
-func seedPrefixSiblingServer(t *testing.T) (*tmuxtest.Socket, *tmux.Client, string) {
-	t.Helper()
-	tmuxtest.SkipIfNoTmux(t)
-
-	ts := tmuxtest.New(t, "ptl-exacttgt-")
-	client := ts.Client()
-	if _, err := client.EnsureServer(); err != nil {
-		t.Fatalf("EnsureServer: %v", err)
-	}
-	dir, err := filepath.EvalSymlinks(t.TempDir())
-	if err != nil {
-		t.Fatalf("EvalSymlinks: %v", err)
-	}
-	if err := client.NewSession(prefixSibling, dir, ""); err != nil {
-		t.Fatalf("NewSession(%q): %v", prefixSibling, err)
-	}
-	ts.WaitForSession(t, prefixSibling, 2*time.Second)
-
-	// -c pins every pane to dir, so the ActivePaneCurrentPath expectation holds
-	// whichever pane the splits leave active. new-window runs last-but-one, so
-	// window 1 is the session's current window.
-	ts.Run(t, "split-window", "-t", "="+prefixSibling+":0.0", "-c", dir)
-	ts.Run(t, "new-window", "-t", "="+prefixSibling+":", "-c", dir)
-	ts.Run(t, "split-window", "-t", "="+prefixSibling+":1.0", "-c", dir)
-	return ts, client, dir
+// prefixSiblingFixture holds prefixSibling and nothing else, shaped to
+// siblingAllCoords. Every pane sits in the fixture's dir as tmux reports it.
+var prefixSiblingFixture = realTmuxFixture{
+	socketPrefix: "ptl-exacttgt-",
+	sessions:     []string{prefixSibling},
+	topology: func(t *testing.T, ts *tmuxtest.Socket, _ *tmux.Client, dir string) {
+		// -c pins every pane to dir, so the ActivePaneCurrentPath expectation
+		// holds whichever pane the splits leave active. new-window runs
+		// last-but-one, so window 1 is the session's current window.
+		ts.Run(t, "split-window", "-t", "="+prefixSibling+":0.0", "-c", dir)
+		ts.Run(t, "new-window", "-t", "="+prefixSibling+":", "-c", dir)
+		ts.Run(t, "split-window", "-t", "="+prefixSibling+":1.0", "-c", dir)
+	},
 }
 
 func siblingEnvironment(t *testing.T, ts *tmuxtest.Socket) string {
@@ -98,7 +80,7 @@ func siblingFirstPaneField(t *testing.T, ts *tmuxtest.Socket, format string) str
 // perSessionRoutes rather than trusted to stay in step with it.
 var goneSessionRouteCases = map[string]func(*testing.T){
 	"ActivePaneCurrentPath": func(t *testing.T) {
-		_, client, dir := seedPrefixSiblingServer(t)
+		_, client, dir := seedRealTmuxServer(t, prefixSiblingFixture)
 
 		got, err := client.ActivePaneCurrentPath(goneSession)
 		if got == dir {
@@ -113,7 +95,7 @@ var goneSessionRouteCases = map[string]func(*testing.T){
 	},
 
 	"ListPanesInSession": func(t *testing.T) {
-		_, client, _ := seedPrefixSiblingServer(t)
+		_, client, _ := seedRealTmuxServer(t, prefixSiblingFixture)
 
 		coords, err := client.ListPanesInSession(goneSession)
 		if err == nil {
@@ -122,7 +104,7 @@ var goneSessionRouteCases = map[string]func(*testing.T){
 	},
 
 	"ListWindowsAndPanesInSession": func(t *testing.T) {
-		_, client, _ := seedPrefixSiblingServer(t)
+		_, client, _ := seedRealTmuxServer(t, prefixSiblingFixture)
 
 		groups, err := client.ListWindowsAndPanesInSession(goneSession)
 		if err == nil {
@@ -131,7 +113,7 @@ var goneSessionRouteCases = map[string]func(*testing.T){
 	},
 
 	"ShowEnvironment": func(t *testing.T) {
-		ts, client, _ := seedPrefixSiblingServer(t)
+		ts, client, _ := seedRealTmuxServer(t, prefixSiblingFixture)
 		ts.Run(t, "set-environment", "-t", prefixSibling, "PORTAL_SIB", "sibling-only")
 
 		out, err := client.ShowEnvironment(goneSession)
@@ -147,7 +129,7 @@ var goneSessionRouteCases = map[string]func(*testing.T){
 	},
 
 	"SetSessionEnvironment": func(t *testing.T) {
-		ts, client, _ := seedPrefixSiblingServer(t)
+		ts, client, _ := seedRealTmuxServer(t, prefixSiblingFixture)
 
 		if err := client.SetSessionEnvironment(goneSession, "PORTAL_LEAK", "leaked"); err == nil {
 			t.Fatalf("SetSessionEnvironment(%q) succeeded, want a tmux failure", goneSession)
@@ -158,7 +140,7 @@ var goneSessionRouteCases = map[string]func(*testing.T){
 	},
 
 	"SetSessionOption": func(t *testing.T) {
-		ts, client, _ := seedPrefixSiblingServer(t)
+		ts, client, _ := seedRealTmuxServer(t, prefixSiblingFixture)
 
 		if err := client.SetSessionOption(goneSession, "@portal-leak", "leaked"); err == nil {
 			t.Fatalf("SetSessionOption(%q) succeeded, want a tmux failure", goneSession)
@@ -169,7 +151,7 @@ var goneSessionRouteCases = map[string]func(*testing.T){
 	},
 
 	"SaverPaneID": func(t *testing.T) {
-		ts, client, _ := seedPrefixSiblingServer(t)
+		ts, client, _ := seedRealTmuxServer(t, prefixSiblingFixture)
 		siblingPane := siblingFirstPaneField(t, ts, "#{pane_id}")
 
 		got, err := client.SaverPaneID(goneSession)
@@ -182,7 +164,7 @@ var goneSessionRouteCases = map[string]func(*testing.T){
 	},
 
 	"SaverPanePIDOrAbsent": func(t *testing.T) {
-		ts, client, _ := seedPrefixSiblingServer(t)
+		ts, client, _ := seedRealTmuxServer(t, prefixSiblingFixture)
 		siblingPID := siblingFirstPaneField(t, ts, "#{pane_pid}")
 
 		pid, present, err := tmux.SaverPanePIDOrAbsent(client, goneSession)
@@ -195,7 +177,7 @@ var goneSessionRouteCases = map[string]func(*testing.T){
 	},
 
 	"SelectLayout": func(t *testing.T) {
-		ts, client, _ := seedPrefixSiblingServer(t)
+		ts, client, _ := seedRealTmuxServer(t, prefixSiblingFixture)
 		before := siblingWindowLayout(t, ts)
 
 		// Errorf, not Fatalf: a call that wrongly succeeds must still reach the
@@ -214,7 +196,7 @@ var goneSessionRouteCases = map[string]func(*testing.T){
 // at all would read as a permanent miss rather than a wrong-session hit.
 var liveSessionRouteCases = map[string]func(*testing.T){
 	"ActivePaneCurrentPath": func(t *testing.T) {
-		_, client, dir := seedPrefixSiblingServer(t)
+		_, client, dir := seedRealTmuxServer(t, prefixSiblingFixture)
 
 		got, err := client.ActivePaneCurrentPath(prefixSibling)
 		if err != nil {
@@ -226,7 +208,7 @@ var liveSessionRouteCases = map[string]func(*testing.T){
 	},
 
 	"ListPanesInSession": func(t *testing.T) {
-		_, client, _ := seedPrefixSiblingServer(t)
+		_, client, _ := seedRealTmuxServer(t, prefixSiblingFixture)
 
 		coords, err := client.ListPanesInSession(prefixSibling)
 		if err != nil {
@@ -238,7 +220,7 @@ var liveSessionRouteCases = map[string]func(*testing.T){
 	},
 
 	"ListWindowsAndPanesInSession": func(t *testing.T) {
-		_, client, _ := seedPrefixSiblingServer(t)
+		_, client, _ := seedRealTmuxServer(t, prefixSiblingFixture)
 
 		groups, err := client.ListWindowsAndPanesInSession(prefixSibling)
 		if err != nil {
@@ -255,7 +237,7 @@ var liveSessionRouteCases = map[string]func(*testing.T){
 	},
 
 	"ShowEnvironment": func(t *testing.T) {
-		ts, client, _ := seedPrefixSiblingServer(t)
+		ts, client, _ := seedRealTmuxServer(t, prefixSiblingFixture)
 		ts.Run(t, "set-environment", "-t", prefixSibling, "PORTAL_SIB", "sibling-only")
 
 		out, err := client.ShowEnvironment(prefixSibling)
@@ -268,7 +250,7 @@ var liveSessionRouteCases = map[string]func(*testing.T){
 	},
 
 	"SetSessionEnvironment": func(t *testing.T) {
-		ts, client, _ := seedPrefixSiblingServer(t)
+		ts, client, _ := seedRealTmuxServer(t, prefixSiblingFixture)
 
 		if err := client.SetSessionEnvironment(prefixSibling, "PORTAL_SET", "written"); err != nil {
 			t.Fatalf("SetSessionEnvironment(%q): %v", prefixSibling, err)
@@ -279,7 +261,7 @@ var liveSessionRouteCases = map[string]func(*testing.T){
 	},
 
 	"SetSessionOption": func(t *testing.T) {
-		ts, client, _ := seedPrefixSiblingServer(t)
+		ts, client, _ := seedRealTmuxServer(t, prefixSiblingFixture)
 
 		if err := client.SetSessionOption(prefixSibling, "@portal-set", "written"); err != nil {
 			t.Fatalf("SetSessionOption(%q): %v", prefixSibling, err)
@@ -290,7 +272,7 @@ var liveSessionRouteCases = map[string]func(*testing.T){
 	},
 
 	"SaverPaneID": func(t *testing.T) {
-		ts, client, _ := seedPrefixSiblingServer(t)
+		ts, client, _ := seedRealTmuxServer(t, prefixSiblingFixture)
 		want := siblingFirstPaneField(t, ts, "#{pane_id}")
 
 		got, err := client.SaverPaneID(prefixSibling)
@@ -303,7 +285,7 @@ var liveSessionRouteCases = map[string]func(*testing.T){
 	},
 
 	"SaverPanePIDOrAbsent": func(t *testing.T) {
-		ts, client, _ := seedPrefixSiblingServer(t)
+		ts, client, _ := seedRealTmuxServer(t, prefixSiblingFixture)
 		want := siblingFirstPaneField(t, ts, "#{pane_pid}")
 
 		pid, present, err := tmux.SaverPanePIDOrAbsent(client, prefixSibling)
@@ -316,7 +298,7 @@ var liveSessionRouteCases = map[string]func(*testing.T){
 	},
 
 	"SelectLayout": func(t *testing.T) {
-		ts, client, _ := seedPrefixSiblingServer(t)
+		ts, client, _ := seedRealTmuxServer(t, prefixSiblingFixture)
 		ts.Run(t, "select-layout", "-t", "="+prefixSibling+":0", "even-vertical")
 		before := siblingWindowLayout(t, ts)
 

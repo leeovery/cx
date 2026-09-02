@@ -16,7 +16,7 @@ func readHookKey(t *testing.T, ts *tmuxtest.Socket, target string) string {
 
 func TestHookKeyFormat_StampedPane(t *testing.T) {
 	const sessionName = "hk-stamped"
-	ts, _ := seedHookKeyServer(t, sessionName, nil)
+	ts, _, _ := seedRealTmuxServer(t, hookKeyFixture(sessionName, nil))
 
 	ts.StampPaneToken(t, sessionName+":0.0", "tok123")
 
@@ -29,7 +29,7 @@ func TestHookKeyFormat_StampedPane(t *testing.T) {
 
 func TestHookKeyFormat_UnstampedPane(t *testing.T) {
 	const sessionName = "hk-unstamped"
-	ts, _ := seedHookKeyServer(t, sessionName, nil)
+	ts, _, _ := seedRealTmuxServer(t, hookKeyFixture(sessionName, nil))
 
 	if got := readHookKey(t, ts, sessionName+":0.0"); got != "" {
 		t.Errorf("un-stamped pane hook key = %q, want an empty key", got)

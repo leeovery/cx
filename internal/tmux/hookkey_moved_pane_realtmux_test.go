@@ -138,7 +138,7 @@ type paneTokenProbe struct {
 func newStampedPaneFixture(t *testing.T, sessionName, token string) (*tmuxtest.Socket, *tmux.Client, *paneTokenProbe) {
 	t.Helper()
 
-	ts, client := seedHookKeyServer(t, sessionName, func(ts *tmuxtest.Socket, client *tmux.Client) {
+	ts, client, _ := seedRealTmuxServer(t, hookKeyFixture(sessionName, func(t *testing.T, ts *tmuxtest.Socket, client *tmux.Client, _ string) {
 		// renumber-windows is off in vanilla tmux; without it kill-window leaves
 		// the surviving window indices alone, so the renumbering case would
 		// exercise no renumbering at all.
@@ -152,7 +152,7 @@ func newStampedPaneFixture(t *testing.T, sessionName, token string) (*tmuxtest.S
 		if err := client.SplitWindow(sessionName+":1", "", ""); err != nil {
 			t.Fatalf("SplitWindow(%q): %v", sessionName+":1", err)
 		}
-	})
+	}))
 
 	paneID := paneIDAt(t, ts, sessionName+":1.1")
 	ts.StampPaneToken(t, paneID, token)

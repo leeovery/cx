@@ -10,9 +10,10 @@ import (
 
 func TestListAllPaneHookKeys_StampedAndUnstampedInOneRead(t *testing.T) {
 	const sessionName = "lapk-mix"
-	ts, client := seedHookKeyServer(t, sessionName, func(ts *tmuxtest.Socket, _ *tmux.Client) {
-		ts.Run(t, "split-window", "-t", sessionName+":0")
-	})
+	ts, client, _ := seedRealTmuxServer(t, hookKeyFixture(sessionName,
+		func(t *testing.T, ts *tmuxtest.Socket, _ *tmux.Client, _ string) {
+			ts.Run(t, "split-window", "-t", sessionName+":0")
+		}))
 
 	ts.StampPaneToken(t, sessionName+":0.0", "tokMix")
 
@@ -32,7 +33,7 @@ func TestListAllPaneHookKeys_StampedAndUnstampedInOneRead(t *testing.T) {
 }
 
 func TestListAllPaneHookKeys_ListPanesFailurePropagates(t *testing.T) {
-	ts, client := seedHookKeyServer(t, "lapk-fail", nil)
+	ts, client, _ := seedRealTmuxServer(t, hookKeyFixture("lapk-fail", nil))
 
 	// Tear the server down so the subsequent list-panes -a fails with "no
 	// server running" — the reliable read-failure path.

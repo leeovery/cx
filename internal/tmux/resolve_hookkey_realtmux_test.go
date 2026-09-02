@@ -14,7 +14,7 @@ import (
 // socket, its client and the session's sole pane id.
 func liveHookKeyPane(t *testing.T, sessionName string) (*tmuxtest.Socket, *tmux.Client, string) {
 	t.Helper()
-	ts, client := seedHookKeyServer(t, sessionName, nil)
+	ts, client, _ := seedRealTmuxServer(t, hookKeyFixture(sessionName, nil))
 
 	paneIDs := sessionPaneIDs(t, ts, sessionName)
 	if len(paneIDs) != 1 {

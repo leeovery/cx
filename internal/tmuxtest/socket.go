@@ -106,10 +106,18 @@ func (s *Socket) Client() *tmux.Client {
 	return tmux.NewClient(&socketCommander{socketPath: s.socketPath})
 }
 
+// TestingT is the subset of *testing.T WaitForSession depends on, so its own
+// timeout path can be unit-tested without aborting the harness.
+type TestingT interface {
+	Helper()
+	Fatalf(format string, args ...any)
+}
+
 // WaitForSession polls until the named session is queryable or timeout elapses.
 // new-session looks synchronous, but a brief settle window before the session
-// answers has been observed.
-func (s *Socket) WaitForSession(t *testing.T, name string, timeout time.Duration) {
+// answers has been observed. The target is pinned exactly: tmux's fuzzy form
+// lets a live prefix sibling answer for a session that does not exist yet.
+func (s *Socket) WaitForSession(t TestingT, name string, timeout time.Duration) {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
