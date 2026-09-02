@@ -190,8 +190,9 @@ func runDoctorFix(cmd *cobra.Command, deps *DoctorDeps) {
 }
 
 // The sweep's own mass-deletion hazard guard is the down-server protection
-// here — do not add a second guard. Both halves of the outcome are rendered, so
-// a cycle that declined says so instead of looking like one that found nothing.
+// here — do not add a second guard. A cycle that removed nothing for a reason
+// renders that reason — why it declined, or that it failed — so a prune that
+// could not run never looks like one that ran and found nothing.
 func pruneDoctorStaleHooks(w io.Writer, deps *DoctorDeps) {
 	if deps.HookStore == nil {
 		return
@@ -199,13 +200,21 @@ func pruneDoctorStaleHooks(w io.Writer, deps *DoctorDeps) {
 	outcome, err := runHookStaleCleanup(deps.HookLister, deps.HookStore, bootstrapLogger)
 	if err != nil {
 		bootstrapLogger.Warn("doctor --fix: stale-hook prune failed", "error", err)
+		reportSkippedPrune(w, skipReasonSweepFailed)
+		return
 	}
 	for _, key := range outcome.Removed {
 		_, _ = fmt.Fprintf(w, "Pruned stale hook: %s\n", key)
 	}
 	if outcome.DeclineReason != "" {
-		_, _ = fmt.Fprintf(w, "Skipped stale hook prune: %s\n", phraseFor(skippedPrunePhrases, outcome.DeclineReason))
+		reportSkippedPrune(w, outcome.DeclineReason)
 	}
+}
+
+// reportSkippedPrune renders a prune that removed nothing from the shared
+// reason vocabulary, so no branch can reach for words of its own.
+func reportSkippedPrune(w io.Writer, reason string) {
+	_, _ = fmt.Fprintf(w, "Skipped stale hook prune: %s\n", phraseFor(skippedPrunePhrases, reason))
 }
 
 func pruneDoctorStaleProjects(w io.Writer, deps *DoctorDeps) {

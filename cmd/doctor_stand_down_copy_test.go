@@ -9,6 +9,7 @@ package cmd
 import (
 	"bytes"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 
@@ -26,6 +27,13 @@ type standDownCopyCase struct {
 	skippedLine      string
 	notEvaluableLine string
 }
+
+// notStandDownReasons are declared reasons this table cannot hold. A failed
+// sweep declined nothing — it ran, wrote nothing and left the entry it could
+// not delete, so its post-repair diagnosis is legitimately unhealthy and the
+// read-only surface never reaches it at all. Naming them keeps the count guard
+// below sharp: a genuinely new stand-down still fails it.
+var notStandDownReasons = []string{skipReasonSweepFailed}
 
 func standDownCopyCases() []standDownCopyCase {
 	return []standDownCopyCase{
@@ -163,8 +171,13 @@ func TestStandDownCopy(t *testing.T) {
 
 	t.Run("it names a phrase for every stand-down reason on both surfaces", func(t *testing.T) {
 		cases := standDownCopyCases()
-		if len(cases) != len(skipReasons) {
-			t.Fatalf("stand-down copy cases = %d, want one per declared reason (%d)", len(cases), len(skipReasons))
+		if want := len(skipReasons) - len(notStandDownReasons); len(cases) != want {
+			t.Fatalf("stand-down copy cases = %d, want one per declared stand-down reason (%d)", len(cases), want)
+		}
+		for _, reason := range notStandDownReasons {
+			if !slices.Contains(skipReasons, reason) {
+				t.Errorf("excluded reason %q is not declared; the count guard is subtracting nothing", reason)
+			}
 		}
 
 		skipped := map[string]string{}

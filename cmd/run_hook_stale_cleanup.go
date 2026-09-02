@@ -10,8 +10,10 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// The reasons a cycle declines to run. Both the logged reason attr and the
-// caller-facing rendering read them, so the two cannot drift.
+// The reasons a cycle removed nothing: the ones it declines to run under,
+// which the logged reason attr also names, and the failure only the
+// caller-facing rendering reports. Every surface that renders one works from
+// this set, so their vocabularies cannot drift from it.
 const (
 	skipReasonRestoring        = "restoring"
 	skipReasonMarkerReadFailed = "marker-read-failed"
@@ -19,6 +21,7 @@ const (
 	skipReasonPaneReadFailed   = "pane-read-failed"
 	skipReasonEmptyPaneRead    = "empty-pane-read"
 	skipReasonLockTimeout      = "lock-timeout"
+	skipReasonSweepFailed      = "sweep-failed"
 )
 
 // skipReasons makes the reasons above enumerable, so anything that must cover
@@ -31,6 +34,7 @@ var skipReasons = []string{
 	skipReasonPaneReadFailed,
 	skipReasonEmptyPaneRead,
 	skipReasonLockTimeout,
+	skipReasonSweepFailed,
 }
 
 // A restore that is running and a marker that could not be read stand the cycle
@@ -52,6 +56,7 @@ var skippedPrunePhrases = map[string]string{
 	skipReasonPaneReadFailed:   "could not enumerate live panes",
 	skipReasonEmptyPaneRead:    "live pane list came back empty",
 	skipReasonLockTimeout:      "hooks.json is locked",
+	skipReasonSweepFailed:      "the sweep could not complete",
 }
 
 // notEvaluableDetails renders a stand-down reason as the reason the count cannot
@@ -63,6 +68,7 @@ var notEvaluableDetails = map[string]string{
 	skipReasonPaneReadFailed:   "could not enumerate live panes",
 	skipReasonEmptyPaneRead:    "zero live panes with hooks present (not evaluable)",
 	skipReasonLockTimeout:      "hooks.json is locked (not evaluable)",
+	skipReasonSweepFailed:      "the sweep could not complete",
 }
 
 // phraseFor renders a stand-down reason through one of the surface vocabularies
@@ -241,12 +247,13 @@ func liveTokenEnumeration(reader PaneHookLister, countsLogger *slog.Logger) func
 //
 // countsLogger governs the cycle's two DEBUG counts — the panes-and-entries
 // line and the reaped line — and nothing else, so a caller may attribute them
-// to its own component. Every stand-down is emitted by standDown.emit() under
+// to its own component; a caller that names none leaves them with the component
+// that owns the cycle. Every stand-down is emitted by standDown.emit() under
 // the hooks component regardless, so a caller observing this cycle through
 // countsLogger alone sees the counts and none of the stand-downs.
 func runHookStaleCleanup(reader staleSweepReader, store *hooks.Store, countsLogger *slog.Logger) (sweepOutcome, error) {
 	if countsLogger == nil {
-		countsLogger = bootstrapLogger
+		countsLogger = hooksLogger
 	}
 
 	// Taken before the store is read at all: a restore window is no time to
