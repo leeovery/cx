@@ -300,7 +300,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 8,
-          "current_task": "resume-hooks-silently-lost-8-28",
+          "current_task": "resume-hooks-silently-lost-8-29",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -438,7 +438,8 @@
             "resume-hooks-silently-lost-8-15",
             "resume-hooks-silently-lost-8-25",
             "resume-hooks-silently-lost-8-26",
-            "resume-hooks-silently-lost-8-27"
+            "resume-hooks-silently-lost-8-27",
+            "resume-hooks-silently-lost-8-28"
           ],
           "staging": {
             "p1": {
@@ -1487,6 +1488,25 @@
                 "cmd/state_daemon_test.go",
                 "cmd/config_seeder_parity_test.go",
                 "cmd/state_hydrate_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-28",
+              "source": "reviewer",
+              "summary": "session.BuildShellCommand leaves the leading shell word unquoted, so a $SHELL path containing a space or a quote composes a broken tmux shell-command.",
+              "detail": "internal/session/create.go:31 renders fmt.Sprintf(\"%s -ic %s\", shell, shellquote.Single(script)) — the first %s is interpolated raw. A $SHELL of /My Apps/zsh composes /My Apps/zsh -ic (…), which tmux hands to a shell that word-splits it into /My. Pre-existing and untouched by this diff; fixing it here was correctly refused because it would violate the task byte-identity criterion, and the leaf now makes the fix a one-token change (shellquote.Single(shell)) whenever a task is willing to own the behaviour change. Worth pairing with a decision on the same site -ic argument, since the two are the same defect on either side of the format string. NOTE the reviewer correction to the executor framing: the new form makes the -ic argument well-formed but does NOT make the composition correct, because of this.",
+              "files": [
+                "internal/session/create.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-28",
+              "source": "reviewer",
+              "summary": "The specification names shellQuoteSingle, a symbol that no longer exists.",
+              "detail": "specification.md:162 — the buildHydrateCommand quoting decision names the old symbol shellQuoteSingle in prose. The decision itself is retained and implemented byte-for-byte through the same substitution, so this is document drift rather than code drift. The reference is now internal/shellquote.Single. Flagged for whoever closes the feature out — a spec is the golden record and this reviewer does not direct edits to it.",
+              "files": [
+                ".workflows/resume-hooks-silently-lost/specification/resume-hooks-silently-lost/specification.md",
+                "internal/shellquote/shellquote.go"
               ]
             }
           ]
