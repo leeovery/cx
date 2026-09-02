@@ -69,7 +69,7 @@ func collapsingFuncsIn(file *ast.File) []string {
 	resolvers := map[string]bool{}
 	sluggers := map[string]bool{}
 	sourceguardtest.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
-		switch calledName(call.Fun) {
+		switch sourceguardtest.CalleeName(call) {
 		case "ResolveSetting":
 			resolvers[funcName] = true
 		case "Slug":
@@ -85,15 +85,4 @@ func collapsingFuncsIn(file *ast.File) []string {
 		}
 	}
 	return both
-}
-
-func calledName(fun ast.Expr) string {
-	switch called := fun.(type) {
-	case *ast.Ident:
-		return called.Name
-	case *ast.SelectorExpr:
-		return called.Sel.Name
-	default:
-		return ""
-	}
 }

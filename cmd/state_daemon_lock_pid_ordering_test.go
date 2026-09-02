@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/leeovery/portal/internal/sourceguardtest"
 )
 
 const daemonRunFuncName = "defaultDaemonRun"
@@ -230,17 +232,9 @@ func ifStmtContainsCallTo(ifStmt *ast.IfStmt, name string) bool {
 		if !ok {
 			return true
 		}
-		switch fun := call.Fun.(type) {
-		case *ast.Ident:
-			if fun.Name == name {
-				found = true
-				return false
-			}
-		case *ast.SelectorExpr:
-			if fun.Sel != nil && fun.Sel.Name == name {
-				found = true
-				return false
-			}
+		if sourceguardtest.CalleeName(call) == name {
+			found = true
+			return false
 		}
 		return true
 	}

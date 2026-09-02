@@ -537,13 +537,7 @@ func isExactTargetCall(expr ast.Expr) bool {
 	if !isCall {
 		return false
 	}
-	switch fun := call.Fun.(type) {
-	case *ast.Ident:
-		return exactTargetHelpers[fun.Name]
-	case *ast.SelectorExpr:
-		return exactTargetHelpers[fun.Sel.Name]
-	}
-	return false
+	return exactTargetHelpers[sourceguardtest.CalleeName(call)]
 }
 
 func enclosingFunc(file *ast.File, pos token.Pos) *ast.FuncDecl {

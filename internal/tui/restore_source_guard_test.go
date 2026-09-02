@@ -196,13 +196,7 @@ func restoreCallSites(t *testing.T, root string) map[string][]string {
 }
 
 func callsRestoreHelper(call *ast.CallExpr) bool {
-	switch fn := call.Fun.(type) {
-	case *ast.Ident:
-		return fn.Name == restoreHelperName
-	case *ast.SelectorExpr:
-		return fn.Sel.Name == restoreHelperName
-	}
-	return false
+	return sourceguardtest.CalleeName(call) == restoreHelperName
 }
 
 func selectorPath(sel *ast.SelectorExpr) (string, bool) {
