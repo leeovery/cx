@@ -1,6 +1,7 @@
 package theme_test
 
 import (
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strconv"
@@ -8,6 +9,7 @@ import (
 	"testing"
 	"unicode"
 
+	"github.com/leeovery/portal/internal/sourceguardtest"
 	"github.com/leeovery/portal/internal/theme"
 )
 
@@ -596,16 +598,16 @@ var impureSettingImports = map[string]string{
 	"time":          "reads the clock",
 }
 
-func settingSource(t *testing.T) parsedThemeSource {
+func settingSource(t *testing.T) sourceguardtest.ParsedSource {
 	t.Helper()
 
-	for _, source := range parseThemeSources(t) {
-		if source.Name == "setting.go" {
+	for _, source := range sourceguardtest.ParsePackageSources(t, ".", false) {
+		if filepath.Base(source.Path) == "setting.go" {
 			return source
 		}
 	}
 	t.Fatal("setting.go not found among internal/theme's production sources")
-	return parsedThemeSource{}
+	return sourceguardtest.ParsedSource{}
 }
 
 type fieldKind struct {

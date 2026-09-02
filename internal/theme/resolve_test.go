@@ -571,7 +571,7 @@ func themeCallGraph(t *testing.T) map[string]themeCallNode {
 	t.Helper()
 
 	graph := map[string]themeCallNode{}
-	for _, source := range parseThemeSources(t) {
+	for _, source := range sourceguardtest.ParsePackageSources(t, ".", false) {
 		imports := importedPackageNames(source.File)
 		sourceguardtest.ForEachFuncCall(source.File, func(funcName string, call *ast.CallExpr) bool {
 			node := graph[funcName]

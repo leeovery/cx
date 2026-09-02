@@ -2,8 +2,6 @@ package theme_test
 
 import (
 	"go/ast"
-	"go/parser"
-	"go/token"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -26,20 +24,17 @@ func TestSlugForSlot_IsTheOnlyCollapseOutsideThisPackagesTests(t *testing.T) {
 		t.Fatalf("enumerate .go files: %v", err)
 	}
 
-	var collapsing []string
+	var scanPaths []string
 	for _, path := range paths {
-		rel, relErr := filepath.Rel(root, path)
-		if relErr != nil {
-			t.Fatalf("relativise %s: %v", path, relErr)
+		if !exemptFromCollapseGuard(relToProjectRoot(t, root, path)) {
+			scanPaths = append(scanPaths, path)
 		}
-		if exemptFromCollapseGuard(rel) {
-			continue
-		}
-		file, parseErr := parser.ParseFile(token.NewFileSet(), path, nil, 0)
-		if parseErr != nil {
-			t.Fatalf("parse %s: %v", rel, parseErr)
-		}
-		for _, name := range collapsingFuncsIn(file) {
+	}
+
+	var collapsing []string
+	for _, source := range sourceguardtest.ParseSources(t, scanPaths) {
+		rel := relToProjectRoot(t, root, source.Path)
+		for _, name := range collapsingFuncsIn(source.File) {
 			collapsing = append(collapsing, rel+":"+name)
 		}
 	}
@@ -49,6 +44,18 @@ func TestSlugForSlot_IsTheOnlyCollapseOutsideThisPackagesTests(t *testing.T) {
 	if !slices.Equal(collapsing, want) {
 		t.Errorf("ResolveSetting followed by Setting.Slug appears in %v, want only %v — one collapse from the raw keys to a slot's nominated slug", collapsing, want)
 	}
+}
+
+// relToProjectRoot names a scanned file the way the repository does, so a
+// guard's complaint reads as a repository path rather than as one machine's
+// checkout.
+func relToProjectRoot(t *testing.T, root, path string) string {
+	t.Helper()
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		t.Fatalf("relativise %s: %v", path, err)
+	}
+	return rel
 }
 
 // This package's own tests exercise the two halves separately, which is what the

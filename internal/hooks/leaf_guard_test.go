@@ -1,8 +1,6 @@
 package hooks_test
 
 import (
-	"go/parser"
-	"go/token"
 	"maps"
 	"slices"
 	"strconv"
@@ -31,24 +29,15 @@ var hooksMayImport = map[string]bool{
 
 func TestHooksPackage_ImportsOnlyLeaves(t *testing.T) {
 	t.Run("its own sources import no other internal package", func(t *testing.T) {
-		paths, err := sourceguardtest.PackageGoFiles(".", false)
-		if err != nil {
-			t.Fatalf("enumerate package sources: %v", err)
-		}
-
-		for _, path := range paths {
-			file, parseErr := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly|parser.SkipObjectResolution)
-			if parseErr != nil {
-				t.Fatalf("parse %s: %v", path, parseErr)
-			}
-			for _, spec := range file.Imports {
+		for _, source := range sourceguardtest.ParsePackageSources(t, ".", false) {
+			for _, spec := range source.File.Imports {
 				imported, uerr := strconv.Unquote(spec.Path.Value)
 				if uerr != nil {
-					t.Fatalf("%s: unquote import path %s: %v", path, spec.Path.Value, uerr)
+					t.Fatalf("%s: unquote import path %s: %v", source.Path, spec.Path.Value, uerr)
 				}
 				internalPath, isInternal := strings.CutPrefix(imported, modulePrefix)
 				if isInternal && !hooksMayImport[internalPath] {
-					t.Errorf("%s imports %s — internal/hooks may import only %v", path, imported, sortedKeys(hooksMayImport))
+					t.Errorf("%s imports %s — internal/hooks may import only %v", source.Path, imported, sortedKeys(hooksMayImport))
 				}
 			}
 		}

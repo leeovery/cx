@@ -5,6 +5,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/leeovery/portal/internal/sourceguardtest"
 	"github.com/leeovery/portal/internal/theme"
 )
 
@@ -67,7 +68,7 @@ func TestSlotDefault_IsTheSlotsOwnShippedDefaultOnEveryPath(t *testing.T) {
 func TestSlotDefault_IsPairedWithASlotInOneFunction(t *testing.T) {
 	var pairing []string
 
-	for _, source := range parseThemeSources(t) {
+	for _, source := range sourceguardtest.ParsePackageSources(t, ".", false) {
 		for _, decl := range source.File.Decls {
 			fn, isFn := decl.(*ast.FuncDecl)
 			if !isFn || fn.Body == nil {

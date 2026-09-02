@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"go/ast"
-	"go/parser"
 	"go/token"
 	"os"
 	"path/filepath"
@@ -43,27 +42,20 @@ func TestSeamsInstalledOnlyThroughTheStagingHelpers(t *testing.T) {
 // are exercisable.
 func runSeamAssignmentGuard(t logtest.TestingT, paths []string, seams []string, helperFile string) {
 	t.Helper()
-	fset := token.NewFileSet()
-	scanned := 0
+	var scanPaths []string
 	for _, path := range paths {
 		base := filepath.Base(path)
-		if !strings.HasSuffix(base, "_test.go") || base == helperFile {
-			continue
-		}
-		file, perr := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
-		if perr != nil {
-			t.Fatalf("parse %s: %v", path, perr)
-			return
-		}
-		scanned++
-		for _, found := range seamAssignments(file, seams) {
-			t.Errorf("%s:%d assigns the package-level %s seam directly; install it through with%s%s in %s so the restore cannot be dropped",
-				base, fset.Position(found.pos).Line, found.name,
-				strings.ToUpper(found.name[:1]), found.name[1:], helperFile)
+		if strings.HasSuffix(base, "_test.go") && base != helperFile {
+			scanPaths = append(scanPaths, path)
 		}
 	}
-	if scanned == 0 {
-		t.Fatalf("no cmd test sources scanned; the guard would pass by having stopped looking")
+	for _, source := range sourceguardtest.ParseSources(t, scanPaths) {
+		base := filepath.Base(source.Path)
+		for _, found := range seamAssignments(source.File, seams) {
+			t.Errorf("%s:%d assigns the package-level %s seam directly; install it through with%s%s in %s so the restore cannot be dropped",
+				base, source.Fset.Position(found.pos).Line, found.name,
+				strings.ToUpper(found.name[:1]), found.name[1:], helperFile)
+		}
 	}
 }
 
@@ -97,18 +89,9 @@ func seamAssignments(file *ast.File, seams []string) []seamAssignment {
 // the set to be empty: the guard's whole subject would otherwise vanish.
 func declaredSeams(t *testing.T) []string {
 	t.Helper()
-	paths, err := sourceguardtest.PackageGoFiles(".", false)
-	if err != nil {
-		t.Fatalf("enumerate the cmd production sources: %v", err)
-	}
-	fset := token.NewFileSet()
 	var seams []string
-	for _, path := range paths {
-		file, perr := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
-		if perr != nil {
-			t.Fatalf("parse %s: %v", path, perr)
-		}
-		for _, decl := range file.Decls {
+	for _, source := range sourceguardtest.ParsePackageSources(t, ".", false) {
+		for _, decl := range source.File.Decls {
 			gen, isGen := decl.(*ast.GenDecl)
 			if !isGen || gen.Tok != token.VAR {
 				continue

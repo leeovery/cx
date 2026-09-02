@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"go/ast"
-	"go/parser"
 	"go/token"
 	"slices"
 	"strings"
@@ -93,20 +92,10 @@ func TestStandDownPhraseCoverage(t *testing.T) {
 func TestSkipReasonsEnumeratesEveryDeclaredConst(t *testing.T) {
 	const prefix = "skipReason"
 
-	paths, err := sourceguardtest.PackageGoFiles(".", false)
-	if err != nil {
-		t.Fatalf("enumerate cmd package sources: %v", err)
-	}
-
-	fset := token.NewFileSet()
 	var declared, enumerated []string
 	sliceFound := false
-	for _, path := range paths {
-		file, err := parser.ParseFile(fset, path, nil, 0)
-		if err != nil {
-			t.Fatalf("parse %s: %v", path, err)
-		}
-		for _, decl := range file.Decls {
+	for _, source := range sourceguardtest.ParsePackageSources(t, ".", false) {
+		for _, decl := range source.File.Decls {
 			gen, ok := decl.(*ast.GenDecl)
 			if !ok {
 				continue
@@ -122,7 +111,7 @@ func TestSkipReasonsEnumeratesEveryDeclaredConst(t *testing.T) {
 						declared = append(declared, name.Name)
 					case gen.Tok == token.VAR && name.Name == "skipReasons":
 						sliceFound = true
-						enumerated = append(enumerated, sliceElementNames(t, fset, value.Values[i])...)
+						enumerated = append(enumerated, sliceElementNames(t, source.Fset, value.Values[i])...)
 					}
 				}
 			}

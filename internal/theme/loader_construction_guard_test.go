@@ -2,8 +2,6 @@ package theme_test
 
 import (
 	"go/ast"
-	"go/parser"
-	"go/token"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -27,25 +25,19 @@ func TestLoader_HasNoProductionCompositeLiteral(t *testing.T) {
 		t.Fatalf("enumerate .go files: %v", err)
 	}
 
-	scanned, exempted := 0, 0
+	var scanPaths []string
 	for _, path := range paths {
-		if strings.HasSuffix(path, "_test.go") {
-			continue
+		if !strings.HasSuffix(path, "_test.go") {
+			scanPaths = append(scanPaths, path)
 		}
-		rel, relErr := filepath.Rel(root, path)
-		if relErr != nil {
-			t.Fatalf("relativise %s: %v", path, relErr)
-		}
+	}
 
-		fset := token.NewFileSet()
-		file, parseErr := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
-		if parseErr != nil {
-			t.Fatalf("parse %s: %v", rel, parseErr)
-		}
-		scanned++
+	exempted := 0
+	for _, source := range sourceguardtest.ParseSources(t, scanPaths) {
+		rel := relToProjectRoot(t, root, source.Path)
 
 		packageLocal := filepath.Dir(rel) == filepath.Dir(loaderConstructionFile)
-		for _, decl := range file.Decls {
+		for _, decl := range source.File.Decls {
 			fn, isFunc := decl.(*ast.FuncDecl)
 			exempt := isFunc && rel == loaderConstructionFile && fn.Name.Name == loaderConstructionFunc
 
@@ -58,15 +50,12 @@ func TestLoader_HasNoProductionCompositeLiteral(t *testing.T) {
 					exempted++
 					return true
 				}
-				t.Errorf("%s:%d assembles a theme.Loader literal — a hand-assembled Loader reserves no built-in slugs, so a drop-in taking a built-in's slug is judged valid instead of `reserved name`: it lists as a second selectable row for that slug and diagnoses as loadable, while resolution still applies the built-in; production callers take theme.NewLoader or theme.NewSilentLoader", rel, fset.Position(lit.Pos()).Line)
+				t.Errorf("%s:%d assembles a theme.Loader literal — a hand-assembled Loader reserves no built-in slugs, so a drop-in taking a built-in's slug is judged valid instead of `reserved name`: it lists as a second selectable row for that slug and diagnoses as loadable, while resolution still applies the built-in; production callers take theme.NewLoader or theme.NewSilentLoader", rel, source.Fset.Position(lit.Pos()).Line)
 				return true
 			})
 		}
 	}
 
-	if scanned == 0 {
-		t.Fatal("the scan parsed no production .go file — the assertion above passed having looked at nothing")
-	}
 	if exempted != 1 {
 		t.Fatalf("found %d Loader literals in %s's %s, want exactly 1 — the exemption names a construction that no longer exists, so the scan is not covering what it claims", exempted, loaderConstructionFile, loaderConstructionFunc)
 	}

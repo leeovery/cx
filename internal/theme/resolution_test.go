@@ -13,6 +13,7 @@ import (
 
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/prefs"
+	"github.com/leeovery/portal/internal/sourceguardtest"
 	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/themetest"
 )
@@ -347,16 +348,16 @@ func TestResolveNomination_UnresolvableFallbackErrors(t *testing.T) {
 	})
 }
 
-func resolutionSource(t *testing.T) parsedThemeSource {
+func resolutionSource(t *testing.T) sourceguardtest.ParsedSource {
 	t.Helper()
 
-	for _, source := range parseThemeSources(t) {
-		if source.Name == "resolution.go" {
+	for _, source := range sourceguardtest.ParsePackageSources(t, ".", false) {
+		if filepath.Base(source.Path) == "resolution.go" {
 			return source
 		}
 	}
 	t.Fatal("resolution.go not found among internal/theme's production sources")
-	return parsedThemeSource{}
+	return sourceguardtest.ParsedSource{}
 }
 
 func TestResolveNomination_FallbackUsesSharedConstants(t *testing.T) {
@@ -397,7 +398,7 @@ func TestResolveNomination_FallbackUsesSharedConstants(t *testing.T) {
 				return true
 			}
 			if value == theme.DefaultDarkSlug || value == theme.DefaultLightSlug {
-				t.Errorf("%s:%d declares the literal %q — the fallback map is expressed in DefaultLightSlug/DefaultDarkSlug so it cannot drift from the shipped default", source.Name, source.Fset.Position(lit.Pos()).Line, value)
+				t.Errorf("%s:%d declares the literal %q — the fallback map is expressed in DefaultLightSlug/DefaultDarkSlug so it cannot drift from the shipped default", source.Path, source.Fset.Position(lit.Pos()).Line, value)
 			}
 			return true
 		})

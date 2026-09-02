@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"charm.land/lipgloss/v2"
+	"github.com/leeovery/portal/internal/sourceguardtest"
 	"github.com/leeovery/portal/internal/theme"
 )
 
@@ -266,7 +267,7 @@ func exportedSymbols(t *testing.T) []string {
 	t.Helper()
 
 	symbols := []string{}
-	for _, source := range parseThemeSources(t) {
+	for _, source := range sourceguardtest.ParsePackageSources(t, ".", false) {
 		symbols = append(symbols, exportedDecls(source.File)...)
 	}
 

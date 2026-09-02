@@ -3,7 +3,6 @@ package restoretest_test
 import (
 	"fmt"
 	"go/ast"
-	"go/parser"
 	"go/token"
 	"os"
 	"path/filepath"
@@ -22,42 +21,42 @@ const restorePkg = "restore"
 // a caller treats a zero count as its own failure, since a guard that has
 // stopped finding sources reports a clean tree forever.
 //
+// Findings are named relative to root, so a guard's complaint reads as a
+// repository path rather than as one machine's checkout.
+//
 // Build tags are not honoured by the walk itself: a guard decides through
 // include which lane's files it polices, so the unit lane can police both.
 func scanGuardTestFiles(
+	t sourceguardtest.TestingT,
 	root string,
 	include func(*ast.File) bool,
 	collect func(*token.FileSet, *ast.File) []string,
-) (scanned int, findings []string, err error) {
+) (scanned int, findings []string) {
+	t.Helper()
+
 	paths, err := sourceguardtest.GoSourceFiles(root)
 	if err != nil {
-		return 0, nil, err
+		t.Fatalf("enumerate the .go files under %s: %v", root, err)
+		return 0, nil
 	}
 
-	fset := token.NewFileSet()
+	var testPaths []string
 	for _, path := range paths {
-		if !strings.HasSuffix(path, "_test.go") {
-			continue
+		if strings.HasSuffix(path, "_test.go") {
+			testPaths = append(testPaths, path)
 		}
-		rel, relErr := filepath.Rel(root, path)
-		if relErr != nil {
-			return 0, nil, relErr
-		}
-		src, readErr := os.ReadFile(path)
-		if readErr != nil {
-			return 0, nil, fmt.Errorf("read %s: %w", rel, readErr)
-		}
-		file, parseErr := parser.ParseFile(fset, rel, src, parser.SkipObjectResolution|parser.ParseComments)
-		if parseErr != nil {
-			return 0, nil, fmt.Errorf("parse %s: %w", rel, parseErr)
-		}
-		if !include(file) {
+	}
+
+	for _, source := range sourceguardtest.ParseSources(t, testPaths) {
+		if !include(source.File) {
 			continue
 		}
 		scanned++
-		findings = append(findings, collect(fset, file)...)
+		for _, finding := range collect(source.Fset, source.File) {
+			findings = append(findings, strings.TrimPrefix(finding, root+string(filepath.Separator)))
+		}
 	}
-	return scanned, findings, nil
+	return scanned, findings
 }
 
 // isRestorePkgType reports whether expr names the given type of the restore
@@ -83,4 +82,19 @@ func writeGuardFile(t *testing.T, root, name, src string) {
 	if err := os.WriteFile(filepath.Join(root, name), []byte(src), 0o600); err != nil {
 		t.Fatalf("write fixture %s: %v", name, err)
 	}
+}
+
+// recordingT stands in for *testing.T so a scan's own fatal is observable. A
+// real Fatalf ends the goroutine; the recorder returns instead, which the
+// scan's explicit returns after each Fatalf accommodate.
+type recordingT struct {
+	fataled bool
+	msg     string
+}
+
+func (r *recordingT) Helper() {}
+
+func (r *recordingT) Fatalf(format string, args ...any) {
+	r.fataled = true
+	r.msg = fmt.Sprintf(format, args...)
 }

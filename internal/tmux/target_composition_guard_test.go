@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"go/ast"
-	"go/parser"
 	"go/token"
 	"maps"
 	"os"
@@ -126,10 +125,7 @@ var passThroughTargetParams = map[string]bool{
 // the exactness rule has been rediscovered a call site at a time, so it is
 // enforced here rather than left to whoever writes the next one.
 func TestTmuxTargetsAreComposedThroughTheExactnessVocabulary(t *testing.T) {
-	findings, err := scanBareTargets(targetComposingPackages(t))
-	if err != nil {
-		t.Fatalf("scan for bare targets: %v", err)
-	}
+	findings := scanBareTargets(t, targetComposingPackages(t))
 	for _, finding := range findings {
 		t.Errorf("%s: %s", finding.pos, finding.detail)
 	}
@@ -161,10 +157,7 @@ func probeAddressSession(name string) { probeRun("has-session", "-t", name) }
 		}
 		dirs[cmdAt] = probed
 
-		findings, err := scanBareTargets(dirs)
-		if err != nil {
-			t.Fatalf("scan: %v", err)
-		}
+		findings := scanBareTargets(t, dirs)
 		if len(findings) != 1 {
 			t.Fatalf("scan of the derived set with one bare target staged in cmd found %d findings, want 1: %v",
 				len(findings), findings)
@@ -227,10 +220,7 @@ func addressSession(c *Client, name string) {
 }
 `)
 
-		findings, err := scanBareTargets([]string{dir})
-		if err != nil {
-			t.Fatalf("scan: %v", err)
-		}
+		findings := scanBareTargets(t, []string{dir})
 		if len(findings) != 5 {
 			t.Fatalf("scan found %d bare targets, want 5: %v", len(findings), findings)
 		}
@@ -260,10 +250,7 @@ func addressSession(c *Client, name string) {
 }
 `)
 
-		findings, err := scanBareTargets([]string{dir})
-		if err != nil {
-			t.Fatalf("scan: %v", err)
-		}
+		findings := scanBareTargets(t, []string{dir})
 		if len(findings) != 0 {
 			t.Errorf("scan flagged %v, want nothing", findings)
 		}
@@ -283,16 +270,23 @@ func TestBareTargetGuard_ErrorsWhenTheImportScanResolvesNothing(t *testing.T) {
 
 // A guard that stopped finding sources would otherwise report a clean scan
 // forever.
-func TestBareTargetGuard_ErrorsWhenItEnumeratesNoFiles(t *testing.T) {
-	if _, err := scanBareTargets([]string{t.TempDir()}); err == nil {
-		t.Fatal("scan of a directory holding no sources succeeded, want an error")
+func TestBareTargetGuard_FatalsWhenItEnumeratesNoFiles(t *testing.T) {
+	stub := &recordingT{}
+
+	scanBareTargets(stub, []string{t.TempDir()})
+
+	if !stub.fataled {
+		t.Fatal("scan of a directory holding no sources passed, want a fatal")
+	}
+	if !strings.Contains(stub.msg, "no .go files") {
+		t.Errorf("fatal message %q does not say the directory held no sources", stub.msg)
 	}
 }
 
 // The same reasoning one rule down: the argument rule is only as wide as the
 // method set it derives, so an empty set is a scan that has stopped looking
 // rather than a clean one.
-func TestBareTargetGuard_ErrorsWhenItFindsNoTargetTakingMethods(t *testing.T) {
+func TestBareTargetGuard_FatalsWhenItFindsNoTargetTakingMethods(t *testing.T) {
 	dir := writeFixturePackage(t, `package fixture
 
 func run(args ...string) {}
@@ -300,8 +294,15 @@ func run(args ...string) {}
 func addressSession(session string) { run("has-session", session) }
 `)
 
-	if _, err := scanBareTargets([]string{dir}); err == nil {
-		t.Fatal("scan of a package declaring no target-taking method succeeded, want an error")
+	stub := &recordingT{}
+
+	scanBareTargets(stub, []string{dir})
+
+	if !stub.fataled {
+		t.Fatal("scan of a package declaring no target-taking method passed, want a fatal")
+	}
+	if !strings.Contains(stub.msg, "already-composed target") {
+		t.Errorf("fatal message %q does not say the method set was empty", stub.msg)
 	}
 }
 
@@ -329,33 +330,33 @@ const routeItThrough = "route it through ExactSessionTarget, ExactCoordTarget, w
 // rule is what reaches a target composed in one package and flagged with "-t" in
 // another, which is the shape a hand-built "<session>:" takes on its way to
 // SplitWindow.
-func scanBareTargets(dirs []string) ([]bareTargetFinding, error) {
-	fset := token.NewFileSet()
-	var files []*ast.File
+func scanBareTargets(t sourceguardtest.TestingT, dirs []string) []bareTargetFinding {
+	t.Helper()
+
+	var sources []sourceguardtest.ParsedSource
 	for _, dir := range dirs {
-		paths, err := sourceguardtest.PackageGoFiles(dir, false)
-		if err != nil {
-			return nil, err
-		}
-		for _, path := range paths {
-			file, err := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
-			if err != nil {
-				return nil, err
-			}
-			files = append(files, file)
-		}
+		sources = append(sources, sourceguardtest.ParsePackageSources(t, dir, false)...)
+	}
+	if len(sources) == 0 {
+		return nil
+	}
+
+	files := make([]*ast.File, 0, len(sources))
+	for _, source := range sources {
+		files = append(files, source.File)
 	}
 
 	methods := targetTakingMethods(files)
 	if len(methods) == 0 {
-		return nil, errors.New("no method taking an already-composed target was found, so nothing would be checked at a call site")
+		t.Fatalf("no method taking an already-composed target was found, so nothing would be checked at a call site")
+		return nil
 	}
 
 	var findings []bareTargetFinding
-	for _, file := range files {
-		findings = append(findings, scanFileForBareTargets(fset, file, methods)...)
+	for _, source := range sources {
+		findings = append(findings, scanFileForBareTargets(source.Fset, source.File, methods)...)
 	}
-	return findings, nil
+	return findings
 }
 
 // targetTakingMethods records, per method name, the argument positions holding
@@ -558,4 +559,19 @@ func enclosingFunc(file *ast.File, pos token.Pos) *ast.FuncDecl {
 func isStringLit(expr ast.Expr, want string) bool {
 	lit, isLit := expr.(*ast.BasicLit)
 	return isLit && lit.Kind == token.STRING && lit.Value == `"`+want+`"`
+}
+
+// recordingT stands in for *testing.T so a scan's own fatal is observable. A
+// real Fatalf ends the goroutine; the recorder returns instead, which the
+// scan's explicit returns after each Fatalf accommodate.
+type recordingT struct {
+	fataled bool
+	msg     string
+}
+
+func (r *recordingT) Helper() {}
+
+func (r *recordingT) Fatalf(format string, args ...any) {
+	r.fataled = true
+	r.msg = fmt.Sprintf(format, args...)
 }

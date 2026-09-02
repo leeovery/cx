@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"go/ast"
-	"go/parser"
 	"go/token"
 	"io"
 	"path/filepath"
@@ -244,18 +243,10 @@ func logForCalls(t *testing.T, component string) []string {
 // resolves wherever the suite was invoked from.
 func parsePackageFilesByName(t *testing.T) map[string]*ast.File {
 	t.Helper()
-	paths, err := sourceguardtest.PackageGoFiles(".", false)
-	if err != nil {
-		t.Fatalf("enumerate the cmd package sources: %v", err)
-	}
-	fset := token.NewFileSet()
-	files := make(map[string]*ast.File, len(paths))
-	for _, path := range paths {
-		parsed, perr := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
-		if perr != nil {
-			t.Fatalf("parse %s: %v", path, perr)
-		}
-		files[filepath.Base(path)] = parsed
+	sources := sourceguardtest.ParsePackageSources(t, ".", false)
+	files := make(map[string]*ast.File, len(sources))
+	for _, source := range sources {
+		files[filepath.Base(source.Path)] = source.File
 	}
 	return files
 }

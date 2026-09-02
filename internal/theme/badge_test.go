@@ -3,8 +3,10 @@ package theme_test
 import (
 	"go/ast"
 	"maps"
+	"path/filepath"
 	"testing"
 
+	"github.com/leeovery/portal/internal/sourceguardtest"
 	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/themetest"
 )
@@ -227,23 +229,23 @@ func TestBadges_PureAndTotal(t *testing.T) {
 				return true
 			}
 			if sel.Sel.Name == "Theme" {
-				t.Errorf("%s:%d reads a .Theme — a badge is a fact about a SLUG, and no palette, canvas or colour value may reach this derivation", source.Name, source.Fset.Position(sel.Pos()).Line)
+				t.Errorf("%s:%d reads a .Theme — a badge is a fact about a SLUG, and no palette, canvas or colour value may reach this derivation", source.Path, source.Fset.Position(sel.Pos()).Line)
 			}
 			return true
 		})
 	})
 }
 
-func badgeSource(t *testing.T) parsedThemeSource {
+func badgeSource(t *testing.T) sourceguardtest.ParsedSource {
 	t.Helper()
 
-	for _, source := range parseThemeSources(t) {
-		if source.Name == "badge.go" {
+	for _, source := range sourceguardtest.ParsePackageSources(t, ".", false) {
+		if filepath.Base(source.Path) == "badge.go" {
 			return source
 		}
 	}
 	t.Fatal("badge.go not found among internal/theme's production sources")
-	return parsedThemeSource{}
+	return sourceguardtest.ParsedSource{}
 }
 
 func TestBadgeKey_MatchesRowIdentity(t *testing.T) {

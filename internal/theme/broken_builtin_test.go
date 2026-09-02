@@ -3,8 +3,6 @@ package theme_test
 import (
 	"bytes"
 	"go/ast"
-	"go/parser"
-	"go/token"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -200,7 +198,7 @@ func TestResolution_NoStartupEagerValidation(t *testing.T) {
 }
 
 func TestTheme_NoCompiledInFallbackPalette(t *testing.T) {
-	for _, source := range parseThemeSources(t) {
+	for _, source := range sourceguardtest.ParsePackageSources(t, ".", false) {
 		ast.Inspect(source.File, func(n ast.Node) bool {
 			lit, ok := n.(*ast.CompositeLit)
 			if !ok || len(lit.Elts) == 0 {
@@ -209,7 +207,7 @@ func TestTheme_NoCompiledInFallbackPalette(t *testing.T) {
 			if !isThemeTypeExpr(lit.Type) {
 				return true
 			}
-			t.Errorf("%s:%d declares a populated Theme literal — there is no runtime last-resort palette beneath the built-in fallback; a build-time guarantee replaced that crutch", source.Name, source.Fset.Position(lit.Pos()).Line)
+			t.Errorf("%s:%d declares a populated Theme literal — there is no runtime last-resort palette beneath the built-in fallback; a build-time guarantee replaced that crutch", source.Path, source.Fset.Position(lit.Pos()).Line)
 			return true
 		})
 	}
@@ -267,37 +265,32 @@ func TestBuiltinSource_HasNoProductionCallSite(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve project root: %v", err)
 	}
-	fset := token.NewFileSet()
-	found := 0
-
 	paths, err := sourceguardtest.GoSourceFiles(root)
 	if err != nil {
 		t.Fatalf("enumerate .go files: %v", err)
 	}
+
+	found := 0
+	var scanPaths []string
 	for _, path := range paths {
 		if strings.HasSuffix(path, "_test.go") {
 			continue
 		}
-
-		rel, relErr := filepath.Rel(root, path)
-		if relErr != nil {
-			t.Fatalf("relativise %s: %v", path, relErr)
-		}
-		if builtinSourceOwners[rel] {
+		if builtinSourceOwners[relToProjectRoot(t, root, path)] {
 			found++
 			continue
 		}
+		scanPaths = append(scanPaths, path)
+	}
 
-		file, parseErr := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
-		if parseErr != nil {
-			t.Fatalf("parse %s: %v", rel, parseErr)
-		}
-		ast.Inspect(file, func(n ast.Node) bool {
+	for _, source := range sourceguardtest.ParseSources(t, scanPaths) {
+		rel := relToProjectRoot(t, root, source.Path)
+		ast.Inspect(source.File, func(n ast.Node) bool {
 			sel, ok := n.(*ast.SelectorExpr)
 			if !ok || sel.Sel.Name != "BuiltinSource" {
 				return true
 			}
-			t.Errorf("%s:%d references Loader.BuiltinSource — the seam is test-only; a production call site would redefine what \"built-in\" means on the very path the build-time guarantee covers", rel, fset.Position(sel.Pos()).Line)
+			t.Errorf("%s:%d references Loader.BuiltinSource — the seam is test-only; a production call site would redefine what \"built-in\" means on the very path the build-time guarantee covers", rel, source.Fset.Position(sel.Pos()).Line)
 			return true
 		})
 	}

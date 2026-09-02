@@ -2,8 +2,6 @@ package cmd
 
 import (
 	"go/ast"
-	"go/parser"
-	"go/token"
 	"testing"
 
 	"github.com/leeovery/portal/internal/sourceguardtest"
@@ -22,19 +20,9 @@ func TestHookSeams_MintsTokensAtThePaneTokenWidth(t *testing.T) {
 		wrongGenerator = "NewGenerator"
 	)
 
-	paths, err := sourceguardtest.PackageGoFiles(".", false)
-	if err != nil {
-		t.Fatalf("enumerate package sources: %v", err)
-	}
-
 	found := false
-	for _, path := range paths {
-		file, parseErr := parser.ParseFile(token.NewFileSet(), path, nil, parser.SkipObjectResolution)
-		if parseErr != nil {
-			t.Fatalf("parse %s: %v", path, parseErr)
-		}
-
-		ast.Inspect(file, func(n ast.Node) bool {
+	for _, source := range sourceguardtest.ParsePackageSources(t, ".", false) {
+		ast.Inspect(source.File, func(n ast.Node) bool {
 			assign, isAssign := n.(*ast.AssignStmt)
 			if !isAssign {
 				return true
@@ -49,9 +37,9 @@ func TestHookSeams_MintsTokensAtThePaneTokenWidth(t *testing.T) {
 				switch minter := generatorName(assign.Rhs[i]); minter {
 				case wantGenerator:
 				case wrongGenerator:
-					t.Errorf("%s: TokenMinter defaults to the general-purpose %s — a pane token must be minted at the width IsTokenShaped reads, so hooks.json's persisted keys stay judgeable", path, minter)
+					t.Errorf("%s: TokenMinter defaults to the general-purpose %s — a pane token must be minted at the width IsTokenShaped reads, so hooks.json's persisted keys stay judgeable", source.Path, minter)
 				default:
-					t.Errorf("%s: TokenMinter defaults to %q, want nanoid.%s", path, minter, wantGenerator)
+					t.Errorf("%s: TokenMinter defaults to %q, want nanoid.%s", source.Path, minter, wantGenerator)
 				}
 			}
 			return true

@@ -1,8 +1,12 @@
 package portaltest_test
 
 import (
+	"go/parser"
+	"go/token"
 	"strings"
 	"testing"
+
+	"github.com/leeovery/portal/internal/sourceguardtest"
 )
 
 // The rule reads source, so each case below is a whole miniature fixture file.
@@ -140,10 +144,12 @@ func newIntegrationStateDir(t *testing.T) (env []string, stateDir string) {
 // reaching its arrange through another file needs.
 func scanFixture(t *testing.T, file, src string) []scannedFunc {
 	t.Helper()
-	pkg, calls, err := fixtureCallsIn(src)
+	fset := token.NewFileSet()
+	parsed, err := parser.ParseFile(fset, "fixture.go", src, sourceguardtest.ParseMode)
 	if err != nil {
-		t.Fatalf("scan fixture source: %v", err)
+		t.Fatalf("parse fixture source: %v", err)
 	}
+	pkg, calls := fixtureCallsIn(fset, parsed)
 	funcs := make([]scannedFunc, 0, len(calls))
 	for name, scopes := range calls {
 		funcs = append(funcs, scannedFunc{Pkg: pkg, File: file, Name: name, Scopes: scopes})

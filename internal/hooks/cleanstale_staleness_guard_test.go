@@ -2,8 +2,6 @@ package hooks_test
 
 import (
 	"go/ast"
-	"go/parser"
-	"go/token"
 	"testing"
 
 	"github.com/leeovery/portal/internal/sourceguardtest"
@@ -16,11 +14,14 @@ import (
 func TestCleanStaleDoesNotCallStaleKeys(t *testing.T) {
 	cleanPath := map[string]bool{"CleanStale": true, "deleteStale": true}
 
-	scanPackageCalls(t, ".", func(path string, fset *token.FileSet, funcName string, call *ast.CallExpr) {
-		if cleanPath[funcName] && sourceguardtest.CalleeName(call) == "StaleKeys" {
-			t.Errorf("%s: the clean calls StaleKeys — both must reach the staleness rule through the unexported implementation", path)
-		}
-	})
+	for _, source := range sourceguardtest.ParsePackageSources(t, ".", false) {
+		sourceguardtest.ForEachFuncCall(source.File, func(funcName string, call *ast.CallExpr) bool {
+			if cleanPath[funcName] && sourceguardtest.CalleeName(call) == "StaleKeys" {
+				t.Errorf("%s: the clean calls StaleKeys — both must reach the staleness rule through the unexported implementation", source.Path)
+			}
+			return true
+		})
+	}
 }
 
 // Every mutation takes the file under one exclusive hold, so each must reach
@@ -42,47 +43,14 @@ func TestMutationsDoNotCallExportedLoadOrSave(t *testing.T) {
 		"loadSharedBounded": true,
 	}
 
-	scanPackageCalls(t, ".", func(path string, fset *token.FileSet, funcName string, call *ast.CallExpr) {
-		callee := sourceguardtest.CalleeName(call)
-		if mutations[funcName] && forbidden[callee] && calleeReceiverName(call) == "s" {
-			t.Errorf("%s: %s calls s.%s — a mutation must reach the file through the unexported load/save, never re-enter a locking front door", fset.Position(call.Pos()), funcName, callee)
-		}
-	})
-}
-
-// scanPackageCalls parses every production source of the package in dir and
-// reports each call expression under the function declaring it, so a guard is
-// only its predicate. Enumerating no source and failing to parse one are both
-// fatal: a guard that scanned nothing would otherwise pass by having stopped
-// looking. The closing scanned-zero fatal is a backstop for that same rule —
-// PackageGoFiles already errors on an empty match, so it is unreachable while
-// that contract holds and is the thing that would fail loudly if it stopped.
-func scanPackageCalls(t sourceguardtest.TestingT, dir string, visit func(path string, fset *token.FileSet, funcName string, call *ast.CallExpr)) {
-	t.Helper()
-
-	paths, err := sourceguardtest.PackageGoFiles(dir, false)
-	if err != nil {
-		t.Fatalf("enumerate package sources: %v", err)
-		return
-	}
-
-	scanned := 0
-	for _, path := range paths {
-		fset := token.NewFileSet()
-		file, parseErr := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
-		if parseErr != nil {
-			t.Fatalf("parse %s: %v", path, parseErr)
-			return
-		}
-		scanned++
-		sourceguardtest.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
-			visit(path, fset, funcName, call)
+	for _, source := range sourceguardtest.ParsePackageSources(t, ".", false) {
+		sourceguardtest.ForEachFuncCall(source.File, func(funcName string, call *ast.CallExpr) bool {
+			callee := sourceguardtest.CalleeName(call)
+			if mutations[funcName] && forbidden[callee] && calleeReceiverName(call) == "s" {
+				t.Errorf("%s: %s calls s.%s — a mutation must reach the file through the unexported load/save, never re-enter a locking front door", source.Fset.Position(call.Pos()), funcName, callee)
+			}
 			return true
 		})
-	}
-
-	if scanned == 0 {
-		t.Fatalf("guard scanned no files under %s", dir)
 	}
 }
 

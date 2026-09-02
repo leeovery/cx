@@ -1,13 +1,13 @@
 package restoretest_test
 
 import (
-	"errors"
 	"go/ast"
 	"go/token"
 	"strings"
 	"testing"
 
 	"github.com/leeovery/portal/internal/portalbintest"
+	"github.com/leeovery/portal/internal/sourceguardtest"
 )
 
 // The type no test may compose itself, and the constructors that compose it
@@ -37,10 +37,7 @@ func TestNoTestComposesABareRestoreOrchestrator(t *testing.T) {
 		t.Fatalf("resolve project root: %v", err)
 	}
 
-	scanned, findings, err := scanTestOrchestratorLiterals(root)
-	if err != nil {
-		t.Fatalf("scan for bare %s.%s literals: %v", restorePkg, orchestratorType, err)
-	}
+	scanned, findings := scanTestOrchestratorLiterals(t, root)
 	if len(findings) == 0 {
 		return
 	}
@@ -65,10 +62,7 @@ func drive() {
 }
 `)
 
-		scanned, findings, err := scanTestOrchestratorLiterals(root)
-		if err != nil {
-			t.Fatalf("scan: %v", err)
-		}
+		scanned, findings := scanTestOrchestratorLiterals(t, root)
 		if scanned != 1 {
 			t.Fatalf("scanned %d files, want 1", scanned)
 		}
@@ -89,10 +83,7 @@ func drive(t *testingT, client *client) {
 }
 `)
 
-		_, findings, err := scanTestOrchestratorLiterals(root)
-		if err != nil {
-			t.Fatalf("scan: %v", err)
-		}
+		_, findings := scanTestOrchestratorLiterals(t, root)
 		if len(findings) != 0 {
 			t.Errorf("scan flagged %v, want nothing", findings)
 		}
@@ -109,10 +100,7 @@ var o = &restore.Orchestrator{}
 `)
 		writeGuardFile(t, root, "keeps_scanning_test.go", "package fixture\n")
 
-		scanned, findings, err := scanTestOrchestratorLiterals(root)
-		if err != nil {
-			t.Fatalf("scan: %v", err)
-		}
+		scanned, findings := scanTestOrchestratorLiterals(t, root)
 		if scanned != 1 || len(findings) != 0 {
 			t.Errorf("scan of a production literal = %d scanned / %v, want 1 scanned / nothing", scanned, findings)
 		}
@@ -121,15 +109,22 @@ var o = &restore.Orchestrator{}
 
 // A guard that stopped finding test sources would otherwise report a clean tree
 // forever.
-func TestOrchestratorLiteralGuard_ErrorsWhenItEnumeratesNoTestFiles(t *testing.T) {
+func TestOrchestratorLiteralGuard_FatalsWhenItEnumeratesNoTestFiles(t *testing.T) {
 	t.Run("it fatals when the orchestrator guard scans no files", func(t *testing.T) {
-		if _, _, err := scanTestOrchestratorLiterals(t.TempDir()); err == nil {
-			t.Fatal("scan of a directory holding no sources succeeded, want an error")
+		emptyTree := &recordingT{}
+		scanTestOrchestratorLiterals(emptyTree, t.TempDir())
+		if !emptyTree.fataled {
+			t.Fatal("scan of a directory holding no sources passed, want a fatal")
 		}
 
 		root := writeGuardFixture(t, "production.go", "package fixture\n")
-		if _, _, err := scanTestOrchestratorLiterals(root); err == nil {
-			t.Fatal("scan of a tree holding no _test.go succeeded, want an error")
+		noTests := &recordingT{}
+		scanTestOrchestratorLiterals(noTests, root)
+		if !noTests.fataled {
+			t.Fatal("scan of a tree holding no _test.go passed, want a fatal")
+		}
+		if !strings.Contains(noTests.msg, "stopped looking") {
+			t.Errorf("fatal message %q does not say the guard would pass having stopped looking", noTests.msg)
 		}
 	})
 }
@@ -140,15 +135,15 @@ func TestOrchestratorLiteralGuard_ErrorsWhenItEnumeratesNoTestFiles(t *testing.T
 // guard's own fixtures — is not a finding. Every lane is policed: the
 // integration-tagged files are most of the subject, and an unpinned literal is
 // as silent in one lane as the other.
-func scanTestOrchestratorLiterals(root string) (scanned int, findings []string, err error) {
-	scanned, findings, err = scanGuardTestFiles(root, everyTestFile, orchestratorLiteralsIn)
-	if err != nil {
-		return 0, nil, err
-	}
+func scanTestOrchestratorLiterals(t sourceguardtest.TestingT, root string) (scanned int, findings []string) {
+	t.Helper()
+
+	scanned, findings = scanGuardTestFiles(t, root, everyTestFile, orchestratorLiteralsIn)
 	if scanned == 0 {
-		return 0, nil, errors.New("no _test.go was enumerated, so the guard would pass by having stopped looking")
+		t.Fatalf("no _test.go was enumerated, so the guard would pass by having stopped looking")
+		return 0, nil
 	}
-	return scanned, findings, nil
+	return scanned, findings
 }
 
 func everyTestFile(*ast.File) bool { return true }

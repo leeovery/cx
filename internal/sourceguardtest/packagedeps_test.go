@@ -17,10 +17,10 @@ func TestPackageDeps_EnumeratesTransitiveDependencies(t *testing.T) {
 	if !slices.Contains(deps, selfPkg) {
 		t.Errorf("PackageDeps(%s) omits the package itself: %v", selfPkg, deps)
 	}
-	// go/ast is imported directly; go/token arrives only through it, so the
-	// pair distinguishes a transitive list from an immediate one — the depth
-	// the guards behind this primitive police.
-	for _, want := range []string{"go/ast", "go/token"} {
+	// go/parser is imported directly; go/scanner arrives only through it, so
+	// the pair distinguishes a transitive list from an immediate one — the
+	// depth the guards behind this primitive police.
+	for _, want := range []string{"go/parser", "go/scanner"} {
 		if !slices.Contains(deps, want) {
 			t.Errorf("PackageDeps(%s) omits %s: %v", selfPkg, want, deps)
 		}

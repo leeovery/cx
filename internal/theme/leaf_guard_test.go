@@ -2,9 +2,7 @@ package theme_test
 
 import (
 	"go/ast"
-	"go/parser"
 	"go/token"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -29,8 +27,8 @@ func TestThemePackage_ResolvesNoPaths(t *testing.T) {
 	})
 
 	t.Run("reads neither the themes env var nor the home directory", func(t *testing.T) {
-		for _, source := range parseThemeSources(t) {
-			fset, file, name := source.Fset, source.File, source.Name
+		for _, source := range sourceguardtest.ParsePackageSources(t, ".", false) {
+			fset, file, path := source.Fset, source.File, source.Path
 
 			ast.Inspect(file, func(n ast.Node) bool {
 				switch node := n.(type) {
@@ -43,7 +41,7 @@ func TestThemePackage_ResolvesNoPaths(t *testing.T) {
 						return true
 					}
 					if strings.Contains(value, themesDirEnvVar) {
-						t.Errorf("%s:%d carries the %s literal — the env var belongs to cmd/config.go's themesDirPath, and the directory arrives here as an injected value", name, fset.Position(node.Pos()).Line, themesDirEnvVar)
+						t.Errorf("%s:%d carries the %s literal — the env var belongs to cmd/config.go's themesDirPath, and the directory arrives here as an injected value", path, fset.Position(node.Pos()).Line, themesDirEnvVar)
 					}
 				case *ast.SelectorExpr:
 					pkg, ok := node.X.(*ast.Ident)
@@ -51,7 +49,7 @@ func TestThemePackage_ResolvesNoPaths(t *testing.T) {
 						return true
 					}
 					if pkg.Name == "os" && node.Sel.Name == "UserHomeDir" {
-						t.Errorf("%s:%d calls os.UserHomeDir — internal/theme resolves no paths; the themes directory arrives as an injected value", name, fset.Position(node.Pos()).Line)
+						t.Errorf("%s:%d calls os.UserHomeDir — internal/theme resolves no paths; the themes directory arrives as an injected value", path, fset.Position(node.Pos()).Line)
 					}
 				}
 				return true
@@ -63,7 +61,7 @@ func TestThemePackage_ResolvesNoPaths(t *testing.T) {
 func TestThemePackage_DeclaresNoHexLiterals(t *testing.T) {
 	hexLiteral := regexp.MustCompile(`#[0-9a-fA-F]{6}`)
 
-	for _, source := range parseThemeSources(t) {
+	for _, source := range sourceguardtest.ParsePackageSources(t, ".", false) {
 		ast.Inspect(source.File, func(n ast.Node) bool {
 			lit, ok := n.(*ast.BasicLit)
 			if !ok || lit.Kind != token.STRING {
@@ -75,7 +73,7 @@ func TestThemePackage_DeclaresNoHexLiterals(t *testing.T) {
 				return true
 			}
 			if found := hexLiteral.FindString(value); found != "" {
-				t.Errorf("%s:%d declares the hex literal %s — every colour value lives in a .theme file, never in Go", source.Name, source.Fset.Position(lit.Pos()).Line, found)
+				t.Errorf("%s:%d declares the hex literal %s — every colour value lives in a .theme file, never in Go", source.Path, source.Fset.Position(lit.Pos()).Line, found)
 			}
 			return true
 		})
@@ -83,12 +81,12 @@ func TestThemePackage_DeclaresNoHexLiterals(t *testing.T) {
 }
 
 func TestThemePackage_HasNoInitFunction(t *testing.T) {
-	for _, source := range parseThemeSources(t) {
+	for _, source := range sourceguardtest.ParsePackageSources(t, ".", false) {
 		for _, decl := range source.File.Decls {
 			switch d := decl.(type) {
 			case *ast.FuncDecl:
 				if d.Recv == nil && d.Name.Name == "init" {
-					t.Errorf("%s:%d declares func init() — internal/theme does no work at load time; nothing walks the embedded set at init", source.Name, source.Fset.Position(d.Pos()).Line)
+					t.Errorf("%s:%d declares func init() — internal/theme does no work at load time; nothing walks the embedded set at init", source.Path, source.Fset.Position(d.Pos()).Line)
 				}
 			case *ast.GenDecl:
 				if d.Tok == token.VAR {
@@ -99,7 +97,7 @@ func TestThemePackage_HasNoInitFunction(t *testing.T) {
 	}
 }
 
-func requireNoCallingInitialiser(t *testing.T, source parsedThemeSource, decl *ast.GenDecl) {
+func requireNoCallingInitialiser(t *testing.T, source sourceguardtest.ParsedSource, decl *ast.GenDecl) {
 	t.Helper()
 
 	for _, spec := range decl.Specs {
@@ -114,40 +112,9 @@ func requireNoCallingInitialiser(t *testing.T, source parsedThemeSource, decl *a
 				if !isCall {
 					return true
 				}
-				t.Errorf("%s:%d initialises a package-level var by calling a function — internal/theme does no work at load time; nothing walks the embedded set at init", source.Name, source.Fset.Position(call.Pos()).Line)
+				t.Errorf("%s:%d initialises a package-level var by calling a function — internal/theme does no work at load time; nothing walks the embedded set at init", source.Path, source.Fset.Position(call.Pos()).Line)
 				return false
 			})
 		}
 	}
-}
-
-type parsedThemeSource struct {
-	Name string
-	Fset *token.FileSet
-	File *ast.File
-}
-
-func parseThemeSources(t *testing.T) []parsedThemeSource {
-	t.Helper()
-
-	paths := themeSourceFiles(t)
-	sources := make([]parsedThemeSource, 0, len(paths))
-	for _, path := range paths {
-		fset := token.NewFileSet()
-		file, err := parser.ParseFile(fset, path, nil, 0)
-		if err != nil {
-			t.Fatalf("parse %s: %v", path, err)
-		}
-		sources = append(sources, parsedThemeSource{Name: filepath.Base(path), Fset: fset, File: file})
-	}
-	return sources
-}
-
-func themeSourceFiles(t *testing.T) []string {
-	t.Helper()
-	files, err := sourceguardtest.PackageGoFiles(".", false)
-	if err != nil {
-		t.Fatalf("enumerate the internal/theme package sources: %v", err)
-	}
-	return files
 }

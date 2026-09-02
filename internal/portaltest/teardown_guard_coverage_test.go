@@ -3,9 +3,7 @@ package portaltest_test
 import (
 	"fmt"
 	"go/ast"
-	"go/parser"
 	"go/token"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -170,23 +168,20 @@ func TestTeardownGuardCoversEveryServerHostingFixture(t *testing.T) {
 		t.Fatalf("enumerate .go files: %v", err)
 	}
 
-	var funcs []scannedFunc
+	var testPaths []string
 	for _, path := range paths {
-		if !strings.HasSuffix(path, "_test.go") {
-			continue
+		if strings.HasSuffix(path, "_test.go") {
+			testPaths = append(testPaths, path)
 		}
-		rel, relErr := filepath.Rel(root, path)
+	}
+
+	var funcs []scannedFunc
+	for _, source := range sourceguardtest.ParseSources(t, testPaths) {
+		rel, relErr := filepath.Rel(root, source.Path)
 		if relErr != nil {
-			t.Fatalf("relativise %s: %v", path, relErr)
+			t.Fatalf("relativise %s: %v", source.Path, relErr)
 		}
-		src, readErr := os.ReadFile(path)
-		if readErr != nil {
-			t.Fatalf("read %s: %v", rel, readErr)
-		}
-		pkg, calls, scanErr := fixtureCallsIn(string(src))
-		if scanErr != nil {
-			t.Fatalf("scan %s: %v", rel, scanErr)
-		}
+		pkg, calls := fixtureCallsIn(source.Fset, source.File)
 		for name, scopes := range calls {
 			funcs = append(funcs, scannedFunc{
 				Pkg:    filepath.Dir(rel) + ":" + pkg,
@@ -202,17 +197,11 @@ func TestTeardownGuardCoversEveryServerHostingFixture(t *testing.T) {
 	}
 }
 
-// fixtureCallsIn scans one file's source, returning its package name and one
+// fixtureCallsIn scans one parsed file, returning its package name and one
 // record per lexical scope of each function declaration it holds. Build tags are
 // ignored on purpose: the integration-tagged files are the whole subject, and
 // the unit lane must still police them.
-func fixtureCallsIn(src string) (pkg string, funcs map[string][]fixtureCalls, err error) {
-	fset := token.NewFileSet()
-	file, err := parser.ParseFile(fset, "fixture.go", src, parser.SkipObjectResolution)
-	if err != nil {
-		return "", nil, err
-	}
-
+func fixtureCallsIn(fset *token.FileSet, file *ast.File) (pkg string, funcs map[string][]fixtureCalls) {
 	funcs = make(map[string][]fixtureCalls)
 	for _, decl := range file.Decls {
 		fn, isFunc := decl.(*ast.FuncDecl)
@@ -221,7 +210,7 @@ func fixtureCallsIn(src string) (pkg string, funcs map[string][]fixtureCalls, er
 		}
 		funcs[declKey(fn)] = scopesIn(fset, fn.Body)
 	}
-	return file.Name.Name, funcs, nil
+	return file.Name.Name, funcs
 }
 
 // declKey names a declaration within its file's record set. A method is keyed

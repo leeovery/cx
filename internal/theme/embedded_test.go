@@ -4,11 +4,13 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/leeovery/portal/internal/sourceguardtest"
 	"github.com/leeovery/portal/internal/theme"
 )
 
@@ -157,12 +159,12 @@ func TestEmbeddedRejection_HasNoFatalPathInThePackage(t *testing.T) {
 
 	owners := 0
 
-	for _, source := range parseThemeSources(t) {
+	for _, source := range sourceguardtest.ParsePackageSources(t, ".", false) {
 		ast.Inspect(source.File, func(n ast.Node) bool {
 			switch node := n.(type) {
 			case *ast.CallExpr:
 				if ident, ok := node.Fun.(*ast.Ident); ok && ident.Name == "panic" && !inNilSeamConstructor(source.File, node.Pos()) {
-					t.Errorf("%s:%d panics — a broken embedded file is an ordinary *Rejection here, and a broken fallback is an ordinary returned error", source.Name, source.Fset.Position(node.Pos()).Line)
+					t.Errorf("%s:%d panics — a broken embedded file is an ordinary *Rejection here, and a broken fallback is an ordinary returned error", source.Path, source.Fset.Position(node.Pos()).Line)
 				}
 			case *ast.SelectorExpr:
 				pkg, ok := node.X.(*ast.Ident)
@@ -170,10 +172,10 @@ func TestEmbeddedRejection_HasNoFatalPathInThePackage(t *testing.T) {
 					return true
 				}
 				if pkg.Name == "os" && node.Sel.Name == "Exit" {
-					t.Errorf("%s:%d calls os.Exit — internal/theme returns errors; main.go owns the single exit", source.Name, source.Fset.Position(node.Pos()).Line)
+					t.Errorf("%s:%d calls os.Exit — internal/theme returns errors; main.go owns the single exit", source.Path, source.Fset.Position(node.Pos()).Line)
 				}
 				if pkg.Name == "log" && strings.HasPrefix(node.Sel.Name, "Fatal") {
-					t.Errorf("%s:%d calls log.%s — internal/theme returns errors and never terminates a process", source.Name, source.Fset.Position(node.Pos()).Line, node.Sel.Name)
+					t.Errorf("%s:%d calls log.%s — internal/theme returns errors and never terminates a process", source.Path, source.Fset.Position(node.Pos()).Line, node.Sel.Name)
 				}
 			case *ast.BasicLit:
 				if node.Kind != token.STRING {
@@ -186,8 +188,8 @@ func TestEmbeddedRejection_HasNoFatalPathInThePackage(t *testing.T) {
 				if !strings.Contains(value, fatalCopy) {
 					return true
 				}
-				if source.Name != fatalCopyOwner {
-					t.Errorf("%s:%d carries the fatal startup copy — the sentence is single-sourced in %s and raised only where a fallback is needed, never where a file is read", source.Name, source.Fset.Position(node.Pos()).Line, fatalCopyOwner)
+				if filepath.Base(source.Path) != fatalCopyOwner {
+					t.Errorf("%s:%d carries the fatal startup copy — the sentence is single-sourced in %s and raised only where a fallback is needed, never where a file is read", source.Path, source.Fset.Position(node.Pos()).Line, fatalCopyOwner)
 					return true
 				}
 				owners++
