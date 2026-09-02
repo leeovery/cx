@@ -300,7 +300,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 8,
-          "current_task": "resume-hooks-silently-lost-8-17",
+          "current_task": "resume-hooks-silently-lost-8-18",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -426,7 +426,8 @@
             "resume-hooks-silently-lost-8-12",
             "resume-hooks-silently-lost-8-13",
             "resume-hooks-silently-lost-8-14",
-            "resume-hooks-silently-lost-8-16"
+            "resume-hooks-silently-lost-8-16",
+            "resume-hooks-silently-lost-8-17"
           ],
           "staging": {
             "p1": {
@@ -1041,6 +1042,27 @@
                 "internal/tmux",
                 "internal/restore",
                 "internal/commandertest/scripted.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-17",
+              "source": "reviewer",
+              "summary": "Fixture target composition across internal/tmux real-tmux suites is still fuzzy, one function below the one this task pinned.",
+              "detail": "sessionPaneIDs (internal/tmux/hookkey_realtmux_shared_test.go:94) passes a bare -t <session> to list-panes -s, sitting directly beside the livePanePID at :108 that this task upgraded to ExactCoordTarget. Measured exposure: list-panes -s -t foo resolves a live foo-2, and — matching CLAUDE.md rule — a bare =foo ALSO prefix-matches there; only ExactCoordTarget (=foo:) refuses. Latent today (no server staging a prefix sibling currently calls it), but hookkey_moved_pane_realtmux_test.go does stage mvpane alongside mvpane-elsewhere on one server. Same unpinned form at hookkey_moved_pane_realtmux_test.go:35,41,49,55,244 (break-pane / kill-window / move-pane / display-message), list_all_pane_hookkeys_realtmux_test.go:15, and hookkey_realtmux_shared_test.go:77,80.",
+              "files": [
+                "internal/tmux/hookkey_realtmux_shared_test.go",
+                "internal/tmux/hookkey_moved_pane_realtmux_test.go",
+                "internal/tmux/list_all_pane_hookkeys_realtmux_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-17",
+              "source": "reviewer",
+              "summary": "The *testing.T stand-in now exists twice, and both copies swallow unrelated panics.",
+              "detail": "fakeT / fakeFatal / captureWait (internal/tmuxtest/socket_realtmux_test.go:12-38) is a near-verbatim second copy of fakeT / fakeFatal / captureFailure (internal/logtest/capture_test.go:329-362). Two instances, so Rule of Three says leave the duplication — but both share a defect worth fixing together: the defer func() { _ = recover(); … }() discards ANY panic, so a genuine panic inside the call under test is reported as a pass by the success-path subtests, and the fakeFatal type declared for exactly that discrimination is never type-asserted. The fix (if r := recover(); r != nil { if _, ok := r.(fakeFatal); !ok { panic(r) } }) should land on both copies at once, so it crosses the package boundary. Note this intersects task 8-24, which homes TestingT and one recording fataller in a neutral leaf.",
+              "files": [
+                "internal/tmuxtest/socket_realtmux_test.go",
+                "internal/logtest/capture_test.go"
               ]
             }
           ]
