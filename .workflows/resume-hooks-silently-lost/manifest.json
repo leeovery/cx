@@ -266,7 +266,7 @@
           "fix_gate_mode": "auto",
           "analysis_gate_mode": "gated",
           "consolidation_gate_mode": "gated",
-          "fix_attempts": 0,
+          "fix_attempts": 2,
           "analysis_cycle_total": 3,
           "analysis_cycle_session": 0,
           "linters": [
@@ -300,7 +300,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 8,
-          "current_task": "resume-hooks-silently-lost-8-20",
+          "current_task": "resume-hooks-silently-lost-8-21",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -429,7 +429,8 @@
             "resume-hooks-silently-lost-8-16",
             "resume-hooks-silently-lost-8-17",
             "resume-hooks-silently-lost-8-18",
-            "resume-hooks-silently-lost-8-19"
+            "resume-hooks-silently-lost-8-19",
+            "resume-hooks-silently-lost-8-20"
           ],
           "staging": {
             "p1": {
@@ -1110,6 +1111,83 @@
               "files": [
                 "internal/hookstest/hooks_test.go",
                 "internal/hookstest/hooks.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-20",
+              "source": "executor",
+              "summary": "The same enumerate-parse-count skeleton survives at ~12 further guards the task site list did not enumerate.",
+              "detail": "internal/tui/nomination_test.go:260 is a near-exact twin of the cmd/open_theme_nomination_test.go:245 helper this task just re-pointed (enumerate -> parse -> map by base name); the same loop also stands at internal/theme/slug_collapse_guard_test.go:38, internal/theme/loader_construction_guard_test.go:41, internal/theme/broken_builtin_test.go:291, internal/tui/retired_token_guard_test.go:81, internal/tui/colour_literal_guard_test.go:33, internal/tui/restore_source_guard_test.go:42 and :178, internal/tui/theme_source_guard_test.go:68 and :207, cmd/config_precedence_single_source_test.go:53, internal/log/init_test.go:226, internal/resolver/log_free_test.go:26, internal/fileutil/atomic_classify_test.go:144. Several carry no scanned-nothing tripwire, and their parse modes still vary (0, ImportsOnly, ParseComments|SkipObjectResolution), so one-parse-mode-across-the-tree holds for the re-pointed set only. Each is a one-line re-point.",
+              "files": [
+                "internal/tui/nomination_test.go",
+                "internal/tui/retired_token_guard_test.go",
+                "internal/tui/colour_literal_guard_test.go",
+                "internal/tui/restore_source_guard_test.go",
+                "internal/tui/theme_source_guard_test.go",
+                "internal/theme/slug_collapse_guard_test.go",
+                "internal/theme/loader_construction_guard_test.go",
+                "internal/theme/broken_builtin_test.go",
+                "cmd/config_precedence_single_source_test.go",
+                "internal/log/init_test.go",
+                "internal/resolver/log_free_test.go",
+                "internal/fileutil/atomic_classify_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-20",
+              "source": "executor",
+              "summary": "The fatal-recording *testing.T stand-in is now declared five times across five packages, and the count grows with each further re-point.",
+              "detail": "recordingT in internal/sourceguardtest/packagedeps_test.go:60, two added by this task at internal/tmux/target_composition_guard_test.go and internal/restoretest/literal_guard_scan_test.go, recordingReporter at internal/restoretest/marker_count_test.go:13 (internal test package, so the external guards cannot reach it), and captureSeamGuardFailure at cmd/deps_seam_guard_test.go. Every guard that now fatals instead of returning an error needs one. A single exported recorder beside TestingT in internal/sourceguardtest would end it — out of this task scope because it is a new export the task did not ask for. Intersects task 8-24, which homes TestingT and one recording fataller in a neutral leaf, and the 8-17 entry on two panic-swallowing copies.",
+              "files": [
+                "internal/sourceguardtest/packagedeps_test.go",
+                "internal/tmux/target_composition_guard_test.go",
+                "internal/restoretest/literal_guard_scan_test.go",
+                "internal/restoretest/marker_count_test.go",
+                "cmd/deps_seam_guard_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-20",
+              "source": "reviewer",
+              "summary": "Nine more enumerate-parse guard loops survive outside the six packages this task named — and six of them want imports only, which may warrant its own entry point.",
+              "detail": "Each is an enumerate -> parser.ParseFile per path -> t.Fatalf(parse …) loop under its own mode: internal/tui/colour_literal_guard_test.go:33 (mode 0), internal/tui/retired_token_guard_test.go:81 (ParseComments|SkipObjectResolution), internal/tui/nomination_test.go:266 (SkipObjectResolution), internal/tui/restore_source_guard_test.go:178 (SkipObjectResolution), internal/tui/theme_source_guard_test.go:207 (ImportsOnly), internal/tui/sessions_grouped_reskin_test.go:236 (ImportsOnly), internal/log/init_test.go:226 (ImportsOnly), internal/resolver/log_free_test.go:26 (ImportsOnly), internal/fileutil/atomic_classify_test.go:144 (ImportsOnly). The ImportsOnly cluster is a distinct sub-shape — six sites want imports only — and may warrant its own ParseImports-style entry point rather than being forced through the full-parse mode. Supersedes the executor earlier entry on this with verified modes per site.",
+              "files": [
+                "internal/tui/colour_literal_guard_test.go",
+                "internal/tui/retired_token_guard_test.go",
+                "internal/tui/nomination_test.go",
+                "internal/tui/restore_source_guard_test.go",
+                "internal/tui/theme_source_guard_test.go",
+                "internal/tui/sessions_grouped_reskin_test.go",
+                "internal/log/init_test.go",
+                "internal/resolver/log_free_test.go",
+                "internal/fileutil/atomic_classify_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-20",
+              "source": "reviewer",
+              "summary": "The single-named-file guard parse is a distinct sub-shape neither existing bank entry covers, carrying the same drifting parse mode.",
+              "detail": "Not the enumerate loop the bank already records, but the same parse-a-named-file-under-my-own-mode decision, each with a bare 0 or a per-site mode and no shared tripwire: internal/theme/embedded_test.go:124 (mode 0, in a file this task otherwise re-pointed), cmd/doctor_spawn_seams_guard_test.go:15 (0), cmd/theme_test.go:435 and :933 (0), internal/tui/modal_placement_consolidation_test.go:45 (0), internal/capture/swap_harness_test.go:210 (0), internal/capture/theme_panel_fixture_test.go:469 (0), internal/tui/theme_panel_behaviour_test.go:677, cmd/capturetool/main_test.go:46 and :101. Each is a one-line re-point onto ParseSources(t, []string{path}), which would also hand them the unparseable-file fatal they each hand-roll.",
+              "files": [
+                "internal/theme/embedded_test.go",
+                "cmd/doctor_spawn_seams_guard_test.go",
+                "cmd/theme_test.go",
+                "internal/tui/modal_placement_consolidation_test.go",
+                "internal/capture/swap_harness_test.go",
+                "internal/capture/theme_panel_fixture_test.go",
+                "internal/tui/theme_panel_behaviour_test.go",
+                "cmd/capturetool/main_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-20",
+              "source": "reviewer",
+              "summary": "internal/theme declares three near-identical find-the-package-source-named-X helpers, all touched identically by this task.",
+              "detail": "badgeSource (badge_test.go:238), resolutionSource (resolution_test.go:351) and settingSource (setting_test.go:601) are the same six lines — ParsePackageSources(t, \".\", false), compare filepath.Base(source.Path) to a filename, t.Fatal otherwise, return the zero value. The fix round added the filepath.Base wrap to all three rather than collapsing them into one packageSourceNamed(t, name). Pre-existing (they shared parseThemeSources the same way), so not introduced here, but it is now three copies of a helper whose body is entirely sourceguardtest calls, and each re-parses the whole package.",
+              "files": [
+                "internal/theme/badge_test.go",
+                "internal/theme/resolution_test.go",
+                "internal/theme/setting_test.go"
               ]
             }
           ]
