@@ -1,6 +1,7 @@
 package logtest
 
 import (
+	"errors"
 	"log/slog"
 
 	"github.com/leeovery/portal/internal/harnesstest"
@@ -37,5 +38,20 @@ func AssertRecord(t harnesstest.TestingT, rec Record, want RecordWant) {
 	}
 	if got := rec.AttrString(t, "via"); got != want.Via {
 		t.Errorf("via = %q, want %q", got, want.Via)
+	}
+}
+
+// AssertWriteFailure checks the tail every failed-write breadcrumb carries: the
+// error_class token the write phase classified to, and that the error attr
+// carries a value wrapping sentinel. The sentinel is a parameter rather than
+// resolved here so that logtest — reachable from every test package in the tree
+// — takes no dependency on the package that declares it.
+func AssertWriteFailure(t harnesstest.TestingT, rec Record, wantClass string, sentinel error) {
+	t.Helper()
+	if got := rec.AttrString(t, "error_class"); got != wantClass {
+		t.Errorf("error_class = %q, want %q", got, wantClass)
+	}
+	if err := rec.ErrorAttr(t, "error"); !errors.Is(err, sentinel) {
+		t.Errorf("error attr does not wrap %v: %v", sentinel, err)
 	}
 }

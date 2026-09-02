@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/alias"
+	"github.com/leeovery/portal/internal/fileutil"
 	"github.com/leeovery/portal/internal/logtest"
 )
 
@@ -146,12 +147,7 @@ func TestSetAndSave(t *testing.T) {
 			Op:        "set",
 			Via:       "cli",
 		})
-		if got := rec.AttrString(t, "error_class"); got != "write-failed-write" {
-			t.Errorf("error_class = %q, want %q", got, "write-failed-write")
-		}
-		if !rec.HasAttr("error") {
-			t.Errorf("WARN record missing error attr: %+v", rec.Attrs)
-		}
+		logtest.AssertWriteFailure(t, rec, "write-failed-write", fileutil.ErrWriteWrite)
 	})
 }
 
@@ -222,20 +218,13 @@ func TestDeleteAndSave(t *testing.T) {
 		}
 
 		rec := sink.Records().Only(t, "log record")
-		if rec.Level != slog.LevelWarn {
-			t.Errorf("level = %v, want WARN", rec.Level)
-		}
-		if rec.Msg != "rm" {
-			t.Errorf("msg = %q, want %q", rec.Msg, "rm")
-		}
-		if got := rec.AttrString(t, "op"); got != "rm" {
-			t.Errorf("op = %q, want %q", got, "rm")
-		}
-		if got := rec.AttrString(t, "error_class"); got != "write-failed-write" {
-			t.Errorf("error_class = %q, want %q", got, "write-failed-write")
-		}
-		if !rec.HasAttr("error") {
-			t.Errorf("WARN record missing error attr: %+v", rec.Attrs)
-		}
+		logtest.AssertRecord(t, rec, logtest.RecordWant{
+			Level:     slog.LevelWarn,
+			Msg:       "rm",
+			Component: "aliases",
+			Op:        "rm",
+			Via:       "cli",
+		})
+		logtest.AssertWriteFailure(t, rec, "write-failed-write", fileutil.ErrWriteWrite)
 	})
 }

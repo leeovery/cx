@@ -1039,15 +1039,14 @@ func TestCleanStaleLogging(t *testing.T) {
 		}
 
 		summary := summaries.Only(t, "clean-stale summary record")
-		if summary.Level != slog.LevelWarn {
-			t.Errorf("summary level = %v, want WARN", summary.Level)
-		}
-		if !summary.HasAttr("error") {
-			t.Errorf("summary missing error attr: %+v", summary.Attrs)
-		}
-		if got := summary.AttrString(t, "error_class"); got != "write-failed-temp-create" {
-			t.Errorf("error_class = %q, want %q", got, "write-failed-temp-create")
-		}
+		logtest.AssertRecord(t, summary, logtest.RecordWant{
+			Level:     slog.LevelWarn,
+			Msg:       "clean-stale",
+			Component: "hooks",
+			Op:        "clean-stale",
+			Via:       "internal",
+		})
+		logtest.AssertWriteFailure(t, summary, "write-failed-temp-create", fileutil.ErrWriteTempCreate)
 
 		hookstest.AssertHooksFileUnchanged(t, seeded, []byte(body), "changed on a failed save")
 	})
@@ -1096,37 +1095,19 @@ func TestCleanStaleLogging(t *testing.T) {
 			t.Errorf("returned error not classified as temp-create: %v", err)
 		}
 
-		var warn logtest.Record
-		var found bool
-		for _, r := range sink.Records() {
-			if r.Level == slog.LevelWarn && r.Msg == "clean-stale" {
-				warn = r
-				found = true
-			}
-		}
-		if !found {
-			t.Fatalf("no WARN clean-stale record captured: %+v", sink.Records())
-		}
-		if got := warn.AttrString(t, "op"); got != "clean-stale" {
-			t.Errorf("op = %q, want %q", got, "clean-stale")
-		}
-		if got := warn.AttrString(t, "component"); got != "hooks" {
-			t.Errorf("component = %q, want %q", got, "hooks")
-		}
-		if got := warn.AttrString(t, "via"); got != "internal" {
-			t.Errorf("via = %q, want %q", got, "internal")
-		}
+		warn := sink.RecordsAtExactLevelWithMessage(slog.LevelWarn, "clean-stale").Only(t, "WARN clean-stale record")
+		logtest.AssertRecord(t, warn, logtest.RecordWant{
+			Level:     slog.LevelWarn,
+			Msg:       "clean-stale",
+			Component: "hooks",
+			Op:        "clean-stale",
+			Via:       "internal",
+		})
 		if got := warn.AttrString(t, "entries"); got != "2" {
 			t.Errorf("entries = %q, want %q", got, "2")
 		}
-		if got := warn.AttrString(t, "error_class"); got != "write-failed-temp-create" {
-			t.Errorf("error_class = %q, want %q (must be write-failed-*, not unexpected)", got, "write-failed-temp-create")
-		}
+		logtest.AssertWriteFailure(t, warn, "write-failed-temp-create", fileutil.ErrWriteTempCreate)
 		warn.RequireDuration(t, "took")
-		loggedErr := warn.ErrorAttr(t, "error")
-		if !errors.Is(loggedErr, fileutil.ErrWriteTempCreate) {
-			t.Errorf("logged error attr does not wrap the temp-create sentinel: %v", loggedErr)
-		}
 	})
 
 	t.Run("emits no summary and skips Save when zero entries are removed", func(t *testing.T) {
@@ -1277,25 +1258,14 @@ func TestSetLogging(t *testing.T) {
 		}
 
 		rec := sink.Records().Only(t, "log record")
-		if rec.Level != slog.LevelWarn {
-			t.Errorf("level = %v, want WARN", rec.Level)
-		}
-		if rec.Msg != "set" {
-			t.Errorf("msg = %q, want %q", rec.Msg, "set")
-		}
-		if got := rec.AttrString(t, "op"); got != "set" {
-			t.Errorf("op = %q, want %q", got, "set")
-		}
-		if got := rec.AttrString(t, "component"); got != "hooks" {
-			t.Errorf("component = %q, want %q", got, "hooks")
-		}
-		if got := rec.AttrString(t, "error_class"); got != "write-failed-temp-create" {
-			t.Errorf("error_class = %q, want %q", got, "write-failed-temp-create")
-		}
-		loggedErr := rec.ErrorAttr(t, "error")
-		if !errors.Is(loggedErr, fileutil.ErrWriteTempCreate) {
-			t.Errorf("logged error attr does not wrap the temp-create sentinel: %v", loggedErr)
-		}
+		logtest.AssertRecord(t, rec, logtest.RecordWant{
+			Level:     slog.LevelWarn,
+			Msg:       "set",
+			Component: "hooks",
+			Op:        "set",
+			Via:       "cli",
+		})
+		logtest.AssertWriteFailure(t, rec, "write-failed-temp-create", fileutil.ErrWriteTempCreate)
 	})
 }
 
@@ -1429,24 +1399,13 @@ func TestRemoveLogging(t *testing.T) {
 		}
 
 		rec := sink.Records().Only(t, "log record")
-		if rec.Level != slog.LevelWarn {
-			t.Errorf("level = %v, want WARN", rec.Level)
-		}
-		if rec.Msg != "rm" {
-			t.Errorf("msg = %q, want %q", rec.Msg, "rm")
-		}
-		if got := rec.AttrString(t, "op"); got != "rm" {
-			t.Errorf("op = %q, want %q", got, "rm")
-		}
-		if got := rec.AttrString(t, "component"); got != "hooks" {
-			t.Errorf("component = %q, want %q", got, "hooks")
-		}
-		if got := rec.AttrString(t, "error_class"); got != "write-failed-temp-create" {
-			t.Errorf("error_class = %q, want %q", got, "write-failed-temp-create")
-		}
-		loggedErr := rec.ErrorAttr(t, "error")
-		if !errors.Is(loggedErr, fileutil.ErrWriteTempCreate) {
-			t.Errorf("logged error attr does not wrap the temp-create sentinel: %v", loggedErr)
-		}
+		logtest.AssertRecord(t, rec, logtest.RecordWant{
+			Level:     slog.LevelWarn,
+			Msg:       "rm",
+			Component: "hooks",
+			Op:        "rm",
+			Via:       "cli",
+		})
+		logtest.AssertWriteFailure(t, rec, "write-failed-temp-create", fileutil.ErrWriteTempCreate)
 	})
 }

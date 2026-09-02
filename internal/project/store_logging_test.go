@@ -100,31 +100,20 @@ func TestUpsertLogging(t *testing.T) {
 		}
 
 		rec := sink.Records().Only(t, "log record")
-		if rec.Level != slog.LevelWarn {
-			t.Errorf("level = %v, want WARN", rec.Level)
-		}
-		if rec.Msg != "set" {
-			t.Errorf("msg = %q, want %q", rec.Msg, "set")
-		}
-		if got := rec.AttrString(t, "op"); got != "set" {
-			t.Errorf("op = %q, want %q", got, "set")
-		}
-		if got := rec.AttrString(t, "component"); got != "projects" {
-			t.Errorf("component = %q, want %q", got, "projects")
-		}
+		logtest.AssertRecord(t, rec, logtest.RecordWant{
+			Level:     slog.LevelWarn,
+			Msg:       "set",
+			Component: "projects",
+			Op:        "set",
+			Via:       "internal",
+		})
 		if got := rec.AttrString(t, "project"); got != "portal" {
 			t.Errorf("project = %q, want %q", got, "portal")
 		}
 		if got := rec.AttrString(t, "path"); got != "/code/portal" {
 			t.Errorf("path = %q, want %q", got, "/code/portal")
 		}
-		if got := rec.AttrString(t, "error_class"); got != "write-failed-temp-create" {
-			t.Errorf("error_class = %q, want %q", got, "write-failed-temp-create")
-		}
-		loggedErr := rec.ErrorAttr(t, "error")
-		if !errors.Is(loggedErr, fileutil.ErrWriteTempCreate) {
-			t.Errorf("logged error attr does not wrap the temp-create sentinel: %v", loggedErr)
-		}
+		logtest.AssertWriteFailure(t, rec, "write-failed-temp-create", fileutil.ErrWriteTempCreate)
 	})
 }
 
@@ -217,28 +206,20 @@ func TestRenameLogging(t *testing.T) {
 		}
 
 		rec := sink.Records().Only(t, "log record")
-		if rec.Level != slog.LevelWarn {
-			t.Errorf("level = %v, want WARN", rec.Level)
-		}
-		if rec.Msg != "modify" {
-			t.Errorf("msg = %q, want %q", rec.Msg, "modify")
-		}
-		if got := rec.AttrString(t, "op"); got != "modify" {
-			t.Errorf("op = %q, want %q", got, "modify")
-		}
+		logtest.AssertRecord(t, rec, logtest.RecordWant{
+			Level:     slog.LevelWarn,
+			Msg:       "modify",
+			Component: "projects",
+			Op:        "modify",
+			Via:       "cli",
+		})
 		if got := rec.AttrString(t, "project"); got != "portal-new" {
 			t.Errorf("project = %q, want %q", got, "portal-new")
 		}
 		if got := rec.AttrString(t, "path"); got != "/code/portal" {
 			t.Errorf("path = %q, want %q", got, "/code/portal")
 		}
-		if got := rec.AttrString(t, "error_class"); got != "write-failed-temp-create" {
-			t.Errorf("error_class = %q, want %q", got, "write-failed-temp-create")
-		}
-		loggedErr := rec.ErrorAttr(t, "error")
-		if !errors.Is(loggedErr, fileutil.ErrWriteTempCreate) {
-			t.Errorf("logged error attr does not wrap the temp-create sentinel: %v", loggedErr)
-		}
+		logtest.AssertWriteFailure(t, rec, "write-failed-temp-create", fileutil.ErrWriteTempCreate)
 	})
 }
 
@@ -318,25 +299,17 @@ func TestRemoveLogging(t *testing.T) {
 		}
 
 		rec := sink.Records().Only(t, "log record")
-		if rec.Level != slog.LevelWarn {
-			t.Errorf("level = %v, want WARN", rec.Level)
-		}
-		if rec.Msg != "rm" {
-			t.Errorf("msg = %q, want %q", rec.Msg, "rm")
-		}
-		if got := rec.AttrString(t, "op"); got != "rm" {
-			t.Errorf("op = %q, want %q", got, "rm")
-		}
+		logtest.AssertRecord(t, rec, logtest.RecordWant{
+			Level:     slog.LevelWarn,
+			Msg:       "rm",
+			Component: "projects",
+			Op:        "rm",
+			Via:       "cli",
+		})
 		if got := rec.AttrString(t, "path"); got != "/code/portal" {
 			t.Errorf("path = %q, want %q", got, "/code/portal")
 		}
-		if got := rec.AttrString(t, "error_class"); got != "write-failed-temp-create" {
-			t.Errorf("error_class = %q, want %q", got, "write-failed-temp-create")
-		}
-		loggedErr := rec.ErrorAttr(t, "error")
-		if !errors.Is(loggedErr, fileutil.ErrWriteTempCreate) {
-			t.Errorf("logged error attr does not wrap the temp-create sentinel: %v", loggedErr)
-		}
+		logtest.AssertWriteFailure(t, rec, "write-failed-temp-create", fileutil.ErrWriteTempCreate)
 	})
 }
 
@@ -488,34 +461,16 @@ func TestCleanStaleLogging(t *testing.T) {
 			t.Errorf("returned error not classified as temp-create: %v", err)
 		}
 
-		var warn logtest.Record
-		var found bool
-		for _, r := range sink.Records() {
-			if r.Level == slog.LevelWarn && r.Msg == "clean-stale" {
-				warn = r
-				found = true
-			}
-		}
-		if !found {
-			t.Fatalf("no WARN clean-stale record captured: %+v", sink.Records())
-		}
-		if got := warn.AttrString(t, "op"); got != "clean-stale" {
-			t.Errorf("op = %q, want %q", got, "clean-stale")
-		}
-		if got := warn.AttrString(t, "component"); got != "projects" {
-			t.Errorf("component = %q, want %q", got, "projects")
-		}
-		if got := warn.AttrString(t, "via"); got != "internal" {
-			t.Errorf("via = %q, want %q", got, "internal")
-		}
-		if got := warn.AttrString(t, "error_class"); got != "write-failed-temp-create" {
-			t.Errorf("error_class = %q, want %q (must be write-failed-*, not unexpected)", got, "write-failed-temp-create")
-		}
+		warn := sink.RecordsAtExactLevelWithMessage(slog.LevelWarn, "clean-stale").Only(t, "WARN clean-stale record")
+		logtest.AssertRecord(t, warn, logtest.RecordWant{
+			Level:     slog.LevelWarn,
+			Msg:       "clean-stale",
+			Component: "projects",
+			Op:        "clean-stale",
+			Via:       "internal",
+		})
+		logtest.AssertWriteFailure(t, warn, "write-failed-temp-create", fileutil.ErrWriteTempCreate)
 		warn.RequireDuration(t, "took")
-		loggedErr := warn.ErrorAttr(t, "error")
-		if !errors.Is(loggedErr, fileutil.ErrWriteTempCreate) {
-			t.Errorf("logged error attr does not wrap the temp-create sentinel: %v", loggedErr)
-		}
 	})
 }
 
