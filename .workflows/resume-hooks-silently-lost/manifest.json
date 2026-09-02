@@ -300,7 +300,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 8,
-          "current_task": "resume-hooks-silently-lost-8-12",
+          "current_task": "resume-hooks-silently-lost-8-13",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -422,7 +422,8 @@
             "resume-hooks-silently-lost-8-8",
             "resume-hooks-silently-lost-8-9",
             "resume-hooks-silently-lost-8-10",
-            "resume-hooks-silently-lost-8-11"
+            "resume-hooks-silently-lost-8-11",
+            "resume-hooks-silently-lost-8-12"
           ],
           "staging": {
             "p1": {
@@ -901,6 +902,15 @@
                 "internal/portaltest/teardown_guard_coverage_test.go",
                 "internal/sourceguardtest/foreachfunccall.go",
                 "internal/sourceguardtest/calleename.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-12",
+              "source": "reviewer",
+              "summary": "isolated_env_test.go TestMain leaks its sandbox temp dir on every run of the package.",
+              "detail": "internal/portaltest/isolated_env_test.go:22 registers defer func() { _ = os.RemoveAll(sandbox) }() and then ends with os.Exit(m.Run()) at line 27 — os.Exit skips deferred functions, so each go test ./internal/portaltest/ run leaves a portaltest-self-sandbox-* directory in $TMPDIR. Pre-existing, untouched by this diff; the fix is to capture the code, run the cleanup, then exit.",
+              "files": [
+                "internal/portaltest/isolated_env_test.go"
               ]
             }
           ]
