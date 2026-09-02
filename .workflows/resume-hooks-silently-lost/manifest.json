@@ -300,7 +300,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 8,
-          "current_task": "resume-hooks-silently-lost-8-23",
+          "current_task": "resume-hooks-silently-lost-8-24",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -432,7 +432,8 @@
             "resume-hooks-silently-lost-8-19",
             "resume-hooks-silently-lost-8-20",
             "resume-hooks-silently-lost-8-21",
-            "resume-hooks-silently-lost-8-22"
+            "resume-hooks-silently-lost-8-22",
+            "resume-hooks-silently-lost-8-23"
           ],
           "staging": {
             "p1": {
@@ -1232,6 +1233,76 @@
               "files": [
                 "internal/tmux/target_composition_guard_test.go",
                 "internal/sourceguardtest/packagedeps.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-23",
+              "source": "executor",
+              "summary": "A per-level/per-message record partition loop is re-authored at three sites.",
+              "detail": "cmd/open_burst_run_test.go:690-710,760-770 classifies sink.Records() into warns/summaries/windows by level plus message prefix; internal/hooks/store_test.go:897 (partitionCleanStaleRecords) splits per-key lines from batch summaries; cmd/theme_test.go:383 (assertNoThemeRecords) does a third variant. logtest offers filters but no split-into-two-sets terminal, so each suite writes its own switch.",
+              "files": [
+                "cmd/open_burst_run_test.go",
+                "internal/hooks/store_test.go",
+                "cmd/theme_test.go",
+                "internal/logtest/capture.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-23",
+              "source": "executor",
+              "summary": "No non-fatal cardinality terminal, so an exactly-N-keep-going count check is hand-written at ~6 sites.",
+              "detail": "cmd/run_hook_stale_cleanup_test.go:39,67,185,189, cmd/run_hook_stale_cleanup_single_report_test.go:127, cmd/doctor_fix_hook_prune_report_test.go:45,70, cmd/hooks_test.go:974 and cmd/theme_persister_test.go:200 each write if got := len(<query>); got != 1 { t.Errorf(...) }. Records.Only is fatal by construction, so these cannot adopt it; a Records.RequireCount(t, n, description) sibling would close the family. Note this is the residue the task adoption deliberately left — non-fatal by design, so Only would change Errorf-and-continue into Fatal.",
+              "files": [
+                "cmd/run_hook_stale_cleanup_test.go",
+                "cmd/run_hook_stale_cleanup_single_report_test.go",
+                "cmd/doctor_fix_hook_prune_report_test.go",
+                "cmd/hooks_test.go",
+                "cmd/theme_persister_test.go",
+                "internal/logtest/capture.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-23",
+              "source": "reviewer",
+              "summary": "internal/log discard-construction guard is blind to test files, which is how five open-coded copies survived undetected.",
+              "detail": "internal/log/discard_guard_test.go:35 returns early for any path ending _test.go, so the route-through-log.OrDiscard/log.Discard rule is production-only. Widening it needs an exemption list for internal/log own package log test files and a decision on whether internal/prefs (which must not import internal/log) needs carving out. Cross-cutting enough to belong in a consolidation pass.",
+              "files": [
+                "internal/log/discard_guard_test.go",
+                "internal/log/discard.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-23",
+              "source": "reviewer",
+              "summary": "internal/log two remaining capture handlers could join Sink if its tests moved to an external test package.",
+              "detail": "recordingHandler (internal/log/log_test.go:111-128) and componentCapture (internal/log/rotate_test.go:14-56) are structural twins of Sink — level-blind, WithAttrs-accumulating, record-storing — kept apart only because both files are package log while logtest imports internal/log. Moving the affected tests to package log_test (they touch unexported swap/setHandler, so it is not a free move) would let both fold onto Sink and make CLAUDE.md only-capture-handler claim true as written. The reach is another package test organisation and unexported-seam surface.",
+              "files": [
+                "internal/log/log_test.go",
+                "internal/log/rotate_test.go",
+                "internal/logtest/capture.go",
+                "CLAUDE.md"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-23",
+              "source": "reviewer",
+              "summary": "The discard guard is blind to _test.go AND hand-rolls the source walk the guard family now shares — supersedes the earlier entry on this.",
+              "detail": "internal/log/discard_guard_test.go:28 skips every _test.go file, which is why six open-coded slog.NewTextHandler(io.Discard, nil) copies survived in test files until this task fixed them by hand — nothing stops the seventh. It ALSO walks the tree itself (filepath.WalkDir with its own .git/vendor/node_modules exclusions) instead of sourceguardtest.GoSourceFiles, the primitive task 8-20 introduced for exactly this. Both changes belong with the guard-family work. Widening the tag filter needs an exemption for internal/log own package log tests and a ruling on internal/prefs, which must not import internal/log.",
+              "files": [
+                "internal/log/discard_guard_test.go",
+                "internal/sourceguardtest/source.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-23",
+              "source": "executor",
+              "summary": "REFINED site list: the per-level/per-message record partition loop is re-authored at four sites, not three — supersedes the earlier entry.",
+              "detail": "cmd/open_burst_run_test.go:689,753,830 classify sink.Records() by level plus strings.HasPrefix on Msg; internal/project/store_logging_test.go:370 and internal/hooks/store_test.go:897 (partitionCleanStaleRecords) split per-key lines from batch summaries. logtest offers filters but no prefix query and no split-into-two-sets terminal, so each suite writes its own switch. The absence of a prefix query is the root: these loops exist because HasPrefix on Msg is not expressible as a logtest query.",
+              "files": [
+                "cmd/open_burst_run_test.go",
+                "internal/project/store_logging_test.go",
+                "internal/hooks/store_test.go",
+                "internal/logtest/capture.go"
               ]
             }
           ]
