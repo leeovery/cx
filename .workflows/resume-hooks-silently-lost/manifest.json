@@ -300,7 +300,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 8,
-          "current_task": "resume-hooks-silently-lost-8-27",
+          "current_task": "resume-hooks-silently-lost-8-28",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -437,7 +437,8 @@
             "resume-hooks-silently-lost-8-24",
             "resume-hooks-silently-lost-8-15",
             "resume-hooks-silently-lost-8-25",
-            "resume-hooks-silently-lost-8-26"
+            "resume-hooks-silently-lost-8-26",
+            "resume-hooks-silently-lost-8-27"
           ],
           "staging": {
             "p1": {
@@ -1426,6 +1427,66 @@
                 "cmd/config_migrate_logging_test.go",
                 "internal/logtest/assert.go",
                 "internal/storelog/clean_stale_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-27",
+              "source": "executor",
+              "summary": "The inline filepath.Join(dir, hooks.json) composition survives in the three internal/hooks suites the task did not name.",
+              "detail": "13 sites in internal/hooks/lock_test.go, 2 in read_lock_test.go, 3 in lookup_test.go — all now expressible as hookstest.HooksPath(t, dir). They were out of this task stated scope (which named store_test.go and lock_write_test.go), so the sibling exists but half its callers still hand-roll.",
+              "files": [
+                "internal/hooks/lock_test.go",
+                "internal/hooks/read_lock_test.go",
+                "internal/hooks/lookup_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-27",
+              "source": "executor",
+              "summary": "The sidecar .lock suffix is still hand-composed outside hookstest now that SidecarPath exists.",
+              "detail": "8 sites in internal/hooks/lock_test.go, 2 in internal/hooks/read_lock_test.go, 1 at cmd/run_hook_stale_cleanup_snapshot_order_test.go:116 — each path + \".lock\". The suffix now has one home in internal/hookstest/hooks_lock.go:18; these predate it and restate it.",
+              "files": [
+                "internal/hooks/lock_test.go",
+                "internal/hooks/read_lock_test.go",
+                "cmd/run_hook_stale_cleanup_snapshot_order_test.go",
+                "internal/hookstest/hooks_lock.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-27",
+              "source": "executor",
+              "summary": "cmd readHooksJSON is a read-and-unmarshal counterpart to the now-shared byte read, with no shared home.",
+              "detail": "cmd/testhelpers_test.go:200 reads and unmarshals a hooks.json into map[string]map[string]string — the decode half of what hookstest owns the encode half of (Staging.Body). With readFileBytes now delegating, this is the last hooks.json IO in cmd that hookstest does not back; a hookstest.HooksFileEntries(t, path) would close it and would be reused by internal/hooks suites that decode the same shape.",
+              "files": [
+                "cmd/testhelpers_test.go",
+                "internal/hookstest/hooks.go",
+                "internal/hookstest/staging.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-27",
+              "source": "reviewer",
+              "summary": "Six non-hydrate sites drifted from the degraded unlocked read to the shared lock, leaving one in-file comment describing no remaining case — zero-cost to restore.",
+              "detail": "Six internal/hooks/store_test.go cases seeded straight into the file (TestLoad two, TestRemove malformed/empty-event-map pair, TestList sorted, three TestCleanStaleLogging), plus hookstest own stageHooksFile and root_test.go hook set/rm, previously had no sidecar and took the degraded unlocked read; they now take the shared lock. No assertion in any of them is about the read mode and the degraded-read contract is owned by internal/hooks/read_lock_test.go and cmd/hooks_read_lock_test.go, neither touched — so no coverage lost. But the load-unlocked skip branch in partitionCleanStaleRecords (internal/hooks/store_test.go:871) is now unexercised within that file and its comment (which it does wherever no sidecar has been staged) no longer describes any case in it. Passing SidecarAbsent: true at those six sites restores both at zero cost. ALSO: staged-byte formatting shifted at the ~30 former writeHooksJSON sites (MarshalIndent -> compact Marshal) — nothing depends on it (consumers unmarshal or compare before/after of the same file) and the hydrate sites are byte-identical, but the task test note asked for staged bytes to be unchanged and strictly they are not.",
+              "files": [
+                "internal/hooks/store_test.go",
+                "internal/hookstest/hooks_test.go",
+                "cmd/root_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-27",
+              "source": "reviewer",
+              "summary": "REFINED with full site list: HooksPath now exists but the inline join survives in the internal/hooks suites the task did not name, and in four cmd suites.",
+              "detail": "internal/hooks/lock_test.go:36,52,65,90,117,135,168,201,218,246,264,279,297; internal/hooks/lookup_test.go:30,104,138; internal/hooks/read_lock_test.go:190,208; cmd/hooks_read_lock_test.go:56; cmd/state_daemon_test.go:803; cmd/config_seeder_parity_test.go:106; plus the five stat-assertions in cmd/state_hydrate_test.go:485,881,1177,1458,1502. Same duplication, same one-line remedy; the task scoped itself to store_test.go and lock_write_test.go. Supersedes the executor entry, which listed only the internal/hooks half.",
+              "files": [
+                "internal/hooks/lock_test.go",
+                "internal/hooks/lookup_test.go",
+                "internal/hooks/read_lock_test.go",
+                "cmd/hooks_read_lock_test.go",
+                "cmd/state_daemon_test.go",
+                "cmd/config_seeder_parity_test.go",
+                "cmd/state_hydrate_test.go"
               ]
             }
           ]
