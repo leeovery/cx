@@ -98,3 +98,45 @@ func TestHookRegistrar_RegistersPortalHooks(t *testing.T) {
 		t.Errorf("RegisterPortalHooks (second invocation): %v", err)
 	}
 }
+
+// Exe falls back to os.Executable, which under `go test` is the test binary: a
+// pane armed with it re-runs the suite inside itself and takes the session with
+// it, silently. The constructor is the seam a test reaches the orchestrator
+// through, so it refuses to build one that has not pinned the binary.
+func TestNewRestoreAdapter_RequiresAnExeResolver(t *testing.T) {
+	t.Run("it refuses to build the restore adapter without an exe", func(t *testing.T) {
+		a, err := bootstrapadapter.NewRestoreAdapter(nil, t.TempDir(), nil, nil)
+
+		if err == nil {
+			t.Fatal("NewRestoreAdapter with a nil exe returned no error")
+		}
+		if !errors.Is(err, bootstrapadapter.ErrRestoreExeRequired) {
+			t.Errorf("err = %v; want errors.Is(err, ErrRestoreExeRequired)=true", err)
+		}
+		if a != nil {
+			t.Errorf("adapter = %v; want nil alongside the error", a)
+		}
+	})
+
+	t.Run("it pins the resolver it is given on the inner orchestrator", func(t *testing.T) {
+		stateDir := t.TempDir()
+		const exePath = "/staged/portal"
+
+		a, err := bootstrapadapter.NewRestoreAdapter(nil, stateDir, nil,
+			func() (string, error) { return exePath, nil })
+
+		if err != nil {
+			t.Fatalf("NewRestoreAdapter: %v", err)
+		}
+		if a.Inner.Exe == nil {
+			t.Fatal("inner orchestrator Exe is nil; want the resolver passed in")
+		}
+		got, resolveErr := a.Inner.Exe()
+		if resolveErr != nil || got != exePath {
+			t.Errorf("Exe() = %q, %v; want %q, nil", got, resolveErr, exePath)
+		}
+		if a.Inner.StateDir != stateDir {
+			t.Errorf("StateDir = %q; want %q", a.Inner.StateDir, stateDir)
+		}
+	})
+}

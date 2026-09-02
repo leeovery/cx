@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/leeovery/portal/internal/portaltest"
-	"github.com/leeovery/portal/internal/restore"
 	"github.com/leeovery/portal/internal/restoretest"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
@@ -42,12 +41,7 @@ func TestSessionRestorer_MultiWindowSessionWithAPrefixSiblingLive(t *testing.T) 
 	ts.Run(t, "new-session", "-d", "-s", sibling, "-c", cwd, "sleep", "infinity")
 	ts.WaitForSession(t, sibling, 2*time.Second)
 
-	r := &restore.SessionRestorer{
-		Client:   client,
-		StateDir: stateDir,
-		Logger:   restoretest.OpenTestLogger(t, stateDir),
-		Exe:      restoretest.StagedHydrateExe(t, binDir),
-	}
+	r := restoretest.NewSessionRestorer(t, client, stateDir, binDir)
 	sess := newSession(restored, nil,
 		newWindow(0, "main",
 			newPane(0, cwd, "scrollback/sib__0.0.bin"),

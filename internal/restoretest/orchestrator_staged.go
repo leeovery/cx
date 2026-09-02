@@ -35,7 +35,9 @@ func NewRestoreOrchestrator(t *testing.T, client *tmux.Client, stateDir, binDir 
 // builds, with its inner restore's pane-arming pointed at the staged binary.
 func StagedRestoreAdapter(t *testing.T, client *tmux.Client, stateDir string, logger *slog.Logger, binDir string) *bootstrapadapter.RestoreAdapter {
 	t.Helper()
-	a := bootstrapadapter.NewRestoreAdapter(client, stateDir, logger)
-	a.Inner.Exe = StagedHydrateExe(t, binDir)
+	a, err := bootstrapadapter.NewRestoreAdapter(client, stateDir, logger, StagedHydrateExe(t, binDir))
+	if err != nil {
+		t.Fatalf("StagedRestoreAdapter: %v", err)
+	}
 	return a
 }

@@ -2,23 +2,17 @@ package restoretest_test
 
 import (
 	"errors"
-	"fmt"
 	"go/ast"
-	"go/parser"
 	"go/token"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/leeovery/portal/internal/portalbintest"
-	"github.com/leeovery/portal/internal/sourceguardtest"
 )
 
 // The type no test may compose itself, and the constructors that compose it
 // with Exe pinned.
 const (
-	orchestratorPkg  = "restore"
 	orchestratorType = "Orchestrator"
 
 	stagedConstructor = "restoretest.NewRestoreOrchestrator"
@@ -45,7 +39,7 @@ func TestNoTestComposesABareRestoreOrchestrator(t *testing.T) {
 
 	scanned, findings, err := scanTestOrchestratorLiterals(root)
 	if err != nil {
-		t.Fatalf("scan for bare %s.%s literals: %v", orchestratorPkg, orchestratorType, err)
+		t.Fatalf("scan for bare %s.%s literals: %v", restorePkg, orchestratorType, err)
 	}
 	if len(findings) == 0 {
 		return
@@ -54,7 +48,7 @@ func TestNoTestComposesABareRestoreOrchestrator(t *testing.T) {
 		"  Exe is opt-in on the struct and a forgotten one is silent: the pane respawns into\n"+
 		"  the test binary and the session vanishes with no error. Build it through %s\n"+
 		"  (a staged binary) or %s (no live pane to arm).",
-		len(findings), orchestratorPkg, orchestratorType, scanned,
+		len(findings), restorePkg, orchestratorType, scanned,
 		strings.Join(findings, "\n  "), stagedConstructor, fakeConstructor)
 }
 
@@ -143,34 +137,13 @@ func TestOrchestratorLiteralGuard_ErrorsWhenItEnumeratesNoTestFiles(t *testing.T
 // scanTestOrchestratorLiterals reports every composite literal of the
 // orchestrator type in a _test.go under root, as "<file>:<line>". It reads the
 // AST rather than the text, so a mention of the type inside a string — this
-// guard's own fixtures — is not a finding.
+// guard's own fixtures — is not a finding. Every lane is policed: the
+// integration-tagged files are most of the subject, and an unpinned literal is
+// as silent in one lane as the other.
 func scanTestOrchestratorLiterals(root string) (scanned int, findings []string, err error) {
-	paths, err := sourceguardtest.GoSourceFiles(root)
+	scanned, findings, err = scanGuardTestFiles(root, everyTestFile, orchestratorLiteralsIn)
 	if err != nil {
 		return 0, nil, err
-	}
-
-	fset := token.NewFileSet()
-	for _, path := range paths {
-		if !strings.HasSuffix(path, "_test.go") {
-			continue
-		}
-		rel, relErr := filepath.Rel(root, path)
-		if relErr != nil {
-			return 0, nil, relErr
-		}
-		src, readErr := os.ReadFile(path)
-		if readErr != nil {
-			return 0, nil, fmt.Errorf("read %s: %w", rel, readErr)
-		}
-		// Build tags are ignored on purpose: the integration-tagged files are
-		// most of the subject, and the unit lane must still police them.
-		file, parseErr := parser.ParseFile(fset, rel, src, parser.SkipObjectResolution)
-		if parseErr != nil {
-			return 0, nil, fmt.Errorf("parse %s: %w", rel, parseErr)
-		}
-		scanned++
-		findings = append(findings, orchestratorLiteralsIn(fset, file)...)
 	}
 	if scanned == 0 {
 		return 0, nil, errors.New("no _test.go was enumerated, so the guard would pass by having stopped looking")
@@ -178,38 +151,17 @@ func scanTestOrchestratorLiterals(root string) (scanned int, findings []string, 
 	return scanned, findings, nil
 }
 
+func everyTestFile(*ast.File) bool { return true }
+
 func orchestratorLiteralsIn(fset *token.FileSet, file *ast.File) []string {
 	var findings []string
 	ast.Inspect(file, func(n ast.Node) bool {
 		lit, isLit := n.(*ast.CompositeLit)
-		if !isLit || !isOrchestratorType(lit.Type) {
+		if !isLit || !isRestorePkgType(lit.Type, orchestratorType) {
 			return true
 		}
 		findings = append(findings, fset.Position(lit.Pos()).String())
 		return true
 	})
 	return findings
-}
-
-func isOrchestratorType(expr ast.Expr) bool {
-	sel, isSel := expr.(*ast.SelectorExpr)
-	if !isSel || sel.Sel.Name != orchestratorType {
-		return false
-	}
-	pkg, isIdent := sel.X.(*ast.Ident)
-	return isIdent && pkg.Name == orchestratorPkg
-}
-
-func writeGuardFixture(t *testing.T, name, src string) string {
-	t.Helper()
-	root := t.TempDir()
-	writeGuardFile(t, root, name, src)
-	return root
-}
-
-func writeGuardFile(t *testing.T, root, name, src string) {
-	t.Helper()
-	if err := os.WriteFile(filepath.Join(root, name), []byte(src), 0o600); err != nil {
-		t.Fatalf("write fixture %s: %v", name, err)
-	}
 }
