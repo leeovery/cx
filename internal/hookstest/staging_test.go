@@ -1,6 +1,7 @@
 package hookstest_test
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -18,7 +19,7 @@ func TestStageStore(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, 20*time.Millisecond)
 		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: `{"tok01":{"on-resume":"npm start"}}`})
 
-		if _, err := os.Stat(path + ".lock"); err != nil {
+		if _, err := os.Stat(hookstest.SidecarPath(path)); err != nil {
 			t.Fatalf("stat sidecar: %v", err)
 		}
 
@@ -42,7 +43,7 @@ func TestStageStore(t *testing.T) {
 			SidecarAbsent: true,
 		})
 
-		if _, err := os.Stat(path + ".lock"); !os.IsNotExist(err) {
+		if _, err := os.Stat(hookstest.SidecarPath(path)); !os.IsNotExist(err) {
 			t.Fatalf("stat sidecar = %v, want it absent", err)
 		}
 
@@ -59,7 +60,7 @@ func TestStageStore(t *testing.T) {
 			WritesDenied: true,
 		})
 
-		if _, err := os.Stat(path + ".lock"); err != nil {
+		if _, err := os.Stat(hookstest.SidecarPath(path)); err != nil {
 			t.Fatalf("stat sidecar: %v", err)
 		}
 
@@ -117,11 +118,81 @@ func TestStageStore(t *testing.T) {
 			Seed: `{"tok01":{"on-resume":"npm start"}}`,
 		})
 
-		if want := filepath.Join(dir, "hooks.json"); path != want {
+		if want := hookstest.HooksPath(t, dir); path != want {
 			t.Errorf("path = %q, want %q", path, want)
 		}
 		if _, err := os.Stat(path); err != nil {
 			t.Fatalf("stat staged hooks.json: %v", err)
+		}
+	})
+}
+
+func TestStageStoreBody(t *testing.T) {
+	t.Run("it stages a multi-event hooks body", func(t *testing.T) {
+		store, path := hookstest.StageStore(t, hookstest.Staging{Body: map[string]map[string]string{
+			"tok01": {"on-resume": "npm start", "on-close": "npm stop"},
+		}})
+
+		var staged map[string]map[string]string
+		if err := json.Unmarshal(hookstest.HooksFileBytes(t, path), &staged); err != nil {
+			t.Fatalf("unmarshal staged hooks.json: %v", err)
+		}
+		if got, want := staged["tok01"]["on-close"], "npm stop"; got != want {
+			t.Errorf("on-close = %q, want %q — the body's second event was not staged", got, want)
+		}
+
+		h, err := store.Load(hooks.ViaCLI)
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if got, want := h["tok01"]["on-resume"], "npm start"; got != want {
+			t.Errorf("on-resume = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("it stages an empty body as an empty hooks.json rather than no file", func(t *testing.T) {
+		_, path := hookstest.StageStore(t, hookstest.Staging{Body: map[string]map[string]string{}})
+
+		if got := hookstest.HooksFileBytes(t, path); string(got) != "{}" {
+			t.Errorf("staged bytes = %q, want %q", got, "{}")
+		}
+	})
+}
+
+func TestHooksPath(t *testing.T) {
+	t.Run("it returns the hooks path without staging a file", func(t *testing.T) {
+		dir := t.TempDir()
+
+		path := hookstest.HooksPath(t, dir)
+
+		if want := hookstest.HooksPath(t, dir); path != want {
+			t.Errorf("path = %q, want %q", path, want)
+		}
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Errorf("stat = %v, want the path unstaged", err)
+		}
+		if _, err := os.Stat(hookstest.SidecarPath(path)); !os.IsNotExist(err) {
+			t.Errorf("stat sidecar = %v, want it unstaged", err)
+		}
+	})
+
+	t.Run("it names the same path the stager stages", func(t *testing.T) {
+		dir := t.TempDir()
+
+		_, staged := hookstest.StageStore(t, hookstest.Staging{Dir: dir, Seed: `{}`})
+
+		if got := hookstest.HooksPath(t, dir); got != staged {
+			t.Errorf("HooksPath = %q, StageStore staged %q", got, staged)
+		}
+	})
+}
+
+func TestSidecarPath(t *testing.T) {
+	t.Run("it names the lock file beside the hooks.json", func(t *testing.T) {
+		path := hookstest.HooksPath(t, t.TempDir())
+
+		if got, want := hookstest.SidecarPath(path), path+".lock"; got != want {
+			t.Errorf("SidecarPath = %q, want %q", got, want)
 		}
 	})
 }

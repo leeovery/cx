@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -19,6 +18,7 @@ import (
 
 	"github.com/leeovery/portal/internal/commandertest"
 	"github.com/leeovery/portal/internal/hooks"
+	"github.com/leeovery/portal/internal/hookstest"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
 )
@@ -1232,19 +1232,6 @@ func TestHydrate_TimeoutHandler_OrderingAndTimingInvariants(t *testing.T) {
 	}
 }
 
-func seedHookStore(t *testing.T, dir string, contents map[string]map[string]string) *hooks.Store {
-	t.Helper()
-	path := filepath.Join(dir, "hooks.json")
-	data, err := json.Marshal(contents)
-	if err != nil {
-		t.Fatalf("marshal hooks: %v", err)
-	}
-	if err := os.WriteFile(path, data, 0o600); err != nil {
-		t.Fatalf("write hooks.json: %v", err)
-	}
-	return hooks.NewStore(path)
-}
-
 func TestHydrate_SignalArrived_ExecsHookChainWhenHookRegistered(t *testing.T) {
 	dir := t.TempDir()
 	fifo := makeFIFO(t, dir, "hydrate-work__0.0.fifo")
@@ -1254,9 +1241,9 @@ func TestHydrate_SignalArrived_ExecsHookChainWhenHookRegistered(t *testing.T) {
 	signalFIFOAsync(t, fifo)
 
 	t.Setenv("SHELL", "/bin/zsh")
-	store := seedHookStore(t, dir, map[string]map[string]string{
+	store, _ := hookstest.StageStore(t, hookstest.Staging{Dir: dir, SidecarAbsent: true, Body: map[string]map[string]string{
 		"work:0.0": {"on-resume": "echo hi"},
-	})
+	}})
 
 	exec := &stubExecShell{}
 	cfg := hydrateCfg(t, hydrateCfgOpts{
@@ -1291,7 +1278,7 @@ func TestHydrate_SignalArrived_ExecsBareShellWhenNoHookRegistered(t *testing.T) 
 	signalFIFOAsync(t, fifo)
 
 	t.Setenv("SHELL", "/bin/zsh")
-	store := seedHookStore(t, dir, map[string]map[string]string{})
+	store, _ := hookstest.StageStore(t, hookstest.Staging{Dir: dir, SidecarAbsent: true, Body: map[string]map[string]string{}})
 
 	exec := &stubExecShell{}
 	cfg := hydrateCfg(t, hydrateCfgOpts{
@@ -1324,9 +1311,9 @@ func TestHydrate_FileMissing_ExecsHookChainWhenHookRegistered(t *testing.T) {
 	signalFIFOAsync(t, fifo)
 
 	t.Setenv("SHELL", "/bin/zsh")
-	store := seedHookStore(t, dir, map[string]map[string]string{
+	store, _ := hookstest.StageStore(t, hookstest.Staging{Dir: dir, SidecarAbsent: true, Body: map[string]map[string]string{
 		"fmh:0.0": {"on-resume": "claude --resume abc"},
-	})
+	}})
 
 	exec := &stubExecShell{}
 	cfg := hydrateCfg(t, hydrateCfgOpts{
@@ -1361,7 +1348,7 @@ func TestHydrate_FileMissing_ExecsBareShellWhenNoHookRegistered(t *testing.T) {
 	signalFIFOAsync(t, fifo)
 
 	t.Setenv("SHELL", "/bin/zsh")
-	store := seedHookStore(t, dir, map[string]map[string]string{})
+	store, _ := hookstest.StageStore(t, hookstest.Staging{Dir: dir, SidecarAbsent: true, Body: map[string]map[string]string{}})
 
 	exec := &stubExecShell{}
 	cfg := hydrateCfg(t, hydrateCfgOpts{
@@ -1389,9 +1376,9 @@ func TestHydrate_Timeout_FiresHookWhenRegistered(t *testing.T) {
 	fifo := makeFIFO(t, dir, "hydrate-tfh__0.0.fifo")
 
 	t.Setenv("SHELL", "/bin/zsh")
-	store := seedHookStore(t, dir, map[string]map[string]string{
+	store, _ := hookstest.StageStore(t, hookstest.Staging{Dir: dir, SidecarAbsent: true, Body: map[string]map[string]string{
 		"tfh:0.0": {"on-resume": "echo hi"},
-	})
+	}})
 
 	exec := &stubExecShell{}
 	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "tfh:0.0",
@@ -1443,7 +1430,7 @@ func TestHydrate_Timeout_LookupNotFound_ExecsBareShell(t *testing.T) {
 	fifo := makeFIFO(t, dir, "hydrate-tlnf__0.0.fifo")
 
 	t.Setenv("SHELL", "/bin/zsh")
-	store := seedHookStore(t, dir, map[string]map[string]string{})
+	store, _ := hookstest.StageStore(t, hookstest.Staging{Dir: dir, SidecarAbsent: true, Body: map[string]map[string]string{}})
 
 	exec := &stubExecShell{}
 	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "tlnf:0.0",
@@ -1562,9 +1549,9 @@ func TestHydrate_LooksUpHooksByHookKeyVerbatimNotByLivePaneKey(t *testing.T) {
 	signalFIFOAsync(t, fifo)
 
 	t.Setenv("SHELL", "/bin/zsh")
-	store := seedHookStore(t, dir, map[string]map[string]string{
+	store, _ := hookstest.StageStore(t, hookstest.Staging{Dir: dir, SidecarAbsent: true, Body: map[string]map[string]string{
 		"saved:0.0": {"on-resume": "echo saved"},
-	})
+	}})
 
 	exec := &stubExecShell{}
 	cfg := hydrateCfg(t, hydrateCfgOpts{
@@ -1599,9 +1586,9 @@ func TestHydrate_PassesHookCommandAsSingleArgvElementToShDashC(t *testing.T) {
 
 	t.Setenv("SHELL", "/bin/zsh")
 	rawCmd := "echo 'it works' && echo \"\\$x\""
-	store := seedHookStore(t, dir, map[string]map[string]string{
+	store, _ := hookstest.StageStore(t, hookstest.Staging{Dir: dir, SidecarAbsent: true, Body: map[string]map[string]string{
 		"q:0.0": {"on-resume": rawCmd},
-	})
+	}})
 
 	exec := &stubExecShell{}
 	cfg := hydrateCfg(t, hydrateCfgOpts{
@@ -1640,9 +1627,9 @@ func TestHydrate_SignalArrived_LookupHappensAfterSleepAndMarkerUnset(t *testing.
 
 	signalFIFOAsync(t, fifo)
 
-	store := seedHookStore(t, dir, map[string]map[string]string{
+	store, _ := hookstest.StageStore(t, hookstest.Staging{Dir: dir, SidecarAbsent: true, Body: map[string]map[string]string{
 		"ord:0.0": {"on-resume": "echo ord"},
-	})
+	}})
 
 	var (
 		mu            sync.Mutex
@@ -1699,9 +1686,9 @@ func TestHydrate_FileMissing_LookupHappensAfterMarkerUnset(t *testing.T) {
 
 	signalFIFOAsync(t, fifo)
 
-	store := seedHookStore(t, dir, map[string]map[string]string{
+	store, _ := hookstest.StageStore(t, hookstest.Staging{Dir: dir, SidecarAbsent: true, Body: map[string]map[string]string{
 		"fmo:0.0": {"on-resume": "echo fmo"},
-	})
+	}})
 
 	var (
 		mu            sync.Mutex

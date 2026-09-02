@@ -46,7 +46,7 @@ func modTime(t *testing.T, path string) time.Time {
 func TestLoad(t *testing.T) {
 	t.Run("returns empty map when file does not exist", func(t *testing.T) {
 		dir := t.TempDir()
-		store := hooks.NewStore(filepath.Join(dir, "nonexistent", "hooks.json"))
+		store := hooks.NewStore(hookstest.HooksPath(t, filepath.Join(dir, "nonexistent")))
 
 		h, err := store.Load(hooks.ViaInternal)
 		if err != nil {
@@ -59,14 +59,8 @@ func TestLoad(t *testing.T) {
 	})
 
 	t.Run("returns empty map when file contains malformed JSON", func(t *testing.T) {
-		dir := t.TempDir()
-		filePath := filepath.Join(dir, "hooks.json")
+		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: "{invalid json!!!"})
 
-		if err := os.WriteFile(filePath, []byte("{invalid json!!!"), 0o644); err != nil {
-			t.Fatalf("failed to write test file: %v", err)
-		}
-
-		store := hooks.NewStore(filePath)
 		h, err := store.Load(hooks.ViaInternal)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -78,15 +72,10 @@ func TestLoad(t *testing.T) {
 	})
 
 	t.Run("returns hooks from valid JSON file", func(t *testing.T) {
-		dir := t.TempDir()
-		filePath := filepath.Join(dir, "hooks.json")
+		store, _ := hookstest.StageStore(t, hookstest.Staging{
+			Seed: `{"my-session:0.0":{"on-resume":"claude --resume abc123"},"my-session:0.1":{"on-resume":"claude --resume def456"}}`,
+		})
 
-		content := `{"my-session:0.0":{"on-resume":"claude --resume abc123"},"my-session:0.1":{"on-resume":"claude --resume def456"}}`
-		if err := os.WriteFile(filePath, []byte(content), 0o644); err != nil {
-			t.Fatalf("failed to write test file: %v", err)
-		}
-
-		store := hooks.NewStore(filePath)
 		h, err := store.Load(hooks.ViaInternal)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -109,7 +98,7 @@ func TestPersistence(t *testing.T) {
 	t.Run("creates parent directory if missing", func(t *testing.T) {
 		dir := t.TempDir()
 		nested := filepath.Join(dir, "portal", "sub")
-		filePath := filepath.Join(nested, "hooks.json")
+		filePath := hookstest.HooksPath(t, nested)
 		store := hooks.NewStore(filePath)
 
 		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
@@ -127,7 +116,7 @@ func TestPersistence(t *testing.T) {
 
 	t.Run("writes valid JSON that can be loaded back", func(t *testing.T) {
 		dir := t.TempDir()
-		filePath := filepath.Join(dir, "hooks.json")
+		filePath := hookstest.HooksPath(t, dir)
 		store := hooks.NewStore(filePath)
 
 		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
@@ -155,7 +144,7 @@ func TestPersistence(t *testing.T) {
 
 	t.Run("uses atomic write (no temp file survives beside hooks.json and its lock)", func(t *testing.T) {
 		dir := t.TempDir()
-		filePath := filepath.Join(dir, "hooks.json")
+		filePath := hookstest.HooksPath(t, dir)
 		store := hooks.NewStore(filePath)
 
 		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
@@ -186,7 +175,7 @@ func TestPersistence(t *testing.T) {
 func TestSet(t *testing.T) {
 	t.Run("adds a new hook for a new key", func(t *testing.T) {
 		dir := t.TempDir()
-		filePath := filepath.Join(dir, "hooks.json")
+		filePath := hookstest.HooksPath(t, dir)
 		store := hooks.NewStore(filePath)
 
 		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
@@ -208,7 +197,7 @@ func TestSet(t *testing.T) {
 
 	t.Run("adds a second event to an existing key", func(t *testing.T) {
 		dir := t.TempDir()
-		filePath := filepath.Join(dir, "hooks.json")
+		filePath := hookstest.HooksPath(t, dir)
 		store := hooks.NewStore(filePath)
 
 		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
@@ -239,7 +228,7 @@ func TestSet(t *testing.T) {
 
 	t.Run("overwrites existing entry for same key and event", func(t *testing.T) {
 		dir := t.TempDir()
-		filePath := filepath.Join(dir, "hooks.json")
+		filePath := hookstest.HooksPath(t, dir)
 		store := hooks.NewStore(filePath)
 
 		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
@@ -269,7 +258,7 @@ func TestSet(t *testing.T) {
 func TestRemove(t *testing.T) {
 	t.Run("it reports a removal when the named event was deleted", func(t *testing.T) {
 		dir := t.TempDir()
-		filePath := filepath.Join(dir, "hooks.json")
+		filePath := hookstest.HooksPath(t, dir)
 		store := hooks.NewStore(filePath)
 
 		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
@@ -305,7 +294,7 @@ func TestRemove(t *testing.T) {
 
 	t.Run("it drops the outer key when its last event goes", func(t *testing.T) {
 		dir := t.TempDir()
-		filePath := filepath.Join(dir, "hooks.json")
+		filePath := hookstest.HooksPath(t, dir)
 		store := hooks.NewStore(filePath)
 
 		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
@@ -335,7 +324,7 @@ func TestRemove(t *testing.T) {
 
 	t.Run("it keeps the other events of a key and reports a removal", func(t *testing.T) {
 		dir := t.TempDir()
-		filePath := filepath.Join(dir, "hooks.json")
+		filePath := hookstest.HooksPath(t, dir)
 		store := hooks.NewStore(filePath)
 
 		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
@@ -372,7 +361,7 @@ func TestRemove(t *testing.T) {
 
 	t.Run("it reports no removal when the key is absent", func(t *testing.T) {
 		dir := t.TempDir()
-		filePath := filepath.Join(dir, "hooks.json")
+		filePath := hookstest.HooksPath(t, dir)
 		store := hooks.NewStore(filePath)
 
 		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
@@ -405,7 +394,7 @@ func TestRemove(t *testing.T) {
 
 	t.Run("it reports no removal when the key is present but the event is not", func(t *testing.T) {
 		dir := t.TempDir()
-		filePath := filepath.Join(dir, "hooks.json")
+		filePath := hookstest.HooksPath(t, dir)
 		store := hooks.NewStore(filePath)
 
 		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
@@ -441,7 +430,7 @@ func TestRemove(t *testing.T) {
 
 	t.Run("it leaves an absent hooks.json absent when it removes nothing", func(t *testing.T) {
 		dir := t.TempDir()
-		filePath := filepath.Join(dir, "hooks.json")
+		filePath := hookstest.HooksPath(t, dir)
 		store := hooks.NewStore(filePath)
 
 		removed, err := store.Remove("my-session:0.0", "on-resume", hooks.ViaCLI)
@@ -458,13 +447,8 @@ func TestRemove(t *testing.T) {
 	})
 
 	t.Run("it leaves a malformed hooks.json byte-identical when it removes nothing", func(t *testing.T) {
-		dir := t.TempDir()
-		filePath := filepath.Join(dir, "hooks.json")
-		before := []byte("not json")
-		if err := os.WriteFile(filePath, before, 0o600); err != nil {
-			t.Fatalf("seed: %v", err)
-		}
-		store := hooks.NewStore(filePath)
+		store, filePath := hookstest.StageStore(t, hookstest.Staging{Seed: "not json"})
+		before := hookstest.HooksFileBytes(t, filePath)
 
 		removed, err := store.Remove("my-session:0.0", "on-resume", hooks.ViaCLI)
 		if err != nil {
@@ -478,13 +462,8 @@ func TestRemove(t *testing.T) {
 	})
 
 	t.Run("it leaves a key mapped to an empty event map in place", func(t *testing.T) {
-		dir := t.TempDir()
-		filePath := filepath.Join(dir, "hooks.json")
-		before := []byte(`{"abc123": {}}`)
-		if err := os.WriteFile(filePath, before, 0o600); err != nil {
-			t.Fatalf("seed: %v", err)
-		}
-		store := hooks.NewStore(filePath)
+		store, filePath := hookstest.StageStore(t, hookstest.Staging{Seed: `{"abc123": {}}`})
+		before := hookstest.HooksFileBytes(t, filePath)
 
 		removed, err := store.Remove("abc123", "on-resume", hooks.ViaCLI)
 		if err != nil {
@@ -516,7 +495,7 @@ func TestRemove(t *testing.T) {
 func TestList(t *testing.T) {
 	t.Run("returns empty slice when no hooks", func(t *testing.T) {
 		dir := t.TempDir()
-		store := hooks.NewStore(filepath.Join(dir, "hooks.json"))
+		store := hooks.NewStore(hookstest.HooksPath(t, dir))
 
 		list, err := store.List(hooks.ViaCLI)
 		if err != nil {
@@ -529,15 +508,10 @@ func TestList(t *testing.T) {
 	})
 
 	t.Run("returns hooks sorted by key then event", func(t *testing.T) {
-		dir := t.TempDir()
-		filePath := filepath.Join(dir, "hooks.json")
+		store, _ := hookstest.StageStore(t, hookstest.Staging{
+			Seed: `{"my-session:0.1":{"on-resume":"cmd1"},"my-session:0.0":{"on-start":"cmd0s","on-resume":"cmd0r"}}`,
+		})
 
-		content := `{"my-session:0.1":{"on-resume":"cmd1"},"my-session:0.0":{"on-start":"cmd0s","on-resume":"cmd0r"}}`
-		if err := os.WriteFile(filePath, []byte(content), 0o644); err != nil {
-			t.Fatalf("failed to write test file: %v", err)
-		}
-
-		store := hooks.NewStore(filePath)
 		list, err := store.List(hooks.ViaCLI)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -568,7 +542,7 @@ func TestList(t *testing.T) {
 func TestCleanStale(t *testing.T) {
 	t.Run("removes entries for keys not in live set", func(t *testing.T) {
 		dir := t.TempDir()
-		filePath := filepath.Join(dir, "hooks.json")
+		filePath := hookstest.HooksPath(t, dir)
 		store := hooks.NewStore(filePath)
 
 		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
@@ -607,7 +581,7 @@ func TestCleanStale(t *testing.T) {
 
 	t.Run("returns empty slice when store is empty", func(t *testing.T) {
 		dir := t.TempDir()
-		store := hooks.NewStore(filepath.Join(dir, "hooks.json"))
+		store := hooks.NewStore(hookstest.HooksPath(t, dir))
 
 		removed, err := store.CleanStale(enumerating("my-session:0.0", "my-session:0.1"))
 		if err != nil {
@@ -621,7 +595,7 @@ func TestCleanStale(t *testing.T) {
 
 	t.Run("returns empty slice when all keys are live", func(t *testing.T) {
 		dir := t.TempDir()
-		filePath := filepath.Join(dir, "hooks.json")
+		filePath := hookstest.HooksPath(t, dir)
 		store := hooks.NewStore(filePath)
 
 		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
@@ -643,7 +617,7 @@ func TestCleanStale(t *testing.T) {
 
 	t.Run("removes all entries when live set is empty", func(t *testing.T) {
 		dir := t.TempDir()
-		filePath := filepath.Join(dir, "hooks.json")
+		filePath := hookstest.HooksPath(t, dir)
 		store := hooks.NewStore(filePath)
 
 		if err := store.Set(hookstest.ReapableSeedA, "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
@@ -673,7 +647,7 @@ func TestCleanStale(t *testing.T) {
 
 	t.Run("only saves file when entries were removed", func(t *testing.T) {
 		dir := t.TempDir()
-		filePath := filepath.Join(dir, "hooks.json")
+		filePath := hookstest.HooksPath(t, dir)
 		store := hooks.NewStore(filePath)
 
 		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
@@ -704,15 +678,9 @@ func TestCleanStale(t *testing.T) {
 	})
 
 	t.Run("cleans stale entries seeded straight into the file", func(t *testing.T) {
-		dir := t.TempDir()
-		filePath := filepath.Join(dir, "hooks.json")
-
-		content := fmt.Sprintf(`{%q:{"on-resume":"claude --resume old1"},%q:{"on-resume":"claude --resume old2"},"my-session:0.0":{"on-resume":"claude --resume new1"}}`, hookstest.ReapableSeedA, hookstest.ReapableSeedB)
-		if err := os.WriteFile(filePath, []byte(content), 0o644); err != nil {
-			t.Fatalf("failed to write test file: %v", err)
-		}
-
-		store := hooks.NewStore(filePath)
+		store, _ := hookstest.StageStore(t, hookstest.Staging{
+			Seed: fmt.Sprintf(`{%q:{"on-resume":"claude --resume old1"},%q:{"on-resume":"claude --resume old2"},"my-session:0.0":{"on-resume":"claude --resume new1"}}`, hookstest.ReapableSeedA, hookstest.ReapableSeedB),
+		})
 
 		removed, err := store.CleanStale(enumerating("my-session:0.0"))
 		if err != nil {
@@ -751,7 +719,7 @@ func TestCleanStale(t *testing.T) {
 
 	t.Run("handles mix of live and stale keys", func(t *testing.T) {
 		dir := t.TempDir()
-		filePath := filepath.Join(dir, "hooks.json")
+		filePath := hookstest.HooksPath(t, dir)
 		store := hooks.NewStore(filePath)
 
 		if err := store.Set("my-session:0.0", "on-resume", "cmd0", hooks.ViaCLI); err != nil {
@@ -856,7 +824,7 @@ func TestStaleKeys(t *testing.T) {
 
 func TestCleanStaleRemovesExactlyStaleKeys(t *testing.T) {
 	dir := t.TempDir()
-	store := hooks.NewStore(filepath.Join(dir, "hooks.json"))
+	store := hooks.NewStore(hookstest.HooksPath(t, dir))
 	for _, k := range []string{hookstest.ReapableSeedA, hookstest.ReapableSeedB, hookstest.ReapableSeedC, hookstest.ReapableSeedD} {
 		if err := store.Set(k, "on-resume", "cmd", hooks.ViaCLI); err != nil {
 			t.Fatalf("seed set %q: %v", k, err)
@@ -928,7 +896,7 @@ func partitionCleanStaleRecords(t *testing.T, recs logtest.Records) (perKey, sum
 func TestCleanStaleLogging(t *testing.T) {
 	t.Run("it logs one INFO per removed key carrying the key and the removed command", func(t *testing.T) {
 		dir := t.TempDir()
-		store := hooks.NewStore(filepath.Join(dir, "hooks.json"))
+		store := hooks.NewStore(hookstest.HooksPath(t, dir))
 
 		if err := store.Set("my-session:0.0", "on-resume", "cmd0", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error on set: %v", err)
@@ -983,12 +951,9 @@ func TestCleanStaleLogging(t *testing.T) {
 	})
 
 	t.Run("it emits an empty value for a removed entry with no on-resume event", func(t *testing.T) {
-		dir := t.TempDir()
-		path := filepath.Join(dir, "hooks.json")
-		if err := os.WriteFile(path, fmt.Appendf(nil, `{%q:{"on-exit":"x"}}`, hookstest.ReapableSeedA), 0o600); err != nil {
-			t.Fatalf("seed: %v", err)
-		}
-		store := hooks.NewStore(path)
+		store, _ := hookstest.StageStore(t, hookstest.Staging{
+			Seed: fmt.Sprintf(`{%q:{"on-exit":"x"}}`, hookstest.ReapableSeedA),
+		})
 
 		sink := logtest.Install(t)
 		if _, err := store.CleanStale(enumerating("my-session:0.0")); err != nil {
@@ -1006,12 +971,9 @@ func TestCleanStaleLogging(t *testing.T) {
 	})
 
 	t.Run("it emits one line for a key holding several events", func(t *testing.T) {
-		dir := t.TempDir()
-		path := filepath.Join(dir, "hooks.json")
-		if err := os.WriteFile(path, fmt.Appendf(nil, `{%q:{"on-resume":"cmd1","on-exit":"x"}}`, hookstest.ReapableSeedA), 0o600); err != nil {
-			t.Fatalf("seed: %v", err)
-		}
-		store := hooks.NewStore(path)
+		store, _ := hookstest.StageStore(t, hookstest.Staging{
+			Seed: fmt.Sprintf(`{%q:{"on-resume":"cmd1","on-exit":"x"}}`, hookstest.ReapableSeedA),
+		})
 
 		sink := logtest.Install(t)
 		if _, err := store.CleanStale(enumerating("my-session:0.0")); err != nil {
@@ -1053,7 +1015,7 @@ func TestCleanStaleLogging(t *testing.T) {
 
 	t.Run("omits entries_failed from the summary when no per-entry failures occur", func(t *testing.T) {
 		dir := t.TempDir()
-		store := hooks.NewStore(filepath.Join(dir, "hooks.json"))
+		store := hooks.NewStore(hookstest.HooksPath(t, dir))
 
 		if err := store.Set("my-session:0.0", "on-resume", "cmd0", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error on set: %v", err)
@@ -1112,7 +1074,7 @@ func TestCleanStaleLogging(t *testing.T) {
 
 	t.Run("emits no summary and skips Save when zero entries are removed", func(t *testing.T) {
 		dir := t.TempDir()
-		filePath := filepath.Join(dir, "hooks.json")
+		filePath := hookstest.HooksPath(t, dir)
 		store := hooks.NewStore(filePath)
 
 		if err := store.Set("my-session:0.0", "on-resume", "cmd0", hooks.ViaCLI); err != nil {
@@ -1150,7 +1112,7 @@ func TestCleanStaleLogging(t *testing.T) {
 func TestSetLogging(t *testing.T) {
 	t.Run("emits INFO op=set with value and via=cli for a new hook key", func(t *testing.T) {
 		dir := t.TempDir()
-		store := hooks.NewStore(filepath.Join(dir, "hooks.json"))
+		store := hooks.NewStore(hookstest.HooksPath(t, dir))
 		sink := logtest.Install(t)
 
 		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
@@ -1175,7 +1137,7 @@ func TestSetLogging(t *testing.T) {
 
 	t.Run("emits INFO op=modify when the key exists with a different value", func(t *testing.T) {
 		dir := t.TempDir()
-		store := hooks.NewStore(filepath.Join(dir, "hooks.json"))
+		store := hooks.NewStore(hookstest.HooksPath(t, dir))
 
 		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error on first set: %v", err)
@@ -1204,7 +1166,7 @@ func TestSetLogging(t *testing.T) {
 
 	t.Run("emits DEBUG op=set-noop and skips Save when key+value already match", func(t *testing.T) {
 		dir := t.TempDir()
-		filePath := filepath.Join(dir, "hooks.json")
+		filePath := hookstest.HooksPath(t, dir)
 		store := hooks.NewStore(filePath)
 
 		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
@@ -1277,7 +1239,7 @@ func TestSetEmitsOpAsJSONField(t *testing.T) {
 	log.SetTestHandler(t, slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
 	dir := t.TempDir()
-	store := hooks.NewStore(filepath.Join(dir, "hooks.json"))
+	store := hooks.NewStore(hookstest.HooksPath(t, dir))
 	if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1297,7 +1259,7 @@ func TestSetEmitsOpAsJSONField(t *testing.T) {
 func TestRemoveLogging(t *testing.T) {
 	t.Run("it still emits INFO op=rm for a real removal", func(t *testing.T) {
 		dir := t.TempDir()
-		store := hooks.NewStore(filepath.Join(dir, "hooks.json"))
+		store := hooks.NewStore(hookstest.HooksPath(t, dir))
 
 		if err := store.Set("my-session:0.0", "on-resume", "claude --resume abc123", hooks.ViaCLI); err != nil {
 			t.Fatalf("unexpected error on set: %v", err)
@@ -1358,7 +1320,7 @@ func TestRemoveLogging(t *testing.T) {
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
 				dir := t.TempDir()
-				store := hooks.NewStore(filepath.Join(dir, "hooks.json"))
+				store := hooks.NewStore(hookstest.HooksPath(t, dir))
 				for key, events := range tc.seed {
 					for event, command := range events {
 						if err := store.Set(key, event, command, hooks.ViaCLI); err != nil {

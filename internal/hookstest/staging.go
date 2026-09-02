@@ -20,8 +20,14 @@ type Staging struct {
 	Seed string
 	// Entries seeds {key: on-resume command} pairs in the store's own layout, so
 	// a caller wanting specific hooks need not hand-write JSON. Mutually
-	// exclusive with Seed.
+	// exclusive with Seed and Body.
 	Entries map[string]string
+	// Body seeds the store's whole {key: {event: command}} layout, for a caller
+	// whose subject spans more than the on-resume event Entries covers. An empty
+	// non-nil map stages an empty hooks.json, which is a different state from
+	// the absent file a nil one leaves. Mutually exclusive with Seed and
+	// Entries.
+	Body map[string]map[string]string
 	// SidecarAbsent stages no lock file beside the hooks.json, so a read under
 	// the fixture degrades to an unlocked one. It is off by default because
 	// these fixtures model a written-to install — the steady state, where the
@@ -39,7 +45,7 @@ type Staging struct {
 	WritesDenied bool
 	// Unreadable stages a directory where the hooks.json belongs, so every read
 	// of it fails. Malformed JSON would not do: it decodes to an empty map
-	// instead of erroring. Mutually exclusive with Seed and Entries.
+	// instead of erroring. Mutually exclusive with every seed.
 	Unreadable bool
 }
 
@@ -47,10 +53,10 @@ type Staging struct {
 // over it alongside its path.
 func StageStore(t *testing.T, staging Staging) (*hooks.Store, string) {
 	t.Helper()
-	if staging.Seed != "" && staging.Entries != nil {
-		t.Fatalf("hookstest.StageStore: Seed and Entries both given — a fixture seeds its file one way")
+	if seedWays(staging) > 1 {
+		t.Fatalf("hookstest.StageStore: more than one of Seed, Entries and Body given — a fixture seeds its file one way")
 	}
-	if staging.Unreadable && (staging.Seed != "" || staging.Entries != nil) {
+	if staging.Unreadable && seedWays(staging) > 0 {
 		t.Fatalf("hookstest.StageStore: Unreadable staged alongside a seed — a directory holds no content to read")
 	}
 
@@ -60,7 +66,7 @@ func StageStore(t *testing.T, staging Staging) (*hooks.Store, string) {
 	} else if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("hookstest.StageStore: mkdir fixture dir: %v", err)
 	}
-	path := filepath.Join(dir, "hooks.json")
+	path := HooksPath(t, dir)
 
 	switch {
 	case staging.Unreadable:
@@ -68,7 +74,9 @@ func StageStore(t *testing.T, staging Staging) (*hooks.Store, string) {
 			t.Fatalf("hookstest.StageStore: mkdir unreadable hooks path: %v", err)
 		}
 	case staging.Entries != nil:
-		writeSeed(t, path, marshalEntries(t, staging.Entries))
+		writeSeed(t, path, marshalBody(t, shapeEntries(staging.Entries)))
+	case staging.Body != nil:
+		writeSeed(t, path, marshalBody(t, staging.Body))
 	case staging.Seed != "":
 		writeSeed(t, path, []byte(staging.Seed))
 	}
@@ -87,6 +95,25 @@ func StageStore(t *testing.T, staging Staging) (*hooks.Store, string) {
 	return hooks.NewStore(path), path
 }
 
+// HooksPath returns the path a hooks.json takes in dir and stages nothing —
+// neither the file nor its sidecar — for a fixture whose subject is the
+// absence of one or the other, or their creation by the code under test.
+func HooksPath(t *testing.T, dir string) string {
+	t.Helper()
+	return filepath.Join(dir, hooksFileName)
+}
+
+// seedWays counts the mutually exclusive ways a staging describes its seed.
+func seedWays(staging Staging) int {
+	ways := 0
+	for _, given := range []bool{staging.Seed != "", staging.Entries != nil, staging.Body != nil} {
+		if given {
+			ways++
+		}
+	}
+	return ways
+}
+
 func writeSeed(t *testing.T, path string, body []byte) {
 	t.Helper()
 	if err := os.WriteFile(path, body, 0o644); err != nil {
@@ -94,15 +121,21 @@ func writeSeed(t *testing.T, path string, body []byte) {
 	}
 }
 
-func marshalEntries(t *testing.T, entries map[string]string) []byte {
-	t.Helper()
+// shapeEntries lifts {key: on-resume command} pairs into the store's own
+// {key: {event: command}} layout.
+func shapeEntries(entries map[string]string) map[string]map[string]string {
 	shaped := make(map[string]map[string]string, len(entries))
 	for key, command := range entries {
 		shaped[key] = map[string]string{"on-resume": command}
 	}
-	body, err := json.Marshal(shaped)
+	return shaped
+}
+
+func marshalBody(t *testing.T, body map[string]map[string]string) []byte {
+	t.Helper()
+	encoded, err := json.Marshal(body)
 	if err != nil {
-		t.Fatalf("hookstest.StageStore: marshal seed entries: %v", err)
+		t.Fatalf("hookstest.StageStore: marshal seed body: %v", err)
 	}
-	return body
+	return encoded
 }

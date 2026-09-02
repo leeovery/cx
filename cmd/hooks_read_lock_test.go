@@ -69,8 +69,7 @@ func TestDoctorStaleHooksDegradedRead(t *testing.T) {
 func TestHookListDegradedRead(t *testing.T) {
 	t.Run("it lists hooks under a degraded read", func(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, 40*time.Millisecond)
-		_, hooksFile := hooksFileInTempDir(t)
-		writeHooksJSON(t, hooksFile, map[string]map[string]string{
+		_, hooksFile := hooksFileInTempDir(t, map[string]map[string]string{
 			hookstest.SubjectSeedA: {"on-resume": "npm start"},
 		})
 		withHooksDeps(t, HooksDeps{PaneLister: &recordingPaneHookLister{rows: []tmux.PaneHookRow{

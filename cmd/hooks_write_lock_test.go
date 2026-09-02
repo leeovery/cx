@@ -62,11 +62,11 @@ func assertReturnsAtLockBound(t *testing.T, verb string, run func() error) {
 func TestHookSetLockTimeout(t *testing.T) {
 	t.Run("it exits non-zero from hook set on a lock timeout", func(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, lockBound)
-		_, hooksFile := hooksFileInTempDir(t)
-		t.Setenv("TMUX_PANE", "%3")
-		before := seedHooksFile(t, hooksFile, map[string]map[string]string{
+		_, hooksFile := hooksFileInTempDir(t, map[string]map[string]string{
 			hookstest.SubjectSeedB: {"on-resume": "npm start"},
 		})
+		t.Setenv("TMUX_PANE", "%3")
+		before := readFileBytes(t, hooksFile)
 		hookstest.HoldHooksSidecar(t, hooksFile)
 
 		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: hookstest.SubjectSeedA}})
@@ -80,7 +80,7 @@ func TestHookSetLockTimeout(t *testing.T) {
 
 	t.Run("it leaves an absent hooks.json absent on a lock timeout", func(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, lockBound)
-		_, hooksFile := hooksFileInTempDir(t)
+		_, hooksFile := hooksFileInTempDir(t, nil)
 		t.Setenv("TMUX_PANE", "%3")
 		hookstest.HoldHooksSidecar(t, hooksFile)
 
@@ -96,7 +96,7 @@ func TestHookSetLockTimeout(t *testing.T) {
 
 	t.Run("it touches no save.requested on a timed-out registration", func(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, lockBound)
-		_, hooksFile := hooksFileInTempDir(t)
+		_, hooksFile := hooksFileInTempDir(t, nil)
 		stateDir := t.TempDir()
 		t.Setenv("PORTAL_STATE_DIR", stateDir)
 		t.Setenv("TMUX_PANE", "%3")
@@ -114,7 +114,7 @@ func TestHookSetLockTimeout(t *testing.T) {
 
 	t.Run("it keeps the pane's token after a timed-out registration", func(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, lockBound)
-		_, hooksFile := hooksFileInTempDir(t)
+		_, hooksFile := hooksFileInTempDir(t, nil)
 		t.Setenv("TMUX_PANE", "%7")
 		release := hookstest.HoldHooksSidecar(t, hooksFile)
 
@@ -167,7 +167,7 @@ func TestHookSetLockTimeout(t *testing.T) {
 
 	t.Run("it returns at the bound rather than hanging", func(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, lockBound)
-		_, hooksFile := hooksFileInTempDir(t)
+		_, hooksFile := hooksFileInTempDir(t, nil)
 		t.Setenv("TMUX_PANE", "%3")
 		hookstest.HoldHooksSidecar(t, hooksFile)
 
@@ -183,11 +183,11 @@ func TestHookSetLockTimeout(t *testing.T) {
 func TestHookRmLockTimeout(t *testing.T) {
 	t.Run("it exits non-zero from hook rm on a lock timeout", func(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, lockBound)
-		_, hooksFile := hooksFileInTempDir(t)
-		t.Setenv("TMUX_PANE", "%3")
-		before := seedHooksFile(t, hooksFile, map[string]map[string]string{
+		_, hooksFile := hooksFileInTempDir(t, map[string]map[string]string{
 			hookstest.SubjectSeedA: {"on-resume": "claude --resume abc"},
 		})
+		t.Setenv("TMUX_PANE", "%3")
+		before := readFileBytes(t, hooksFile)
 		hookstest.HoldHooksSidecar(t, hooksFile)
 
 		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: hookstest.SubjectSeedA}})
@@ -201,11 +201,11 @@ func TestHookRmLockTimeout(t *testing.T) {
 
 	t.Run("it exits non-zero on the --pane-key path and still issues no tmux call", func(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, lockBound)
-		_, hooksFile := hooksFileInTempDir(t)
-		t.Setenv("TMUX_PANE", "")
-		before := seedHooksFile(t, hooksFile, map[string]map[string]string{
+		_, hooksFile := hooksFileInTempDir(t, map[string]map[string]string{
 			hookstest.SubjectSeedA: {"on-resume": "claude --resume abc"},
 		})
+		t.Setenv("TMUX_PANE", "")
+		before := readFileBytes(t, hooksFile)
 		hookstest.HoldHooksSidecar(t, hooksFile)
 
 		resolver, stamper := paneKeyPathSeams()
@@ -219,11 +219,10 @@ func TestHookRmLockTimeout(t *testing.T) {
 
 	t.Run("it returns at the bound rather than hanging", func(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, lockBound)
-		_, hooksFile := hooksFileInTempDir(t)
-		t.Setenv("TMUX_PANE", "%3")
-		writeHooksJSON(t, hooksFile, map[string]map[string]string{
+		_, hooksFile := hooksFileInTempDir(t, map[string]map[string]string{
 			hookstest.SubjectSeedA: {"on-resume": "claude --resume abc"},
 		})
+		t.Setenv("TMUX_PANE", "%3")
 		hookstest.HoldHooksSidecar(t, hooksFile)
 
 		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: hookstest.SubjectSeedA}})

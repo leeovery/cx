@@ -2,7 +2,6 @@ package hookstest_test
 
 import (
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -85,10 +84,7 @@ func assertUnseen(t *testing.T, seen map[string]string, name, key string) {
 
 func stageHooksFile(t *testing.T, body string) string {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "hooks.json")
-	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
-		t.Fatalf("seed hooks.json: %v", err)
-	}
+	_, path := hookstest.StageStore(t, hookstest.Staging{Seed: body})
 	return path
 }
 
@@ -148,10 +144,7 @@ func TestAssertHooksFileUnchanged(t *testing.T) {
 	})
 
 	t.Run("it fatals when the read fails for a reason other than absence", func(t *testing.T) {
-		path := filepath.Join(t.TempDir(), "hooks.json")
-		if err := os.Mkdir(path, 0o755); err != nil {
-			t.Fatalf("stage a directory at the hooks.json path: %v", err)
-		}
+		_, path := hookstest.StageStore(t, hookstest.Staging{Unreadable: true})
 
 		rec := &harnesstest.Recorder{}
 		rec.Run(func() { hookstest.HooksFileBytes(rec, path) })
@@ -165,7 +158,7 @@ func TestAssertHooksFileUnchanged(t *testing.T) {
 	})
 
 	t.Run("it treats an absent file as absent rather than fatalling", func(t *testing.T) {
-		path := filepath.Join(t.TempDir(), "hooks.json")
+		path := hookstest.HooksPath(t, t.TempDir())
 
 		before := hookstest.HooksFileBytes(t, path)
 		if before != nil {

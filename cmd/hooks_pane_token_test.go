@@ -14,7 +14,7 @@ import (
 
 func TestHooksSetStampsPaneToken(t *testing.T) {
 	t.Run("it stamps and writes under a freshly minted token", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
+		_, hooksFile := hooksFileInTempDir(t, nil)
 		t.Setenv("TMUX_PANE", "%7")
 
 		stamper := &recordingPaneStamper{}
@@ -48,7 +48,7 @@ func TestHooksSetStampsPaneToken(t *testing.T) {
 	})
 
 	t.Run("it reuses an existing token and issues no set-option", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
+		_, hooksFile := hooksFileInTempDir(t, nil)
 		t.Setenv("TMUX_PANE", "%7")
 
 		stamper := &recordingPaneStamper{}
@@ -68,7 +68,7 @@ func TestHooksSetStampsPaneToken(t *testing.T) {
 	})
 
 	t.Run("it writes nothing when the stamp fails", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
+		_, hooksFile := hooksFileInTempDir(t, nil)
 		t.Setenv("TMUX_PANE", "%999")
 
 		stamper := &recordingPaneStamper{err: fmt.Errorf("no such pane: %%999")}
@@ -87,7 +87,7 @@ func TestHooksSetStampsPaneToken(t *testing.T) {
 	})
 
 	t.Run("it stamps before it writes", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
+		_, hooksFile := hooksFileInTempDir(t, nil)
 		t.Setenv("TMUX_PANE", "%7")
 
 		stamper := &recordingPaneStamper{}
@@ -110,7 +110,7 @@ func TestHooksSetStampsPaneToken(t *testing.T) {
 	})
 
 	t.Run("it leaves the token in place when the write fails", func(t *testing.T) {
-		denied, _ := hooksFileInTempDir(t)
+		denied, _ := hooksFileInTempDir(t, nil)
 		t.Setenv("TMUX_PANE", "%7")
 		if err := os.Chmod(denied, 0o000); err != nil {
 			t.Fatalf("chmod: %v", err)
@@ -133,7 +133,7 @@ func TestHooksSetStampsPaneToken(t *testing.T) {
 	})
 
 	t.Run("it never writes an empty key", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
+		_, hooksFile := hooksFileInTempDir(t, nil)
 		t.Setenv("TMUX_PANE", "%7")
 
 		stamper := &recordingPaneStamper{}
@@ -156,11 +156,10 @@ func TestHooksSetStampsPaneToken(t *testing.T) {
 	})
 
 	t.Run("it takes no tmux call on the --pane-key path", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
-		t.Setenv("TMUX_PANE", "")
-		writeHooksJSON(t, hooksFile, map[string]map[string]string{
+		_, hooksFile := hooksFileInTempDir(t, map[string]map[string]string{
 			hookstest.SubjectSeedA: {"on-resume": "claude --resume xyz"},
 		})
+		t.Setenv("TMUX_PANE", "")
 
 		resolver, stamper := paneKeyPathSeams()
 		withHooksDeps(t, HooksDeps{KeyResolver: resolver, PaneStamper: stamper})
@@ -184,7 +183,7 @@ func TestHooksSetRefusesAnUnresolvablePane(t *testing.T) {
 	const stderr = "no such pane: %999"
 
 	t.Run("it mints and stamps nothing when the probe fails", func(t *testing.T) {
-		hooksFileInTempDir(t)
+		hooksFileInTempDir(t, nil)
 		t.Setenv("TMUX_PANE", "%999")
 
 		stamper := &recordingPaneStamper{}

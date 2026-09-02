@@ -17,7 +17,7 @@ func TestMutationLockTimeoutWritesNothing(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, 40*time.Millisecond)
 
 		t.Run("an absent hooks.json stays absent", func(t *testing.T) {
-			path := filepath.Join(t.TempDir(), "hooks.json")
+			path := hookstest.HooksPath(t, t.TempDir())
 			hookstest.HoldHooksSidecar(t, path)
 
 			err := hooks.NewStore(path).Set("tok123", "on-resume", "npm start", hooks.ViaCLI)
@@ -30,7 +30,7 @@ func TestMutationLockTimeoutWritesNothing(t *testing.T) {
 		})
 
 		t.Run("an existing hooks.json is byte-identical", func(t *testing.T) {
-			path := filepath.Join(t.TempDir(), "hooks.json")
+			path := hookstest.HooksPath(t, t.TempDir())
 			if err := os.WriteFile(path, []byte(`{"tok999":{"on-resume":"cmd-a"}}`), 0o600); err != nil {
 				t.Fatalf("seed: %v", err)
 			}
@@ -48,7 +48,7 @@ func TestMutationLockTimeoutWritesNothing(t *testing.T) {
 	t.Run("it writes nothing when Remove cannot take the lock", func(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, 40*time.Millisecond)
 
-		path := filepath.Join(t.TempDir(), "hooks.json")
+		path := hookstest.HooksPath(t, t.TempDir())
 		if err := os.WriteFile(path, []byte(`{"tok123":{"on-resume":"cmd-a"}}`), 0o600); err != nil {
 			t.Fatalf("seed: %v", err)
 		}
@@ -68,7 +68,7 @@ func TestMutationLockTimeoutWritesNothing(t *testing.T) {
 	t.Run("it matches the sentinel through the wrap", func(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, 40*time.Millisecond)
 
-		path := filepath.Join(t.TempDir(), "hooks.json")
+		path := hookstest.HooksPath(t, t.TempDir())
 		hookstest.HoldHooksSidecar(t, path)
 		store := hooks.NewStore(path)
 
@@ -87,7 +87,7 @@ func TestMutationLockTimeoutWritesNothing(t *testing.T) {
 func TestMutationLockTimeoutLogging(t *testing.T) {
 	t.Run("it emits one WARN under op=set for a timed-out registration", func(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, 40*time.Millisecond)
-		path := filepath.Join(t.TempDir(), "hooks.json")
+		path := hookstest.HooksPath(t, t.TempDir())
 		hookstest.HoldHooksSidecar(t, path)
 
 		sink := logtest.Install(t)
@@ -100,7 +100,7 @@ func TestMutationLockTimeoutLogging(t *testing.T) {
 
 	t.Run("it files under op=set even where a completed call would have classified as modify", func(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, 40*time.Millisecond)
-		path := filepath.Join(t.TempDir(), "hooks.json")
+		path := hookstest.HooksPath(t, t.TempDir())
 		// The same key and event already carry a different command, so a call that
 		// got as far as loading and classifying would file this under op=modify.
 		// The op is decided before the lock is even attempted, so it stays set.
@@ -119,7 +119,7 @@ func TestMutationLockTimeoutLogging(t *testing.T) {
 
 	t.Run("it emits one WARN under op=rm for a timed-out removal", func(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, 40*time.Millisecond)
-		path := filepath.Join(t.TempDir(), "hooks.json")
+		path := hookstest.HooksPath(t, t.TempDir())
 		if err := os.WriteFile(path, []byte(`{"tok123":{"on-resume":"cmd-a"}}`), 0o600); err != nil {
 			t.Fatalf("seed: %v", err)
 		}
@@ -138,7 +138,7 @@ func TestMutationLockTimeoutLogging(t *testing.T) {
 	})
 
 	t.Run("it still emits nothing when Remove removes nothing", func(t *testing.T) {
-		path := filepath.Join(t.TempDir(), "hooks.json")
+		path := hookstest.HooksPath(t, t.TempDir())
 		store := hooks.NewStore(path)
 		if err := store.Set("tok999", "on-resume", "npm start", hooks.ViaCLI); err != nil {
 			t.Fatalf("seed: %v", err)
@@ -161,7 +161,7 @@ func TestMutationLockTimeoutLogging(t *testing.T) {
 
 	t.Run("it emits no store-side WARN when CleanStale cannot take the lock", func(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, 40*time.Millisecond)
-		path := filepath.Join(t.TempDir(), "hooks.json")
+		path := hookstest.HooksPath(t, t.TempDir())
 		if err := os.WriteFile(path, []byte(`{"tok123":{"on-resume":"cmd-a"}}`), 0o600); err != nil {
 			t.Fatalf("seed: %v", err)
 		}
@@ -190,7 +190,7 @@ func TestMutationLockTimeoutLogging(t *testing.T) {
 			t.Fatalf("mkdir: %v", err)
 		}
 		t.Cleanup(func() { _ = os.Chmod(parent, 0o700) })
-		path := filepath.Join(parent, "portal", "hooks.json")
+		path := hookstest.HooksPath(t, filepath.Join(parent, "portal"))
 
 		sink := logtest.Install(t)
 		if err := hooks.NewStore(path).Set("tok123", "on-resume", "npm start", hooks.ViaCLI); err == nil {

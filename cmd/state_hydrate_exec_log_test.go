@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/hooks"
+	"github.com/leeovery/portal/internal/hookstest"
 )
 
 // execLogLine returns the single captured line with the given message, matched
@@ -121,7 +122,7 @@ func TestHydrateExecLog_LookupError_ErrorResultWithAttrWarnRetainedBareShell(t *
 
 func TestHydrateExecLog_UnregisteredPaneKey_MissThenBareShellExec(t *testing.T) {
 	dir := t.TempDir()
-	store := seedHookStore(t, dir, map[string]map[string]string{})
+	store, _ := hookstest.StageStore(t, hookstest.Staging{Dir: dir, SidecarAbsent: true, Body: map[string]map[string]string{}})
 
 	t.Setenv("SHELL", "/bin/zsh")
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
@@ -157,9 +158,9 @@ func TestHydrateExecLog_UnregisteredPaneKey_MissThenBareShellExec(t *testing.T) 
 
 func TestHydrateExecLog_RegisteredHook_HitThenHookChainExec(t *testing.T) {
 	dir := t.TempDir()
-	store := seedHookStore(t, dir, map[string]map[string]string{
+	store, _ := hookstest.StageStore(t, hookstest.Staging{Dir: dir, SidecarAbsent: true, Body: map[string]map[string]string{
 		"hit:0.0": {"on-resume": "echo hi"},
-	})
+	}})
 
 	t.Setenv("SHELL", "/bin/zsh")
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
@@ -199,9 +200,9 @@ func TestHydrateExecLog_RegisteredHook_HitThenHookChainExec(t *testing.T) {
 func TestHydrateExecLog_HitRendersArgsVerbatimIncludingEmbeddedQuotes(t *testing.T) {
 	dir := t.TempDir()
 	rawCmd := "echo 'it works' && echo \"quoted\""
-	store := seedHookStore(t, dir, map[string]map[string]string{
+	store, _ := hookstest.StageStore(t, hookstest.Staging{Dir: dir, SidecarAbsent: true, Body: map[string]map[string]string{
 		"q:0.0": {"on-resume": rawCmd},
-	})
+	}})
 
 	t.Setenv("SHELL", "/bin/zsh")
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
@@ -226,9 +227,9 @@ func TestHydrateExecLog_HitRendersArgsVerbatimIncludingEmbeddedQuotes(t *testing
 
 func TestHydrateExecLog_ExecInfoUsesTargetAttrNotPath(t *testing.T) {
 	dir := t.TempDir()
-	store := seedHookStore(t, dir, map[string]map[string]string{
+	store, _ := hookstest.StageStore(t, hookstest.Staging{Dir: dir, SidecarAbsent: true, Body: map[string]map[string]string{
 		"hit:0.0": {"on-resume": "echo hi"},
-	})
+	}})
 
 	t.Setenv("SHELL", "/bin/zsh")
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
@@ -266,16 +267,18 @@ func TestHydrateExecLog_ExecInfoEmittedImmediatelyBeforeExecShell(t *testing.T) 
 		{
 			name: "bare-shell-miss",
 			hookStore: func(t *testing.T, dir string) *hooks.Store {
-				return seedHookStore(t, dir, map[string]map[string]string{})
+				store, _ := hookstest.StageStore(t, hookstest.Staging{Dir: dir, SidecarAbsent: true, Body: map[string]map[string]string{}})
+				return store
 			},
 			hookKey: "m:0.0",
 		},
 		{
 			name: "hook-chain-hit",
 			hookStore: func(t *testing.T, dir string) *hooks.Store {
-				return seedHookStore(t, dir, map[string]map[string]string{
+				store, _ := hookstest.StageStore(t, hookstest.Staging{Dir: dir, SidecarAbsent: true, Body: map[string]map[string]string{
 					"h:0.0": {"on-resume": "echo hi"},
-				})
+				}})
+				return store
 			},
 			hookKey: "h:0.0",
 		},

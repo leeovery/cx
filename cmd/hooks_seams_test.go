@@ -106,7 +106,7 @@ func TestGonePaneErrorCarriesOnePortalClause(t *testing.T) {
 
 	for verb, drive := range run {
 		t.Run("it reports a gone pane in one Portal clause plus tmux's words for "+verb, func(t *testing.T) {
-			hooksFileInTempDir(t)
+			hooksFileInTempDir(t, nil)
 			t.Setenv("TMUX_PANE", "%999")
 
 			// The existence probe is refused with tmux's own stderr for a

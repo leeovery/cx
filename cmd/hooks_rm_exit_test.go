@@ -39,9 +39,9 @@ type rmOutcome struct {
 func runRmCase(t *testing.T, tt rmCase) rmOutcome {
 	t.Helper()
 
-	_, hooksFile := hooksFileInTempDir(t)
+	_, hooksFile := hooksFileInTempDir(t, tt.seeded)
 	t.Setenv("TMUX_PANE", tt.paneID)
-	before := seedHooksFile(t, hooksFile, tt.seeded)
+	before := readFileBytes(t, hooksFile)
 
 	resolver, stamper := tt.resolver, &recordingPaneStamper{}
 	if tt.paneKeyPath {
@@ -69,7 +69,7 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 	t.Run("it exits non-zero for a pane no live pane answers to", func(t *testing.T) {
 		const stderr = "no such pane: %999"
 
-		hooksFileInTempDir(t)
+		hooksFileInTempDir(t, nil)
 		t.Setenv("TMUX_PANE", "%999")
 
 		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{err: &tmux.CommandError{Stderr: stderr}}})
@@ -87,7 +87,7 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 	})
 
 	t.Run("it exits non-zero with its own words for a live pane carrying no token", func(t *testing.T) {
-		hooksFileInTempDir(t)
+		hooksFileInTempDir(t, nil)
 		t.Setenv("TMUX_PANE", "%3")
 
 		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: ""}})
@@ -102,7 +102,7 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 	})
 
 	t.Run("it consults the store for nothing when the pane carries no token", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
+		_, hooksFile := hooksFileInTempDir(t, nil)
 		t.Setenv("TMUX_PANE", "%3")
 
 		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: ""}})
@@ -116,7 +116,7 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 	})
 
 	t.Run("it exits non-zero when the resolved token has no entry", func(t *testing.T) {
-		hooksFileInTempDir(t)
+		hooksFileInTempDir(t, nil)
 		t.Setenv("TMUX_PANE", "%3")
 
 		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: hookstest.SubjectSeedA}})
@@ -132,7 +132,7 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 	})
 
 	t.Run("it exits non-zero when --pane-key names no entry", func(t *testing.T) {
-		hooksFileInTempDir(t)
+		hooksFileInTempDir(t, nil)
 		t.Setenv("TMUX_PANE", "%3")
 
 		// The poisoned pair doubles as the assertion here: a body that reached
@@ -151,12 +151,11 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 	})
 
 	t.Run("it exits 0 and removes on the resolved-token path", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
-		t.Setenv("TMUX_PANE", "%3")
-		writeHooksJSON(t, hooksFile, map[string]map[string]string{
+		_, hooksFile := hooksFileInTempDir(t, map[string]map[string]string{
 			hookstest.SubjectSeedA: {"on-resume": "claude --resume abc"},
 			hookstest.SubjectSeedB: {"on-resume": "npm start"},
 		})
+		t.Setenv("TMUX_PANE", "%3")
 
 		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: hookstest.SubjectSeedA}})
 
@@ -174,12 +173,11 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 	})
 
 	t.Run("it exits 0 and removes on the --pane-key path", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
-		t.Setenv("TMUX_PANE", "")
-		writeHooksJSON(t, hooksFile, map[string]map[string]string{
+		_, hooksFile := hooksFileInTempDir(t, map[string]map[string]string{
 			hookstest.UnjudgeableSeedA: {"on-resume": "claude --resume abc"},
 			hookstest.SubjectSeedB:     {"on-resume": "npm start"},
 		})
+		t.Setenv("TMUX_PANE", "")
 
 		resolver, stamper := paneKeyPathSeams()
 		withHooksDeps(t, HooksDeps{KeyResolver: resolver, PaneStamper: stamper})
@@ -336,9 +334,8 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 	})
 
 	t.Run("it reports removing nothing as a plain error, not a usage error", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
+		hooksFileInTempDir(t, map[string]map[string]string{})
 		t.Setenv("TMUX_PANE", "%3")
-		writeHooksJSON(t, hooksFile, map[string]map[string]string{})
 
 		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: hookstest.SubjectSeedA}})
 

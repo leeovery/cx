@@ -18,16 +18,13 @@ import (
 
 func TestHooksListCommand(t *testing.T) {
 	t.Run("outputs hooks in tab-separated format", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
+		hooksFileInTempDir(t, map[string]map[string]string{
+			hookstest.SubjectSeedA: {"on-resume": "claude --resume abc123"},
+		})
 
 		// Stub bootstrap so the real orchestrator never runs against the test's
 		// tmux server.
 		withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
-
-		data := map[string]map[string]string{
-			hookstest.SubjectSeedA: {"on-resume": "claude --resume abc123"},
-		}
-		writeHooksJSON(t, hooksFile, data)
 
 		withHooksDeps(t, HooksDeps{PaneLister: &recordingPaneHookLister{rows: []tmux.PaneHookRow{
 			{Token: hookstest.SubjectSeedA, Location: "my-project-abc123:0.0"},
@@ -41,9 +38,7 @@ func TestHooksListCommand(t *testing.T) {
 	})
 
 	t.Run("produces empty output when no hooks registered", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
-
-		writeHooksJSON(t, hooksFile, map[string]map[string]string{})
+		hooksFileInTempDir(t, map[string]map[string]string{})
 
 		withHooksDeps(t, HooksDeps{PaneLister: &loudPaneHookLister{t: t}})
 
@@ -63,7 +58,7 @@ func TestHooksListCommand(t *testing.T) {
 	})
 
 	t.Run("produces empty output when hooks file does not exist", func(t *testing.T) {
-		hooksFileInTempDir(t)
+		hooksFileInTempDir(t, nil)
 
 		withHooksDeps(t, HooksDeps{PaneLister: &loudPaneHookLister{t: t}})
 
@@ -83,18 +78,15 @@ func TestHooksListCommand(t *testing.T) {
 	})
 
 	t.Run("it keeps the sort by key then event", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
+		hooksFileInTempDir(t, map[string]map[string]string{
+			hookstest.SubjectSeedC: {"on-resume": "claude --resume def456"},
+			hookstest.SubjectSeedB: {"on-resume": "claude --resume abc123"},
+			hookstest.SubjectSeedA: {"on-resume": "npm start"},
+		})
 
 		// Stub bootstrap so the real orchestrator never runs against the test's
 		// tmux server.
 		withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
-
-		data := map[string]map[string]string{
-			hookstest.SubjectSeedC: {"on-resume": "claude --resume def456"},
-			hookstest.SubjectSeedB: {"on-resume": "claude --resume abc123"},
-			hookstest.SubjectSeedA: {"on-resume": "npm start"},
-		}
-		writeHooksJSON(t, hooksFile, data)
 
 		withHooksDeps(t, HooksDeps{PaneLister: &recordingPaneHookLister{rows: []tmux.PaneHookRow{
 			{Token: hookstest.SubjectSeedC, Location: "proj-abc:1.0"},
@@ -112,7 +104,7 @@ func TestHooksListCommand(t *testing.T) {
 	})
 
 	t.Run("accepts no arguments", func(t *testing.T) {
-		hooksFileInTempDir(t)
+		hooksFileInTempDir(t, nil)
 
 		resetRootCmd()
 		rootCmd.SetOut(new(bytes.Buffer))
@@ -126,8 +118,7 @@ func TestHooksListCommand(t *testing.T) {
 
 func TestHooksListLocationColumn(t *testing.T) {
 	t.Run("it appends the resolved location as a fourth column", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
-		writeHooksJSON(t, hooksFile, map[string]map[string]string{
+		hooksFileInTempDir(t, map[string]map[string]string{
 			hookstest.SubjectSeedA: {"on-resume": "claude --resume abc123"},
 		})
 
@@ -143,8 +134,7 @@ func TestHooksListLocationColumn(t *testing.T) {
 	})
 
 	t.Run("it does not let an unstamped pane's row lend its location", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
-		writeHooksJSON(t, hooksFile, map[string]map[string]string{
+		hooksFileInTempDir(t, map[string]map[string]string{
 			"": {"on-resume": "npm start"},
 		})
 
@@ -160,8 +150,7 @@ func TestHooksListLocationColumn(t *testing.T) {
 	})
 
 	t.Run("it renders one line for a token carried by two rows", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
-		writeHooksJSON(t, hooksFile, map[string]map[string]string{
+		hooksFileInTempDir(t, map[string]map[string]string{
 			hookstest.SubjectSeedA: {"on-resume": "npm start"},
 		})
 
@@ -178,8 +167,7 @@ func TestHooksListLocationColumn(t *testing.T) {
 	})
 
 	t.Run("it renders every fourth field empty when the enumeration fails", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
-		writeHooksJSON(t, hooksFile, map[string]map[string]string{
+		hooksFileInTempDir(t, map[string]map[string]string{
 			hookstest.SubjectSeedA: {"on-resume": "claude --resume abc123"},
 			hookstest.SubjectSeedB: {"on-resume": "npm start"},
 		})
@@ -199,8 +187,7 @@ func TestHooksListLocationColumn(t *testing.T) {
 	})
 
 	t.Run("it takes no enumeration read when there are no entries", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
-		writeHooksJSON(t, hooksFile, map[string]map[string]string{})
+		hooksFileInTempDir(t, map[string]map[string]string{})
 
 		withHooksDeps(t, HooksDeps{PaneLister: &loudPaneHookLister{t: t}})
 
@@ -211,8 +198,7 @@ func TestHooksListLocationColumn(t *testing.T) {
 	})
 
 	t.Run("it renders an empty fourth field for a token no row carries", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
-		writeHooksJSON(t, hooksFile, map[string]map[string]string{
+		hooksFileInTempDir(t, map[string]map[string]string{
 			hookstest.SubjectSeedC: {"on-resume": "npm start"},
 		})
 
@@ -229,8 +215,7 @@ func TestHooksListLocationColumn(t *testing.T) {
 	})
 
 	t.Run("it renders an empty fourth field for an old-format key", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
-		writeHooksJSON(t, hooksFile, map[string]map[string]string{
+		hooksFileInTempDir(t, map[string]map[string]string{
 			hookstest.SubjectSeedA:     {"on-resume": "claude --resume abc123"},
 			hookstest.UnjudgeableSeedA: {"on-resume": "npm start"},
 		})
@@ -248,8 +233,7 @@ func TestHooksListLocationColumn(t *testing.T) {
 	})
 
 	t.Run("it renders a location whose session name carries a pipe verbatim", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
-		writeHooksJSON(t, hooksFile, map[string]map[string]string{
+		hooksFileInTempDir(t, map[string]map[string]string{
 			hookstest.SubjectSeedA: {"on-resume": "npm start"},
 		})
 
@@ -265,8 +249,7 @@ func TestHooksListLocationColumn(t *testing.T) {
 	})
 
 	t.Run("it takes exactly one enumeration read for many entries", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
-		writeHooksJSON(t, hooksFile, map[string]map[string]string{
+		hooksFileInTempDir(t, map[string]map[string]string{
 			hookstest.SubjectSeedA: {"on-resume": "one"},
 			hookstest.SubjectSeedB: {"on-resume": "two"},
 			hookstest.SubjectSeedC: {"on-resume": "three"},
@@ -298,7 +281,7 @@ func (l *loudPaneHookLister) ListAllPaneHookKeys() ([]tmux.PaneHookRow, error) {
 
 func TestHooksSetCommand(t *testing.T) {
 	t.Run("sets hook for current pane", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
+		_, hooksFile := hooksFileInTempDir(t, nil)
 		t.Setenv("TMUX_PANE", "%3")
 
 		resolver := &mockKeyResolver{key: hookstest.SubjectSeedA}
@@ -319,7 +302,7 @@ func TestHooksSetCommand(t *testing.T) {
 	})
 
 	t.Run("reads pane ID from TMUX_PANE environment variable", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
+		_, hooksFile := hooksFileInTempDir(t, nil)
 		t.Setenv("TMUX_PANE", "%99")
 
 		resolver := &mockKeyResolver{key: hookstest.SubjectSeedB}
@@ -343,7 +326,7 @@ func TestHooksSetCommand(t *testing.T) {
 	})
 
 	t.Run("returns error when TMUX_PANE is not set", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
+		_, hooksFile := hooksFileInTempDir(t, nil)
 		t.Setenv("TMUX_PANE", "")
 
 		resolver := &mockKeyResolver{key: hookstest.SubjectSeedA}
@@ -367,7 +350,7 @@ func TestHooksSetCommand(t *testing.T) {
 	})
 
 	t.Run("returns error when on-resume flag is not provided", func(t *testing.T) {
-		hooksFileInTempDir(t)
+		hooksFileInTempDir(t, nil)
 		t.Setenv("TMUX_PANE", "%3")
 
 		resolver := &mockKeyResolver{key: hookstest.SubjectSeedA}
@@ -387,7 +370,7 @@ func TestHooksSetCommand(t *testing.T) {
 	})
 
 	t.Run("overwrites existing hook for same pane idempotently", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
+		_, hooksFile := hooksFileInTempDir(t, nil)
 		t.Setenv("TMUX_PANE", "%3")
 
 		resolver := &mockKeyResolver{key: hookstest.SubjectSeedA}
@@ -414,7 +397,7 @@ func TestHooksSetCommand(t *testing.T) {
 	})
 
 	t.Run("writes correct JSON structure to hooks file", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
+		_, hooksFile := hooksFileInTempDir(t, nil)
 		t.Setenv("TMUX_PANE", "%3")
 
 		resolver := &mockKeyResolver{key: hookstest.SubjectSeedA}
@@ -448,7 +431,7 @@ func TestHooksSetCommand(t *testing.T) {
 	t.Run("it aborts hook set when the hook-key read fails", func(t *testing.T) {
 		const stderr = "no such pane: %999"
 
-		_, hooksFile := hooksFileInTempDir(t)
+		_, hooksFile := hooksFileInTempDir(t, nil)
 		t.Setenv("TMUX_PANE", "%999")
 
 		resolver := &mockKeyResolver{err: &tmux.CommandError{Stderr: stderr}}
@@ -471,7 +454,7 @@ func TestHooksSetCommand(t *testing.T) {
 	})
 
 	t.Run("it stores the hook under the resolved hook key", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
+		_, hooksFile := hooksFileInTempDir(t, nil)
 		t.Setenv("TMUX_PANE", "%3")
 
 		resolver := &mockKeyResolver{key: hookstest.SubjectSeedA}
@@ -493,12 +476,10 @@ func TestHooksSetCommand(t *testing.T) {
 
 func TestHooksRmCommand(t *testing.T) {
 	t.Run("removes hook for current pane", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
-		t.Setenv("TMUX_PANE", "%3")
-
-		writeHooksJSON(t, hooksFile, map[string]map[string]string{
+		_, hooksFile := hooksFileInTempDir(t, map[string]map[string]string{
 			hookstest.SubjectSeedA: {"on-resume": "claude --resume abc123"},
 		})
+		t.Setenv("TMUX_PANE", "%3")
 
 		resolver := &mockKeyResolver{key: hookstest.SubjectSeedA}
 		withHooksDeps(t, HooksDeps{KeyResolver: resolver})
@@ -518,12 +499,10 @@ func TestHooksRmCommand(t *testing.T) {
 	})
 
 	t.Run("reads pane ID from TMUX_PANE and resolves hook key", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
-		t.Setenv("TMUX_PANE", "%42")
-
-		writeHooksJSON(t, hooksFile, map[string]map[string]string{
+		_, hooksFile := hooksFileInTempDir(t, map[string]map[string]string{
 			hookstest.SubjectSeedB: {"on-resume": "some-cmd"},
 		})
+		t.Setenv("TMUX_PANE", "%42")
 
 		resolver := &mockKeyResolver{key: hookstest.SubjectSeedB}
 		withHooksDeps(t, HooksDeps{KeyResolver: resolver})
@@ -546,7 +525,7 @@ func TestHooksRmCommand(t *testing.T) {
 	})
 
 	t.Run("returns error when TMUX_PANE is not set", func(t *testing.T) {
-		hooksFileInTempDir(t)
+		hooksFileInTempDir(t, nil)
 		t.Setenv("TMUX_PANE", "")
 
 		resolver := &mockKeyResolver{key: hookstest.SubjectSeedA}
@@ -566,7 +545,7 @@ func TestHooksRmCommand(t *testing.T) {
 	})
 
 	t.Run("returns error when on-resume flag is not provided", func(t *testing.T) {
-		hooksFileInTempDir(t)
+		hooksFileInTempDir(t, nil)
 		t.Setenv("TMUX_PANE", "%3")
 
 		resolver := &mockKeyResolver{key: hookstest.SubjectSeedA}
@@ -586,10 +565,8 @@ func TestHooksRmCommand(t *testing.T) {
 	})
 
 	t.Run("it exits non-zero when no hook exists for pane", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
+		hooksFileInTempDir(t, map[string]map[string]string{})
 		t.Setenv("TMUX_PANE", "%99")
-
-		writeHooksJSON(t, hooksFile, map[string]map[string]string{})
 
 		resolver := &mockKeyResolver{key: hookstest.SubjectSeedC}
 		withHooksDeps(t, HooksDeps{KeyResolver: resolver})
@@ -614,13 +591,11 @@ func TestHooksRmCommand(t *testing.T) {
 	})
 
 	t.Run("removes correct JSON entry from hooks file", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
-		t.Setenv("TMUX_PANE", "%3")
-
-		writeHooksJSON(t, hooksFile, map[string]map[string]string{
+		_, hooksFile := hooksFileInTempDir(t, map[string]map[string]string{
 			hookstest.SubjectSeedA:     {"on-resume": "claude --resume abc123"},
 			hookstest.UnjudgeableSeedA: {"on-resume": "npm start"},
 		})
+		t.Setenv("TMUX_PANE", "%3")
 
 		resolver := &mockKeyResolver{key: hookstest.SubjectSeedA}
 		withHooksDeps(t, HooksDeps{KeyResolver: resolver})
@@ -645,12 +620,10 @@ func TestHooksRmCommand(t *testing.T) {
 	})
 
 	t.Run("cleans up pane key when last event removed", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
-		t.Setenv("TMUX_PANE", "%5")
-
-		writeHooksJSON(t, hooksFile, map[string]map[string]string{
+		_, hooksFile := hooksFileInTempDir(t, map[string]map[string]string{
 			hookstest.SubjectSeedA: {"on-resume": "some-cmd"},
 		})
+		t.Setenv("TMUX_PANE", "%5")
 
 		resolver := &mockKeyResolver{key: hookstest.SubjectSeedA}
 		withHooksDeps(t, HooksDeps{KeyResolver: resolver})
@@ -673,12 +646,10 @@ func TestHooksRmCommand(t *testing.T) {
 	})
 
 	t.Run("it aborts hooks rm when the hook-key read fails and leaves the entry intact", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
-		t.Setenv("TMUX_PANE", "%3")
-
-		writeHooksJSON(t, hooksFile, map[string]map[string]string{
+		_, hooksFile := hooksFileInTempDir(t, map[string]map[string]string{
 			hookstest.SubjectSeedA: {"on-resume": "some-cmd"},
 		})
+		t.Setenv("TMUX_PANE", "%3")
 
 		resolver := &mockKeyResolver{err: fmt.Errorf("tmux not responding")}
 		withHooksDeps(t, HooksDeps{KeyResolver: resolver})
@@ -702,13 +673,11 @@ func TestHooksRmCommand(t *testing.T) {
 	})
 
 	t.Run("--pane-key flag removes specified key without requiring TMUX_PANE", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
-		t.Setenv("TMUX_PANE", "")
-
-		writeHooksJSON(t, hooksFile, map[string]map[string]string{
+		_, hooksFile := hooksFileInTempDir(t, map[string]map[string]string{
 			hookstest.SubjectSeedA:     {"on-resume": "claude --resume xyz"},
 			hookstest.UnjudgeableSeedA: {"on-resume": "npm start"},
 		})
+		t.Setenv("TMUX_PANE", "")
 
 		resolver, stamper := paneKeyPathSeams()
 		withHooksDeps(t, HooksDeps{KeyResolver: resolver, PaneStamper: stamper})
@@ -733,12 +702,10 @@ func TestHooksRmCommand(t *testing.T) {
 	})
 
 	t.Run("--pane-key unset falls back to resolveCurrentPaneKey", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
-		t.Setenv("TMUX_PANE", "%7")
-
-		writeHooksJSON(t, hooksFile, map[string]map[string]string{
+		_, hooksFile := hooksFileInTempDir(t, map[string]map[string]string{
 			hookstest.SubjectSeedD: {"on-resume": "some-cmd"},
 		})
+		t.Setenv("TMUX_PANE", "%7")
 
 		resolver := &mockKeyResolver{key: hookstest.SubjectSeedD}
 		withHooksDeps(t, HooksDeps{KeyResolver: resolver})
@@ -793,8 +760,7 @@ func TestHookCommandRename(t *testing.T) {
 	})
 
 	t.Run("keeps hooks working as a silent cobra alias", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
-		writeHooksJSON(t, hooksFile, map[string]map[string]string{})
+		hooksFileInTempDir(t, map[string]map[string]string{})
 
 		withHooksDeps(t, HooksDeps{PaneLister: &loudPaneHookLister{t: t}})
 
@@ -818,7 +784,7 @@ func TestHookCommandRename(t *testing.T) {
 	})
 
 	t.Run("machine-generated hooks set still persists via the alias", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
+		_, hooksFile := hooksFileInTempDir(t, nil)
 		t.Setenv("TMUX_PANE", "%3")
 
 		resolver := &mockKeyResolver{key: hookstest.SubjectSeedA}
@@ -881,7 +847,7 @@ func assertTouchWarn(t *testing.T, sink *logtest.Sink, wantKey string) {
 
 func TestHooksSetTouchesSaveRequested(t *testing.T) {
 	t.Run("it touches save.requested after a successful registration", func(t *testing.T) {
-		hooksFileInTempDir(t)
+		hooksFileInTempDir(t, nil)
 		stateDir := t.TempDir()
 		t.Setenv("PORTAL_STATE_DIR", stateDir)
 
@@ -895,7 +861,7 @@ func TestHooksSetTouchesSaveRequested(t *testing.T) {
 	})
 
 	t.Run("it exits 0 when the state directory cannot be resolved", func(t *testing.T) {
-		dir, hooksFile := hooksFileInTempDir(t)
+		dir, hooksFile := hooksFileInTempDir(t, nil)
 
 		blocker := filepath.Join(dir, "not-a-dir")
 		if err := os.WriteFile(blocker, []byte("x"), 0o600); err != nil {
@@ -917,7 +883,7 @@ func TestHooksSetTouchesSaveRequested(t *testing.T) {
 	})
 
 	t.Run("it exits 0 when the touch itself fails", func(t *testing.T) {
-		dir, hooksFile := hooksFileInTempDir(t)
+		dir, hooksFile := hooksFileInTempDir(t, nil)
 
 		stateDir := filepath.Join(dir, "state")
 		if err := os.MkdirAll(filepath.Join(stateDir, "scrollback"), 0o700); err != nil {
@@ -943,7 +909,7 @@ func TestHooksSetTouchesSaveRequested(t *testing.T) {
 	})
 
 	t.Run("it emits no set WARN when only the dirty-flag touch fails", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
+		_, hooksFile := hooksFileInTempDir(t, nil)
 		t.Setenv("PORTAL_STATE_DIR", filepath.Join(hooksFile, "state"))
 
 		sink := logtest.Install(t)
@@ -960,7 +926,7 @@ func TestHooksSetTouchesSaveRequested(t *testing.T) {
 	})
 
 	t.Run("it emits exactly one warn per failing hook set", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
+		_, hooksFile := hooksFileInTempDir(t, nil)
 		t.Setenv("PORTAL_STATE_DIR", filepath.Join(hooksFile, "state"))
 
 		sink := logtest.Install(t)
@@ -975,7 +941,7 @@ func TestHooksSetTouchesSaveRequested(t *testing.T) {
 	})
 
 	t.Run("it does not touch when the write fails", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
+		_, hooksFile := hooksFileInTempDir(t, nil)
 		// A directory at the hooks.json path makes the store's own read fail, so
 		// the command aborts before it could touch anything.
 		if err := os.MkdirAll(hooksFile, 0o700); err != nil {
@@ -1001,7 +967,7 @@ func TestHooksSetTouchesSaveRequested(t *testing.T) {
 	})
 
 	t.Run("it touches on a no-op re-registration", func(t *testing.T) {
-		hooksFileInTempDir(t)
+		hooksFileInTempDir(t, nil)
 		stateDir := t.TempDir()
 		t.Setenv("PORTAL_STATE_DIR", stateDir)
 
@@ -1022,8 +988,7 @@ func TestHooksSetTouchesSaveRequested(t *testing.T) {
 	})
 
 	t.Run("it does not touch from hook rm", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t)
-		writeHooksJSON(t, hooksFile, map[string]map[string]string{
+		hooksFileInTempDir(t, map[string]map[string]string{
 			hookstest.SubjectSeedA: {"on-resume": "claude --resume abc"},
 		})
 		stateDir := t.TempDir()

@@ -7,7 +7,6 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -110,17 +109,12 @@ func withUninstallDeps(t *testing.T, deps UninstallDeps) {
 }
 
 // readFileBytes returns nil on ENOENT, so callers can distinguish "file absent"
-// from "file empty".
+// from "file empty". The rule itself lives in hookstest, which is already this
+// package's home for the hooks.json assertions the read feeds; it is
+// path-generic, so projects.json reads through it too.
 func readFileBytes(t *testing.T, path string) []byte {
 	t.Helper()
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil
-		}
-		t.Fatalf("read %s: %v", path, err)
-	}
-	return data
+	return hookstest.HooksFileBytes(t, path)
 }
 
 // TestReadFileBytes pins the read rule the hooks/projects assertion pairs both
@@ -144,23 +138,21 @@ func TestReadFileBytes(t *testing.T) {
 	})
 }
 
-// hooksFileInTempDir points PORTAL_HOOKS_FILE at a hooks.json inside a fresh
-// temp directory, and stages the sidecar beside it. It is the second of the two
-// staging routes: this one leaves the path to the command body's own
-// resolution, where hookstest.StageStore hands a store straight to a seam. A
-// case whose subject is the sidecar's absence stages its own file through
-// hookstest.StageStore rather than reaching for this route.
+// hooksFileInTempDir points PORTAL_HOOKS_FILE at a hooks.json holding body,
+// staged through hookstest.StageStore in a fresh temp directory with its
+// sidecar beside it. A nil body stages no file, leaving the absent hooks.json a
+// first run starts from. It adds the env pointing to the shared stager rather
+// than staging anything itself, so a case that hands a store straight to a seam
+// calls hookstest.StageStore directly and both describe the same file the same
+// way. A case whose subject is the sidecar's absence asks the stager for it.
 //
 // The directory is returned alongside the file because several callers stage
 // siblings of the hooks file in it.
-func hooksFileInTempDir(t *testing.T) (dir, hooksFile string) {
+func hooksFileInTempDir(t *testing.T, body map[string]map[string]string) (dir, hooksFile string) {
 	t.Helper()
 	dir = t.TempDir()
-	hooksFile = filepath.Join(dir, "hooks.json")
+	_, hooksFile = hookstest.StageStore(t, hookstest.Staging{Dir: dir, Body: body})
 	t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
-	// Created while the directory still permits it: a fixture that strips the
-	// directory's permissions afterwards could not stage it.
-	hookstest.CreateHooksSidecar(t, hooksFile)
 	return dir, hooksFile
 }
 
@@ -205,17 +197,6 @@ func runHookList(t *testing.T) string {
 	return buf.String()
 }
 
-func writeHooksJSON(t *testing.T, path string, data map[string]map[string]string) {
-	t.Helper()
-	b, err := json.MarshalIndent(data, "", "  ")
-	if err != nil {
-		t.Fatalf("failed to marshal hooks JSON: %v", err)
-	}
-	if err := os.WriteFile(path, b, 0o644); err != nil {
-		t.Fatalf("failed to write hooks file: %v", err)
-	}
-}
-
 func readHooksJSON(t *testing.T, path string) map[string]map[string]string {
 	t.Helper()
 	b, err := os.ReadFile(path)
@@ -227,14 +208,6 @@ func readHooksJSON(t *testing.T, path string) map[string]map[string]string {
 		t.Fatalf("failed to unmarshal hooks JSON: %v", err)
 	}
 	return data
-}
-
-// seedHooksFile writes data and returns the bytes on disk, so a caller can prove
-// a failing route left the file untouched byte for byte.
-func seedHooksFile(t *testing.T, path string, data map[string]map[string]string) []byte {
-	t.Helper()
-	writeHooksJSON(t, path, data)
-	return readFileBytes(t, path)
 }
 
 // assertHooksFileUnchanged names the shared byte-identity assertion in this

@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/leeovery/portal/internal/hookstest"
 )
 
 // parseHydrateHookKey runs the real `state hydrate` argv through cobra and
@@ -53,9 +55,9 @@ func TestHydrate_AbsentAndEmptyHookKeyAreEquivalent(t *testing.T) {
 		// A "" entry is the hand-edited hooks.json this guard exists for: no
 		// hydrate path may fire it.
 		dir := t.TempDir()
-		store := seedHookStore(t, dir, map[string]map[string]string{
+		store, _ := hookstest.StageStore(t, hookstest.Staging{Dir: dir, SidecarAbsent: true, Body: map[string]map[string]string{
 			"": {"on-resume": "rm -rf /"},
-		})
+		}})
 
 		run := func(hookKey, fifoName string) (string, []string) {
 			t.Helper()
@@ -101,9 +103,9 @@ func TestHydrate_UnstampedPaneHydratesToBareShell(t *testing.T) {
 		signalFIFOAsync(t, fifo)
 
 		t.Setenv("SHELL", "/bin/zsh")
-		store := seedHookStore(t, dir, map[string]map[string]string{
+		store, _ := hookstest.StageStore(t, hookstest.Staging{Dir: dir, SidecarAbsent: true, Body: map[string]map[string]string{
 			"": {"on-resume": "rm -rf /"},
-		})
+		}})
 
 		logger, sink := newCaptureLoggerForComponent(t, "hydrate")
 		stdout := new(bytes.Buffer)

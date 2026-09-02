@@ -12,13 +12,20 @@ import (
 	"github.com/leeovery/portal/internal/logtest"
 )
 
+// SidecarPath returns the path of the lock file a mutation takes beside the
+// hooks.json at hooksPath. The suffix is the store's own, so a fixture naming
+// the sidecar goes through here rather than restating it.
+func SidecarPath(hooksPath string) string {
+	return hooksPath + ".lock"
+}
+
 // CreateHooksSidecar pre-creates the lock file a mutation opens, so a fixture
 // that denies writes to the directory still fails where it means to, and so a
 // read under the fixture takes its shared lock rather than degrading on a
 // missing sidecar the fixture never meant to model.
 func CreateHooksSidecar(t *testing.T, hooksPath string) {
 	t.Helper()
-	if err := os.WriteFile(hooksPath+".lock", nil, 0o600); err != nil {
+	if err := os.WriteFile(SidecarPath(hooksPath), nil, 0o600); err != nil {
 		t.Fatalf("hookstest.CreateHooksSidecar: create sidecar lock: %v", err)
 	}
 }
@@ -79,7 +86,7 @@ func AssertSidecarFree(t *testing.T, hooksPath string) {
 
 func openSidecar(t *testing.T, hooksPath string) *os.File {
 	t.Helper()
-	f, err := os.OpenFile(hooksPath+".lock", os.O_RDWR|os.O_CREATE, 0o600)
+	f, err := os.OpenFile(SidecarPath(hooksPath), os.O_RDWR|os.O_CREATE, 0o600)
 	if err != nil {
 		t.Fatalf("open sidecar: %v", err)
 	}

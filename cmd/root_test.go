@@ -310,17 +310,13 @@ func TestPersistentPreRunE_CallsEnsureServer(t *testing.T) {
 				if len(tt.argv) >= 2 {
 					switch tt.argv[1] {
 					case "set", "rm":
-						dir := t.TempDir()
-						hooksFile := filepath.Join(dir, "hooks.json")
-						t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
+						hooksFileInTempDir(t, map[string]map[string]string{
+							hookstest.UnjudgeableSeedA: {"on-resume": "claude --resume abc123"},
+						})
 						t.Setenv("TMUX_PANE", "%3")
 
 						resolver := &mockKeyResolver{key: hookstest.UnjudgeableSeedA}
 						withHooksDeps(t, HooksDeps{KeyResolver: resolver})
-
-						writeHooksJSON(t, hooksFile, map[string]map[string]string{
-							hookstest.UnjudgeableSeedA: {"on-resume": "claude --resume abc123"},
-						})
 					case "list":
 						// The list body resolves each entry's location through the
 						// pane enumeration, so it is the empty store — not a real
