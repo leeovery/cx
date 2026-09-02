@@ -3,12 +3,14 @@
 package bootstrap_test
 
 import (
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/leeovery/portal/cmd/bootstrap"
 	"github.com/leeovery/portal/internal/bootstrapadapter"
+	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/portaltest"
 	"github.com/leeovery/portal/internal/tmux"
 )
@@ -20,11 +22,11 @@ func TestCompositeBootstrap_ConvergesPgrepToOneDaemon(t *testing.T) {
 	core, ok := sweeper.(*bootstrap.OrphanSweepCore)
 	if !ok {
 		t.Fatalf("NewOrphanSweeper returned %T; want *bootstrap.OrphanSweepCore "+
-			"(needed to inject a recording Logger for the forbidden-string assertion)",
+			"(needed to inject a capturing Logger for the forbidden-string assertion)",
 			sweeper)
 	}
-	logger := &bootstrap.RecordingLogger{}
-	core.Logger = logger.Logger()
+	sink := &logtest.Sink{}
+	core.Logger = slog.New(sink)
 
 	start := time.Now()
 
@@ -72,20 +74,20 @@ func TestCompositeBootstrap_ConvergesPgrepToOneDaemon(t *testing.T) {
 
 	const forbiddenNoSuchSession = "no such session: _portal-saver"
 	const forbiddenPriorDaemonExit = "prior daemon did not exit"
-	for _, entry := range logger.AllEntries() {
+	for _, entry := range sink.Lines() {
 		if strings.Contains(entry, forbiddenNoSuchSession) {
 			t.Fatalf("bootstrap logger emitted forbidden entry containing %q\n"+
 				"  entry: %s\n"+
 				"  all entries:\n%s",
 				forbiddenNoSuchSession, entry,
-				strings.Join(logger.AllEntries(), "\n"))
+				sink.Body())
 		}
 		if strings.Contains(entry, forbiddenPriorDaemonExit) {
 			t.Fatalf("bootstrap logger emitted forbidden entry containing %q\n"+
 				"  entry: %s\n"+
 				"  all entries:\n%s",
 				forbiddenPriorDaemonExit, entry,
-				strings.Join(logger.AllEntries(), "\n"))
+				sink.Body())
 		}
 	}
 }

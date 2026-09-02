@@ -135,7 +135,7 @@ func TestRecord_AttrString(t *testing.T) {
 	logger, sink := logtest.NewCaptureLogger(t)
 	logger.Info("set", "op", "set")
 
-	r := sink.OnlyRecord(t)
+	r := sink.Records().Only(t, "log record")
 	if got := r.AttrString(t, "op"); got != "set" {
 		t.Errorf("AttrString(op) = %q, want %q", got, "set")
 	}
@@ -145,11 +145,103 @@ func TestRecord_AttrString(t *testing.T) {
 	}
 }
 
+func TestRecord_AttrOrEmpty(t *testing.T) {
+	logger, sink := logtest.NewCaptureLogger(t)
+	logger.Info("set", "op", "set")
+
+	r := sink.Records().Only(t, "log record")
+
+	t.Run("it returns the value of a present attr", func(t *testing.T) {
+		if got := r.AttrOrEmpty("op"); got != "set" {
+			t.Errorf("AttrOrEmpty(op) = %q, want %q", got, "set")
+		}
+	})
+
+	t.Run("it returns the empty string for an absent attr", func(t *testing.T) {
+		if got := r.AttrOrEmpty("nope"); got != "" {
+			t.Errorf("AttrOrEmpty(nope) = %q, want the empty string", got)
+		}
+	})
+}
+
+func TestRecord_DurationAttr(t *testing.T) {
+	logger, sink := logtest.NewCaptureLogger(t)
+	logger.Info("tick complete", "took", 5*time.Millisecond, "entries", "2")
+
+	r := sink.Records().Only(t, "log record")
+
+	t.Run("it returns the duration carried by the named attr", func(t *testing.T) {
+		if got := r.DurationAttr(t, "took"); got != 5*time.Millisecond {
+			t.Errorf("DurationAttr(took) = %v, want %v", got, 5*time.Millisecond)
+		}
+	})
+
+	t.Run("it fatals when the attr is not a duration", func(t *testing.T) {
+		if !expectFail(func(sub logtest.TestingT) { _ = r.DurationAttr(sub, "entries") }) {
+			t.Errorf("DurationAttr must fail for a non-Duration attr")
+		}
+	})
+
+	t.Run("it fatals when the record carries no attr of that name", func(t *testing.T) {
+		if !expectFail(func(sub logtest.TestingT) { _ = r.DurationAttr(sub, "elapsed") }) {
+			t.Errorf("DurationAttr must fail for a missing key")
+		}
+	})
+}
+
+func TestRecords_Only(t *testing.T) {
+	logger, sink := logtest.NewCaptureLogger(t)
+	clean := logger.With("component", "clean")
+	clean.Debug("orphan killed")
+	clean.Warn("orphan killed")
+	clean.Info("sweep complete")
+	logger.With("component", "bootstrap").Info("sweep complete")
+
+	t.Run("it returns the sole record of a component-filtered set", func(t *testing.T) {
+		rec := sink.RecordsWith("clean", "sweep complete").Only(t, "clean sweep-complete record")
+		if got := rec.AttrString(t, "component"); got != "clean" {
+			t.Errorf("component = %q, want %q", got, "clean")
+		}
+	})
+
+	t.Run("it returns the sole record of a level-filtered set", func(t *testing.T) {
+		rec := sink.RecordsAtExactLevel(slog.LevelWarn).Only(t, "clean orphan-killed WARN")
+		if rec.Level != slog.LevelWarn {
+			t.Errorf("Level = %v, want WARN", rec.Level)
+		}
+	})
+
+	t.Run("it fatals unless exactly one record matched", func(t *testing.T) {
+		if !expectFail(func(sub logtest.TestingT) {
+			_ = sink.RecordsWithMessage("orphan killed").Only(sub, "orphan-killed record")
+		}) {
+			t.Errorf("Only must fail when more than one record matched")
+		}
+		if !expectFail(func(sub logtest.TestingT) {
+			_ = sink.RecordsWithMessage("never emitted").Only(sub, "never-emitted record")
+		}) {
+			t.Errorf("Only must fail when no record matched")
+		}
+	})
+
+	t.Run("it names the described set in its failure message", func(t *testing.T) {
+		failed, msg := captureFailure(func(sub logtest.TestingT) {
+			_ = sink.RecordsWithMessage("never emitted").Only(sub, "never-emitted record")
+		})
+		if !failed {
+			t.Fatalf("Only did not fail on an empty set")
+		}
+		if !strings.Contains(msg, "never-emitted record") {
+			t.Errorf("failure message = %q, want it to name the described set", msg)
+		}
+	})
+}
+
 func TestRecord_IntAttr(t *testing.T) {
 	logger, sink := logtest.NewCaptureLogger(t)
 	logger.Info("tick complete", "panes", 7, "msg", "text")
 
-	r := sink.OnlyRecord(t)
+	r := sink.Records().Only(t, "log record")
 	if got := r.IntAttr(t, "panes"); got != 7 {
 		t.Errorf("IntAttr(panes) = %d, want 7", got)
 	}
@@ -164,7 +256,7 @@ func TestRecord_ErrorAttr(t *testing.T) {
 	logger, sink := logtest.NewCaptureLogger(t)
 	logger.Warn("save failed", "error", sentinel, "op", "set")
 
-	r := sink.OnlyRecord(t)
+	r := sink.Records().Only(t, "log record")
 
 	t.Run("it returns the error carried by the named attr", func(t *testing.T) {
 		if got := r.ErrorAttr(t, "error"); !errors.Is(got, sentinel) {
@@ -199,7 +291,7 @@ func TestRecord_RequireDuration(t *testing.T) {
 	logger, sink := logtest.NewCaptureLogger(t)
 	logger.Info("tick complete", "took", 5*time.Millisecond, "entries", "2")
 
-	r := sink.OnlyRecord(t)
+	r := sink.Records().Only(t, "log record")
 	r.RequireDuration(t, "took")
 
 	if !expectFail(func(sub logtest.TestingT) { r.RequireDuration(sub, "entries") }) {
@@ -211,27 +303,12 @@ func TestRecord_HasAttr(t *testing.T) {
 	logger, sink := logtest.NewCaptureLogger(t)
 	logger.Info("rm", "op", "rm")
 
-	r := sink.OnlyRecord(t)
+	r := sink.Records().Only(t, "log record")
 	if !r.HasAttr("op") {
 		t.Errorf("HasAttr(op) = false, want true")
 	}
 	if r.HasAttr("value") {
 		t.Errorf("HasAttr(value) = true, want false")
-	}
-}
-
-func TestSink_OnlyRecord(t *testing.T) {
-	logger, sink := logtest.NewCaptureLogger(t)
-	logger.Info("first")
-
-	r := sink.OnlyRecord(t)
-	if r.Msg != "first" {
-		t.Errorf("OnlyRecord().Msg = %q, want %q", r.Msg, "first")
-	}
-
-	logger.Info("second")
-	if !expectFail(func(sub logtest.TestingT) { sink.OnlyRecord(sub) }) {
-		t.Errorf("OnlyRecord must fail when more than one record was captured")
 	}
 }
 
@@ -289,26 +366,6 @@ func TestSink_RecordsWithFiltersOnComponentAndMessage(t *testing.T) {
 
 	if none := sink.RecordsWith("hooks", "nothing"); none != nil {
 		t.Errorf("RecordsWith on an unemitted message = %+v, want nil", none)
-	}
-}
-
-func TestSink_OnlyRecordWith(t *testing.T) {
-	logger, sink := logtest.NewCaptureLogger(t)
-	logger.With("component", "hooks").Info("set", "op", "set")
-	logger.With("component", "projects").Info("set", "op", "set")
-
-	rec := sink.OnlyRecordWith(t, "hooks", "set")
-	if got := rec.AttrString(t, "component"); got != "hooks" {
-		t.Errorf("component = %q, want %q", got, "hooks")
-	}
-
-	if !expectFail(func(sub logtest.TestingT) { sink.OnlyRecordWith(sub, "hooks", "rm") }) {
-		t.Errorf("OnlyRecordWith must fail when no record matches")
-	}
-
-	logger.With("component", "hooks").Info("set", "op", "set")
-	if !expectFail(func(sub logtest.TestingT) { sink.OnlyRecordWith(sub, "hooks", "set") }) {
-		t.Errorf("OnlyRecordWith must fail when more than one record matches")
 	}
 }
 

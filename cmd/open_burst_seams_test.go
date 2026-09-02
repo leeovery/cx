@@ -1,12 +1,11 @@
 package cmd
 
 import (
-	"io"
-	"log/slog"
 	"os"
 	"testing"
 
 	"github.com/leeovery/portal/internal/commandertest"
+	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/spawn"
 	"github.com/leeovery/portal/internal/spawntest"
 	"github.com/leeovery/portal/internal/tmux"
@@ -29,7 +28,7 @@ func TestBuildOpenBurstDeps_PartialInjectionKeepsInjectedFillsRest(t *testing.T)
 			injectedMintCalled = true
 			return nil
 		}
-		injectedLogger := slog.New(slog.NewTextHandler(io.Discard, nil))
+		injectedLogger := log.Discard()
 
 		withOpenBurstDeps(t, OpenBurstDeps{
 			Resolve:   injectedResolve,
@@ -98,7 +97,7 @@ func TestBuildOpenBurstDeps_PartialInjectionKeepsInjectedFillsRest(t *testing.T)
 
 		// LocalMint deliberately absent so it takes the production default.
 		withOpenBurstDeps(t, OpenBurstDeps{
-			Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+			Logger: log.Discard(),
 		})
 
 		origOpenPath := openPathFunc

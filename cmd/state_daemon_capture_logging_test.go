@@ -10,38 +10,10 @@ import (
 	"time"
 
 	"github.com/leeovery/portal/internal/commandertest"
+	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
 )
-
-// errorAttrRecorder keeps the first matching WARN's error attr as a live error
-// value, so a test can assert errors.Is against it rather than against a string.
-type errorAttrRecorder struct {
-	wantMsg string
-	gotErr  error
-	found   bool
-}
-
-func (h *errorAttrRecorder) Enabled(_ context.Context, _ slog.Level) bool { return true }
-func (h *errorAttrRecorder) WithAttrs(_ []slog.Attr) slog.Handler         { return h }
-func (h *errorAttrRecorder) WithGroup(_ string) slog.Handler              { return h }
-
-func (h *errorAttrRecorder) Handle(_ context.Context, r slog.Record) error {
-	if h.found || r.Level != slog.LevelWarn || r.Message != h.wantMsg {
-		return nil
-	}
-	r.Attrs(func(a slog.Attr) bool {
-		if a.Key == "error" {
-			if e, ok := a.Value.Any().(error); ok {
-				h.gotErr = e
-				h.found = true
-				return false
-			}
-		}
-		return true
-	})
-	return nil
-}
 
 func TestDaemonTick_CapturePaneFailureErrorAttrIsWrappedError(t *testing.T) {
 	dir := t.TempDir()
@@ -55,14 +27,14 @@ func TestDaemonTick_CapturePaneFailureErrorAttrIsWrappedError(t *testing.T) {
 		captureErrByTarget: map[string]error{"work:0.0": sentinel},
 	}
 
-	rec := &errorAttrRecorder{wantMsg: "capture pane failed"}
+	sink := &logtest.Sink{}
 	if _, err := state.EnsureDir(); err != nil {
 		t.Fatalf("EnsureDir: %v", err)
 	}
 
 	deps := &daemonDeps{
 		Dir:          dir,
-		Logger:       slog.New(rec).With("component", "daemon"),
+		Logger:       slog.New(sink).With("component", "daemon"),
 		Client:       tmux.NewClient(fc),
 		HashMap:      state.HashMap{},
 		TickerPeriod: 1 * time.Millisecond,
@@ -73,11 +45,9 @@ func TestDaemonTick_CapturePaneFailureErrorAttrIsWrappedError(t *testing.T) {
 
 	tick(t.Context(), deps)
 
-	if !rec.found {
-		t.Fatal("no WARN 'capture pane failed' record with an error attr was captured")
-	}
-	if !errors.Is(rec.gotErr, sentinel) {
-		t.Errorf("error attr does not wrap the sentinel via errors.Is; got %v", rec.gotErr)
+	warn := sink.RecordsAtExactLevelWithMessage(slog.LevelWarn, "capture pane failed").Only(t, "'capture pane failed' WARN")
+	if got := warn.ErrorAttr(t, "error"); !errors.Is(got, sentinel) {
+		t.Errorf("error attr does not wrap the sentinel via errors.Is; got %v", got)
 	}
 }
 

@@ -31,7 +31,7 @@ func TestMigrateConfigFileLogging(t *testing.T) {
 
 		migrateConfigFile(oldPath, newPath, "hooks")
 
-		rec := sink.OnlyRecord(t)
+		rec := sink.Records().Only(t, "log record")
 		logtest.AssertRecord(t, rec, logtest.RecordWant{
 			Level:     slog.LevelInfo,
 			Msg:       "migrate",
@@ -63,7 +63,7 @@ func TestMigrateConfigFileLogging(t *testing.T) {
 
 				migrateConfigFile(oldPath, newPath, tc.component)
 
-				rec := sink.OnlyRecord(t)
+				rec := sink.Records().Only(t, "log record")
 				logtest.AssertRecord(t, rec, logtest.RecordWant{
 					Level:     slog.LevelInfo,
 					Msg:       "migrate",
@@ -154,7 +154,7 @@ func TestMigrateConfigFileLogging(t *testing.T) {
 
 		migrateConfigFile(oldPath, newPath, "projects")
 
-		rec := sink.OnlyRecord(t)
+		rec := sink.Records().Only(t, "log record")
 		logtest.AssertRecord(t, rec, logtest.RecordWant{
 			Level:     slog.LevelWarn,
 			Msg:       "migrate",
@@ -194,7 +194,7 @@ func TestMigrateConfigFileLogging(t *testing.T) {
 
 		migrateConfigFile(oldPath, newPath, "projects")
 
-		rec := sink.OnlyRecord(t)
+		rec := sink.Records().Only(t, "log record")
 		logtest.AssertRecord(t, rec, logtest.RecordWant{
 			Level:     slog.LevelWarn,
 			Msg:       "migrate",
@@ -252,7 +252,7 @@ func TestConfigFilePathThreadsComponent(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		rec := sink.OnlyRecord(t)
+		rec := sink.Records().Only(t, "log record")
 		if got := rec.AttrString(t, "component"); got != "hooks" {
 			t.Errorf("component = %q, want %q", got, "hooks")
 		}

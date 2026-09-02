@@ -15,6 +15,7 @@ import (
 
 	"github.com/leeovery/portal/cmd/bootstrap"
 	"github.com/leeovery/portal/internal/bootstrapadapter"
+	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/portalbintest"
 	"github.com/leeovery/portal/internal/portaltest"
 	"github.com/leeovery/portal/internal/state"
@@ -123,22 +124,22 @@ func TestSweepOrphanDaemons_Integration_CleanStateZeroSignals(t *testing.T) {
 	core, ok := sweeper.(*bootstrap.OrphanSweepCore)
 	if !ok {
 		t.Fatalf("NewOrphanSweeper returned %T; want *bootstrap.OrphanSweepCore "+
-			"(needed to inject a recording Logger)", sweeper)
+			"(needed to inject a capturing Logger)", sweeper)
 	}
-	logger := &bootstrap.RecordingLogger{}
-	core.Logger = logger.Logger()
+	sink := &logtest.Sink{}
+	core.Logger = slog.New(sink)
 
 	if err := sweeper.SweepOrphanDaemons(); err != nil {
 		t.Fatalf("SweepOrphanDaemons returned non-nil error: %v", err)
 	}
 
 	const forbidden = "sweep: killed orphan daemon"
-	for _, entry := range logger.AllEntries() {
+	for _, entry := range sink.Lines() {
 		if strings.Contains(entry, forbidden) {
 			t.Fatalf("clean-state sweep emitted forbidden log entry containing %q\n"+
 				"  entry: %s\n"+
 				"  all entries:\n%s",
-				forbidden, entry, strings.Join(logger.AllEntries(), "\n"))
+				forbidden, entry, sink.Body())
 		}
 	}
 
@@ -291,5 +292,3 @@ func pidAlive(pid int) bool {
 	}
 	return !errors.Is(err, syscall.ESRCH)
 }
-
-var _ slog.Handler = (*bootstrap.RecordingLogger)(nil)

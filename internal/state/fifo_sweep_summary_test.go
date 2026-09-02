@@ -31,7 +31,7 @@ func TestSweepOrphanFIFOs_EmitsCleanSummaryCountingReapedAndSkipped(t *testing.T
 		t.Fatalf("SweepOrphanFIFOs: %v", err)
 	}
 
-	rec := sink.OnlyRecordWith(t, "clean", "orphan-fifo sweep complete")
+	rec := sink.RecordsWith("clean", "orphan-fifo sweep complete").Only(t, "clean orphan-fifo sweep complete record")
 	if rec.Level != slog.LevelInfo {
 		t.Errorf("summary level = %v, want INFO", rec.Level)
 	}
@@ -52,7 +52,7 @@ func TestSweepOrphanFIFOs_EmitsZeroReapedZeroSkippedForMissingStateDir(t *testin
 		t.Fatalf("SweepOrphanFIFOs: %v", err)
 	}
 
-	rec := sink.OnlyRecordWith(t, "clean", "orphan-fifo sweep complete")
+	rec := sink.RecordsWith("clean", "orphan-fifo sweep complete").Only(t, "clean orphan-fifo sweep complete record")
 	if got := rec.IntAttr(t, "reaped"); got != 0 {
 		t.Errorf("reaped = %d, want 0 (loop runs zero times)", got)
 	}
@@ -81,7 +81,7 @@ func TestSweepOrphanFIFOs_PreservedNonFIFOCountsAsSkipped(t *testing.T) {
 		t.Errorf("file mode changed: got %v", info.Mode())
 	}
 
-	rec := sink.OnlyRecordWith(t, "clean", "orphan-fifo sweep complete")
+	rec := sink.RecordsWith("clean", "orphan-fifo sweep complete").Only(t, "clean orphan-fifo sweep complete record")
 	if got := rec.IntAttr(t, "reaped"); got != 0 {
 		t.Errorf("reaped = %d, want 0", got)
 	}
@@ -130,15 +130,15 @@ func TestSweepOrphanFIFOs_RemoveFailureWarnsOnLoggerAndCountsAsSkipped(t *testin
 		t.Fatalf("expected 2 remove-failure WARNs under bootstrap, got %d: %+v", len(warns), sink.Records())
 	}
 	for _, w := range warns {
-		if _, ok := w.Attrs["error"]; !ok {
+		if !w.HasAttr("error") {
 			t.Errorf("remove-failure WARN missing error attr: %+v", w.Attrs)
 		}
-		if _, ok := w.Attrs["path"]; !ok {
+		if !w.HasAttr("path") {
 			t.Errorf("remove-failure WARN missing path attr: %+v", w.Attrs)
 		}
 	}
 
-	rec := sink.OnlyRecordWith(t, "clean", "orphan-fifo sweep complete")
+	rec := sink.RecordsWith("clean", "orphan-fifo sweep complete").Only(t, "clean orphan-fifo sweep complete record")
 	if got := rec.IntAttr(t, "reaped"); got != 0 {
 		t.Errorf("reaped = %d, want 0", got)
 	}
@@ -166,7 +166,7 @@ func TestSweepOrphanFIFOs_LiveMarkerProtectedCountsAsSkippedAndIsLeftInPlace(t *
 		t.Errorf("live-marker-protected FIFO removed: %v", err)
 	}
 
-	rec := sink.OnlyRecordWith(t, "clean", "orphan-fifo sweep complete")
+	rec := sink.RecordsWith("clean", "orphan-fifo sweep complete").Only(t, "clean orphan-fifo sweep complete record")
 	if got := rec.IntAttr(t, "reaped"); got != 0 {
 		t.Errorf("reaped = %d, want 0", got)
 	}
@@ -194,12 +194,9 @@ func TestSweepOrphanFIFOs_DemotesPerRemovalInfoToDebugUnderClean(t *testing.T) {
 		}
 	}
 
-	dbg := sink.RecordsAtExactLevelWith(slog.LevelDebug, "clean", "orphan fifo reaped")
-	if len(dbg) != 1 {
-		t.Fatalf("expected 1 DEBUG 'orphan fifo reaped' under clean, got %d: %+v", len(dbg), sink.Records())
-	}
-	if p, ok := dbg[0].Attrs["path"]; !ok || p.String() != orphan {
-		t.Errorf("DEBUG 'orphan fifo reaped' path = %v, want %s", dbg[0].Attrs["path"], orphan)
+	dbg := sink.RecordsAtExactLevelWith(slog.LevelDebug, "clean", "orphan fifo reaped").Only(t, "DEBUG clean orphan fifo reaped record")
+	if p := dbg.AttrString(t, "path"); p != orphan {
+		t.Errorf("DEBUG 'orphan fifo reaped' path = %q, want %s", p, orphan)
 	}
 }
 
@@ -235,15 +232,13 @@ func TestSweepOrphanFIFOs_BoundaryContract_CallerWarnSinkVsCleanSummary(t *testi
 		t.Fatalf("restore chmod: %v", err)
 	}
 
-	warns := sink.RecordsAtExactLevelWith(slog.LevelWarn, callerComponent, "remove orphan fifo failed")
-	if len(warns) != 1 {
-		t.Fatalf("expected 1 remove-failure WARN under %q, got %d: %+v", callerComponent, len(warns), sink.Records())
-	}
+	_ = sink.RecordsAtExactLevelWith(slog.LevelWarn, callerComponent, "remove orphan fifo failed").
+		Only(t, "remove-failure WARN under "+callerComponent)
 	if cleanWarns := sink.RecordsAtExactLevelWith(slog.LevelWarn, "clean", "remove orphan fifo failed"); len(cleanWarns) != 0 {
 		t.Errorf("per-item WARN must NOT be attributed to clean, got %d: %+v", len(cleanWarns), cleanWarns)
 	}
 
-	rec := sink.OnlyRecordWith(t, "clean", "orphan-fifo sweep complete")
+	rec := sink.RecordsWith("clean", "orphan-fifo sweep complete").Only(t, "clean orphan-fifo sweep complete record")
 	if rec.Level != slog.LevelInfo {
 		t.Errorf("summary level = %v, want INFO", rec.Level)
 	}

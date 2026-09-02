@@ -32,11 +32,7 @@ var closedSpawnAttrKeys = map[string]bool{
 
 func onlyInfoRecord(t *testing.T, sink *logtest.Sink) logtest.Record {
 	t.Helper()
-	infos := sink.RecordsAtExactLevel(slog.LevelInfo)
-	if len(infos) != 1 {
-		t.Fatalf("want exactly 1 INFO spawn record, got %d: %+v", len(infos), infos)
-	}
-	return infos[0]
+	return sink.RecordsAtExactLevel(slog.LevelInfo).Only(t, "INFO spawn record")
 }
 
 func assertClosedSpawnKeys(t *testing.T, sink *logtest.Sink) {
@@ -151,37 +147,31 @@ func TestBurstObservability_PerExternalWindowSplitByOutcome(t *testing.T) {
 	}
 	injectComplete(t, m, msg)
 
-	debugs := sink.RecordsAtExactLevel(slog.LevelDebug)
-	if len(debugs) != 1 {
-		t.Fatalf("want exactly 1 DEBUG spawn record (the confirmed window), got %d: %+v", len(debugs), debugs)
+	debug := sink.RecordsAtExactLevel(slog.LevelDebug).Only(t, "DEBUG spawn record")
+	if debug.Msg != "external window" {
+		t.Errorf("DEBUG msg = %q, want %q", debug.Msg, "external window")
 	}
-	if debugs[0].Msg != "external window" {
-		t.Errorf("DEBUG msg = %q, want %q", debugs[0].Msg, "external window")
-	}
-	if got := debugs[0].AttrString(t, "session"); got != "alpha" {
+	if got := debug.AttrString(t, "session"); got != "alpha" {
 		t.Errorf("DEBUG session = %q, want alpha", got)
 	}
-	if got := debugs[0].AttrString(t, "ack"); got != "confirmed" {
+	if got := debug.AttrString(t, "ack"); got != "confirmed" {
 		t.Errorf("DEBUG ack = %q, want confirmed", got)
 	}
-	if got := debugs[0].AttrString(t, "detail"); got != "opened alpha detail" {
+	if got := debug.AttrString(t, "detail"); got != "opened alpha detail" {
 		t.Errorf("DEBUG detail = %q, want the opaque driver detail", got)
 	}
 
-	warns := sink.RecordsAtExactLevel(slog.LevelWarn)
-	if len(warns) != 1 {
-		t.Fatalf("want exactly 1 WARN spawn record (the failed window), got %d: %+v", len(warns), warns)
+	warn := sink.RecordsAtExactLevel(slog.LevelWarn).Only(t, "WARN spawn record")
+	if warn.Msg != "external window failed" {
+		t.Errorf("WARN msg = %q, want %q", warn.Msg, "external window failed")
 	}
-	if warns[0].Msg != "external window failed" {
-		t.Errorf("WARN msg = %q, want %q", warns[0].Msg, "external window failed")
-	}
-	if got := warns[0].AttrString(t, "session"); got != "bravo" {
+	if got := warn.AttrString(t, "session"); got != "bravo" {
 		t.Errorf("WARN session = %q, want bravo", got)
 	}
-	if got := warns[0].AttrString(t, "ack"); got != "timeout" {
+	if got := warn.AttrString(t, "ack"); got != "timeout" {
 		t.Errorf("WARN ack = %q, want timeout", got)
 	}
-	if got := warns[0].AttrString(t, "detail"); got != "boom bravo detail" {
+	if got := warn.AttrString(t, "detail"); got != "boom bravo detail" {
 		t.Errorf("WARN detail = %q, want the opaque driver detail", got)
 	}
 	assertClosedSpawnKeys(t, sink)

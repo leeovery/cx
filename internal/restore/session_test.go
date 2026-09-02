@@ -934,19 +934,15 @@ func TestSessionRestorer_ReStampsSavedPaneToken(t *testing.T) {
 			t.Errorf("respawn-pane calls = %d, want 1 (the pane is still armed)", got)
 		}
 
-		recs := sink.RecordsWithMessage("set pane token failed")
-		if len(recs) != 1 {
-			t.Fatalf("'set pane token failed' records = %d, want 1; body: %q", len(recs), sink.Body())
-		}
-		if recs[0].Level != slog.LevelWarn {
-			t.Errorf("level = %v, want WARN", recs[0].Level)
+		warn := sink.RecordsWithMessage("set pane token failed").Only(t, "set pane token failed record")
+		if warn.Level != slog.LevelWarn {
+			t.Errorf("level = %v, want WARN", warn.Level)
 		}
 		wantKeys := []string{"session", "pane_key", "error"}
-		if !slices.Equal(recs[0].Keys, wantKeys) {
-			t.Errorf("attr keys = %v, want %v", recs[0].Keys, wantKeys)
+		if !slices.Equal(warn.Keys, wantKeys) {
+			t.Errorf("attr keys = %v, want %v", warn.Keys, wantKeys)
 		}
-		rec := sink.Records()[0]
-		if got := rec.AttrString(t, "session"); got != "work" {
+		if got := warn.AttrString(t, "session"); got != "work" {
 			t.Errorf("session attr = %q, want %q", got, "work")
 		}
 	})
@@ -964,11 +960,8 @@ func TestSessionRestorer_ReStampsSavedPaneToken(t *testing.T) {
 			t.Fatalf("Restore: %v", err)
 		}
 
-		recs := sink.Records()
-		if len(recs) != 1 {
-			t.Fatalf("records = %d, want 1; body: %q", len(recs), sink.Body())
-		}
-		got := recs[0].AttrString(t, "pane_key")
+		rec := sink.Records().Only(t, "log record")
+		got := rec.AttrString(t, "pane_key")
 		if want := state.SanitizePaneKey("work", 5, 5); got != want {
 			t.Errorf("pane_key = %q, want the live structural key %q", got, want)
 		}

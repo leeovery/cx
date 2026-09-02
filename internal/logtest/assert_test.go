@@ -11,7 +11,7 @@ func TestAssertRecord_PassesOnAMatchingRecord(t *testing.T) {
 	logger, sink := logtest.NewCaptureLogger(t)
 	logger.With("component", "hooks").Info("set", "op", "set", "via", "cli")
 
-	logtest.AssertRecord(t, sink.OnlyRecord(t), logtest.RecordWant{
+	logtest.AssertRecord(t, sink.Records().Only(t, "log record"), logtest.RecordWant{
 		Level:     slog.LevelInfo,
 		Msg:       "set",
 		Component: "hooks",
@@ -23,7 +23,7 @@ func TestAssertRecord_PassesOnAMatchingRecord(t *testing.T) {
 func TestAssertRecord_ReportsEveryMismatchedProperty(t *testing.T) {
 	logger, sink := logtest.NewCaptureLogger(t)
 	logger.With("component", "aliases").Warn("set", "op", "set", "via", "cli")
-	rec := sink.OnlyRecord(t)
+	rec := sink.Records().Only(t, "log record")
 
 	want := logtest.RecordWant{
 		Level:     slog.LevelInfo,

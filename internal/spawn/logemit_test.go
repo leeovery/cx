@@ -69,28 +69,25 @@ func TestLogBatchSummary_OpenedDerivedFromPartitionResults(t *testing.T) {
 
 	failLogger, failSink := logtest.NewCaptureLogger(t)
 	LogBatchSummary(failLogger, ghosttyID(), ResolutionNative, results, 4, false, "b")
-	failInfo := failSink.RecordsAtExactLevel(slog.LevelInfo)
-	if len(failInfo) != 1 {
-		t.Fatalf("want exactly 1 INFO summary, got %d", len(failInfo))
-	}
-	if got := failInfo[0].IntAttr(t, "opened"); got != int64(len(confirmed)) {
+	failInfo := failSink.RecordsAtExactLevel(slog.LevelInfo).Only(t, "INFO record")
+	if got := failInfo.IntAttr(t, "opened"); got != int64(len(confirmed)) {
 		t.Errorf("opened = %d, want %d (PartitionResults confirmed count, not len(results)=%d)", got, len(confirmed), len(results))
 	}
-	if got := failInfo[0].IntAttr(t, "total"); got != 4 {
+	if got := failInfo.IntAttr(t, "total"); got != 4 {
 		t.Errorf("total = %d, want 4 (N passed through)", got)
 	}
-	if failInfo[0].Msg != "opened 1/4" {
-		t.Errorf("summary msg = %q, want %q", failInfo[0].Msg, "opened 1/4")
+	if failInfo.Msg != "opened 1/4" {
+		t.Errorf("summary msg = %q, want %q", failInfo.Msg, "opened 1/4")
 	}
 
 	okLogger, okSink := logtest.NewCaptureLogger(t)
 	LogBatchSummary(okLogger, ghosttyID(), ResolutionNative, results, 4, true, "b")
-	okInfo := okSink.RecordsAtExactLevel(slog.LevelInfo)
-	if got := okInfo[0].IntAttr(t, "opened"); got != int64(len(confirmed)+1) {
+	okInfo := okSink.RecordsAtExactLevel(slog.LevelInfo).Only(t, "INFO batch summary")
+	if got := okInfo.IntAttr(t, "opened"); got != int64(len(confirmed)+1) {
 		t.Errorf("opened = %d, want %d (confirmed + trigger self-attach)", got, len(confirmed)+1)
 	}
-	if okInfo[0].Msg != "opened 2/4" {
-		t.Errorf("summary msg = %q, want %q", okInfo[0].Msg, "opened 2/4")
+	if okInfo.Msg != "opened 2/4" {
+		t.Errorf("summary msg = %q, want %q", okInfo.Msg, "opened 2/4")
 	}
 
 	if n := len(failSink.RecordsAtExactLevel(slog.LevelDebug)); n != 1 {
@@ -128,7 +125,7 @@ func TestLogWindowResults_FailedWindowsWarn(t *testing.T) {
 
 		LogWindowResults(logger, results)
 
-		r := sink.OnlyRecord(t)
+		r := sink.Records().Only(t, "log record")
 		if r.Level != slog.LevelWarn {
 			t.Errorf("level = %v, want WARN", r.Level)
 		}
@@ -153,7 +150,7 @@ func TestLogWindowResults_FailedWindowsWarn(t *testing.T) {
 
 		LogWindowResults(logger, results)
 
-		r := sink.OnlyRecord(t)
+		r := sink.Records().Only(t, "log record")
 		if r.Level != slog.LevelWarn {
 			t.Errorf("level = %v, want WARN", r.Level)
 		}
@@ -175,7 +172,7 @@ func TestLogWindowResults_FailedWindowsWarn(t *testing.T) {
 
 		LogWindowResults(logger, results)
 
-		r := sink.OnlyRecord(t)
+		r := sink.Records().Only(t, "log record")
 		if r.Level != slog.LevelDebug {
 			t.Errorf("level = %v, want DEBUG", r.Level)
 		}
@@ -194,7 +191,7 @@ func TestLogWindowResults_FailedWindowsWarn(t *testing.T) {
 
 		LogWindowResults(logger, results)
 
-		r := sink.OnlyRecord(t)
+		r := sink.Records().Only(t, "log record")
 		if r.Level != slog.LevelDebug {
 			t.Errorf("level = %v, want DEBUG (permission window excluded from WARN)", r.Level)
 		}
@@ -230,7 +227,7 @@ func TestLogUnsupported_Body(t *testing.T) {
 	if got := sink.Body(); got != want {
 		t.Errorf("LogUnsupported body =\n  %q\nwant\n  %q", got, want)
 	}
-	if r := sink.OnlyRecord(t); r.HasAttr("opened") || r.HasAttr("total") || r.HasAttr("batch") {
+	if r := sink.Records().Only(t, "log record"); r.HasAttr("opened") || r.HasAttr("total") || r.HasAttr("batch") {
 		t.Errorf("unsupported event must carry no opened/total/batch attrs: keys=%v", r.Keys)
 	}
 	assertClosedKeys(t, sink)
@@ -243,7 +240,7 @@ func TestLogGone_Body(t *testing.T) {
 		if got := sink.Body(); got != "INFO 'bravo' is gone — nothing opened" {
 			t.Errorf("LogGone body = %q, want %q", got, "INFO 'bravo' is gone — nothing opened")
 		}
-		if r := sink.OnlyRecord(t); len(r.Keys) != 0 {
+		if r := sink.Records().Only(t, "log record"); len(r.Keys) != 0 {
 			t.Errorf("gone event must carry no attrs, got keys=%v", r.Keys)
 		}
 	})

@@ -12,7 +12,7 @@ func TestInstall_RoutesComponentLoggersToTheReturnedSink(t *testing.T) {
 
 	log.For("hooks").Info("set", "op", "set")
 
-	rec := sink.OnlyRecord(t)
+	rec := sink.Records().Only(t, "log record")
 	if rec.Msg != "set" {
 		t.Errorf("Msg = %q, want %q", rec.Msg, "set")
 	}
@@ -34,7 +34,7 @@ func TestInstall_RestoresThePriorHandlerOnCleanup(t *testing.T) {
 
 	log.For("hooks").Info("outer line")
 
-	rec := outer.OnlyRecord(t)
+	rec := outer.Records().Only(t, "log record")
 	if rec.Msg != "outer line" {
 		t.Errorf("Msg = %q, want %q (inner install must not leak past its subtest)", rec.Msg, "outer line")
 	}

@@ -18,30 +18,13 @@ func showHooksWarnRecords(sink *logtest.Sink) logtest.Records {
 
 func assertShowHooksWarnShape(t *testing.T, rec logtest.Record, wantErr error) {
 	t.Helper()
-	gotComponent := ""
-	if v, ok := rec.Attrs["component"]; ok {
-		gotComponent = v.String()
-	}
-	errorClass, sawErrorClass := rec.Attrs["error_class"]
-	gotErrorClass := errorClass.String()
-	errorValue, sawError := rec.Attrs["error"]
-	gotErr, _ := errorValue.Any().(error)
-	if gotComponent != "bootstrap" {
+	if gotComponent := rec.AttrOrEmpty("component"); gotComponent != "bootstrap" {
 		t.Errorf("WARN component = %q, want %q", gotComponent, "bootstrap")
 	}
-	if !sawErrorClass {
-		t.Fatalf("WARN missing error_class attr: %v", rec)
-	}
-	if gotErrorClass != "unexpected" {
+	if gotErrorClass := rec.AttrString(t, "error_class"); gotErrorClass != "unexpected" {
 		t.Errorf("WARN error_class = %q, want %q", gotErrorClass, "unexpected")
 	}
-	if !sawError {
-		t.Fatalf("WARN missing error attr: %v", rec)
-	}
-	if gotErr == nil {
-		t.Fatalf("WARN error attr is not an error value (was passed .Error()?): %v", rec)
-	}
-	if !errors.Is(gotErr, wantErr) {
+	if gotErr := rec.ErrorAttr(t, "error"); !errors.Is(gotErr, wantErr) {
 		t.Errorf("WARN error attr %v does not wrap expected error %v", gotErr, wantErr)
 	}
 }
@@ -86,11 +69,8 @@ func TestRegisterPortalHooks_SessionClosedReadFailureEmitsCanonicalWarn(t *testi
 		t.Errorf("error %v does not wrap sentinel %v", err, sentinel)
 	}
 
-	warns := showHooksWarnRecords(sink)
-	if len(warns) != 1 {
-		t.Fatalf("expected exactly 1 %q WARN (session-closed), got %d: %v", showHooksWarnMessage, len(warns), sink.Records())
-	}
-	assertShowHooksWarnShape(t, warns[0], sentinel)
+	warn := showHooksWarnRecords(sink).Only(t, showHooksWarnMessage+" WARN (session-closed)")
+	assertShowHooksWarnShape(t, warn, sentinel)
 
 	for _, c := range setHookCalls(mock.Calls()) {
 		if c[0] == "session-closed" {
@@ -114,15 +94,9 @@ func TestShowHooksWarn_ErrorAttrCarriesCommandErrorChain(t *testing.T) {
 		t.Fatal("expected error, got nil")
 	}
 
-	warns := showHooksWarnRecords(sink)
-	if len(warns) != 1 {
-		t.Fatalf("expected exactly 1 %q WARN (only session-created's read fails), got %d: %v", showHooksWarnMessage, len(warns), sink.Records())
-	}
+	warn := showHooksWarnRecords(sink).Only(t, showHooksWarnMessage+" WARN (only session-created's read fails)")
 
-	gotErr, _ := warns[0].Attrs["error"].Any().(error)
-	if gotErr == nil {
-		t.Fatal("WARN error attr is not an error value (was passed .Error()?)")
-	}
+	gotErr := warn.ErrorAttr(t, "error")
 	var asCmdErr *tmux.CommandError
 	if !errors.As(gotErr, &asCmdErr) {
 		t.Fatalf("WARN error attr %v does not unwrap to *tmux.CommandError", gotErr)

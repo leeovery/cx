@@ -67,7 +67,7 @@ func TestBuildProductionSpawnSeams(t *testing.T) {
 			t.Fatal("Logger seam is nil")
 		}
 		seams.Logger.Info("seam probe")
-		rec := sink.OnlyRecord(t)
+		rec := sink.Records().Only(t, "log record")
 		if got := rec.AttrString(t, "component"); got != "spawn" {
 			t.Errorf("Logger component attr = %q, want %q (body: %q)", got, "spawn", sink.Body())
 		}

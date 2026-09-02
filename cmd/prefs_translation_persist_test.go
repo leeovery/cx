@@ -352,7 +352,7 @@ func TestPersistTranslation_EventShape(t *testing.T) {
 
 	migratingLoadForTest(t)
 
-	rec := sink.OnlyRecord(t)
+	rec := sink.Records().Only(t, "log record")
 	if rec.Level != slog.LevelInfo {
 		t.Errorf("level = %v, want INFO — the migration is a forensic trail, not a warning", rec.Level)
 	}

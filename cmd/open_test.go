@@ -1976,11 +1976,7 @@ func TestOpenCommand_ResolveLog_SessionHit(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	recs := sink.RecordsWith("resolve", "resolved")
-	if len(recs) != 1 {
-		t.Fatalf("expected exactly 1 resolve record, got %d", len(recs))
-	}
-	r := recs[0]
+	r := sink.RecordsWith("resolve", "resolved").Only(t, "resolve resolved record")
 	if r.Level != slog.LevelInfo {
 		t.Errorf("resolve record level = %v, want INFO", r.Level)
 	}
@@ -2011,11 +2007,7 @@ func TestOpenCommand_ResolveLog_ZoxideMint(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	recs := sink.RecordsWith("resolve", "resolved")
-	if len(recs) != 1 {
-		t.Fatalf("expected exactly 1 resolve record, got %d", len(recs))
-	}
-	r := recs[0]
+	r := sink.RecordsWith("resolve", "resolved").Only(t, "resolve resolved record")
 	if r.Level != slog.LevelInfo {
 		t.Errorf("resolve record level = %v, want INFO", r.Level)
 	}
@@ -2047,11 +2039,7 @@ func TestOpenCommand_ResolveLog_Miss(t *testing.T) {
 		t.Errorf("error = %q, want %q", err.Error(), want)
 	}
 
-	recs := sink.RecordsWith("resolve", "resolved")
-	if len(recs) != 1 {
-		t.Fatalf("expected exactly 1 resolve record, got %d", len(recs))
-	}
-	r := recs[0]
+	r := sink.RecordsWith("resolve", "resolved").Only(t, "resolve resolved record")
 	if r.Level != slog.LevelInfo {
 		t.Errorf("resolve record level = %v, want INFO", r.Level)
 	}
@@ -2097,16 +2085,13 @@ func TestEmitResolveDecision_Helper(t *testing.T) {
 
 		emitResolveDecision("dev", &resolver.SessionResult{Name: "dev", Domain: "session"})
 
-		recs := sink.RecordsWith("resolve", "resolved")
-		if len(recs) != 1 {
-			t.Fatalf("expected exactly 1 resolve record, got %d", len(recs))
+		rec := sink.RecordsWith("resolve", "resolved").Only(t, "resolve resolved record")
+		if rec.Level != slog.LevelInfo {
+			t.Errorf("resolve record level = %v, want INFO", rec.Level)
 		}
-		if recs[0].Level != slog.LevelInfo {
-			t.Errorf("resolve record level = %v, want INFO", recs[0].Level)
-		}
-		assertResolveAttr(t, recs[0], "target", "dev")
-		assertResolveAttr(t, recs[0], "domain", "session")
-		assertResolveAttr(t, recs[0], "resolved_path", "dev")
+		assertResolveAttr(t, rec, "target", "dev")
+		assertResolveAttr(t, rec, "domain", "session")
+		assertResolveAttr(t, rec, "resolved_path", "dev")
 	})
 
 	t.Run("glob target emits no line (gate lives in the helper)", func(t *testing.T) {
@@ -2126,18 +2111,15 @@ func TestLogExecHandoff_Helper(t *testing.T) {
 
 		logExecHandoff([]string{"tmux", "attach-session", "-t", "=foo"})
 
-		recs := sink.RecordsWith("process", "exec")
-		if len(recs) != 1 {
-			t.Fatalf("expected exactly 1 process: exec record, got %d", len(recs))
+		rec := sink.RecordsWith("process", "exec").Only(t, "process exec record")
+		if rec.Level != slog.LevelInfo {
+			t.Errorf("exec marker level = %v, want INFO", rec.Level)
 		}
-		if recs[0].Level != slog.LevelInfo {
-			t.Errorf("exec marker level = %v, want INFO", recs[0].Level)
+		if target := rec.AttrString(t, "target"); target != "tmux" {
+			t.Errorf("target attr = %q, want %q", target, "tmux")
 		}
-		if target, ok := recordStringAttr(recs[0], "target"); !ok || target != "tmux" {
-			t.Errorf("target attr = %q (ok=%v), want %q", target, ok, "tmux")
-		}
-		if gotArgs, ok := recordStringAttr(recs[0], "args"); !ok || gotArgs != "attach-session -t =foo" {
-			t.Errorf("args attr = %q (ok=%v), want %q", gotArgs, ok, "attach-session -t =foo")
+		if gotArgs := rec.AttrString(t, "args"); gotArgs != "attach-session -t =foo" {
+			t.Errorf("args attr = %q, want %q", gotArgs, "attach-session -t =foo")
 		}
 	})
 
@@ -2146,12 +2128,9 @@ func TestLogExecHandoff_Helper(t *testing.T) {
 
 		logExecHandoff(nil)
 
-		recs := sink.RecordsWith("process", "exec")
-		if len(recs) != 1 {
-			t.Fatalf("expected exactly 1 process: exec record, got %d", len(recs))
-		}
-		if gotArgs, ok := recordStringAttr(recs[0], "args"); !ok || gotArgs != "" {
-			t.Errorf("args attr = %q (ok=%v), want empty", gotArgs, ok)
+		rec := sink.RecordsWith("process", "exec").Only(t, "process exec record")
+		if gotArgs := rec.AttrString(t, "args"); gotArgs != "" {
+			t.Errorf("args attr = %q, want empty", gotArgs)
 		}
 	})
 }
@@ -2764,22 +2743,9 @@ func TestAttachConnectorConnectArgv(t *testing.T) {
 
 func assertResolveAttr(t *testing.T, rec logtest.Record, key, want string) {
 	t.Helper()
-	got, ok := recordStringAttr(rec, key)
-	if !ok {
-		t.Errorf("resolve record missing %q attr", key)
-		return
-	}
-	if got != want {
+	if got := rec.AttrString(t, key); got != want {
 		t.Errorf("resolve record %q = %q, want %q", key, got, want)
 	}
-}
-
-func recordStringAttr(rec logtest.Record, key string) (string, bool) {
-	v, ok := rec.Attrs[key]
-	if !ok {
-		return "", false
-	}
-	return v.Resolve().String(), true
 }
 
 // Reads the captured records at Exec time, so the exec marker's emission can be
@@ -2811,22 +2777,15 @@ func TestAttachConnector_EmitsExecMarkerBeforeExec(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		recs := sink.RecordsWith("process", "exec")
-		if len(recs) != 1 {
-			t.Fatalf("expected exactly 1 process: exec record, got %d", len(recs))
-		}
-		r := recs[0]
+		r := sink.RecordsWith("process", "exec").Only(t, "process exec record")
 
 		if r.Level != slog.LevelInfo {
 			t.Errorf("exec marker level = %v, want INFO", r.Level)
 		}
-		if target, ok := recordStringAttr(r, "target"); !ok || target != "tmux" {
-			t.Errorf("target attr = %q (ok=%v), want %q", target, ok, "tmux")
+		if target := r.AttrString(t, "target"); target != "tmux" {
+			t.Errorf("target attr = %q, want %q", target, "tmux")
 		}
-		gotArgs, ok := recordStringAttr(r, "args")
-		if !ok {
-			t.Fatal("exec marker missing args attr")
-		}
+		gotArgs := r.AttrString(t, "args")
 		wantArgs := "attach-session -t =foo"
 		if gotArgs != wantArgs {
 			t.Errorf("args attr = %q, want %q", gotArgs, wantArgs)
@@ -2873,22 +2832,15 @@ func TestPathOpener_EmitsExecMarkerBeforeExec_OutsideTmux(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		recs := sink.RecordsWith("process", "exec")
-		if len(recs) != 1 {
-			t.Fatalf("expected exactly 1 process: exec record, got %d", len(recs))
-		}
-		r := recs[0]
+		r := sink.RecordsWith("process", "exec").Only(t, "process exec record")
 
 		if r.Level != slog.LevelInfo {
 			t.Errorf("exec marker level = %v, want INFO", r.Level)
 		}
-		if target, ok := recordStringAttr(r, "target"); !ok || target != "tmux" {
-			t.Errorf("target attr = %q (ok=%v), want %q", target, ok, "tmux")
+		if target := r.AttrString(t, "target"); target != "tmux" {
+			t.Errorf("target attr = %q, want %q", target, "tmux")
 		}
-		gotArgs, ok := recordStringAttr(r, "args")
-		if !ok {
-			t.Fatal("exec marker missing args attr")
-		}
+		gotArgs := r.AttrString(t, "args")
 		wantArgs := "new-session -A -s myproject-abc123 -c /home/user/project"
 		if gotArgs != wantArgs {
 			t.Errorf("args attr = %q, want %q", gotArgs, wantArgs)
@@ -2946,14 +2898,8 @@ func TestExecMarker_ArgsLoggedVerbatim(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	recs := sink.RecordsWith("process", "exec")
-	if len(recs) != 1 {
-		t.Fatalf("expected exactly 1 process: exec record, got %d", len(recs))
-	}
-	gotArgs, ok := recordStringAttr(recs[0], "args")
-	if !ok {
-		t.Fatal("exec marker missing args attr")
-	}
+	rec := sink.RecordsWith("process", "exec").Only(t, "process exec record")
+	gotArgs := rec.AttrString(t, "args")
 	wantArgs := "new-session -A -s myproject-abc123 -c /home/user/project " + shellCmd
 	if gotArgs != wantArgs {
 		t.Errorf("args attr = %q, want %q (verbatim)", gotArgs, wantArgs)
@@ -3082,16 +3028,12 @@ func TestExecMarker_VisibleAtWARN(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	recs := sink.RecordsWith("process", "exec")
-	if len(recs) != 1 {
-		t.Fatalf("exec marker not visible at WARN: expected 1 process: exec record, got %d", len(recs))
+	r := sink.RecordsWith("process", "exec").Only(t, "process exec record")
+	if target := r.AttrString(t, "target"); target != "tmux" {
+		t.Errorf("target attr = %q, want %q", target, "tmux")
 	}
-	r := recs[0]
-	if target, ok := recordStringAttr(r, "target"); !ok || target != "tmux" {
-		t.Errorf("target attr = %q (ok=%v), want %q", target, ok, "tmux")
-	}
-	if gotArgs, ok := recordStringAttr(r, "args"); !ok || gotArgs != "attach-session -t =foo" {
-		t.Errorf("args attr = %q (ok=%v), want %q", gotArgs, ok, "attach-session -t =foo")
+	if gotArgs := r.AttrString(t, "args"); gotArgs != "attach-session -t =foo" {
+		t.Errorf("args attr = %q, want %q", gotArgs, "attach-session -t =foo")
 	}
 }
 

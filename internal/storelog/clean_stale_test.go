@@ -18,7 +18,7 @@ func TestEmitCleanStaleSummary_SuccessInfo(t *testing.T) {
 
 	storelog.EmitCleanStaleSummary(logger, 2, time.Now().Add(-5*time.Millisecond), nil)
 
-	rec := sink.OnlyRecord(t)
+	rec := sink.Records().Only(t, "log record")
 	logtest.AssertRecord(t, rec, logtest.RecordWant{
 		Level:     slog.LevelInfo,
 		Msg:       "clean-stale",
@@ -30,10 +30,10 @@ func TestEmitCleanStaleSummary_SuccessInfo(t *testing.T) {
 		t.Errorf("entries = %q, want %q", got, "2")
 	}
 	rec.RequireDuration(t, "took")
-	if _, ok := rec.Attrs["error"]; ok {
+	if rec.HasAttr("error") {
 		t.Errorf("success summary must omit error attr: %+v", rec.Attrs)
 	}
-	if _, ok := rec.Attrs["error_class"]; ok {
+	if rec.HasAttr("error_class") {
 		t.Errorf("success summary must omit error_class attr: %+v", rec.Attrs)
 	}
 }
@@ -45,7 +45,7 @@ func TestEmitCleanStaleSummary_FailureWarn(t *testing.T) {
 	saveErr := fmt.Errorf("%w: boom", fileutil.ErrWriteTempCreate)
 	storelog.EmitCleanStaleSummary(logger, 3, time.Now().Add(-5*time.Millisecond), saveErr)
 
-	rec := sink.OnlyRecord(t)
+	rec := sink.Records().Only(t, "log record")
 	logtest.AssertRecord(t, rec, logtest.RecordWant{
 		Level:     slog.LevelWarn,
 		Msg:       "clean-stale",

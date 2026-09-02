@@ -48,11 +48,7 @@ func TestTerminalsStoreLoad(t *testing.T) {
 		if cfg == nil || len(cfg) != 0 {
 			t.Errorf("config = %+v, want an empty non-nil config for an unreadable file", cfg)
 		}
-		got := sink.RecordsAtExactLevel(slog.LevelWarn)
-		if len(got) != 1 {
-			t.Fatalf("emitted %d WARN records for an unreadable file, want exactly 1: %+v", len(got), got)
-		}
-		rec := got[0]
+		rec := sink.RecordsAtExactLevel(slog.LevelWarn).Only(t, "WARN record for an unreadable file")
 		if v := rec.AttrString(t, "component"); v != "spawn" {
 			t.Errorf("WARN component = %q, want %q", v, "spawn")
 		}
@@ -71,11 +67,7 @@ func TestTerminalsStoreLoad(t *testing.T) {
 		if cfg == nil || len(cfg) != 0 {
 			t.Errorf("config = %+v, want an empty non-nil config for malformed JSON", cfg)
 		}
-		got := sink.RecordsAtExactLevel(slog.LevelWarn)
-		if len(got) != 1 {
-			t.Fatalf("emitted %d WARN records for malformed JSON, want exactly 1: %+v", len(got), got)
-		}
-		rec := got[0]
+		rec := sink.RecordsAtExactLevel(slog.LevelWarn).Only(t, "WARN record for malformed JSON")
 		if v := rec.AttrString(t, "component"); v != "spawn" {
 			t.Errorf("WARN component = %q, want %q", v, "spawn")
 		}

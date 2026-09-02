@@ -894,7 +894,7 @@ func TestCleanStaleRemovesExactlyStaleKeys(t *testing.T) {
 // partitionCleanStaleRecords splits the captured clean-stale records into the
 // per-key lines and the batch summaries, so an assertion compares sets rather
 // than the map-iteration order the per-key lines are emitted in.
-func partitionCleanStaleRecords(t *testing.T, recs []logtest.Record) (perKey, summaries []logtest.Record) {
+func partitionCleanStaleRecords(t *testing.T, recs logtest.Records) (perKey, summaries logtest.Records) {
 	t.Helper()
 	for _, r := range recs {
 		// The clean's own pre-read says so when it degrades, which it does
@@ -969,10 +969,7 @@ func TestCleanStaleLogging(t *testing.T) {
 			t.Errorf("per-key records = %v, want %v", got, want)
 		}
 
-		if len(summaries) != 1 {
-			t.Fatalf("got %d INFO summary records, want 1: %+v", len(summaries), summaries)
-		}
-		summary := summaries[0]
+		summary := summaries.Only(t, "INFO clean-stale summary record")
 		if summary.Level != slog.LevelInfo {
 			t.Errorf("summary level = %v, want INFO", summary.Level)
 		}
@@ -999,13 +996,11 @@ func TestCleanStaleLogging(t *testing.T) {
 		}
 
 		perKey, _ := partitionCleanStaleRecords(t, sink.Records())
-		if len(perKey) != 1 {
-			t.Fatalf("got %d per-key records, want 1: %+v", len(perKey), perKey)
-		}
-		if got := perKey[0].AttrString(t, "hook_key"); got != hookstest.ReapableSeedA {
+		removed := perKey.Only(t, "per-key clean-stale record")
+		if got := removed.AttrString(t, "hook_key"); got != hookstest.ReapableSeedA {
 			t.Errorf("hook_key = %q, want %q", got, hookstest.ReapableSeedA)
 		}
-		if got := perKey[0].AttrString(t, "value"); got != "" {
+		if got := removed.AttrString(t, "value"); got != "" {
 			t.Errorf("value = %q, want empty", got)
 		}
 	})
@@ -1024,10 +1019,7 @@ func TestCleanStaleLogging(t *testing.T) {
 		}
 
 		perKey, _ := partitionCleanStaleRecords(t, sink.Records())
-		if len(perKey) != 1 {
-			t.Fatalf("got %d per-key records, want 1: %+v", len(perKey), perKey)
-		}
-		if got := perKey[0].AttrString(t, "value"); got != "cmd1" {
+		if got := perKey.Only(t, "per-key clean-stale record").AttrString(t, "value"); got != "cmd1" {
 			t.Errorf("value = %q, want %q", got, "cmd1")
 		}
 	})
@@ -1046,16 +1038,14 @@ func TestCleanStaleLogging(t *testing.T) {
 			t.Errorf("got %d per-key records, want 0 — no key was removed from the file: %+v", len(perKey), perKey)
 		}
 
-		if len(summaries) != 1 {
-			t.Fatalf("got %d summary records, want 1: %+v", len(summaries), summaries)
+		summary := summaries.Only(t, "clean-stale summary record")
+		if summary.Level != slog.LevelWarn {
+			t.Errorf("summary level = %v, want WARN", summary.Level)
 		}
-		if summaries[0].Level != slog.LevelWarn {
-			t.Errorf("summary level = %v, want WARN", summaries[0].Level)
+		if !summary.HasAttr("error") {
+			t.Errorf("summary missing error attr: %+v", summary.Attrs)
 		}
-		if _, ok := summaries[0].Attrs["error"]; !ok {
-			t.Errorf("summary missing error attr: %+v", summaries[0].Attrs)
-		}
-		if got := summaries[0].AttrString(t, "error_class"); got != "write-failed-temp-create" {
+		if got := summary.AttrString(t, "error_class"); got != "write-failed-temp-create" {
 			t.Errorf("error_class = %q, want %q", got, "write-failed-temp-create")
 		}
 
@@ -1089,7 +1079,7 @@ func TestCleanStaleLogging(t *testing.T) {
 		if !found {
 			t.Fatalf("no INFO clean-stale summary captured: %+v", sink.Records())
 		}
-		if _, ok := summary.Attrs["entries_failed"]; ok {
+		if summary.HasAttr("entries_failed") {
 			t.Errorf("summary must omit entries_failed when no failures: %+v", summary.Attrs)
 		}
 	})
@@ -1186,7 +1176,7 @@ func TestSetLogging(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		rec := sink.OnlyRecord(t)
+		rec := sink.Records().Only(t, "log record")
 		logtest.AssertRecord(t, rec, logtest.RecordWant{
 			Level:     slog.LevelInfo,
 			Msg:       "set",
@@ -1215,7 +1205,7 @@ func TestSetLogging(t *testing.T) {
 			t.Fatalf("unexpected error on second set: %v", err)
 		}
 
-		rec := sink.OnlyRecord(t)
+		rec := sink.Records().Only(t, "log record")
 		logtest.AssertRecord(t, rec, logtest.RecordWant{
 			Level:     slog.LevelInfo,
 			Msg:       "modify",
@@ -1250,7 +1240,7 @@ func TestSetLogging(t *testing.T) {
 			t.Fatalf("unexpected error on noop set: %v", err)
 		}
 
-		rec := sink.OnlyRecord(t)
+		rec := sink.Records().Only(t, "log record")
 		logtest.AssertRecord(t, rec, logtest.RecordWant{
 			Level:     slog.LevelDebug,
 			Msg:       "set-noop",
@@ -1261,7 +1251,7 @@ func TestSetLogging(t *testing.T) {
 		if got := rec.AttrString(t, "hook_key"); got != "my-session:0.0" {
 			t.Errorf("hook_key = %q, want %q", got, "my-session:0.0")
 		}
-		if _, ok := rec.Attrs["value"]; ok {
+		if rec.HasAttr("value") {
 			t.Errorf("set-noop record should not carry a value attr: %+v", rec.Attrs)
 		}
 
@@ -1286,7 +1276,7 @@ func TestSetLogging(t *testing.T) {
 			t.Errorf("returned error not classified as temp-create: %v", err)
 		}
 
-		rec := sink.OnlyRecord(t)
+		rec := sink.Records().Only(t, "log record")
 		if rec.Level != slog.LevelWarn {
 			t.Errorf("level = %v, want WARN", rec.Level)
 		}
@@ -1352,7 +1342,7 @@ func TestRemoveLogging(t *testing.T) {
 			t.Error("removed = false, want true for a seeded entry")
 		}
 
-		rec := sink.OnlyRecord(t)
+		rec := sink.Records().Only(t, "log record")
 		logtest.AssertRecord(t, rec, logtest.RecordWant{
 			Level:     slog.LevelInfo,
 			Msg:       "rm",
@@ -1363,7 +1353,7 @@ func TestRemoveLogging(t *testing.T) {
 		if got := rec.AttrString(t, "hook_key"); got != "my-session:0.0" {
 			t.Errorf("hook_key = %q, want %q", got, "my-session:0.0")
 		}
-		if _, ok := rec.Attrs["value"]; ok {
+		if rec.HasAttr("value") {
 			t.Errorf("rm record should not carry a value attr: %+v", rec.Attrs)
 		}
 	})
@@ -1438,7 +1428,7 @@ func TestRemoveLogging(t *testing.T) {
 			t.Errorf("returned error not classified as temp-create: %v", err)
 		}
 
-		rec := sink.OnlyRecord(t)
+		rec := sink.Records().Only(t, "log record")
 		if rec.Level != slog.LevelWarn {
 			t.Errorf("level = %v, want WARN", rec.Level)
 		}

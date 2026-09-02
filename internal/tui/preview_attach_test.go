@@ -2,13 +2,13 @@ package tui
 
 import (
 	"errors"
-	"io"
 	"log/slog"
 	"os/exec"
 	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/tmux"
 )
@@ -224,7 +224,7 @@ func TestPreviewAttachPipelineSilentLoggerDoesNotPanic(t *testing.T) {
 		selectWindowErr: errors.New("no window"),
 		selectPaneErr:   errors.New("no pane"),
 	}
-	silent := slog.New(slog.NewTextHandler(io.Discard, nil))
+	silent := log.Discard()
 	p := &previewAttachPipeline{tmux: tm, logger: silent}
 
 	defer func() {

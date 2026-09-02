@@ -2,12 +2,18 @@ package bootstrap
 
 import (
 	"errors"
+	"log/slog"
 	"strings"
 	"testing"
 
+	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
 )
+
+// massUnsetDeferralWarnMessage is the message of the WARN emitted when the
+// guard defers a sweep that would otherwise unset every marker.
+const massUnsetDeferralWarnMessage = "stale-marker cleanup: zero live panes parsed with markers present; skipping to avoid mass-unset hazard (next bootstrap retries)"
 
 type fakeMarkerLister struct {
 	markers map[string]struct{}
@@ -335,7 +341,7 @@ func TestStaleMarkerCleanup_MassUnsetHazardGuard(t *testing.T) {
 	})
 
 	t.Run("it returns nil and emits a Warn log entry when zero live panes are returned with markers present", func(t *testing.T) {
-		logger := &RecordingLogger{}
+		sink := &logtest.Sink{}
 		lister := &fakeMarkerLister{markers: map[string]struct{}{
 			"protected__0.0": {},
 			"another__1.2":   {},
@@ -347,7 +353,7 @@ func TestStaleMarkerCleanup_MassUnsetHazardGuard(t *testing.T) {
 			Markers:  lister,
 			Panes:    live,
 			Unsetter: unsetter,
-			Logger:   logger.Logger().With("component", "bootstrap"),
+			Logger:   slog.New(sink).With("component", "bootstrap"),
 		}
 		if err := c.CleanStaleMarkers(); err != nil {
 			t.Fatalf("CleanStaleMarkers must return nil for zero-panes-with-markers deferral; got %v", err)
@@ -356,18 +362,10 @@ func TestStaleMarkerCleanup_MassUnsetHazardGuard(t *testing.T) {
 			t.Errorf("expected zero unset calls under zero-panes guard, got %d (%v)", len(unsetter.calls), unsetter.calls)
 		}
 
-		foundDeferral := false
-		for i, msg := range logger.warnings {
-			if strings.Contains(msg, "stale-marker cleanup") && strings.Contains(msg, "mass-unset hazard") {
-				if logger.warnComponents[i] != "bootstrap" {
-					t.Errorf("deferral Warn component = %q, want %q", logger.warnComponents[i], "bootstrap")
-				}
-				foundDeferral = true
-				break
-			}
-		}
-		if !foundDeferral {
-			t.Errorf("expected a Warn entry identifying the stale-marker cleanup mass-unset-hazard deferral; got warnings=%v", logger.warnings)
+		deferral := sink.RecordsAtExactLevelWithMessage(slog.LevelWarn, massUnsetDeferralWarnMessage).
+			Only(t, "stale-marker cleanup mass-unset-hazard deferral WARN")
+		if comp := deferral.AttrString(t, "component"); comp != "bootstrap" {
+			t.Errorf("deferral Warn component = %q, want %q", comp, "bootstrap")
 		}
 	})
 
@@ -638,7 +636,7 @@ func TestStaleMarkerCleanup_SoftWarningPosture(t *testing.T) {
 	})
 
 	t.Run("zero-panes guard fires when all lines are malformed and markers exist", func(t *testing.T) {
-		logger := &RecordingLogger{}
+		sink := &logtest.Sink{}
 		lister := &fakeMarkerLister{markers: map[string]struct{}{
 			"a__0.0": {},
 			"b__0.0": {},
@@ -651,7 +649,7 @@ func TestStaleMarkerCleanup_SoftWarningPosture(t *testing.T) {
 			Markers:  lister,
 			Panes:    live,
 			Unsetter: unsetter,
-			Logger:   logger.Logger().With("component", "bootstrap"),
+			Logger:   slog.New(sink).With("component", "bootstrap"),
 		}
 		if err := c.CleanStaleMarkers(); err != nil {
 			t.Fatalf("CleanStaleMarkers must return nil under all-malformed + markers-exist deferral; got %v", err)
@@ -660,18 +658,10 @@ func TestStaleMarkerCleanup_SoftWarningPosture(t *testing.T) {
 			t.Errorf("expected zero unset calls under all-malformed + zero-panes guard, got %d (%v)", len(unsetter.calls), unsetter.calls)
 		}
 
-		foundDeferral := false
-		for i, msg := range logger.warnings {
-			if strings.Contains(msg, "stale-marker cleanup") && strings.Contains(msg, "mass-unset hazard") {
-				if logger.warnComponents[i] != "bootstrap" {
-					t.Errorf("deferral Warn component = %q, want %q", logger.warnComponents[i], "bootstrap")
-				}
-				foundDeferral = true
-				break
-			}
-		}
-		if !foundDeferral {
-			t.Errorf("expected a Warn entry identifying the all-malformed + zero-panes mass-unset-hazard deferral; got warnings=%v", logger.warnings)
+		deferral := sink.RecordsAtExactLevelWithMessage(slog.LevelWarn, massUnsetDeferralWarnMessage).
+			Only(t, "all-malformed + zero-panes mass-unset-hazard deferral WARN")
+		if comp := deferral.AttrString(t, "component"); comp != "bootstrap" {
+			t.Errorf("deferral Warn component = %q, want %q", comp, "bootstrap")
 		}
 	})
 

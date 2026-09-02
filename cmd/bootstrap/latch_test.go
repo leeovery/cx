@@ -136,14 +136,13 @@ func TestOrchestratorRun_swallowsLatchWriteFailureAsWarn(t *testing.T) {
 		if rec.Level != slog.LevelWarn {
 			continue
 		}
-		comp, ok := rec.Attrs["component"]
-		if !ok || comp.String() != "bootstrap" {
+		if rec.AttrOrEmpty("component") != "bootstrap" {
 			continue
 		}
 		if !strings.Contains(rec.Msg, state.BootstrappedMarkerName) {
 			continue
 		}
-		if _, hasMarker := rec.Attrs["marker"]; hasMarker {
+		if rec.HasAttr("marker") {
 			t.Errorf("latch-write WARN must not carry a non-vocabulary \"marker\" attr; rec=%+v", rec)
 		}
 		foundWarn = true

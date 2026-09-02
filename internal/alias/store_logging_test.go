@@ -33,7 +33,7 @@ func TestSetAndSave(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		rec := sink.OnlyRecord(t)
+		rec := sink.Records().Only(t, "log record")
 		logtest.AssertRecord(t, rec, logtest.RecordWant{
 			Level:     slog.LevelInfo,
 			Msg:       "set",
@@ -70,7 +70,7 @@ func TestSetAndSave(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		rec := sink.OnlyRecord(t)
+		rec := sink.Records().Only(t, "log record")
 		logtest.AssertRecord(t, rec, logtest.RecordWant{
 			Level:     slog.LevelInfo,
 			Msg:       "modify",
@@ -107,7 +107,7 @@ func TestSetAndSave(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		rec := sink.OnlyRecord(t)
+		rec := sink.Records().Only(t, "log record")
 		logtest.AssertRecord(t, rec, logtest.RecordWant{
 			Level:     slog.LevelDebug,
 			Msg:       "set-noop",
@@ -138,7 +138,7 @@ func TestSetAndSave(t *testing.T) {
 			t.Fatal("expected error from persist into read-only dir, got nil")
 		}
 
-		rec := sink.OnlyRecord(t)
+		rec := sink.Records().Only(t, "log record")
 		logtest.AssertRecord(t, rec, logtest.RecordWant{
 			Level:     slog.LevelWarn,
 			Msg:       "set",
@@ -173,7 +173,7 @@ func TestDeleteAndSave(t *testing.T) {
 			t.Fatal("expected existed=true for a present alias")
 		}
 
-		rec := sink.OnlyRecord(t)
+		rec := sink.Records().Only(t, "log record")
 		logtest.AssertRecord(t, rec, logtest.RecordWant{
 			Level:     slog.LevelInfo,
 			Msg:       "rm",
@@ -221,7 +221,7 @@ func TestDeleteAndSave(t *testing.T) {
 			t.Error("expected existed=true (the entry was present in memory)")
 		}
 
-		rec := sink.OnlyRecord(t)
+		rec := sink.Records().Only(t, "log record")
 		if rec.Level != slog.LevelWarn {
 			t.Errorf("level = %v, want WARN", rec.Level)
 		}

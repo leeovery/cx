@@ -114,7 +114,7 @@ func TestSessionRestorerHydrateExe_FallbackDiagnostics(t *testing.T) {
 
 func onlyWarn(t *testing.T, sink *logtest.Sink) logtest.Record {
 	t.Helper()
-	rec := sink.OnlyRecord(t)
+	rec := sink.Records().Only(t, "log record")
 	if rec.Level != slog.LevelWarn {
 		t.Fatalf("record level = %v; want WARN", rec.Level)
 	}

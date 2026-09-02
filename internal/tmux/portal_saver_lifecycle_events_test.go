@@ -78,7 +78,7 @@ func TestBootstrapPortalSaver_EmitsPlaceholderCreatedWithTmuxPane(t *testing.T) 
 		t.Fatalf("BootstrapPortalSaver returned error: %v", err)
 	}
 
-	rec := sink.OnlyRecordWith(t, "saver", "placeholder created")
+	rec := sink.RecordsWith("saver", "placeholder created").Only(t, "saver placeholder created record")
 	if rec.Level != slog.LevelInfo {
 		t.Errorf("level = %v, want INFO", rec.Level)
 	}
@@ -114,7 +114,7 @@ func TestBootstrapPortalSaver_EmitsDestroyUnattachedOffOnCreateBranch(t *testing
 		t.Fatalf("BootstrapPortalSaver returned error: %v", err)
 	}
 
-	rec := sink.OnlyRecordWith(t, "saver", "destroy-unattached off")
+	rec := sink.RecordsWith("saver", "destroy-unattached off").Only(t, "saver destroy-unattached off record")
 	if rec.Level != slog.LevelInfo {
 		t.Errorf("level = %v, want INFO", rec.Level)
 	}
@@ -145,7 +145,7 @@ func TestBootstrapPortalSaver_EmitsDestroyUnattachedOffOnAliveHappyPath_AndNotRe
 		t.Fatalf("BootstrapPortalSaver returned error: %v", err)
 	}
 
-	rec := sink.OnlyRecordWith(t, "saver", "destroy-unattached off")
+	rec := sink.RecordsWith("saver", "destroy-unattached off").Only(t, "saver destroy-unattached off record")
 	if rec.Level != slog.LevelInfo {
 		t.Errorf("level = %v, want INFO", rec.Level)
 	}
@@ -196,7 +196,7 @@ func TestBootstrapPortalSaver_EmitsRespawnDaemonWithFromToPidAndTmuxPane(t *test
 		t.Fatalf("BootstrapPortalSaver returned error: %v", err)
 	}
 
-	rec := sink.OnlyRecordWith(t, "saver", "respawn-daemon")
+	rec := sink.RecordsWith("saver", "respawn-daemon").Only(t, "saver respawn-daemon record")
 	if rec.Level != slog.LevelInfo {
 		t.Errorf("level = %v, want INFO", rec.Level)
 	}
@@ -243,7 +243,7 @@ func TestBootstrapPortalSaver_StillEmitsRespawnDaemonBestEffortWhenPanePIDReadFa
 		t.Fatalf("BootstrapPortalSaver must not abort on a pid-read miss, got: %v", err)
 	}
 
-	rec := sink.OnlyRecordWith(t, "saver", "respawn-daemon")
+	rec := sink.RecordsWith("saver", "respawn-daemon").Only(t, "saver respawn-daemon record")
 	if got := rec.IntAttr(t, "from_pid"); got != 0 {
 		t.Errorf("from_pid = %d, want 0 (read failed)", got)
 	}
@@ -274,7 +274,7 @@ func TestWaitForSaverDaemonReady_EmitsDaemonReadyWithTargetPidOnSuccess(t *testi
 		t.Fatalf("WaitForSaverDaemonReady returned error: %v", err)
 	}
 
-	rec := sink.OnlyRecordWith(t, "saver", "daemon ready")
+	rec := sink.RecordsWith("saver", "daemon ready").Only(t, "saver daemon ready record")
 	if rec.Level != slog.LevelInfo {
 		t.Errorf("level = %v, want INFO", rec.Level)
 	}
@@ -292,8 +292,8 @@ func TestWaitForSaverDaemonReady_EmitsNoDaemonReadyAndKeepsWarnOnTimeout(t *test
 	installReadinessIdentify(t, func(int) (state.IdentifyResult, error) {
 		return state.IdentifyDead, nil
 	})
-	barrierLog := &barrierLog{}
-	installBarrierLogger(t, barrierLog)
+	barrier := &barrierLog{}
+	installBarrierLogger(t, barrier)
 
 	if err := tmux.WaitForSaverDaemonReady(t.TempDir()); err != nil {
 		t.Fatalf("WaitForSaverDaemonReady returned error: %v", err)
@@ -302,8 +302,8 @@ func TestWaitForSaverDaemonReady_EmitsNoDaemonReadyAndKeepsWarnOnTimeout(t *test
 	if evs := sink.RecordsWith("saver", "daemon ready"); len(evs) != 0 {
 		t.Errorf("expected 0 daemon ready events on timeout, got %d: %+v", len(evs), evs)
 	}
-	if len(barrierLog.warns()) != 1 {
-		t.Errorf("expected exactly 1 WARN on timeout, got %d: %v", len(barrierLog.warns()), barrierLog.warns())
+	if len(barrier.warns()) != 1 {
+		t.Errorf("expected exactly 1 WARN on timeout, got %d: %v", len(barrier.warns()), barrier.warns())
 	}
 }
 
@@ -329,8 +329,8 @@ func TestKillSaverAndWaitForDaemon_EmitsKillBarrierStartedWhenPriorDaemonAlive(t
 		calls++
 		return calls < 3
 	})
-	barrierLog := &barrierLog{}
-	installBarrierLogger(t, barrierLog)
+	barrier := &barrierLog{}
+	installBarrierLogger(t, barrier)
 	sink := logtest.Install(t)
 
 	startedAtKillTime := -1
@@ -347,7 +347,7 @@ func TestKillSaverAndWaitForDaemon_EmitsKillBarrierStartedWhenPriorDaemonAlive(t
 		t.Fatalf("KillSaverAndWaitForDaemon returned error: %v", err)
 	}
 
-	rec := sink.OnlyRecordWith(t, "saver", "kill-barrier started")
+	rec := sink.RecordsWith("saver", "kill-barrier started").Only(t, "saver kill-barrier started record")
 	if rec.Level != slog.LevelInfo {
 		t.Errorf("level = %v, want INFO", rec.Level)
 	}
@@ -357,8 +357,8 @@ func TestKillSaverAndWaitForDaemon_EmitsKillBarrierStartedWhenPriorDaemonAlive(t
 	if startedAtKillTime != 1 {
 		t.Errorf("kill-barrier started must be emitted BEFORE kill-session (count at kill time = %d, want 1)", startedAtKillTime)
 	}
-	if len(barrierLog.warns()) != 0 {
-		t.Errorf("expected 0 WARN lines on clean exit, got %d: %v", len(barrierLog.warns()), barrierLog.warns())
+	if len(barrier.warns()) != 0 {
+		t.Errorf("expected 0 WARN lines on clean exit, got %d: %v", len(barrier.warns()), barrier.warns())
 	}
 }
 
@@ -366,8 +366,8 @@ func TestKillSaverAndWaitForDaemon_NoKillBarrierStartedOnNoPriorPIDShortcut(t *t
 	installBarrierReadPID(t, func(string) (int, error) {
 		return 0, errors.New("daemon.pid absent")
 	})
-	barrierLog := &barrierLog{}
-	installBarrierLogger(t, barrierLog)
+	barrier := &barrierLog{}
+	installBarrierLogger(t, barrier)
 	sink := logtest.Install(t)
 
 	script := &portalSaverScript{
@@ -383,16 +383,16 @@ func TestKillSaverAndWaitForDaemon_NoKillBarrierStartedOnNoPriorPIDShortcut(t *t
 	if evs := sink.RecordsWith("saver", "kill-barrier started"); len(evs) != 0 {
 		t.Errorf("expected 0 kill-barrier started events on no-prior-PID shortcut, got %d: %+v", len(evs), evs)
 	}
-	if len(barrierLog.warns()) != 0 {
-		t.Errorf("expected 0 WARN lines on tolerant-kill shortcut, got %d: %v", len(barrierLog.warns()), barrierLog.warns())
+	if len(barrier.warns()) != 0 {
+		t.Errorf("expected 0 WARN lines on tolerant-kill shortcut, got %d: %v", len(barrier.warns()), barrier.warns())
 	}
 }
 
 func TestKillSaverAndWaitForDaemon_NoKillBarrierStartedWhenPriorDaemonAlreadyDead(t *testing.T) {
 	installBarrierReadPID(t, func(string) (int, error) { return 4321, nil })
 	installBarrierIsAlive(t, func(int) bool { return false })
-	barrierLog := &barrierLog{}
-	installBarrierLogger(t, barrierLog)
+	barrier := &barrierLog{}
+	installBarrierLogger(t, barrier)
 	sink := logtest.Install(t)
 
 	script := &portalSaverScript{
@@ -408,8 +408,8 @@ func TestKillSaverAndWaitForDaemon_NoKillBarrierStartedWhenPriorDaemonAlreadyDea
 	if evs := sink.RecordsWith("saver", "kill-barrier started"); len(evs) != 0 {
 		t.Errorf("expected 0 kill-barrier started events when prior daemon already dead, got %d: %+v", len(evs), evs)
 	}
-	if len(barrierLog.warns()) != 0 {
-		t.Errorf("expected 0 WARN lines on already-dead shortcut, got %d: %v", len(barrierLog.warns()), barrierLog.warns())
+	if len(barrier.warns()) != 0 {
+		t.Errorf("expected 0 WARN lines on already-dead shortcut, got %d: %v", len(barrier.warns()), barrier.warns())
 	}
 }
 
@@ -423,8 +423,8 @@ func TestKillSaverAndWaitForDaemon_EmitsKillBarrierEscalatedAboveDebugBreadcrumb
 		return state.IdentifyIsPortalDaemon, nil
 	})
 
-	barrierLog := &barrierLog{}
-	installBarrierLogger(t, barrierLog)
+	barrier := &barrierLog{}
+	installBarrierLogger(t, barrier)
 	sink := logtest.Install(t)
 
 	killCalls := 0
@@ -446,7 +446,7 @@ func TestKillSaverAndWaitForDaemon_EmitsKillBarrierEscalatedAboveDebugBreadcrumb
 		t.Fatalf("KillSaverAndWaitForDaemon returned error: %v", err)
 	}
 
-	rec := sink.OnlyRecordWith(t, "saver", "kill-barrier escalated")
+	rec := sink.RecordsWith("saver", "kill-barrier escalated").Only(t, "saver kill-barrier escalated record")
 	if rec.Level != slog.LevelInfo {
 		t.Errorf("level = %v, want INFO", rec.Level)
 	}
@@ -473,8 +473,8 @@ func TestKillSaverAndWaitForDaemon_EmitsKillBarrierEscalatedAboveDebugBreadcrumb
 		t.Errorf("escalated INFO (idx %d) must precede the DEBUG breadcrumb (idx %d)", escalatedIdx, breadcrumbIdx)
 	}
 
-	if len(barrierLog.warns()) != 0 {
-		t.Errorf("expected 0 WARN lines on clean escalation, got %d: %v", len(barrierLog.warns()), barrierLog.warns())
+	if len(barrier.warns()) != 0 {
+		t.Errorf("expected 0 WARN lines on clean escalation, got %d: %v", len(barrier.warns()), barrier.warns())
 	}
 }
 
@@ -506,8 +506,8 @@ func TestKillSaverAndWaitForDaemon_NoKillBarrierEscalatedAndKeepsSingleWarnOnIde
 				return nil
 			})
 
-			barrierLog := &barrierLog{}
-			installBarrierLogger(t, barrierLog)
+			barrier := &barrierLog{}
+			installBarrierLogger(t, barrier)
 			sink := logtest.Install(t)
 
 			script := &portalSaverScript{
@@ -526,8 +526,8 @@ func TestKillSaverAndWaitForDaemon_NoKillBarrierEscalatedAndKeepsSingleWarnOnIde
 			if evs := sink.RecordsWith("saver", "kill-barrier escalated"); len(evs) != 0 {
 				t.Errorf("expected 0 kill-barrier escalated events on identity-skip branch, got %d: %+v", len(evs), evs)
 			}
-			if len(barrierLog.warns()) != 1 {
-				t.Errorf("expected exactly 1 WARN on identity-skip branch, got %d: %v", len(barrierLog.warns()), barrierLog.warns())
+			if len(barrier.warns()) != 1 {
+				t.Errorf("expected exactly 1 WARN on identity-skip branch, got %d: %v", len(barrier.warns()), barrier.warns())
 			}
 		})
 	}
@@ -543,8 +543,8 @@ func TestKillSaverAndWaitForDaemon_EmitsPlaceholderDiedReasonSignalOnKillSession
 		calls++
 		return calls < 3
 	})
-	barrierLog := &barrierLog{}
-	installBarrierLogger(t, barrierLog)
+	barrier := &barrierLog{}
+	installBarrierLogger(t, barrier)
 	sink := logtest.Install(t)
 
 	script := &portalSaverScript{
@@ -557,7 +557,7 @@ func TestKillSaverAndWaitForDaemon_EmitsPlaceholderDiedReasonSignalOnKillSession
 		t.Fatalf("KillSaverAndWaitForDaemon returned error: %v", err)
 	}
 
-	rec := sink.OnlyRecordWith(t, "saver", "placeholder died")
+	rec := sink.RecordsWith("saver", "placeholder died").Only(t, "saver placeholder died record")
 	if rec.Level != slog.LevelInfo {
 		t.Errorf("level = %v, want INFO", rec.Level)
 	}
@@ -567,8 +567,8 @@ func TestKillSaverAndWaitForDaemon_EmitsPlaceholderDiedReasonSignalOnKillSession
 	if got := rec.AttrString(t, "reason"); got != "signal" {
 		t.Errorf("reason = %q, want %q", got, "signal")
 	}
-	if len(barrierLog.warns()) != 0 {
-		t.Errorf("expected 0 WARN lines on observed exit, got %d: %v", len(barrierLog.warns()), barrierLog.warns())
+	if len(barrier.warns()) != 0 {
+		t.Errorf("expected 0 WARN lines on observed exit, got %d: %v", len(barrier.warns()), barrier.warns())
 	}
 }
 
@@ -589,8 +589,8 @@ func TestKillSaverAndWaitForDaemon_EmitsPlaceholderDiedReasonSignalOnPostSIGKILL
 	})
 	installBarrierIsAlive(t, func(int) bool { return killCalls == 0 })
 
-	barrierLog := &barrierLog{}
-	installBarrierLogger(t, barrierLog)
+	barrier := &barrierLog{}
+	installBarrierLogger(t, barrier)
 	sink := logtest.Install(t)
 
 	script := &portalSaverScript{
@@ -603,7 +603,7 @@ func TestKillSaverAndWaitForDaemon_EmitsPlaceholderDiedReasonSignalOnPostSIGKILL
 		t.Fatalf("KillSaverAndWaitForDaemon returned error: %v", err)
 	}
 
-	rec := sink.OnlyRecordWith(t, "saver", "placeholder died")
+	rec := sink.RecordsWith("saver", "placeholder died").Only(t, "saver placeholder died record")
 	if rec.Level != slog.LevelInfo {
 		t.Errorf("level = %v, want INFO", rec.Level)
 	}
@@ -613,8 +613,8 @@ func TestKillSaverAndWaitForDaemon_EmitsPlaceholderDiedReasonSignalOnPostSIGKILL
 	if got := rec.AttrString(t, "reason"); got != "signal" {
 		t.Errorf("reason = %q, want %q", got, "signal")
 	}
-	if len(barrierLog.warns()) != 0 {
-		t.Errorf("expected 0 WARN lines on post-SIGKILL observed exit, got %d: %v", len(barrierLog.warns()), barrierLog.warns())
+	if len(barrier.warns()) != 0 {
+		t.Errorf("expected 0 WARN lines on post-SIGKILL observed exit, got %d: %v", len(barrier.warns()), barrier.warns())
 	}
 }
 
@@ -630,8 +630,8 @@ func TestKillSaverAndWaitForDaemon_PreservesAtMostOneWarnContractAcrossLifecycle
 		installBarrierSendSIGKILL(t, func(int) error { return nil })
 		installBarrierIsAlive(t, func(int) bool { return true })
 
-		barrierLog := &barrierLog{}
-		installBarrierLogger(t, barrierLog)
+		barrier := &barrierLog{}
+		installBarrierLogger(t, barrier)
 		sink := logtest.Install(t)
 
 		script := &portalSaverScript{
@@ -644,8 +644,8 @@ func TestKillSaverAndWaitForDaemon_PreservesAtMostOneWarnContractAcrossLifecycle
 			t.Fatalf("KillSaverAndWaitForDaemon returned error: %v", err)
 		}
 
-		if len(barrierLog.warns()) != 1 {
-			t.Errorf("expected exactly 1 WARN on escalation-survive path, got %d: %v", len(barrierLog.warns()), barrierLog.warns())
+		if len(barrier.warns()) != 1 {
+			t.Errorf("expected exactly 1 WARN on escalation-survive path, got %d: %v", len(barrier.warns()), barrier.warns())
 		}
 		if evs := sink.RecordsWith("saver", "kill-barrier started"); len(evs) != 1 {
 			t.Errorf("expected 1 kill-barrier started, got %d", len(evs))

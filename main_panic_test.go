@@ -9,14 +9,6 @@ import (
 	"github.com/leeovery/portal/internal/logtest"
 )
 
-func attrValue(r logtest.Record, key string) (slog.Value, bool) {
-	v, ok := r.Attrs[key]
-	if !ok {
-		return slog.Value{}, false
-	}
-	return v.Resolve(), true
-}
-
 func TestRunPanicEmission(t *testing.T) {
 	t.Run("it emits ERROR process: panic with reason on a recovered panic", func(t *testing.T) {
 		rec := logtest.Install(t)
@@ -31,19 +23,11 @@ func TestRunPanicEmission(t *testing.T) {
 			t.Error("panicked = false, want true")
 		}
 
-		panics := rec.RecordsWithMessage("panic")
-		if len(panics) != 1 {
-			t.Fatalf("expected exactly 1 process: panic record, got %d", len(panics))
-		}
-		r := panics[0]
+		r := rec.RecordsWithMessage("panic").Only(t, "process: panic record")
 		if r.Level != slog.LevelError {
 			t.Errorf("process: panic level = %v, want ERROR", r.Level)
 		}
-		reason, ok := attrValue(r, "reason")
-		if !ok {
-			t.Fatalf("process: panic record missing reason attr")
-		}
-		if got := reason.String(); got != "kaboom" {
+		if got := r.AttrString(t, "reason"); got != "kaboom" {
 			t.Errorf("reason attr = %q, want %q", got, "kaboom")
 		}
 	})
@@ -80,15 +64,8 @@ func TestRunPanicEmission(t *testing.T) {
 		if panics := rec.RecordsWithMessage("panic"); len(panics) != 0 {
 			t.Errorf("expected no process: panic on a clean run, got %d", len(panics))
 		}
-		exits := rec.RecordsWithMessage("exit")
-		if len(exits) != 1 {
-			t.Fatalf("expected exactly 1 process: exit on a clean run, got %d", len(exits))
-		}
-		codeVal, ok := attrValue(exits[0], "code")
-		if !ok {
-			t.Fatalf("process: exit record missing code attr")
-		}
-		if got := codeVal.Int64(); got != 0 {
+		exit := rec.RecordsWithMessage("exit").Only(t, "exit record")
+		if got := exit.IntAttr(t, "code"); got != 0 {
 			t.Errorf("exit code attr = %d, want 0", got)
 		}
 	})
@@ -109,15 +86,8 @@ func TestRunPanicEmission(t *testing.T) {
 		if panics := rec.RecordsWithMessage("panic"); len(panics) != 0 {
 			t.Errorf("expected no process: panic on an error run, got %d", len(panics))
 		}
-		exits := rec.RecordsWithMessage("exit")
-		if len(exits) != 1 {
-			t.Fatalf("expected exactly 1 process: exit on an error run, got %d", len(exits))
-		}
-		codeVal, ok := attrValue(exits[0], "code")
-		if !ok {
-			t.Fatalf("process: exit record missing code attr")
-		}
-		if got := codeVal.Int64(); got != 1 {
+		exit := rec.RecordsWithMessage("exit").Only(t, "exit record")
+		if got := exit.IntAttr(t, "code"); got != 1 {
 			t.Errorf("exit code attr = %d, want 1", got)
 		}
 	})

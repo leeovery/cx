@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"io"
 	"log/slog"
 	"os"
 	"testing"
@@ -28,7 +27,7 @@ func initTestLogToStateDirAs(t *testing.T, dir, version, processRole string) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		t.Fatalf("mkdir state dir: %v", err)
 	}
-	log.SetTestHandler(t, slog.New(slog.NewTextHandler(io.Discard, nil)).Handler())
+	log.SetTestHandler(t, log.Discard().Handler())
 	if err := log.Init(dir, version, processRole); err != nil {
 		t.Fatalf("log.Init: %v", err)
 	}

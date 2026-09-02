@@ -87,15 +87,9 @@ func openSidecar(t *testing.T, hooksPath string) *os.File {
 
 // UnlockedRecords returns the degradation breadcrumbs the sink captured, so a
 // test can assert a read did not degrade as well as that it did.
-func UnlockedRecords(t *testing.T, sink *logtest.Sink) []logtest.Record {
+func UnlockedRecords(t *testing.T, sink *logtest.Sink) logtest.Records {
 	t.Helper()
-	var out []logtest.Record
-	for _, r := range sink.Records() {
-		if r.Msg == "load-unlocked" {
-			out = append(out, r)
-		}
-	}
-	return out
+	return sink.RecordsWithMessage("load-unlocked")
 }
 
 // AssertDegradedRead pins the whole shape of a degraded read's single
@@ -103,11 +97,7 @@ func UnlockedRecords(t *testing.T, sink *logtest.Sink) []logtest.Record {
 // caller, and the lock error carried.
 func AssertDegradedRead(t *testing.T, sink *logtest.Sink, wantVia string) {
 	t.Helper()
-	got := UnlockedRecords(t, sink)
-	if len(got) != 1 {
-		t.Fatalf("got %d load-unlocked records, want exactly 1: %+v", len(got), got)
-	}
-	r := got[0]
+	r := UnlockedRecords(t, sink).Only(t, "load-unlocked record")
 	if r.Level != slog.LevelDebug {
 		t.Errorf("level = %v, want DEBUG", r.Level)
 	}

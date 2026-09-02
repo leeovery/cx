@@ -105,26 +105,19 @@ func TestEagerSignalHydrate_PerFIFOWriteFailureLogsAndContinues(t *testing.T) {
 		t.Errorf("Signaler.SendSignal call count = %d; want 3 (loop must continue past the failing write); calls=%v", len(signaler.Calls), signaler.Calls)
 	}
 
-	warns := sink.RecordsAtExactLevelWith(slog.LevelWarn, "signal", "eager-signal write fifo failed")
-	if len(warns) != 1 {
-		t.Fatalf("expected 1 WARN under component=signal for the failing FIFO, got %d: %+v", len(warns), sink.Records())
+	rec := sink.RecordsAtExactLevelWith(slog.LevelWarn, "signal", "eager-signal write fifo failed").
+		Only(t, "WARN under component=signal for the failing FIFO")
+	if p := rec.AttrString(t, "path"); p != failPath {
+		t.Errorf("WARN path attr = %q; want %q", p, failPath)
 	}
-	rec := warns[0]
-	if p, ok := rec.Attrs["path"]; !ok || p.String() != failPath {
-		t.Errorf("WARN path attr = %v; want %q", rec.Attrs["path"], failPath)
+	if ec := rec.AttrString(t, "error_class"); ec != "unexpected" {
+		t.Errorf("WARN error_class attr = %q; want %q", ec, "unexpected")
 	}
-	if ec, ok := rec.Attrs["error_class"]; !ok || ec.String() != "unexpected" {
-		t.Errorf("WARN error_class attr = %v; want %q", rec.Attrs["error_class"], "unexpected")
+	if kind := rec.Attrs["error"].Kind(); kind != slog.KindAny {
+		t.Errorf("error attr kind = %v; want Any (wrapped err passed directly, not .Error())", kind)
 	}
-	errAttr, ok := rec.Attrs["error"]
-	if !ok {
-		t.Fatalf("WARN missing error attr: %+v", rec.Attrs)
-	}
-	if errAttr.Kind() != slog.KindAny {
-		t.Errorf("error attr kind = %v; want Any (wrapped err passed directly, not .Error())", errAttr.Kind())
-	}
-	if gotErr, ok := errAttr.Any().(error); !ok || !errors.Is(gotErr, sentinel) {
-		t.Errorf("error attr = %v; want errors.Is(err, sentinel)=true", errAttr.Any())
+	if gotErr := rec.ErrorAttr(t, "error"); !errors.Is(gotErr, sentinel) {
+		t.Errorf("error attr = %v; want errors.Is(err, sentinel)=true", gotErr)
 	}
 }
 
@@ -204,11 +197,7 @@ func TestEagerSignalHydrate_SuccessEmitsSignalledDebugBreadcrumb(t *testing.T) {
 	}
 	gotPaths := map[string]bool{}
 	for _, r := range dbg {
-		p, ok := r.Attrs["path"]
-		if !ok {
-			t.Fatalf("DEBUG 'fifo signalled' missing path attr: %+v", r.Attrs)
-		}
-		gotPaths[p.String()] = true
+		gotPaths[r.AttrString(t, "path")] = true
 	}
 	for _, key := range []string{"alpha__0.0", "beta__1.2"} {
 		wantPath := state.FIFOPath(stateDir, key)
@@ -246,12 +235,8 @@ func TestEagerSignalHydrate_NoSignalingLineUnderHydrateOrBootstrap(t *testing.T)
 	}
 
 	for _, r := range sink.Records() {
-		comp, ok := r.Attrs["component"]
-		if !ok {
-			continue
-		}
-		if comp.String() == "hydrate" || comp.String() == "bootstrap" {
-			t.Errorf("no signaling-mechanism line may render under %q; got %+v", comp.String(), r)
+		if comp := r.AttrOrEmpty("component"); comp == "hydrate" || comp == "bootstrap" {
+			t.Errorf("no signaling-mechanism line may render under %q; got %+v", comp, r)
 		}
 	}
 }

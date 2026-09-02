@@ -864,12 +864,7 @@ func saveRequestedExists(t *testing.T, stateDir string) bool {
 func assertTouchWarn(t *testing.T, sink *logtest.Sink, wantKey string) {
 	t.Helper()
 
-	warns := sink.RecordsAtOrAboveLevel(slog.LevelWarn)
-	if len(warns) != 1 {
-		t.Fatalf("WARN record count = %d, want 1: %+v", len(warns), warns)
-	}
-
-	rec := warns[0]
+	rec := sink.RecordsAtOrAboveLevel(slog.LevelWarn).Only(t, "record at or above WARN")
 	assertHooksRecord(t, rec, hooksRecordWant{
 		level: slog.LevelWarn,
 		msg:   "touch-save-requested",

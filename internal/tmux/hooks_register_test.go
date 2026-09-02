@@ -731,7 +731,7 @@ func migrationLines(sink *logtest.Sink, level slog.Level) []string {
 }
 
 func migrationLine(rec logtest.Record) string {
-	return "[" + attrOrEmpty(rec, "component") + "] " + rec.Msg
+	return "[" + rec.AttrOrEmpty("component") + "] " + rec.Msg
 }
 
 // migrationReaped stands in -1 for a line carrying no reaped attr, so a caller

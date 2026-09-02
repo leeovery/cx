@@ -81,11 +81,7 @@ func TestNewScriptRecipeAdapter(t *testing.T) {
 		if adapter != nil {
 			t.Errorf("adapter = %#v, want nil for a missing script", adapter)
 		}
-		warns := sink.RecordsAtExactLevel(slog.LevelWarn)
-		if len(warns) != 1 {
-			t.Fatalf("emitted %d WARN records for a missing script, want exactly 1: %+v", len(warns), warns)
-		}
-		rec := warns[0]
+		rec := sink.RecordsAtExactLevel(slog.LevelWarn).Only(t, "WARN record")
 		if v := rec.AttrString(t, "component"); v != "spawn" {
 			t.Errorf("WARN component = %q, want %q", v, "spawn")
 		}
@@ -109,11 +105,7 @@ func TestNewScriptRecipeAdapter(t *testing.T) {
 		if adapter != nil {
 			t.Errorf("adapter = %#v, want nil for a non-executable script", adapter)
 		}
-		warns := sink.RecordsAtExactLevel(slog.LevelWarn)
-		if len(warns) != 1 {
-			t.Fatalf("emitted %d WARN records for a non-executable script, want exactly 1: %+v", len(warns), warns)
-		}
-		rec := warns[0]
+		rec := sink.RecordsAtExactLevel(slog.LevelWarn).Only(t, "WARN record")
 		if v := rec.AttrString(t, "component"); v != "spawn" {
 			t.Errorf("WARN component = %q, want %q", v, "spawn")
 		}
@@ -136,11 +128,8 @@ func TestNewScriptRecipeAdapter(t *testing.T) {
 		if adapter != nil {
 			t.Errorf("adapter = %#v, want nil for a directory path", adapter)
 		}
-		warns := sink.RecordsAtExactLevel(slog.LevelWarn)
-		if len(warns) != 1 {
-			t.Fatalf("emitted %d WARN records for a directory path, want exactly 1: %+v", len(warns), warns)
-		}
-		if detail := warns[0].AttrString(t, "detail"); !strings.Contains(detail, key) {
+		warn := sink.RecordsAtExactLevel(slog.LevelWarn).Only(t, "WARN record")
+		if detail := warn.AttrString(t, "detail"); !strings.Contains(detail, key) {
 			t.Errorf("WARN detail = %q, want it to name the entry key %q", detail, key)
 		}
 	})

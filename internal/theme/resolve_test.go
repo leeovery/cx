@@ -325,11 +325,7 @@ func TestResolveByName_UnusableDirectoryIsUnreadable(t *testing.T) {
 func requireDirectoryUnusableRecord(t *testing.T, sink *logtest.Sink, dir string) {
 	t.Helper()
 
-	records := sink.Records()
-	if len(records) != 1 {
-		t.Fatalf("emitted %d records, want exactly 1 directory-unusable record: %+v", len(records), records)
-	}
-	record := records[0]
+	record := sink.Records().Only(t, "log record")
 	if record.Msg != "directory unusable" {
 		t.Errorf("record message = %q, want %q", record.Msg, "directory unusable")
 	}

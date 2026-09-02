@@ -45,7 +45,7 @@ func TestDetectorDetect(t *testing.T) {
 		if got.BundleID != "com.apple.Terminal" || got.Name != "Terminal" {
 			t.Fatalf("identity = %+v, want the resolved Apple Terminal identity", got)
 		}
-		rec := sink.OnlyRecord(t)
+		rec := sink.Records().Only(t, "log record")
 		if rec.Level != slog.LevelInfo {
 			t.Errorf("record level = %v, want INFO", rec.Level)
 		}
@@ -84,7 +84,7 @@ func TestDetectorDetect(t *testing.T) {
 		if !got.IsNull() {
 			t.Fatalf("identity = %+v, want NULL for a remote-only client set", got)
 		}
-		rec := sink.OnlyRecord(t)
+		rec := sink.Records().Only(t, "log record")
 		if rec.Level != slog.LevelInfo {
 			t.Errorf("record level = %v, want INFO", rec.Level)
 		}
@@ -114,7 +114,7 @@ func TestDetectorDetect(t *testing.T) {
 		if !got.IsNull() {
 			t.Fatalf("identity = %+v, want NULL folded from the transient error", got)
 		}
-		rec := sink.OnlyRecord(t)
+		rec := sink.Records().Only(t, "log record")
 		if rec.Level != slog.LevelWarn {
 			t.Errorf("record level = %v, want WARN", rec.Level)
 		}
@@ -147,7 +147,7 @@ func TestDetectorDetect(t *testing.T) {
 		if !got.IsNull() {
 			t.Fatalf("identity = %+v, want NULL folded from the current-session read error", got)
 		}
-		rec := sink.OnlyRecord(t)
+		rec := sink.Records().Only(t, "log record")
 		if rec.Level != slog.LevelWarn {
 			t.Errorf("record level = %v, want WARN", rec.Level)
 		}

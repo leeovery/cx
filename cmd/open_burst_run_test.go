@@ -686,7 +686,7 @@ func TestRunOpenBurst_TriggerConnectFails_EmitsCorrectiveWarn(t *testing.T) {
 		t.Fatalf("error = %v, want the trigger's own connect error propagated", err)
 	}
 
-	var warns, summaries []logtest.Record
+	var warns, summaries logtest.Records
 	for _, rec := range sink.Records() {
 		switch {
 		case rec.Level == slog.LevelWarn && rec.Msg == "trigger did not attach":
@@ -695,19 +695,14 @@ func TestRunOpenBurst_TriggerConnectFails_EmitsCorrectiveWarn(t *testing.T) {
 			summaries = append(summaries, rec)
 		}
 	}
-	if len(warns) != 1 {
-		t.Fatalf("corrective WARN records = %d, want exactly 1; body:\n%s", len(warns), sink.Body())
-	}
-	w := warns[0]
+	w := warns.Only(t, "corrective WARN record")
 	if got := w.AttrString(t, "session"); got != "trig" {
 		t.Errorf("corrective WARN session attr = %q, want %q (the trigger that did not attach)", got, "trig")
 	}
 	if got := w.AttrString(t, "detail"); !strings.Contains(got, connErr.Error()) {
 		t.Errorf("corrective WARN detail attr = %q, want it to carry the connect error %q", got, connErr.Error())
 	}
-	if len(summaries) != 1 {
-		t.Fatalf("opened batch summaries = %d, want exactly 1; body:\n%s", len(summaries), sink.Body())
-	}
+	_ = summaries.Only(t, "opened batch summary")
 }
 
 func TestRunOpenBurst_TriggerMintOwnConnectFails_PropagatesError(t *testing.T) {
@@ -755,7 +750,7 @@ func TestRunOpenBurst_RecordsOutcomesInLog(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	var summaries, windows []logtest.Record
+	var summaries, windows logtest.Records
 	for _, rec := range sink.Records() {
 		switch {
 		case rec.Level == slog.LevelInfo && strings.HasPrefix(rec.Msg, "opened"):
@@ -764,10 +759,7 @@ func TestRunOpenBurst_RecordsOutcomesInLog(t *testing.T) {
 			windows = append(windows, rec)
 		}
 	}
-	if len(summaries) != 1 {
-		t.Fatalf("INFO opened summaries = %d, want exactly 1; body:\n%s", len(summaries), sink.Body())
-	}
-	s := summaries[0]
+	s := summaries.Only(t, "INFO opened summary")
 	if s.Msg != "opened 3/3" {
 		t.Errorf("summary msg = %q, want %q (2 externals + trigger / len(surfaces))", s.Msg, "opened 3/3")
 	}
@@ -835,7 +827,7 @@ func TestRunOpenBurst_PermissionRequired_GuidanceOnce_StillConnectsTrigger(t *te
 	if !slices.Equal(conn.calls, []string{"trig"}) {
 		t.Errorf("self-connect targets = %#v, want exactly [trig] (trigger connects despite the external permission wall)", conn.calls)
 	}
-	var perms, summaries []logtest.Record
+	var perms, summaries logtest.Records
 	for _, rec := range sink.Records() {
 		switch {
 		case rec.Level == slog.LevelInfo && rec.Msg == "permission required — nothing self-attached":

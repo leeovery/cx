@@ -18,7 +18,7 @@ import (
 func assertLockWarn(t *testing.T, sink *logtest.Sink, wantOp, wantKey, wantVia string) logtest.Record {
 	t.Helper()
 
-	rec := sink.OnlyRecord(t)
+	rec := sink.Records().Only(t, "log record")
 	if rec.Level != slog.LevelWarn {
 		t.Errorf("level = %v, want WARN", rec.Level)
 	}
@@ -182,10 +182,10 @@ func TestMutationLockTimeoutLogging(t *testing.T) {
 			}
 
 			rec := assertLockWarn(t, sink, "set", "tok123", "cli")
-			if _, ok := rec.Attrs["error_class"]; ok {
+			if rec.HasAttr("error_class") {
 				t.Errorf("lock WARN carries error_class — no write phase ran: %+v", rec.Attrs)
 			}
-			if _, ok := rec.Attrs["value"]; ok {
+			if rec.HasAttr("value") {
 				t.Errorf("lock WARN carries value — the file was never opened: %+v", rec.Attrs)
 			}
 		})
@@ -200,10 +200,10 @@ func TestMutationLockTimeoutLogging(t *testing.T) {
 			}
 
 			rec := assertLockWarn(t, sink, "rm", "tok123", "cli")
-			if _, ok := rec.Attrs["error_class"]; ok {
+			if rec.HasAttr("error_class") {
 				t.Errorf("lock WARN carries error_class — no write phase ran: %+v", rec.Attrs)
 			}
-			if _, ok := rec.Attrs["value"]; ok {
+			if rec.HasAttr("value") {
 				t.Errorf("lock WARN carries value — the file was never opened: %+v", rec.Attrs)
 			}
 		})

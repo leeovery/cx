@@ -46,7 +46,7 @@ func TestUnion_AbsentDirectoryIsBuiltinsOnly(t *testing.T) {
 		t.Errorf("union rejected = %d, want 0", union.Rejected)
 	}
 
-	record := sink.OnlyRecord(t)
+	record := sink.Records().Only(t, "log record")
 	if got, want := record.Msg, "enumerated"; got != want {
 		t.Errorf("record message = %q, want %q — an absent directory earns no `directory unusable` line", got, want)
 	}
@@ -443,7 +443,7 @@ func TestUnion_CountAndRejectedAttrs(t *testing.T) {
 		t.Errorf("the fixture produced %d unselectable rows, want 4 (two broken files, two dead slots)", wantRejected)
 	}
 
-	record := sink.RecordsWithMessage("enumerated")[0]
+	record := sink.RecordsWithMessage("enumerated").Only(t, "`theme: enumerated` record")
 	if got := record.IntAttr(t, "count"); got != int64(union.Count) {
 		t.Errorf("record count = %d, want the union's %d", got, union.Count)
 	}

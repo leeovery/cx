@@ -142,22 +142,16 @@ func TestWriteFIFOSignal_EmitsRetryDebugUnderSignal(t *testing.T) {
 		t.Fatalf("WriteFIFOSignal: %v", err)
 	}
 
-	dbg := sink.RecordsAtExactLevelWith(slog.LevelDebug, "signal", "fifo signal retrying")
-	if len(dbg) != 1 {
-		t.Fatalf("expected 1 DEBUG 'fifo signal retrying' under component=signal (one retryable transition), got %d: %+v", len(dbg), sink.Records())
+	dbg := sink.RecordsAtExactLevelWith(slog.LevelDebug, "signal", "fifo signal retrying").
+		Only(t, "DEBUG 'fifo signal retrying' under component=signal (one retryable transition)")
+	if p := dbg.AttrString(t, "path"); p != path {
+		t.Errorf("retry DEBUG path attr = %q; want %q", p, path)
 	}
-	if p, ok := dbg[0].Attrs["path"]; !ok || p.String() != path {
-		t.Errorf("retry DEBUG path attr = %v; want %q", dbg[0].Attrs["path"], path)
+	if kind := dbg.Attrs["error"].Kind(); kind != slog.KindAny {
+		t.Errorf("retry DEBUG error attr kind = %v; want Any (wrapped err passed directly)", kind)
 	}
-	errAttr, ok := dbg[0].Attrs["error"]
-	if !ok {
-		t.Fatalf("retry DEBUG missing error attr: %+v", dbg[0].Attrs)
-	}
-	if errAttr.Kind() != slog.KindAny {
-		t.Errorf("retry DEBUG error attr kind = %v; want Any (wrapped err passed directly)", errAttr.Kind())
-	}
-	if gotErr, ok := errAttr.Any().(error); !ok || !errors.Is(gotErr, syscall.ENXIO) {
-		t.Errorf("retry DEBUG error attr = %v; want errors.Is(err, ENXIO)=true", errAttr.Any())
+	if gotErr := dbg.ErrorAttr(t, "error"); !errors.Is(gotErr, syscall.ENXIO) {
+		t.Errorf("retry DEBUG error attr = %v; want errors.Is(err, ENXIO)=true", gotErr)
 	}
 }
 

@@ -3,7 +3,6 @@ package cmd
 import (
 	"bytes"
 	"errors"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -43,16 +42,9 @@ func TestHydrateTimeoutLog_TookAttrIsDurationNotString(t *testing.T) {
 		t.Fatalf("runHydrate: %v", err)
 	}
 
-	rec := sink.OnlyRecordWith(t, "hydrate", "signal timeout")
-	took, ok := rec.Attrs["took"]
-	if !ok {
-		t.Fatalf("signal timeout record missing took attr: %+v", rec.Attrs)
-	}
-	if took.Kind() != slog.KindDuration {
-		t.Errorf("took kind = %v, want Duration (must be passed as the hydrateTimeout time.Duration, not stringified)", took.Kind())
-	}
-	if took.Duration() != hydrateTimeout {
-		t.Errorf("took = %v, want hydrateTimeout (%v)", took.Duration(), hydrateTimeout)
+	rec := sink.RecordsWith("hydrate", "signal timeout").Only(t, "hydrate signal timeout record")
+	if took := rec.DurationAttr(t, "took"); took != hydrateTimeout {
+		t.Errorf("took = %v, want hydrateTimeout (%v)", took, hydrateTimeout)
 	}
 }
 

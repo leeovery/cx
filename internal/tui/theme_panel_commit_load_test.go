@@ -109,14 +109,11 @@ func convertToSlot(t *testing.T, m Model, target string, press tea.KeyPressMsg) 
 func requireLoadedLine(t *testing.T, sink *logtest.Sink, slug, slot string) {
 	t.Helper()
 
-	loaded := sink.RecordsWithMessage("loaded")
-	if len(loaded) != 1 {
-		t.Fatalf("the conversion emitted %d `theme: loaded` lines, want exactly 1\n%s", len(loaded), sink.Body())
-	}
-	if got := loaded[0].AttrString(t, "slug"); got != slug {
+	loaded := sink.RecordsWithMessage("loaded").Only(t, "loaded record")
+	if got := loaded.AttrString(t, "slug"); got != slug {
 		t.Errorf("`theme: loaded` carries slug=%q, want %q", got, slug)
 	}
-	if got := loaded[0].AttrString(t, "slot"); got != slot {
+	if got := loaded.AttrString(t, "slot"); got != slot {
 		t.Errorf("`theme: loaded` carries slot=%q, want %q", got, slot)
 	}
 }
@@ -353,20 +350,18 @@ func TestCommitSlotLoad_LoadedNamesTheFallbackSlug(t *testing.T) {
 	m, _ = convertToSlot(t, m, "nord", slotDarkPress)
 
 	requireLoadedLine(t, sink, theme.DefaultLightSlug, "light")
-	applied := sink.RecordsWithMessage("fallback applied")
-	if len(applied) != 1 {
-		t.Fatalf("the conversion emitted %d `theme: fallback applied` lines, want exactly 1\n%s", len(applied), sink.Body())
-	}
-	if got := applied[0].AttrString(t, "slug"); got != "nope" {
+	applied := sink.RecordsWithMessage("fallback applied").Only(t, "fallback applied record")
+	if got := applied.AttrString(t, "slug"); got != "nope" {
 		t.Errorf("`theme: fallback applied` carries slug=%q, want the NOMINATION that failed (%q)", got, "nope")
 	}
-	if got := applied[0].AttrString(t, "slot"); got != "light" {
+	if got := applied.AttrString(t, "slot"); got != "light" {
 		t.Errorf("`theme: fallback applied` carries slot=%q, want %q", got, "light")
 	}
-	if got := applied[0].AttrString(t, "reason"); got != string(theme.ReasonNotFound) {
+	if got := applied.AttrString(t, "reason"); got != string(theme.ReasonNotFound) {
 		t.Errorf("`theme: fallback applied` carries reason=%q, want %q", got, theme.ReasonNotFound)
 	}
-	if loaded := sink.RecordsWithMessage("loaded")[0].AttrString(t, "slug"); loaded == applied[0].AttrString(t, "slug") {
+	loadedRec := sink.RecordsWithMessage("loaded").Only(t, "`theme: loaded` record")
+	if loaded := loadedRec.AttrString(t, "slug"); loaded == applied.AttrString(t, "slug") {
 		t.Errorf("both lines name %q; the pair is only useful because one names the theme that BROKE and the other the palette that RENDERED", loaded)
 	}
 	requireSlotCanvas(t, m, theme.SlotLight, testLightTheme(t).Canvas.Value)

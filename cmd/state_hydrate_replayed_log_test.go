@@ -3,7 +3,6 @@ package cmd
 import (
 	"bytes"
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -66,7 +65,7 @@ func TestHydrateReplayedLog_BytesEqualsCopyCountForPopulatedFile(t *testing.T) {
 
 	// Read as a structured int attr: the rendered bytes=N is indistinguishable
 	// from a stringified count.
-	rec := sink.OnlyRecordWith(t, "hydrate", "scrollback replayed")
+	rec := sink.RecordsWith("hydrate", "scrollback replayed").Only(t, "hydrate scrollback replayed record")
 	if got := rec.IntAttr(t, "bytes"); got != int64(len(payload)) {
 		t.Errorf("bytes attr = %d, want %d", got, len(payload))
 	}
@@ -140,17 +139,11 @@ func TestHydrateReplayedLog_TookIsDurationAcrossReplayNotSettleSleep(t *testing.
 		t.Fatalf("runHydrate: %v", err)
 	}
 
-	rec := sink.OnlyRecordWith(t, "hydrate", "scrollback replayed")
-	took, ok := rec.Attrs["took"]
-	if !ok {
-		t.Fatalf("scrollback replayed record missing took attr: %+v", rec.Attrs)
-	}
-	if took.Kind() != slog.KindDuration {
-		t.Errorf("took kind = %v, want Duration (must be the measured time.Duration, not stringified)", took.Kind())
-	}
+	rec := sink.RecordsWith("hydrate", "scrollback replayed").Only(t, "hydrate scrollback replayed record")
+	took := rec.DurationAttr(t, "took")
 	// took spans the io.Copy only, never the 100ms settle sleep.
-	if took.Duration() >= hydrateSettleSleep {
-		t.Errorf("took = %v, must be the copy duration (well under the %v settle sleep), not the settle sleep", took.Duration(), hydrateSettleSleep)
+	if took >= hydrateSettleSleep {
+		t.Errorf("took = %v, must be the copy duration (well under the %v settle sleep), not the settle sleep", took, hydrateSettleSleep)
 	}
 }
 

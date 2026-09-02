@@ -94,11 +94,7 @@ func TestValidRecipeForEntry(t *testing.T) {
 		if recipe.Argv != nil || recipe.Script != "" {
 			t.Errorf("recipe = %+v, want the zero Recipe for a rejected entry", recipe)
 		}
-		warns := sink.RecordsAtExactLevel(slog.LevelWarn)
-		if len(warns) != 1 {
-			t.Fatalf("emitted %d WARN records for an invalid recipe, want exactly 1: %+v", len(warns), warns)
-		}
-		rec := warns[0]
+		rec := sink.RecordsAtExactLevel(slog.LevelWarn).Only(t, "invalid-recipe WARN")
 		if v := rec.AttrString(t, "component"); v != "spawn" {
 			t.Errorf("WARN component = %q, want %q", v, "spawn")
 		}

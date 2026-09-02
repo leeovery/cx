@@ -35,7 +35,7 @@ func TestUpsertLogging(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		rec := sink.OnlyRecord(t)
+		rec := sink.Records().Only(t, "log record")
 		logtest.AssertRecord(t, rec, logtest.RecordWant{
 			Level:     slog.LevelInfo,
 			Msg:       "set",
@@ -67,7 +67,7 @@ func TestUpsertLogging(t *testing.T) {
 			t.Fatalf("unexpected error on second upsert: %v", err)
 		}
 
-		rec := sink.OnlyRecord(t)
+		rec := sink.Records().Only(t, "log record")
 		logtest.AssertRecord(t, rec, logtest.RecordWant{
 			Level:     slog.LevelInfo,
 			Msg:       "modify",
@@ -99,7 +99,7 @@ func TestUpsertLogging(t *testing.T) {
 			t.Errorf("returned error not classified as temp-create: %v", err)
 		}
 
-		rec := sink.OnlyRecord(t)
+		rec := sink.Records().Only(t, "log record")
 		if rec.Level != slog.LevelWarn {
 			t.Errorf("level = %v, want WARN", rec.Level)
 		}
@@ -142,7 +142,7 @@ func TestRenameLogging(t *testing.T) {
 			t.Fatalf("unexpected error on rename: %v", err)
 		}
 
-		rec := sink.OnlyRecord(t)
+		rec := sink.Records().Only(t, "log record")
 		logtest.AssertRecord(t, rec, logtest.RecordWant{
 			Level:     slog.LevelInfo,
 			Msg:       "modify",
@@ -216,7 +216,7 @@ func TestRenameLogging(t *testing.T) {
 			t.Errorf("returned error not classified as temp-create: %v", err)
 		}
 
-		rec := sink.OnlyRecord(t)
+		rec := sink.Records().Only(t, "log record")
 		if rec.Level != slog.LevelWarn {
 			t.Errorf("level = %v, want WARN", rec.Level)
 		}
@@ -256,7 +256,7 @@ func TestRemoveLogging(t *testing.T) {
 			t.Fatalf("unexpected error on remove: %v", err)
 		}
 
-		rec := sink.OnlyRecord(t)
+		rec := sink.Records().Only(t, "log record")
 		logtest.AssertRecord(t, rec, logtest.RecordWant{
 			Level:     slog.LevelInfo,
 			Msg:       "rm",
@@ -270,7 +270,7 @@ func TestRemoveLogging(t *testing.T) {
 		if got := rec.AttrString(t, "path"); got != "/code/portal" {
 			t.Errorf("path = %q, want %q", got, "/code/portal")
 		}
-		if _, ok := rec.Attrs["value"]; ok {
+		if rec.HasAttr("value") {
 			t.Errorf("rm record should not carry a value attr: %+v", rec.Attrs)
 		}
 	})
@@ -288,7 +288,7 @@ func TestRemoveLogging(t *testing.T) {
 			t.Fatalf("unexpected error on remove of absent path: %v", err)
 		}
 
-		rec := sink.OnlyRecord(t)
+		rec := sink.Records().Only(t, "log record")
 		logtest.AssertRecord(t, rec, logtest.RecordWant{
 			Level:     slog.LevelInfo,
 			Msg:       "rm",
@@ -317,7 +317,7 @@ func TestRemoveLogging(t *testing.T) {
 			t.Errorf("returned error not classified as temp-create: %v", err)
 		}
 
-		rec := sink.OnlyRecord(t)
+		rec := sink.Records().Only(t, "log record")
 		if rec.Level != slog.LevelWarn {
 			t.Errorf("level = %v, want WARN", rec.Level)
 		}
@@ -367,8 +367,7 @@ func TestCleanStaleLogging(t *testing.T) {
 			t.Fatalf("got %d removed, want 2", len(removed))
 		}
 
-		var debugs []logtest.Record
-		var infos []logtest.Record
+		var debugs, infos logtest.Records
 		for _, r := range sink.Records() {
 			if r.Msg != "clean-stale" {
 				t.Errorf("unexpected msg %q in %+v", r.Msg, r)
@@ -413,10 +412,7 @@ func TestCleanStaleLogging(t *testing.T) {
 			}
 		}
 
-		if len(infos) != 1 {
-			t.Fatalf("got %d INFO summary records, want 1: %+v", len(infos), infos)
-		}
-		summary := infos[0]
+		summary := infos.Only(t, "INFO clean-stale summary record")
 		if got := summary.AttrString(t, "op"); got != "clean-stale" {
 			t.Errorf("summary op = %q, want %q", got, "clean-stale")
 		}
@@ -427,7 +423,7 @@ func TestCleanStaleLogging(t *testing.T) {
 			t.Errorf("summary via = %q, want %q", got, "internal")
 		}
 		summary.RequireDuration(t, "took")
-		if _, ok := summary.Attrs["entries_failed"]; ok {
+		if summary.HasAttr("entries_failed") {
 			t.Errorf("summary must omit entries_failed when no failures: %+v", summary.Attrs)
 		}
 	})

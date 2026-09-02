@@ -3,7 +3,6 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"path/filepath"
 	"strings"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/hookstest"
+	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/tmux"
 )
@@ -30,7 +30,7 @@ func hookCleanupDeps(fc *daemonFakeCommander, store *hooks.Store, logger *slog.L
 }
 
 func discardDaemonLogger() *slog.Logger {
-	return slog.New(slog.NewTextHandler(io.Discard, nil))
+	return log.Discard()
 }
 
 func TestMaybeRunHookCleanup_DoesNotRunBeforeInterval(t *testing.T) {
@@ -229,7 +229,7 @@ func TestMaybeRunHookCleanup_ReusesMassDeletionGuard(t *testing.T) {
 	if got := sink.Body(); strings.Contains(got, "clean-stale-skipped") {
 		t.Errorf("stand-down WARN landed on the daemon logger; got:\n%s", got)
 	}
-	rec := hooksSink.OnlyRecord(t)
+	rec := hooksSink.Records().Only(t, "log record")
 	if rec.Level != slog.LevelWarn {
 		t.Errorf("stand-down level = %v, want WARN", rec.Level)
 	}

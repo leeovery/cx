@@ -88,7 +88,7 @@ func TestThemePersister_FailedCommitLogsAndReturns(t *testing.T) {
 	}
 	assertPrefsUnchanged(t, path, []byte(malformed))
 
-	rec := sink.OnlyRecord(t)
+	rec := sink.Records().Only(t, "log record")
 	if rec.Level != slog.LevelWarn {
 		t.Errorf("level = %v, want WARN", rec.Level)
 	}
@@ -136,7 +136,7 @@ func TestThemePersister_CommitFailedAttrs(t *testing.T) {
 				t.Fatal("the commit succeeded over a malformed prefs.json; there is no failure to describe")
 			}
 
-			rec := sink.OnlyRecord(t)
+			rec := sink.Records().Only(t, "log record")
 			if !slices.Equal(rec.Keys, tc.want) {
 				t.Errorf("attr keys = %v, want %v", rec.Keys, tc.want)
 			}
@@ -167,7 +167,7 @@ func TestThemePersister_CommitFailedAttrs(t *testing.T) {
 		for _, member := range []theme.Member{theme.MemberLight, theme.MemberDark} {
 			sink := logtest.Install(t)
 			theme.NewEventLogger(themeLogger).Loaded(nordSlug, member.Slot())
-			want := sink.OnlyRecord(t).AttrString(t, "slot")
+			want := sink.Records().Only(t, "log record").AttrString(t, "slot")
 
 			if got := themeSlotAttr(member); got != want {
 				t.Errorf("themeSlotAttr(%v) = %q, want %q — the persister's slot attr must not drift from the loader's", member, got, want)

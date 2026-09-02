@@ -76,7 +76,7 @@ func TestCaptureAndCommit_EmitsOneTickCompleteSummaryOnSuccess(t *testing.T) {
 		t.Fatalf("captureAndCommit: %v", err)
 	}
 
-	rec := sink.OnlyRecordWith(t, "capture", "tick complete")
+	rec := sink.RecordsWith("capture", "tick complete").Only(t, "capture tick complete record")
 	if rec.Level != slog.LevelInfo {
 		t.Errorf("summary level = %v, want INFO", rec.Level)
 	}
@@ -92,13 +92,7 @@ func TestCaptureAndCommit_EmitsOneTickCompleteSummaryOnSuccess(t *testing.T) {
 	if got := rec.IntAttr(t, "anomalous"); got != 0 {
 		t.Errorf("anomalous = %d, want 0", got)
 	}
-	tookVal, ok := rec.Attrs["took"]
-	if !ok {
-		t.Fatalf("summary missing took attr: %+v", rec.Attrs)
-	}
-	if tookVal.Kind() != slog.KindDuration {
-		t.Errorf("took kind = %v, want Duration", tookVal.Kind())
-	}
+	rec.RequireDuration(t, "took")
 }
 
 func TestCaptureAndCommit_NoSummaryWhenCtxCancelledAtObsPoint1(t *testing.T) {
@@ -203,7 +197,7 @@ func TestCaptureAndCommit_AnomalousCapturePaneFailureIncrementsAnomalousAndWarns
 		t.Fatalf("captureAndCommit: %v", err)
 	}
 
-	rec := sink.OnlyRecordWith(t, "capture", "tick complete")
+	rec := sink.RecordsWith("capture", "tick complete").Only(t, "capture tick complete record")
 	if got := rec.IntAttr(t, "anomalous"); got != 1 {
 		t.Errorf("anomalous = %d, want 1", got)
 	}
@@ -214,17 +208,9 @@ func TestCaptureAndCommit_AnomalousCapturePaneFailureIncrementsAnomalousAndWarns
 		t.Errorf("panes = %d, want 2 (loop continued past failure)", got)
 	}
 
-	var warns []logtest.Record
-	for _, r := range sink.Records() {
-		if r.Level == slog.LevelWarn && r.Msg == "capture pane failed" {
-			warns = append(warns, r)
-		}
-	}
-	if len(warns) != 1 {
-		t.Fatalf("expected 1 'capture pane failed' WARN, got %d: %+v", len(warns), sink.Records())
-	}
-	if comp := warns[0].Attrs["component"]; comp.String() != "daemon" {
-		t.Errorf("WARN component = %q, want daemon (per-pane WARN stays on daemon)", comp.String())
+	warn := sink.RecordsAtExactLevelWithMessage(slog.LevelWarn, "capture pane failed").Only(t, "'capture pane failed' WARN")
+	if comp := warn.AttrString(t, "component"); comp != "daemon" {
+		t.Errorf("WARN component = %q, want daemon (per-pane WARN stays on daemon)", comp)
 	}
 }
 
@@ -246,7 +232,7 @@ func TestCaptureAndCommit_AnomalousWriteScrollbackFailureIncrementsAnomalousAndW
 		t.Fatalf("captureAndCommit: %v", err)
 	}
 
-	rec := sink.OnlyRecordWith(t, "capture", "tick complete")
+	rec := sink.RecordsWith("capture", "tick complete").Only(t, "capture tick complete record")
 	if got := rec.IntAttr(t, "anomalous"); got != 1 {
 		t.Errorf("anomalous = %d, want 1", got)
 	}
@@ -254,17 +240,9 @@ func TestCaptureAndCommit_AnomalousWriteScrollbackFailureIncrementsAnomalousAndW
 		t.Errorf("natural_churn = %d, want 0", got)
 	}
 
-	var warns []logtest.Record
-	for _, r := range sink.Records() {
-		if r.Level == slog.LevelWarn && r.Msg == "write scrollback failed" {
-			warns = append(warns, r)
-		}
-	}
-	if len(warns) != 1 {
-		t.Fatalf("expected 1 'write scrollback failed' WARN, got %d: %+v", len(warns), sink.Records())
-	}
-	if comp := warns[0].Attrs["component"]; comp.String() != "daemon" {
-		t.Errorf("WARN component = %q, want daemon", comp.String())
+	warn := sink.RecordsAtExactLevelWithMessage(slog.LevelWarn, "write scrollback failed").Only(t, "'write scrollback failed' WARN")
+	if comp := warn.AttrString(t, "component"); comp != "daemon" {
+		t.Errorf("WARN component = %q, want daemon", comp)
 	}
 }
 
@@ -308,7 +286,7 @@ func TestCaptureAndCommit_CountsUserClosedPaneAsNaturalChurnNotAnomalous(t *test
 		t.Fatalf("captureAndCommit: %v", err)
 	}
 
-	rec := sink.OnlyRecordWith(t, "capture", "tick complete")
+	rec := sink.RecordsWith("capture", "tick complete").Only(t, "capture tick complete record")
 	if got := rec.IntAttr(t, "natural_churn"); got != 1 {
 		t.Errorf("natural_churn = %d, want 1 (option a: user-closed pane is natural churn)", got)
 	}
@@ -316,25 +294,15 @@ func TestCaptureAndCommit_CountsUserClosedPaneAsNaturalChurnNotAnomalous(t *test
 		t.Errorf("anomalous = %d, want 0 (a vanished pane is not anomalous)", got)
 	}
 
-	for _, r := range sink.Records() {
-		if r.Level == slog.LevelWarn && r.Msg == "capture pane failed" {
-			t.Errorf("vanished pane must not emit a WARN: %+v", r)
-		}
+	if warns := sink.RecordsAtExactLevelWithMessage(slog.LevelWarn, "capture pane failed"); warns != nil {
+		t.Errorf("vanished pane must not emit a WARN: %+v", warns)
 	}
-	var vanished []logtest.Record
-	for _, r := range sink.Records() {
-		if r.Level == slog.LevelDebug && r.Msg == "pane vanished" {
-			vanished = append(vanished, r)
-		}
+	vanished := sink.RecordsAtExactLevelWithMessage(slog.LevelDebug, "pane vanished").Only(t, "DEBUG 'pane vanished'")
+	if comp := vanished.AttrString(t, "component"); comp != "capture" {
+		t.Errorf("'pane vanished' component = %q, want capture", comp)
 	}
-	if len(vanished) != 1 {
-		t.Fatalf("expected 1 DEBUG 'pane vanished', got %d: %+v", len(vanished), sink.Records())
-	}
-	if comp := vanished[0].Attrs["component"]; comp.String() != "capture" {
-		t.Errorf("'pane vanished' component = %q, want capture", comp.String())
-	}
-	if ec, ok := vanished[0].Attrs["error_class"]; !ok || ec.String() != "expected" {
-		t.Errorf("'pane vanished' error_class = %v, want expected", vanished[0].Attrs["error_class"])
+	if ec := vanished.AttrString(t, "error_class"); ec != "expected" {
+		t.Errorf("'pane vanished' error_class = %q, want expected", ec)
 	}
 }
 
@@ -351,23 +319,15 @@ func TestCaptureAndCommit_EmitsPerPaneDebugBreadcrumbUnderCapture(t *testing.T) 
 		t.Fatalf("captureAndCommit: %v", err)
 	}
 
-	var dbg []logtest.Record
-	for _, r := range sink.Records() {
-		if r.Level == slog.LevelDebug && r.Msg == "pane captured" {
-			dbg = append(dbg, r)
-		}
-	}
-	if len(dbg) != 1 {
-		t.Fatalf("expected 1 DEBUG 'pane captured' breadcrumb, got %d: %+v", len(dbg), sink.Records())
-	}
-	if comp := dbg[0].Attrs["component"]; comp.String() != "capture" {
-		t.Errorf("breadcrumb component = %q, want capture", comp.String())
+	dbg := sink.RecordsAtExactLevelWithMessage(slog.LevelDebug, "pane captured").Only(t, "DEBUG 'pane captured' breadcrumb")
+	if comp := dbg.AttrString(t, "component"); comp != "capture" {
+		t.Errorf("breadcrumb component = %q, want capture", comp)
 	}
 	// The canonical persisted form, not the tmux -t target form.
-	if pk, ok := dbg[0].Attrs["pane_key"]; !ok || pk.String() != "work__0.0" {
-		t.Errorf("breadcrumb pane_key = %v, want work__0.0", dbg[0].Attrs["pane_key"])
+	if pk := dbg.AttrString(t, "pane_key"); pk != "work__0.0" {
+		t.Errorf("breadcrumb pane_key = %q, want work__0.0", pk)
 	}
-	if s, ok := dbg[0].Attrs["session"]; !ok || s.String() != "work" {
-		t.Errorf("breadcrumb session = %v, want work", dbg[0].Attrs["session"])
+	if s := dbg.AttrString(t, "session"); s != "work" {
+		t.Errorf("breadcrumb session = %q, want work", s)
 	}
 }

@@ -525,13 +525,9 @@ func assertStandDown(t *testing.T, sink *logtest.Sink, level slog.Level, reason 
 		for _, r := range sink.RecordsAtOrAboveLevel(slog.LevelWarn) {
 			t.Errorf("stand-down emitted at %v: %+v", r.Level, r)
 		}
-		rec = sink.OnlyRecord(t)
+		rec = sink.Records().Only(t, "log record")
 	} else {
-		at := sink.RecordsAtOrAboveLevel(level)
-		if len(at) != 1 {
-			t.Fatalf("%v record count = %d, want exactly 1: %+v", level, len(at), at)
-		}
-		rec = at[0]
+		rec = sink.RecordsAtOrAboveLevel(level).Only(t, "record at or above level")
 	}
 
 	assertStandDownRecord(t, rec, level, reason)
@@ -598,7 +594,7 @@ func TestHookSweepReportsStandDown(t *testing.T) {
 		}
 		assertHooksFileUnchanged(t, path, before, "rewritten on the empty-pane-read stand-down")
 
-		rec := sink.OnlyRecord(t)
+		rec := sink.Records().Only(t, "log record")
 		assertStandDownRecord(t, rec, slog.LevelWarn, "empty-pane-read")
 		if got := rec.IntAttr(t, "entries"); got != 2 {
 			t.Errorf("entries = %d, want 2", got)
@@ -641,7 +637,7 @@ func TestHookSweepReportsStandDown(t *testing.T) {
 		if outcome.DeclineReason != skipReasonPaneReadFailed {
 			t.Errorf("DeclineReason = %q, want %q", outcome.DeclineReason, skipReasonPaneReadFailed)
 		}
-		rec := sink.OnlyRecord(t)
+		rec := sink.Records().Only(t, "log record")
 		assertStandDownRecord(t, rec, slog.LevelWarn, skipReasonPaneReadFailed)
 		if got := rec.AttrString(t, "error"); got != sentinel.Error() {
 			t.Errorf("error attr = %q, want %q", got, sentinel.Error())
@@ -733,12 +729,7 @@ func TestHookSweepGuardCountsPaneRowsNotTokens(t *testing.T) {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
-		counts := loggerSink.RecordsAtExactLevelWith(slog.LevelDebug, "bootstrap", "stale-hook cleanup counts")
-		if len(counts) != 1 {
-			t.Fatalf("records matching debug/bootstrap/%q = %d, want 1; records=%+v",
-				"stale-hook cleanup counts", len(counts), loggerSink.Records())
-		}
-		rec := counts[0]
+		rec := loggerSink.RecordsAtExactLevelWith(slog.LevelDebug, "bootstrap", "stale-hook cleanup counts").Only(t, "DEBUG bootstrap stale-hook cleanup counts record")
 		if got := rec.IntAttr(t, "panes"); got != 4 {
 			t.Errorf("panes = %d, want 4 (the count is of live panes; none of these carries a token)", got)
 		}

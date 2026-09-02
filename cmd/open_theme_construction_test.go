@@ -530,7 +530,7 @@ func themeEvents(t *testing.T, sink *logtest.Sink) []string {
 			if key == "component" {
 				continue
 			}
-			parts = append(parts, key+"="+rec.Attrs[key].String())
+			parts = append(parts, key+"="+rec.AttrOrEmpty(key))
 		}
 		events = append(events, strings.Join(parts, " "))
 	}

@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 // TestingT is the subset of *testing.T the failing-path accessors depend on, so
@@ -42,6 +43,17 @@ func (r Record) AttrString(t TestingT, key string) string {
 	v, ok := r.Attrs[key]
 	if !ok {
 		t.Fatalf("record missing attr %q: %+v", key, r.Attrs)
+	}
+	return v.String()
+}
+
+// AttrOrEmpty returns the rendered value of the named attr, or the empty string
+// when the record carries none. It is the non-fatal counterpart of AttrString,
+// for a caller whose assertion covers the absent case itself.
+func (r Record) AttrOrEmpty(key string) string {
+	v, ok := r.Attrs[key]
+	if !ok {
+		return ""
 	}
 	return v.String()
 }
@@ -73,9 +85,10 @@ func (r Record) ErrorAttr(t TestingT, key string) error {
 	return err
 }
 
-// RequireDuration asserts the attr's kind, not its rendering: a rendered
+// DurationAttr fails the test if the attr is absent or is not a
+// slog.KindDuration value. It checks the kind, not the rendering: a rendered
 // Duration is indistinguishable from a stringified one.
-func (r Record) RequireDuration(t TestingT, key string) {
+func (r Record) DurationAttr(t TestingT, key string) time.Duration {
 	t.Helper()
 	v, ok := r.Attrs[key]
 	if !ok {
@@ -84,6 +97,14 @@ func (r Record) RequireDuration(t TestingT, key string) {
 	if v.Kind() != slog.KindDuration {
 		t.Fatalf("attr %q kind = %v, want Duration", key, v.Kind())
 	}
+	return v.Duration()
+}
+
+// RequireDuration asserts the attr's kind for a caller the value itself does not
+// concern — a measured elapsed time no assertion can pin.
+func (r Record) RequireDuration(t TestingT, key string) {
+	t.Helper()
+	_ = r.DurationAttr(t, key)
 }
 
 func (r Record) HasAttr(key string) bool {
@@ -129,6 +150,18 @@ func (rs Records) withMessage(msg string) Records {
 // matching keeps the records emitted under component carrying message msg.
 func (rs Records) matching(component, msg string) Records {
 	return rs.filter(func(r Record) bool { return r.Matches(component, msg) })
+}
+
+// Only fails the test unless the set holds exactly one record, and returns it.
+// It terminates any query chain, the level-filtered ones included: the level
+// survives into the returned record. The description names the set in the
+// failure message.
+func (rs Records) Only(t TestingT, description string) Record {
+	t.Helper()
+	if len(rs) != 1 {
+		t.Fatalf("expected exactly 1 %s, got %d: %+v", description, len(rs), rs)
+	}
+	return rs[0]
 }
 
 func (rs Records) filter(keep func(Record) bool) Records {
@@ -254,26 +287,6 @@ func (s *Sink) RecordsAtExactLevelWith(level slog.Level, component, msg string) 
 // component separately rather than filtering it away.
 func (s *Sink) RecordsAtExactLevelWithMessage(level slog.Level, msg string) Records {
 	return s.RecordsWithMessage(msg).atExactLevel(level)
-}
-
-func (s *Sink) OnlyRecord(t TestingT) Record {
-	t.Helper()
-	return s.only(t, s.Records(), "log record")
-}
-
-// OnlyRecordWith fails the test unless exactly one captured record was emitted
-// under component carrying message msg.
-func (s *Sink) OnlyRecordWith(t TestingT, component, msg string) Record {
-	t.Helper()
-	return s.only(t, s.RecordsWith(component, msg), fmt.Sprintf("%q %q record", component, msg))
-}
-
-func (s *Sink) only(t TestingT, matched Records, description string) Record {
-	t.Helper()
-	if len(matched) != 1 {
-		t.Fatalf("expected exactly 1 %s, got %d: %+v", description, len(matched), s.Records())
-	}
-	return matched[0]
 }
 
 func NewCaptureLogger(t *testing.T) (*slog.Logger, *Sink) {

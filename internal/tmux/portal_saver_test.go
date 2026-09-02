@@ -1134,16 +1134,6 @@ func TestEnsurePortalSaverVersion_DoesNotWriteDaemonVersionOnKillPath(t *testing
 	}
 }
 
-// attrOrEmpty reads an attr as a string, standing in for the absent attr with
-// the empty string so an assertion on the value reports the mismatch itself.
-func attrOrEmpty(rec logtest.Record, key string) string {
-	v, ok := rec.Attrs[key]
-	if !ok {
-		return ""
-	}
-	return v.String()
-}
-
 // barrierLog captures the kill-barrier's WARN lines as "<component> | <message>".
 type barrierLog struct {
 	sink logtest.Sink
@@ -1154,7 +1144,7 @@ func (b *barrierLog) Logger() *slog.Logger { return slog.New(&b.sink) }
 func (b *barrierLog) warns() []string {
 	var out []string
 	for _, rec := range b.sink.RecordsAtExactLevel(slog.LevelWarn) {
-		out = append(out, attrOrEmpty(rec, "component")+" | "+rec.Msg)
+		out = append(out, rec.AttrOrEmpty("component")+" | "+rec.Msg)
 	}
 	return out
 }
@@ -2298,16 +2288,12 @@ func TestSetVersionWriterLogger_BootstrapWrapperEmitsDebugBreadcrumb(t *testing.
 		t.Fatalf("portalSaverWriteVersionFile: %v", err)
 	}
 
-	breadcrumbs := sink.RecordsWithMessage("daemon.version write")
-	if len(breadcrumbs) != 1 {
-		t.Fatalf("expected exactly 1 'daemon.version write' breadcrumb, got %d: %v", len(breadcrumbs), sink.Records())
-	}
-	b := breadcrumbs[0]
+	b := sink.RecordsWithMessage("daemon.version write").Only(t, "daemon.version write record")
 	if b.Level != slog.LevelDebug {
 		t.Errorf("breadcrumb level = %v, want DEBUG", b.Level)
 	}
-	gotComponent := attrOrEmpty(b, "component")
-	gotPath := attrOrEmpty(b, "path")
+	gotComponent := b.AttrOrEmpty("component")
+	gotPath := b.AttrOrEmpty("path")
 	if gotComponent != "daemon" {
 		t.Errorf("breadcrumb component = %q, want %q", gotComponent, "daemon")
 	}
@@ -3549,24 +3535,15 @@ func TestEscalateKillToSIGKILL_EmitsDebugBreadcrumbWithTargetPIDOnEscalationBran
 		t.Fatalf("KillSaverAndWaitForDaemon returned error: %v", err)
 	}
 
-	breadcrumbs := escalationDebugRecords(sink)
-	if len(breadcrumbs) != 1 {
-		t.Fatalf("expected exactly 1 %q breadcrumb, got %d: %v", escalationBreadcrumbMessage, len(breadcrumbs), sink.Records())
-	}
-	b := breadcrumbs[0]
+	b := escalationDebugRecords(sink).Only(t, escalationBreadcrumbMessage+" breadcrumb")
 	if b.Level != slog.LevelDebug {
 		t.Errorf("breadcrumb level = %v, want DEBUG", b.Level)
 	}
 
-	gotComponent := attrOrEmpty(b, "component")
-	targetPID, sawTargetPID := b.Attrs["target_pid"]
-	if gotComponent != "saver" {
+	if gotComponent := b.AttrOrEmpty("component"); gotComponent != "saver" {
 		t.Errorf("breadcrumb component = %q, want %q", gotComponent, "saver")
 	}
-	if !sawTargetPID {
-		t.Fatalf("breadcrumb missing target_pid attr: %v", b)
-	}
-	if got := targetPID.Int64(); got != 4321 {
+	if got := b.IntAttr(t, "target_pid"); got != 4321 {
 		t.Errorf("breadcrumb target_pid = %d, want 4321 (the SIGKILL'd PID)", got)
 	}
 }

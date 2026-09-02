@@ -79,7 +79,7 @@ func TestEventLogger_TokenAttrOnlyWhereReasonNamesOne(t *testing.T) {
 
 			events.Rejected("nord-lee", "/themes/nord-lee.theme", &theme.Rejection{Reason: tt.reason, Detail: tt.detail, Tokens: tt.tokens, Values: tt.values})
 
-			record := sink.OnlyRecord(t)
+			record := sink.Records().Only(t, "log record")
 			if tt.wantToken == "" {
 				if record.HasAttr("token") {
 					t.Errorf("reason %q carried token=%q, want no token attr — the reason names none", tt.reason, record.AttrString(t, "token"))
@@ -127,7 +127,7 @@ func TestEventLogger_TokenAttrRendersFromTokensNotDetail(t *testing.T) {
 
 			events.Rejected("nord-lee", "/themes/nord-lee.theme", &tt.rejection)
 
-			if got := sink.OnlyRecord(t).AttrString(t, "token"); got != tt.wantToken {
+			if got := sink.Records().Only(t, "log record").AttrString(t, "token"); got != tt.wantToken {
 				t.Errorf("token = %q, want %q", got, tt.wantToken)
 			}
 		})
@@ -258,7 +258,7 @@ func TestEventLogger_DedupsOnPathWhenNoSlug(t *testing.T) {
 		}
 	}
 
-	record := sink.OnlyRecord(t)
+	record := sink.Records().Only(t, "log record")
 	if got, want := record.Msg, "rejected"; got != want {
 		t.Errorf("message = %q, want %q", got, want)
 	}
@@ -286,7 +286,7 @@ func TestEventLogger_DirectoryUnusableDedupsOnPathAndReason(t *testing.T) {
 		}
 	}
 
-	record := sink.OnlyRecord(t)
+	record := sink.Records().Only(t, "log record")
 	if got, want := record.Msg, "directory unusable"; got != want {
 		t.Errorf("message = %q, want %q", got, want)
 	}
@@ -427,7 +427,7 @@ func TestEvents_SlotAttrOnlyUnderAPair(t *testing.T) {
 			t.Fatalf("ResolveNomination(%+v) = %v, want the nomination loaded", setting, err)
 		}
 
-		record := sink.OnlyRecord(t)
+		record := sink.Records().Only(t, "log record")
 		if got := record.AttrString(t, "slug"); got != theme.DefaultDarkSlug {
 			t.Errorf("slug = %q, want %q", got, theme.DefaultDarkSlug)
 		}
@@ -505,17 +505,14 @@ func TestEvents_FallbackAppliedNamesTheFailedSlug(t *testing.T) {
 		t.Fatalf("light slot = %+v, want the fallback applied — the fixture resolves the nomination", resolution.Slots[0])
 	}
 
-	applied := sink.RecordsWithMessage("fallback applied")
-	if len(applied) != 1 {
-		t.Fatalf("emitted %d `fallback applied` records, want one for the broken light slot:\n%s", len(applied), sink.Body())
-	}
-	if got, want := applied[0].AttrString(t, "slug"), "broken-light"; got != want {
+	applied := sink.RecordsWithMessage("fallback applied").Only(t, "fallback applied record")
+	if got, want := applied.AttrString(t, "slug"), "broken-light"; got != want {
 		t.Errorf("slug = %q, want the nomination that failed, %q", got, want)
 	}
-	if got, want := applied[0].AttrString(t, "slot"), "light"; got != want {
+	if got, want := applied.AttrString(t, "slot"), "light"; got != want {
 		t.Errorf("slot = %q, want %q", got, want)
 	}
-	if got, want := applied[0].AttrString(t, "reason"), string(theme.ReasonMissingTokens); got != want {
+	if got, want := applied.AttrString(t, "reason"), string(theme.ReasonMissingTokens); got != want {
 		t.Errorf("reason = %q, want %q", got, want)
 	}
 
@@ -523,7 +520,7 @@ func TestEvents_FallbackAppliedNamesTheFailedSlug(t *testing.T) {
 	if len(loaded) != 2 {
 		t.Fatalf("emitted %d `loaded` records, want one per slot (2):\n%s", len(loaded), sink.Body())
 	}
-	if applied[0].AttrString(t, "slug") == loaded[0].AttrString(t, "slug") {
+	if applied.AttrString(t, "slug") == loaded[0].AttrString(t, "slug") {
 		t.Errorf("`fallback applied` and `loaded` both name %q; the failed nomination and the palette that rendered are different themes, and a grep on a broken install must tell them apart", loaded[0].AttrString(t, "slug"))
 	}
 }

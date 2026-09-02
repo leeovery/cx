@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,6 +14,7 @@ import (
 	"github.com/leeovery/portal/internal/commandertest"
 	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/hookstest"
+	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
@@ -168,7 +167,7 @@ func makeDeps(t *testing.T, dir string, fc *daemonFakeCommander) *daemonDeps {
 	store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: ""})
 	return &daemonDeps{
 		Dir:          dir,
-		Logger:       slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Logger:       log.Discard(),
 		Client:       tmux.NewClient(fc),
 		HookStore:    store,
 		lastCleanup:  time.Now(),
@@ -1228,7 +1227,7 @@ func TestDefaultDaemonRun_WritesVersionFileFromDepsVersion(t *testing.T) {
 	deps := &daemonDeps{
 		Dir:          dir,
 		Version:      want,
-		Logger:       slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Logger:       log.Discard(),
 		TickerPeriod: time.Hour,
 	}
 
