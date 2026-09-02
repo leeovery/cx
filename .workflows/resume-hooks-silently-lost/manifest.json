@@ -266,7 +266,7 @@
           "fix_gate_mode": "auto",
           "analysis_gate_mode": "gated",
           "consolidation_gate_mode": "gated",
-          "fix_attempts": 2,
+          "fix_attempts": 0,
           "analysis_cycle_total": 3,
           "analysis_cycle_session": 0,
           "linters": [
@@ -300,7 +300,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 8,
-          "current_task": "resume-hooks-silently-lost-8-21",
+          "current_task": "resume-hooks-silently-lost-8-22",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -430,7 +430,8 @@
             "resume-hooks-silently-lost-8-17",
             "resume-hooks-silently-lost-8-18",
             "resume-hooks-silently-lost-8-19",
-            "resume-hooks-silently-lost-8-20"
+            "resume-hooks-silently-lost-8-20",
+            "resume-hooks-silently-lost-8-21"
           ],
           "staging": {
             "p1": {
@@ -1188,6 +1189,25 @@
                 "internal/theme/badge_test.go",
                 "internal/theme/resolution_test.go",
                 "internal/theme/setting_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-21",
+              "source": "executor",
+              "summary": "A fifth callee-name unwrapper survives in internal/capture, missed by the candidate-set sweep two reviewers ran.",
+              "detail": "internal/capture/swap_harness_test.go:231 — countCalls switches on call.Fun with an *ast.SelectorExpr arm and an *ast.Ident arm that both do == name; count++, which is exactly sourceguardtest.CalleeName(call) == name rather than a receiver-qualified matcher. The package test set already imports sourceguardtest (internal/capture/theme_panel_message_fixtures_test.go:13), so collapsing it adds no new package edge. Note the task premise stated two reviewers had independently confirmed the four named sites were the complete candidate set — they were not.",
+              "files": [
+                "internal/capture/swap_harness_test.go",
+                "internal/sourceguardtest/calleename.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-21",
+              "source": "reviewer",
+              "summary": "CONFIRMED by an independent 42-site sweep: the fifth unwrapper in internal/capture is the only one left, and folding it in closes criterion 1 tree-wide.",
+              "detail": "internal/capture/swap_harness_test.go:224-244 — countCalls switches on call.Fun with a *ast.SelectorExpr arm and an *ast.Ident arm that both do == name; count++. Collapses to if sourceguardtest.CalleeName(call) == name { count++ }. Its three call sites (swap_harness_test.go:194,197,200) pass string literals, never \"\", so the empty-unwrap case cannot change a count. The test package already imports sourceguardtest (theme_panel_message_fixtures_test.go:13), so it is a one-line change with no dependency decision. The sweep also cleared internal/theme/loader_construction_guard_test.go:64 (switches on a type expression) and internal/tui/theme_panel_commit_slot_test.go:448 as matchers, and confirmed internal/portaltest teardown_guard_coverage_test.go selectorName/localCallName must NOT be routed through CalleeName — they render selectors as pkg.func so qualified and unqualified calls stay distinguishable, which that guard depends on. Do not re-flag those in a later sweep.",
+              "files": [
+                "internal/capture/swap_harness_test.go"
               ]
             }
           ]
