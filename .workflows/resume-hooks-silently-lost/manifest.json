@@ -300,7 +300,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 8,
-          "current_task": "resume-hooks-silently-lost-8-11",
+          "current_task": "resume-hooks-silently-lost-8-12",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -421,7 +421,8 @@
             "resume-hooks-silently-lost-8-7",
             "resume-hooks-silently-lost-8-8",
             "resume-hooks-silently-lost-8-9",
-            "resume-hooks-silently-lost-8-10"
+            "resume-hooks-silently-lost-8-10",
+            "resume-hooks-silently-lost-8-11"
           ],
           "staging": {
             "p1": {
@@ -878,6 +879,28 @@
               "detail": "Set at cmd/bootstrap/composition_e2e_harness_integration_test.go:154 but no h.Env / harness.Env read exists anywhere in the package. Pre-existing and unrelated to this task, but it is the env slice whose semantics this task changed — worth a look in a consolidation pass rather than losing.",
               "files": [
                 "cmd/bootstrap/composition_e2e_harness_integration_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-11",
+              "source": "executor",
+              "summary": "The guard hand-rolls an AST traversal that near-misses sourceguardtest shared primitives.",
+              "detail": "scopesIn/selectorName/localCallName (internal/portaltest/teardown_guard_coverage_test.go:243-306) walk calls per function the way sourceguardtest.ForEachFuncCall (internal/sourceguardtest/foreachfunccall.go) and CalleeName do, differing only in that this guard needs scope granularity, string literals and positions. If a second guard ever needs order or scope, the scope-aware walk belongs in sourceguardtest as one primitive rather than being authored twice.",
+              "files": [
+                "internal/portaltest/teardown_guard_coverage_test.go",
+                "internal/sourceguardtest/foreachfunccall.go",
+                "internal/sourceguardtest/calleename.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-11",
+              "source": "executor",
+              "summary": "The guard hand-rolls an AST traversal that near-misses sourceguardtest shared primitives (re-reported after the fix round; line numbers updated).",
+              "detail": "scopesIn/selectorName/localCallName (internal/portaltest/teardown_guard_coverage_test.go:245-310) walk calls per function the way sourceguardtest.ForEachFuncCall and CalleeName do, differing only in that this guard needs scope granularity, string literals and positions. If a second guard ever needs order or scope, the scope-aware walk belongs in sourceguardtest as one primitive rather than being authored twice.",
+              "files": [
+                "internal/portaltest/teardown_guard_coverage_test.go",
+                "internal/sourceguardtest/foreachfunccall.go",
+                "internal/sourceguardtest/calleename.go"
               ]
             }
           ]
