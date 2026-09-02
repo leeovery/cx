@@ -300,7 +300,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 8,
-          "current_task": "resume-hooks-silently-lost-8-15",
+          "current_task": "resume-hooks-silently-lost-8-17",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -425,7 +425,8 @@
             "resume-hooks-silently-lost-8-11",
             "resume-hooks-silently-lost-8-12",
             "resume-hooks-silently-lost-8-13",
-            "resume-hooks-silently-lost-8-14"
+            "resume-hooks-silently-lost-8-14",
+            "resume-hooks-silently-lost-8-16"
           ],
           "staging": {
             "p1": {
@@ -998,6 +999,48 @@
                 "internal/restoretest/orchestrator_literal_guard_test.go",
                 "internal/restoretest/session_restorer_literal_guard_test.go",
                 "internal/sourceguardtest"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-16",
+              "source": "executor",
+              "summary": "A fifth Commander fake collapses the same split, in one of the packages this task named.",
+              "detail": "internalMockCommander at internal/tmux/option_discriminator_internal_test.go:9-20 returns (m.Output, m.Err) identically from Run and RunRaw. The analysis enumerated four fakes and missed it because it is in the in-package tmux test rather than tmux_test. It is now re-pointable at no cost — commandertest is stdlib-only precisely so a package-internal tmux test can import it — but re-pointing it is outside this task stated set.",
+              "files": [
+                "internal/tmux/option_discriminator_internal_test.go",
+                "internal/commandertest/scripted.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-16",
+              "source": "executor",
+              "summary": "The four re-pointed suites inherit a silent catch-all their fakes had, which the shared fake loud default would retire.",
+              "detail": "Faithfulness to existing semantics meant translating &MockCommander{Output: x} / &mockCommander{} to commandertest.Quiet(...) — an unscripted argv still answers (\"\", nil) rather than failing the test. commandertest.New(tb, …) reports the argv instead, which is why cmd catches fakes that exercise nothing. Converting the ~200 Quiet sites in internal/tmux and internal/restore to the loud default is a per-site judgement (each needs its real argv set scripted), so it is a sweep of its own rather than part of this refactor.",
+              "files": [
+                "internal/tmux",
+                "internal/restore"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-16",
+              "source": "reviewer",
+              "summary": "Only one production call site exercises RunRaw at all, so the contract this shared fake now pins has a single real consumer.",
+              "detail": "internal/tmux/tmux.go:708 (CapturePane) is the sole RunRaw caller repo-wide; every other client method reads through Run. The Commander interface two-method shape, the fake two-method contract, and the Strict mode all exist to protect that one call. Worth a phase-boundary look at whether the split is better expressed as one Run plus a CapturePaneRaw-style dedicated seam — which would delete the contract, the mode, and the class of drift this task chased — rather than kept as a general interface property.",
+              "files": [
+                "internal/tmux/tmux.go",
+                "internal/tmux/tmux_test.go",
+                "internal/commandertest/scripted.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-16",
+              "source": "reviewer",
+              "summary": "The promoted fake headline safety property — the loud unmatched-argv default — is opted out of at ~90% of its call sites.",
+              "detail": "commandertest.New(t, …) (loud on an unscripted argv) is used at 27 sites in cmd and 1 in internal/state. internal/tmux uses Quiet x159 and FromFunc x126; internal/restore uses Quiet x22 and FromFunc x66 — zero loud sites in either. Faithful to pre-refactor semantics (the old MockCommander/mockCommander were silent catch-alls, so nothing regressed), but the fake own doc warning — a fake that answers an unscripted argv with (\"\", nil) is how a test passes while exercising nothing (internal/commandertest/scripted.go:40-42) — describes a protection those two packages do not have. Tightening them would likely surface tests asserting on argv that production never issues. Reaches ~50 test files across two packages. Supersedes the executor earlier entry on the same subject with measured counts.",
+              "files": [
+                "internal/tmux",
+                "internal/restore",
+                "internal/commandertest/scripted.go"
               ]
             }
           ]
