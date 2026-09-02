@@ -300,7 +300,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 8,
-          "current_task": "resume-hooks-silently-lost-8-14",
+          "current_task": "resume-hooks-silently-lost-8-15",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -424,7 +424,8 @@
             "resume-hooks-silently-lost-8-10",
             "resume-hooks-silently-lost-8-11",
             "resume-hooks-silently-lost-8-12",
-            "resume-hooks-silently-lost-8-13"
+            "resume-hooks-silently-lost-8-13",
+            "resume-hooks-silently-lost-8-14"
           ],
           "staging": {
             "p1": {
@@ -974,6 +975,29 @@
               "detail": "Probed with a sandboxed -S server and an interactive /bin/zsh pane under a temp HOME. (a) /etc/zshrc:16 sets HISTFILE=${ZDOTDIR:-$HOME}/.zsh_history unconditionally, so the long-standing exported HISTFILE=/dev/null (internal/portaltest/isolated_env.go:43) is overridden and .zsh_history lands in the temp HOME on every run — that is the writer the teardown actually races. (b) .zsh_sessions never appeared, including with TERM_PROGRAM=Apple_Terminal and TERM_SESSION_ID set, so SHELL_SESSIONS_DISABLE=1 (:44) neutralises nothing. (c) ZDOTDIR=homeDir (:45) is a no-op by construction — ${ZDOTDIR:-$HOME} already resolves to the temp HOME. The lever that works is ZDOTDIR pointed OUTSIDE the framework TempDir tree: with it set, the probe temp HOME came back empty. (Note this differs from the earlier banked remedy of staging a .zshrc in the temp HOME.) The executor implemented the task instruction verbatim, so this is a defect in the prescription, not the execution — and the remedy reaches the pre-existing HISTFILE pin and an isolation contract every fixture inherits, so it wants its own deliberate change.",
               "files": [
                 "internal/portaltest/isolated_env.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-14",
+              "source": "executor",
+              "summary": "The repo source guards each re-implement build-tag awareness and AST scaffolding that sourceguardtest could own.",
+              "detail": "scanGuardTestFiles and isIntegrationTagged now live in internal/restoretest/literal_guard_scan_test.go but are generic capability — parse-every-_test.go-under-root and is-this-file-in-the-integration-lane are questions any of the ~20 guards can ask, and sourceguardtest (which already owns GoSourceFiles, PackageGoFiles, ForEachFuncCall, CalleeName, PackageDeps) is where they belong. Promoting them would also let the older orchestrator guard (internal/restoretest/orchestrator_literal_guard_test.go) and other guards drop their local walks. Compare the 8-11 entry on the scope-aware walk — same package, same argument, fold together.",
+              "files": [
+                "internal/restoretest/literal_guard_scan_test.go",
+                "internal/sourceguardtest",
+                "internal/restoretest/orchestrator_literal_guard_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-14",
+              "source": "reviewer",
+              "summary": "The two literal guards each walk and parse every _test.go in the repo, once per guard.",
+              "detail": "scanTestOrchestratorLiterals (internal/restoretest/orchestrator_literal_guard_test.go:144) and scanIntegrationSessionRestorerLiterals (internal/restoretest/session_restorer_literal_guard_test.go:149) both call scanGuardTestFiles, so the repo-wide walk and parse run twice per unit-lane run of the package. Folding the two collectors into one walk belongs with the already-banked promotion of scanGuardTestFiles/isIntegrationTagged into internal/sourceguardtest, not as a separate pass.",
+              "files": [
+                "internal/restoretest/literal_guard_scan_test.go",
+                "internal/restoretest/orchestrator_literal_guard_test.go",
+                "internal/restoretest/session_restorer_literal_guard_test.go",
+                "internal/sourceguardtest"
               ]
             }
           ]
