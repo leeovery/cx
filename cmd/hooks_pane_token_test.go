@@ -6,6 +6,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/leeovery/portal/internal/hookstest"
 	"github.com/leeovery/portal/internal/nanoid"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
@@ -51,7 +52,7 @@ func TestHooksSetStampsPaneToken(t *testing.T) {
 		t.Setenv("TMUX_PANE", "%7")
 
 		stamper := &recordingPaneStamper{}
-		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: "tok999"}, PaneStamper: stamper})
+		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: hookstest.SubjectSeedA}, PaneStamper: stamper})
 
 		if _, err := runHookSet(t, "some-cmd"); err != nil {
 			t.Fatalf("hook set: %v", err)
@@ -61,7 +62,7 @@ func TestHooksSetStampsPaneToken(t *testing.T) {
 			t.Errorf("set-option call count = %d, want 0 (a stamped pane must not be re-minted): %+v", len(stamper.calls), stamper.calls)
 		}
 		data := readHooksJSON(t, hooksFile)
-		if len(data) != 1 || data["tok999"]["on-resume"] != "some-cmd" {
+		if len(data) != 1 || data[hookstest.SubjectSeedA]["on-resume"] != "some-cmd" {
 			t.Errorf("hooks.json = %v, want a single entry under the pane's existing token", data)
 		}
 	})
@@ -158,7 +159,7 @@ func TestHooksSetStampsPaneToken(t *testing.T) {
 		_, hooksFile := hooksFileInTempDir(t)
 		t.Setenv("TMUX_PANE", "")
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{
-			"tok999": {"on-resume": "claude --resume xyz"},
+			hookstest.SubjectSeedA: {"on-resume": "claude --resume xyz"},
 		})
 
 		resolver, stamper := paneKeyPathSeams()
@@ -167,7 +168,7 @@ func TestHooksSetStampsPaneToken(t *testing.T) {
 		resetRootCmd()
 		rootCmd.SetOut(new(bytes.Buffer))
 		rootCmd.SetErr(new(bytes.Buffer))
-		rootCmd.SetArgs([]string{"hook", "rm", "--pane-key", "tok999", "--on-resume"})
+		rootCmd.SetArgs([]string{"hook", "rm", "--pane-key", hookstest.SubjectSeedA, "--on-resume"})
 		if err := rootCmd.Execute(); err != nil {
 			t.Fatalf("hook rm --pane-key: %v", err)
 		}
@@ -191,7 +192,7 @@ func TestHooksSetRefusesAnUnresolvablePane(t *testing.T) {
 		withHooksDeps(t, HooksDeps{
 			KeyResolver: &mockKeyResolver{err: &tmux.CommandError{Stderr: stderr}},
 			PaneStamper: stamper,
-			TokenMinter: func() (string, error) { minted++; return "tok000", nil },
+			TokenMinter: func() (string, error) { minted++; return hookstest.SubjectSeedB, nil },
 		})
 
 		if _, err := runHookSet(t, "some-cmd"); err == nil {

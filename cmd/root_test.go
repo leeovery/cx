@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/cmd/bootstrap"
+	"github.com/leeovery/portal/internal/hookstest"
 	"github.com/leeovery/portal/internal/tmux"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -314,11 +315,11 @@ func TestPersistentPreRunE_CallsEnsureServer(t *testing.T) {
 						t.Setenv("PORTAL_HOOKS_FILE", hooksFile)
 						t.Setenv("TMUX_PANE", "%3")
 
-						resolver := &mockKeyResolver{key: "my-session:0.0"}
+						resolver := &mockKeyResolver{key: hookstest.UnjudgeableSeedA}
 						withHooksDeps(t, HooksDeps{KeyResolver: resolver})
 
 						writeHooksJSON(t, hooksFile, map[string]map[string]string{
-							"my-session:0.0": {"on-resume": "claude --resume abc123"},
+							hookstest.UnjudgeableSeedA: {"on-resume": "claude --resume abc123"},
 						})
 					case "list":
 						// The list body resolves each entry's location through the

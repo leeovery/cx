@@ -2,10 +2,12 @@ package cmd
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
 
+	"github.com/leeovery/portal/internal/hookstest"
 	"github.com/leeovery/portal/internal/tmux"
 )
 
@@ -49,7 +51,7 @@ func runRmCase(t *testing.T, tt rmCase) rmOutcome {
 	withHooksDeps(t, HooksDeps{
 		KeyResolver: resolver,
 		PaneStamper: stamper,
-		TokenMinter: func() (string, error) { minted++; return "tok000", nil },
+		TokenMinter: func() (string, error) { minted++; return hookstest.SubjectSeedC, nil },
 	})
 
 	_, err := runHookRm(t, tt.extra...)
@@ -117,14 +119,15 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 		hooksFileInTempDir(t)
 		t.Setenv("TMUX_PANE", "%3")
 
-		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}})
+		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: hookstest.SubjectSeedA}})
 
 		_, err := runHookRm(t)
 		if err == nil {
 			t.Fatal("expected an error when the resolved token has no entry, got nil")
 		}
-		if err.Error() != "no resume hook registered for tok123" {
-			t.Errorf("error = %q, want %q", err.Error(), "no resume hook registered for tok123")
+		want := fmt.Sprintf("no resume hook registered for %s", hookstest.SubjectSeedA)
+		if err.Error() != want {
+			t.Errorf("error = %q, want %q", err.Error(), want)
 		}
 	})
 
@@ -137,12 +140,13 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 		resolver, stamper := paneKeyPathSeams()
 		withHooksDeps(t, HooksDeps{KeyResolver: resolver, PaneStamper: stamper})
 
-		_, err := runHookRm(t, "--pane-key", "sess:0.1")
+		_, err := runHookRm(t, "--pane-key", hookstest.UnjudgeableSeedA)
 		if err == nil {
 			t.Fatal("expected an error when --pane-key names no entry, got nil")
 		}
-		if err.Error() != "no resume hook registered for sess:0.1" {
-			t.Errorf("error = %q, want %q", err.Error(), "no resume hook registered for sess:0.1")
+		want := fmt.Sprintf("no resume hook registered for %s", hookstest.UnjudgeableSeedA)
+		if err.Error() != want {
+			t.Errorf("error = %q, want %q", err.Error(), want)
 		}
 	})
 
@@ -150,21 +154,21 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 		_, hooksFile := hooksFileInTempDir(t)
 		t.Setenv("TMUX_PANE", "%3")
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{
-			"tok123": {"on-resume": "claude --resume abc"},
-			"tok999": {"on-resume": "npm start"},
+			hookstest.SubjectSeedA: {"on-resume": "claude --resume abc"},
+			hookstest.SubjectSeedB: {"on-resume": "npm start"},
 		})
 
-		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}})
+		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: hookstest.SubjectSeedA}})
 
 		if _, err := runHookRm(t); err != nil {
 			t.Fatalf("hook rm: %v", err)
 		}
 
 		data := readHooksJSON(t, hooksFile)
-		if _, ok := data["tok123"]; ok {
+		if _, ok := data[hookstest.SubjectSeedA]; ok {
 			t.Error("expected the resolved token's entry to be removed")
 		}
-		if data["tok999"]["on-resume"] != "npm start" {
+		if data[hookstest.SubjectSeedB]["on-resume"] != "npm start" {
 			t.Errorf("hooks.json = %v, want the other pane's entry left in place", data)
 		}
 	})
@@ -173,8 +177,8 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 		_, hooksFile := hooksFileInTempDir(t)
 		t.Setenv("TMUX_PANE", "")
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{
-			"sess:0.1": {"on-resume": "claude --resume abc"},
-			"tok999":   {"on-resume": "npm start"},
+			hookstest.UnjudgeableSeedA: {"on-resume": "claude --resume abc"},
+			hookstest.SubjectSeedB:     {"on-resume": "npm start"},
 		})
 
 		resolver, stamper := paneKeyPathSeams()
@@ -182,12 +186,12 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 
 		// An old-format key: the pass-through validates nothing, so removing one
 		// by hand keeps working and keeps exiting 0.
-		if _, err := runHookRm(t, "--pane-key", "sess:0.1"); err != nil {
+		if _, err := runHookRm(t, "--pane-key", hookstest.UnjudgeableSeedA); err != nil {
 			t.Fatalf("hook rm --pane-key: %v", err)
 		}
 
 		data := readHooksJSON(t, hooksFile)
-		if _, ok := data["sess:0.1"]; ok {
+		if _, ok := data[hookstest.UnjudgeableSeedA]; ok {
 			t.Error("expected the verbatim key's entry to be removed")
 		}
 		assertNoPaneTmuxCalls(t, resolver, stamper)
@@ -195,7 +199,7 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 
 	t.Run("it leaves hooks.json byte-identical on every failing route", func(t *testing.T) {
 		anotherPane := map[string]map[string]string{
-			"tok999": {"on-resume": "npm start"},
+			hookstest.SubjectSeedB: {"on-resume": "npm start"},
 		}
 
 		tests := []rmCase{
@@ -209,7 +213,7 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 			{
 				name:     "unset TMUX_PANE",
 				paneID:   "",
-				resolver: &mockKeyResolver{key: "tok123"},
+				resolver: &mockKeyResolver{key: hookstest.SubjectSeedA},
 				seeded:   anotherPane,
 				wantErr:  true,
 			},
@@ -220,15 +224,15 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 				paneID:   "%3",
 				resolver: &mockKeyResolver{key: ""},
 				seeded: map[string]map[string]string{
-					"":       {"on-resume": "an empty-key entry"},
-					"tok999": {"on-resume": "npm start"},
+					"":                     {"on-resume": "an empty-key entry"},
+					hookstest.SubjectSeedB: {"on-resume": "npm start"},
 				},
 				wantErr: true,
 			},
 			{
 				name:     "resolved token naming no entry",
 				paneID:   "%3",
-				resolver: &mockKeyResolver{key: "tok123"},
+				resolver: &mockKeyResolver{key: hookstest.SubjectSeedA},
 				seeded:   anotherPane,
 				wantErr:  true,
 			},
@@ -237,7 +241,7 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 				paneID:      "%3",
 				paneKeyPath: true,
 				seeded:      anotherPane,
-				extra:       []string{"--pane-key", "sess:0.1"},
+				extra:       []string{"--pane-key", hookstest.UnjudgeableSeedA},
 				wantErr:     true,
 			},
 		}
@@ -251,13 +255,13 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 	})
 
 	t.Run("it mints and stamps nothing on either path", func(t *testing.T) {
-		onePane := map[string]map[string]string{"tok123": {"on-resume": "npm start"}}
+		onePane := map[string]map[string]string{hookstest.SubjectSeedA: {"on-resume": "npm start"}}
 
 		tests := []rmCase{
 			{
 				name:     "successful resolved-token removal",
 				paneID:   "%3",
-				resolver: &mockKeyResolver{key: "tok123"},
+				resolver: &mockKeyResolver{key: hookstest.SubjectSeedA},
 				seeded:   onePane,
 			},
 			{
@@ -272,7 +276,7 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 				paneID:      "",
 				paneKeyPath: true,
 				seeded:      onePane,
-				extra:       []string{"--pane-key", "tok123"},
+				extra:       []string{"--pane-key", hookstest.SubjectSeedA},
 			},
 		}
 
@@ -292,19 +296,19 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 	})
 
 	t.Run("it touches no dirty flag on either path", func(t *testing.T) {
-		onePane := map[string]map[string]string{"tok123": {"on-resume": "npm start"}}
+		onePane := map[string]map[string]string{hookstest.SubjectSeedA: {"on-resume": "npm start"}}
 
 		tests := []rmCase{
 			{
 				name:     "successful resolved-token removal",
 				paneID:   "%3",
-				resolver: &mockKeyResolver{key: "tok123"},
+				resolver: &mockKeyResolver{key: hookstest.SubjectSeedA},
 				seeded:   onePane,
 			},
 			{
 				name:     "resolved token removing nothing",
 				paneID:   "%3",
-				resolver: &mockKeyResolver{key: "tok404"},
+				resolver: &mockKeyResolver{key: hookstest.SubjectSeedD},
 				seeded:   onePane,
 				wantErr:  true,
 			},
@@ -313,7 +317,7 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 				paneID:      "",
 				paneKeyPath: true,
 				seeded:      onePane,
-				extra:       []string{"--pane-key", "tok123"},
+				extra:       []string{"--pane-key", hookstest.SubjectSeedA},
 			},
 		}
 
@@ -336,7 +340,7 @@ func TestHooksRmExitsZeroOnlyWhenItRemoved(t *testing.T) {
 		t.Setenv("TMUX_PANE", "%3")
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{})
 
-		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}})
+		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: hookstest.SubjectSeedA}})
 
 		out, err := runHookRm(t)
 		if err == nil {

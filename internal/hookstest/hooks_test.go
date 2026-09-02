@@ -11,46 +11,76 @@ import (
 	"github.com/leeovery/portal/internal/nanoid"
 )
 
+// tokenShapedSeeds and unjudgeableSeeds name every seed the vocabulary mints,
+// so the sweeps below cover the whole of it rather than a prefix of it.
+var (
+	tokenShapedSeeds = map[string]string{
+		"ReapableSeedA": hookstest.ReapableSeedA,
+		"ReapableSeedB": hookstest.ReapableSeedB,
+		"ReapableSeedC": hookstest.ReapableSeedC,
+		"ReapableSeedD": hookstest.ReapableSeedD,
+		"LiveSeedA":     hookstest.LiveSeedA,
+		"LiveSeedB":     hookstest.LiveSeedB,
+		"LiveSeedC":     hookstest.LiveSeedC,
+		"SubjectSeedA":  hookstest.SubjectSeedA,
+		"SubjectSeedB":  hookstest.SubjectSeedB,
+		"SubjectSeedC":  hookstest.SubjectSeedC,
+		"SubjectSeedD":  hookstest.SubjectSeedD,
+	}
+
+	unjudgeableSeeds = map[string]string{
+		"UnjudgeableSeedA": hookstest.UnjudgeableSeedA,
+		"UnjudgeableSeedB": hookstest.UnjudgeableSeedB,
+		"UnjudgeableSeedC": hookstest.UnjudgeableSeedC,
+	}
+)
+
 func TestHookKeySeedVocabulary(t *testing.T) {
-	t.Run("a reapable key is token-shaped", func(t *testing.T) {
-		for n := range 4 {
-			if got := hookstest.ReapableHookKey(n); !nanoid.IsTokenShaped(got) {
-				t.Errorf("ReapableHookKey(%d) = %q, want a token-shaped key", n, got)
+	t.Run("it mints a token-shaped key for every named seed index", func(t *testing.T) {
+		for name, key := range tokenShapedSeeds {
+			if !nanoid.IsTokenShaped(key) {
+				t.Errorf("%s = %q, want a token-shaped key", name, key)
 			}
 		}
 	})
 
-	t.Run("it authors a reapable key at the pane-token width", func(t *testing.T) {
+	t.Run("it authors every token-shaped seed at the pane-token width", func(t *testing.T) {
 		token, err := nanoid.NewPaneTokenGenerator()()
 		if err != nil {
 			t.Fatalf("mint a pane token: %v", err)
 		}
-		for n := range 4 {
-			if got := hookstest.ReapableHookKey(n); len(got) != len(token) {
-				t.Errorf("ReapableHookKey(%d) = %q (%d bytes), want the pane-token width of %d", n, got, len(got), len(token))
+		for name, key := range tokenShapedSeeds {
+			if len(key) != len(token) {
+				t.Errorf("%s = %q (%d bytes), want the pane-token width of %d", name, key, len(key), len(token))
 			}
 		}
 	})
 
-	t.Run("an unjudgeable key is not token-shaped", func(t *testing.T) {
-		for n := range 4 {
-			if got := hookstest.UnjudgeableHookKey(n); nanoid.IsTokenShaped(got) {
-				t.Errorf("UnjudgeableHookKey(%d) = %q, want a key the staleness rule cannot judge", n, got)
+	t.Run("an unjudgeable seed is not token-shaped", func(t *testing.T) {
+		for name, key := range unjudgeableSeeds {
+			if nanoid.IsTokenShaped(key) {
+				t.Errorf("%s = %q, want a key the staleness rule cannot judge", name, key)
 			}
 		}
 	})
 
-	t.Run("successive n give distinct keys", func(t *testing.T) {
-		seen := map[string]int{}
-		for n := range 8 {
-			for _, got := range []string{hookstest.ReapableHookKey(n), hookstest.UnjudgeableHookKey(n)} {
-				if prev, dup := seen[got]; dup {
-					t.Errorf("key %q produced for both n=%d and n=%d", got, prev, n)
-				}
-				seen[got] = n
-			}
+	t.Run("every named seed is distinct", func(t *testing.T) {
+		seen := map[string]string{}
+		for name, key := range tokenShapedSeeds {
+			assertUnseen(t, seen, name, key)
+		}
+		for name, key := range unjudgeableSeeds {
+			assertUnseen(t, seen, name, key)
 		}
 	})
+}
+
+func assertUnseen(t *testing.T, seen map[string]string, name, key string) {
+	t.Helper()
+	if prev, dup := seen[key]; dup {
+		t.Errorf("key %q is shared by %s and %s", key, prev, name)
+	}
+	seen[key] = name
 }
 
 // recordingT stands in for *testing.T so the assertion's own failing paths can

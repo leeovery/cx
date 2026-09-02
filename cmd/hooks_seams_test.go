@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/commandertest"
+	"github.com/leeovery/portal/internal/hookstest"
 	"github.com/leeovery/portal/internal/nanoid"
 	"github.com/leeovery/portal/internal/tmux"
 )
@@ -36,14 +37,14 @@ func TestHookSeams(t *testing.T) {
 	})
 
 	t.Run("it resolves each seam to its injected fake", func(t *testing.T) {
-		resolver := &mockKeyResolver{key: "tok123"}
+		resolver := &mockKeyResolver{key: hookstest.SubjectSeedA}
 		lister := &recordingPaneHookLister{}
 		stamper := &recordingPaneStamper{}
 		withHooksDeps(t, HooksDeps{
 			KeyResolver: resolver,
 			PaneLister:  lister,
 			PaneStamper: stamper,
-			TokenMinter: func() (string, error) { return "tok000", nil },
+			TokenMinter: func() (string, error) { return hookstest.SubjectSeedB, nil },
 		})
 
 		seams := hookSeams()
@@ -61,13 +62,13 @@ func TestHookSeams(t *testing.T) {
 		if err != nil {
 			t.Fatalf("injected TokenMinter: %v", err)
 		}
-		if token != "tok000" {
-			t.Errorf("TokenMinter minted %q, want the injected fake's %q", token, "tok000")
+		if token != hookstest.SubjectSeedB {
+			t.Errorf("TokenMinter minted %q, want the injected fake's %q", token, hookstest.SubjectSeedB)
 		}
 	})
 
 	t.Run("it fills the production default for every seam a test left unset", func(t *testing.T) {
-		resolver := &mockKeyResolver{key: "tok123"}
+		resolver := &mockKeyResolver{key: hookstest.SubjectSeedA}
 		withHooksDeps(t, HooksDeps{KeyResolver: resolver})
 
 		seams := hookSeams()

@@ -224,7 +224,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 	t.Run("it preserves a hook whose token matches the live set", func(t *testing.T) {
 		seed := fmt.Sprintf(`{
   %q: {"on-resume": "cmd-live"},
-  %q: {"on-resume": "cmd-stale"}
+  %q: {"on-resume": "cmd-gone"}
 }`, hookstest.LiveSeedA, hookstest.ReapableSeedA)
 		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 

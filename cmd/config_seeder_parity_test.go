@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -103,7 +104,8 @@ func stageLegacyHooksFile(t *testing.T, home string) string {
 		t.Fatalf("stage the legacy config dir: %v", err)
 	}
 	path := filepath.Join(dir, "hooks.json")
-	if err := os.WriteFile(path, []byte(`{"legacy":{"on-resume":"moved"}}`), 0o600); err != nil {
+	body := fmt.Sprintf(`{%q:{"on-resume":"moved"}}`, hookstest.SubjectSeedA)
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		t.Fatalf("stage the legacy hooks.json: %v", err)
 	}
 	return path

@@ -16,12 +16,12 @@ import (
 	"github.com/leeovery/portal/internal/xdg"
 )
 
-// reapableSeedPrefix keeps a reapable seed key legible in test output. It is
-// fitted to whatever room the token width leaves beside the n disambiguator.
-const reapableSeedPrefix = "reap"
+// seedKeyPrefix keeps a seed key legible in test output. It is fitted to
+// whatever room the token width leaves beside the n disambiguator.
+const seedKeyPrefix = "seed"
 
-// disambiguatorWidth is the number of trailing bytes ReapableHookKey spends on
-// distinguishing one seed key from the next.
+// disambiguatorWidth is the number of trailing bytes a token-shaped seed key
+// spends on distinguishing one key from the next.
 const disambiguatorWidth = 2
 
 // paneTokenWidth is taken from the mint rather than declared here, so a seed
@@ -126,23 +126,22 @@ func AssertHooksFileUnchanged(t logtest.TestingT, path string, before []byte, co
 	}
 }
 
-// ReapableHookKey returns a seed hook key the staleness rule can judge, so an
-// entry under it is reaped once it is absent from the live pane set. The
-// returned value is authored at the pane-token width and asserted token-shaped,
-// so a change to the id charset panics here rather than silently turning a reap
-// fixture into a retention one. n only disambiguates — distinct n give distinct
-// keys.
-func ReapableHookKey(n int) string {
+// tokenShapedHookKey returns a seed hook key the staleness rule can judge. The
+// returned value is authored at whatever width the mint reads, so a width move
+// carries it along, and it is asserted token-shaped, so an id charset change
+// panics here rather than silently turning a reap fixture into a retention one.
+// n only disambiguates — distinct n give distinct keys.
+func tokenShapedHookKey(n int) string {
 	radix := len(nanoid.Alphabet)
 	if n < 0 || n >= radix*radix {
-		panic(fmt.Sprintf("hookstest.ReapableHookKey: n = %d out of range [0,%d)", n, radix*radix))
+		panic(fmt.Sprintf("hookstest: seed key n = %d out of range [0,%d)", n, radix*radix))
 	}
 	key := fitPrefix(paneTokenWidth()-disambiguatorWidth) + string([]byte{
 		nanoid.Alphabet[n/radix],
 		nanoid.Alphabet[n%radix],
 	})
 	if !nanoid.IsTokenShaped(key) {
-		panic(fmt.Sprintf("hookstest.ReapableHookKey: %q is not token-shaped — the seed vocabulary has drifted from nanoid.IsTokenShaped", key))
+		panic(fmt.Sprintf("hookstest: seed key %q is not token-shaped — the seed vocabulary has drifted from nanoid.IsTokenShaped", key))
 	}
 	return key
 }
@@ -153,46 +152,55 @@ func fitPrefix(width int) string {
 	if width < 1 {
 		panic(fmt.Sprintf("hookstest: a pane token of %d bytes leaves no room for a legible seed prefix", paneTokenWidth()))
 	}
-	if width <= len(reapableSeedPrefix) {
-		return reapableSeedPrefix[:width]
+	if width <= len(seedKeyPrefix) {
+		return seedKeyPrefix[:width]
 	}
-	return reapableSeedPrefix + strings.Repeat(string(nanoid.Alphabet[0]), width-len(reapableSeedPrefix))
+	return seedKeyPrefix + strings.Repeat(string(nanoid.Alphabet[0]), width-len(seedKeyPrefix))
 }
 
-// UnjudgeableHookKey returns a seed hook key of the legacy `<name>:window.pane`
+// unjudgeableHookKey returns a seed hook key of the legacy `<name>:window.pane`
 // shape, which the staleness rule cannot judge and therefore retains even when
 // absent from the live pane set. n only disambiguates.
-func UnjudgeableHookKey(n int) string {
+func unjudgeableHookKey(n int) string {
 	return fmt.Sprintf("unjudgeable-session-%d:0.0", n)
 }
 
-// The named seed keys the suites share: a fixture that wants a reapable
-// subject names one of the reapable seeds, and one that wants a live subject
-// names one of the live seeds, so a name does not drift onto a key of the
-// other half.
+// The named seed keys the suites share, and the only route to one: a fixture
+// names the seed whose role it means — reapable, live, unjudgeable or plain
+// subject — so a name cannot drift onto a key of another half, and no package
+// re-derives a key of its own.
 var (
 	// The reapable half: keys the staleness rule can judge, so an entry under
 	// one is reaped once it is absent from the live pane set. A fixture keying
 	// its subject on one of these is measuring the reap.
-	ReapableSeedA = ReapableHookKey(0)
-	ReapableSeedB = ReapableHookKey(1)
-	ReapableSeedC = ReapableHookKey(2)
-	ReapableSeedD = ReapableHookKey(3)
+	ReapableSeedA = tokenShapedHookKey(0)
+	ReapableSeedB = tokenShapedHookKey(1)
+	ReapableSeedC = tokenShapedHookKey(2)
+	ReapableSeedD = tokenShapedHookKey(3)
 
 	// The live half: keys of the same judgeable shape, reserved for the entries
 	// a fixture's enumeration reports as live. An entry under one survives
 	// because its pane is live and not because the reaper cannot judge its
 	// shape — which is the whole point of keeping them apart from the reapable
 	// half rather than reusing an index.
-	LiveSeedA = ReapableHookKey(4)
-	LiveSeedB = ReapableHookKey(5)
-	LiveSeedC = ReapableHookKey(6)
+	LiveSeedA = tokenShapedHookKey(4)
+	LiveSeedB = tokenShapedHookKey(5)
+	LiveSeedC = tokenShapedHookKey(6)
 
 	// The unjudgeable half: legacy-shaped keys the staleness rule cannot judge,
 	// so an entry under one is retained whatever the live set says.
-	UnjudgeableSeedA = UnjudgeableHookKey(0)
-	UnjudgeableSeedB = UnjudgeableHookKey(1)
-	UnjudgeableSeedC = UnjudgeableHookKey(2)
+	UnjudgeableSeedA = unjudgeableHookKey(0)
+	UnjudgeableSeedB = unjudgeableHookKey(1)
+	UnjudgeableSeedC = unjudgeableHookKey(2)
+
+	// The subject half: token-shaped keys carrying no staleness role at all,
+	// for a fixture measuring something else — a listing's ordering, a
+	// registration's write, a removal's exit status. They come off the same
+	// mint as the rest, so a width move carries them along like the others.
+	SubjectSeedA = tokenShapedHookKey(7)
+	SubjectSeedB = tokenShapedHookKey(8)
+	SubjectSeedC = tokenShapedHookKey(9)
+	SubjectSeedD = tokenShapedHookKey(10)
 )
 
 // StaleHookSeed is a hooks.json body holding one genuinely stale token-shaped

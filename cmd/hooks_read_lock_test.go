@@ -71,10 +71,10 @@ func TestHookListDegradedRead(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, 40*time.Millisecond)
 		_, hooksFile := hooksFileInTempDir(t)
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{
-			"aaa111": {"on-resume": "npm start"},
+			hookstest.SubjectSeedA: {"on-resume": "npm start"},
 		})
 		withHooksDeps(t, HooksDeps{PaneLister: &recordingPaneHookLister{rows: []tmux.PaneHookRow{
-			{Token: "aaa111", Location: "proj:0.0"},
+			{Token: hookstest.SubjectSeedA, Location: "proj:0.0"},
 		}}})
 
 		sink := logtest.Install(t)

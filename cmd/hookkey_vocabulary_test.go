@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/tmux"
 )
 
@@ -187,5 +188,22 @@ func assertNoPaneTmuxCalls(t *testing.T, resolver *mockKeyResolver, stamper *rec
 	}
 	if len(stamper.calls) != 0 {
 		t.Errorf("set-option call count = %d, want 0 on the --pane-key path: %+v", len(stamper.calls), stamper.calls)
+	}
+}
+
+// assertHookKeysStaged proves the seed keys a sweep fixture is about to measure
+// were staged before it ran. Without it an "absent afterwards" assertion passes
+// just as readily on a key the seed never held, so a seed re-pointed at another
+// key defangs the fixture instead of failing it.
+func assertHookKeysStaged(t *testing.T, store *hooks.Store, keys ...string) {
+	t.Helper()
+	staged, err := store.Load(hooks.ViaInternal)
+	if err != nil {
+		t.Fatalf("store.Load: %v", err)
+	}
+	for _, key := range keys {
+		if _, ok := staged[key]; !ok {
+			t.Fatalf("seed key %q absent from the staged hooks.json before the sweep runs; hooks=%v", key, keysOf(staged))
+		}
 	}
 }

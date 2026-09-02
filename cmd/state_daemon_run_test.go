@@ -571,6 +571,8 @@ func TestDaemonTick_RunsHookCleanupOnIdleTick(t *testing.T) {
 	deps.MaxGap = 30 * time.Second
 	deps.lastCleanup = time.Now().Add(-hookCleanupInterval - time.Second)
 
+	assertHookKeysStaged(t, store, hookstest.ReapableSeedA, hookstest.LiveSeedA)
+
 	tick(t.Context(), deps)
 
 	postRun, err := store.Load(hooks.ViaInternal)
@@ -594,7 +596,7 @@ func TestDaemonTick_SkipsHookCleanupWhenRestoring(t *testing.T) {
 	t.Setenv("PORTAL_STATE_DIR", dir)
 
 	seed := fmt.Sprintf(`{
-  %q: {"on-resume": "cmd-stale"}
+  %q: {"on-resume": "cmd-gone"}
 }`, hookstest.ReapableSeedA)
 	store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 
@@ -627,7 +629,7 @@ func TestDaemonTick_SkipsHookCleanupOnDirtyCaptureTick(t *testing.T) {
 	t.Setenv("PORTAL_STATE_DIR", dir)
 
 	seed := fmt.Sprintf(`{
-  %q: {"on-resume": "cmd-stale"}
+  %q: {"on-resume": "cmd-gone"}
 }`, hookstest.ReapableSeedA)
 	store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 
@@ -658,7 +660,7 @@ func TestDaemonTick_SkipsHookCleanupOnMaxGapCaptureTick(t *testing.T) {
 	t.Setenv("PORTAL_STATE_DIR", dir)
 
 	seed := fmt.Sprintf(`{
-  %q: {"on-resume": "cmd-stale"}
+  %q: {"on-resume": "cmd-gone"}
 }`, hookstest.ReapableSeedA)
 	store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 

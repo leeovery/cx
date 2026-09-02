@@ -93,16 +93,16 @@ func TestHookSetLockTimeout(t *testing.T) {
 		_, hooksFile := hooksFileInTempDir(t)
 		t.Setenv("TMUX_PANE", "%3")
 		before := seedHooksFile(t, hooksFile, map[string]map[string]string{
-			"tok999": {"on-resume": "npm start"},
+			hookstest.SubjectSeedB: {"on-resume": "npm start"},
 		})
 		hookstest.HoldHooksSidecar(t, hooksFile)
 
-		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}})
+		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: hookstest.SubjectSeedA}})
 
 		sink := logtest.Install(t)
 		out, err := runHookSet(t, "claude --resume abc")
 		assertLockFailureReachesStderr(t, out, err)
-		assertOneLockWarn(t, sink, "set", "tok123")
+		assertOneLockWarn(t, sink, "set", hookstest.SubjectSeedA)
 		assertHooksFileUnchanged(t, hooksFile, before)
 	})
 
@@ -112,7 +112,7 @@ func TestHookSetLockTimeout(t *testing.T) {
 		t.Setenv("TMUX_PANE", "%3")
 		hookstest.HoldHooksSidecar(t, hooksFile)
 
-		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}})
+		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: hookstest.SubjectSeedA}})
 
 		if _, err := runHookSet(t, "claude --resume abc"); err == nil {
 			t.Fatal("expected a non-zero exit under a held lock, got nil")
@@ -130,7 +130,7 @@ func TestHookSetLockTimeout(t *testing.T) {
 		t.Setenv("TMUX_PANE", "%3")
 		hookstest.HoldHooksSidecar(t, hooksFile)
 
-		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}})
+		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: hookstest.SubjectSeedA}})
 
 		if _, err := runHookSet(t, "claude --resume abc"); err == nil {
 			t.Fatal("expected a non-zero exit under a held lock, got nil")
@@ -151,7 +151,7 @@ func TestHookSetLockTimeout(t *testing.T) {
 		withHooksDeps(t, HooksDeps{
 			KeyResolver: pane,
 			PaneStamper: pane,
-			TokenMinter: func() (string, error) { minted++; return "tok000", nil },
+			TokenMinter: func() (string, error) { minted++; return hookstest.SubjectSeedC, nil },
 		})
 
 		if _, err := runHookSet(t, "claude --resume abc"); err == nil {
@@ -163,10 +163,10 @@ func TestHookSetLockTimeout(t *testing.T) {
 				len(pane.stamps), pane.stamps)
 		}
 		stamp := pane.stamps[0]
-		if stamp.target != "%7" || stamp.name != state.PortalPaneIDOption || stamp.value != "tok000" {
-			t.Errorf("stamp = %+v, want %s=tok000 on %%7", stamp, state.PortalPaneIDOption)
+		if stamp.target != "%7" || stamp.name != state.PortalPaneIDOption || stamp.value != hookstest.SubjectSeedC {
+			t.Errorf("stamp = %+v, want %s=%s on %%7", stamp, state.PortalPaneIDOption, hookstest.SubjectSeedC)
 		}
-		if pane.token != "tok000" {
+		if pane.token != hookstest.SubjectSeedC {
 			t.Errorf("pane token = %q after the timeout, want it left in place", pane.token)
 		}
 
@@ -188,8 +188,8 @@ func TestHookSetLockTimeout(t *testing.T) {
 		if len(data) != 1 {
 			t.Fatalf("hooks.json = %v, want exactly one entry", data)
 		}
-		if data["tok000"]["on-resume"] != "claude --resume abc" {
-			t.Errorf("hooks.json = %v, want the entry under tok000", data)
+		if data[hookstest.SubjectSeedC]["on-resume"] != "claude --resume abc" {
+			t.Errorf("hooks.json = %v, want the entry under %s", data, hookstest.SubjectSeedC)
 		}
 	})
 
@@ -199,7 +199,7 @@ func TestHookSetLockTimeout(t *testing.T) {
 		t.Setenv("TMUX_PANE", "%3")
 		hookstest.HoldHooksSidecar(t, hooksFile)
 
-		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}})
+		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: hookstest.SubjectSeedA}})
 
 		assertReturnsAtLockBound(t, "set", func() error {
 			_, err := runHookSet(t, "claude --resume abc")
@@ -214,16 +214,16 @@ func TestHookRmLockTimeout(t *testing.T) {
 		_, hooksFile := hooksFileInTempDir(t)
 		t.Setenv("TMUX_PANE", "%3")
 		before := seedHooksFile(t, hooksFile, map[string]map[string]string{
-			"tok123": {"on-resume": "claude --resume abc"},
+			hookstest.SubjectSeedA: {"on-resume": "claude --resume abc"},
 		})
 		hookstest.HoldHooksSidecar(t, hooksFile)
 
-		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}})
+		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: hookstest.SubjectSeedA}})
 
 		sink := logtest.Install(t)
 		out, err := runHookRm(t)
 		assertLockFailureReachesStderr(t, out, err)
-		assertOneLockWarn(t, sink, "rm", "tok123")
+		assertOneLockWarn(t, sink, "rm", hookstest.SubjectSeedA)
 		assertHooksFileUnchanged(t, hooksFile, before)
 	})
 
@@ -232,14 +232,14 @@ func TestHookRmLockTimeout(t *testing.T) {
 		_, hooksFile := hooksFileInTempDir(t)
 		t.Setenv("TMUX_PANE", "")
 		before := seedHooksFile(t, hooksFile, map[string]map[string]string{
-			"tok123": {"on-resume": "claude --resume abc"},
+			hookstest.SubjectSeedA: {"on-resume": "claude --resume abc"},
 		})
 		hookstest.HoldHooksSidecar(t, hooksFile)
 
 		resolver, stamper := paneKeyPathSeams()
 		withHooksDeps(t, HooksDeps{KeyResolver: resolver, PaneStamper: stamper})
 
-		out, err := runHookRm(t, "--pane-key", "tok123")
+		out, err := runHookRm(t, "--pane-key", hookstest.SubjectSeedA)
 		assertLockFailureReachesStderr(t, out, err)
 		assertNoPaneTmuxCalls(t, resolver, stamper)
 		assertHooksFileUnchanged(t, hooksFile, before)
@@ -250,11 +250,11 @@ func TestHookRmLockTimeout(t *testing.T) {
 		_, hooksFile := hooksFileInTempDir(t)
 		t.Setenv("TMUX_PANE", "%3")
 		writeHooksJSON(t, hooksFile, map[string]map[string]string{
-			"tok123": {"on-resume": "claude --resume abc"},
+			hookstest.SubjectSeedA: {"on-resume": "claude --resume abc"},
 		})
 		hookstest.HoldHooksSidecar(t, hooksFile)
 
-		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: "tok123"}})
+		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: hookstest.SubjectSeedA}})
 
 		assertReturnsAtLockBound(t, "rm", func() error {
 			_, err := runHookRm(t)

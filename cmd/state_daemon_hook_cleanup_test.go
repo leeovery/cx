@@ -35,7 +35,7 @@ func discardDaemonLogger() *slog.Logger {
 
 func TestMaybeRunHookCleanup_DoesNotRunBeforeInterval(t *testing.T) {
 	seed := fmt.Sprintf(`{
-  %q: {"on-resume": "cmd-stale"}
+  %q: {"on-resume": "cmd-gone"}
 }`, hookstest.ReapableSeedA)
 	store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 	fc := &daemonFakeCommander{panesOut: livePaneRowOut}
@@ -71,6 +71,8 @@ func TestMaybeRunHookCleanup_RunsAndResetsOnceIntervalElapsed(t *testing.T) {
 	deps.lastCleanup = time.Now().Add(-hookCleanupInterval - time.Second)
 	beforeCall := time.Now()
 
+	assertHookKeysStaged(t, store, hookstest.ReapableSeedA, hookstest.LiveSeedA)
+
 	maybeRunHookCleanup(deps)
 
 	postRun, err := store.Load(hooks.ViaInternal)
@@ -91,7 +93,7 @@ func TestMaybeRunHookCleanup_RunsAndResetsOnceIntervalElapsed(t *testing.T) {
 
 func TestMaybeRunHookCleanup_FiresAtIntervalBoundary(t *testing.T) {
 	seed := fmt.Sprintf(`{
-  %q: {"on-resume": "cmd-stale"}
+  %q: {"on-resume": "cmd-gone"}
 }`, hookstest.ReapableSeedA)
 	store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 	fc := &daemonFakeCommander{panesOut: livePaneRowOut}
@@ -145,7 +147,7 @@ func TestMaybeRunHookCleanup_LogsWarnAndSwallowsCleanupError(t *testing.T) {
 
 func TestMaybeRunHookCleanup_ListPanesErrorSwallowedNoReap(t *testing.T) {
 	seed := fmt.Sprintf(`{
-  %q: {"on-resume": "cmd-stale"}
+  %q: {"on-resume": "cmd-gone"}
 }`, hookstest.ReapableSeedA)
 	store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 	fc := &daemonFakeCommander{panesErr: errors.New("tmux dead")}
