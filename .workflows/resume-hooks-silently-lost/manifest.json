@@ -300,7 +300,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 8,
-          "current_task": "resume-hooks-silently-lost-8-10",
+          "current_task": "resume-hooks-silently-lost-8-11",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -420,7 +420,8 @@
             "resume-hooks-silently-lost-8-6",
             "resume-hooks-silently-lost-8-7",
             "resume-hooks-silently-lost-8-8",
-            "resume-hooks-silently-lost-8-9"
+            "resume-hooks-silently-lost-8-9",
+            "resume-hooks-silently-lost-8-10"
           ],
           "staging": {
             "p1": {
@@ -842,6 +843,41 @@
                 "cmd/doctor_fix_hook_prune_report_test.go",
                 "cmd/doctor_test.go",
                 "cmd/doctor_stand_down_copy_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-10",
+              "source": "executor",
+              "summary": "The t.Setenv(PORTAL_STATE_DIR, stateDir) line in every cmd/bootstrap and internal/tmux fixture is now a redundant restatement of what the helper sets.",
+              "detail": "With the helper owning the value, these re-set it to the value it already holds: cmd/bootstrap/helpers_integration_test.go:21, cmd/bootstrap/upgrade_path_integration_test.go:31,107,153 (plus the vNEnv append slice appends at :40,115), cmd/bootstrap/orphan_sweep_integration_test.go:48,105,160, cmd/bootstrap/composition_abc_integration_test.go:29, cmd/bootstrap/composition_e2e_harness_integration_test.go:115, internal/tmux/portal_saver_endstate_integration_test.go:35,99,168, internal/tmux/kill_barrier_escalation_no_final_flush_integration_test.go:40,60. Deleting them is a cross-file sweep with one live consequence — the coverage rule NamesStateDir trigger keys on the literal string, so a file losing its last mention falls back to qualifying via the Isolates trigger alone; every one of these files also calls IsolateStateForTest, so coverage is unchanged, but that reasoning belongs in one deliberate pass.",
+              "files": [
+                "cmd/bootstrap/helpers_integration_test.go",
+                "cmd/bootstrap/upgrade_path_integration_test.go",
+                "cmd/bootstrap/orphan_sweep_integration_test.go",
+                "cmd/bootstrap/composition_abc_integration_test.go",
+                "cmd/bootstrap/composition_e2e_harness_integration_test.go",
+                "internal/tmux/portal_saver_endstate_integration_test.go",
+                "internal/tmux/kill_barrier_escalation_no_final_flush_integration_test.go",
+                "internal/portaltest/teardown_guard_coverage_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-10",
+              "source": "reviewer",
+              "summary": "TestCompositeBootstrap_ConvergesPgrepToOneDaemon is genuinely flaky, independent of this task.",
+              "detail": "Measured: pre-change tree (materialised from git archive HEAD) failed 3 of 10 runs; post-change tree, interleaved run-for-run on the same machine, 0 of 10. Identical signature both times at cmd/bootstrap/composition_e2e_convergence_integration_test.go:41 — pgrep -fx did not converge to 1 (count=0, elapsed=10.0s, changes=0), the post-sweep saver daemon never surfaced within the 10s budget, at load average 39-47 (Time Machine backupd + Dropbox + fseventsd saturating IO, not leaked test servers — 0 ptl-* servers present). The convergence budget is the suspect, not the composition. No mechanism connects it to this task: SpawnIsolatedDaemon and upgrade_path both append their own PORTAL_STATE_DIR last (exec dedupe is last-wins), and every cmd/bootstrap harness re-Setenvs the helper own value, so both the orphans and the saver state dirs are byte-identical before and after.",
+              "files": [
+                "cmd/bootstrap/composition_e2e_convergence_integration_test.go",
+                "cmd/bootstrap/composition_e2e_harness_integration_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-10",
+              "source": "reviewer",
+              "summary": "compositeHarness.Env appears to be a dead field.",
+              "detail": "Set at cmd/bootstrap/composition_e2e_harness_integration_test.go:154 but no h.Env / harness.Env read exists anywhere in the package. Pre-existing and unrelated to this task, but it is the env slice whose semantics this task changed — worth a look in a consolidation pass rather than losing.",
+              "files": [
+                "cmd/bootstrap/composition_e2e_harness_integration_test.go"
               ]
             }
           ]
