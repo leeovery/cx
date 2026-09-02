@@ -22,16 +22,17 @@ const { signpost, box, wrapWithPrefix, renderTree, WIDTH } = require('./kernel/r
 const { commitPathspecScoped, commitPathspecWithKb, discoveryScope, KB_DIR } = require('./domain/commit.cjs');
 const { dirtyPaths, stageableSpecs, hasStagedDeletions } = require('./kernel/git.cjs');
 const { recordSubtopicAdd, recordSubtopicState, recordSubtopicStates, SUBTOPIC_STATES } = require('./domain/discussion-map.cjs');
-const { VALID_ROUTINGS } = require('./kernel/manifest-schema.cjs');
+const { VALID_ROUTINGS, isParentExperimentId } = require('./kernel/manifest-schema.cjs');
 const { sequenceMap, addItem, addItemsBatch, editItem, removeItem, renameItem, rerouteItem, handleItem, unhandleItem } = require('./domain/discovery-map.cjs');
 const { sequenceBuildOrder } = require('./domain/build-order.cjs');
 const { startTopic, triageTopic, queueStatus, absorbConcern, requeueConcern, completeTopic, reopenTopic, staleSources, supersedeTopic, cancelTopic, reactivateTopic } = require('./domain/transitions.cjs');
+const { createExperiment, advanceExperiment, approveExperiment, concludeExperiment, abandonExperiment } = require('./domain/experiment.cjs');
 const { initTasks, startTask, fixAttempt, completeTask, analysisCycle } = require('./domain/tasks.cjs');
 const { archiveItems, restoreItems, deleteItems } = require('./domain/inbox.cjs');
 const { stampAnalysisCache } = require('./domain/cache.cjs');
 const agentState = require('./domain/agent-state.cjs');
 const { boot } = require('./domain/boot.cjs');
-const { beatPresence, clearPresence, beatQuietly, clearQuietly, scanPresence, scanProject, cleanupPresence, deferralSection, CODE_PHASES } = require('./domain/presence.cjs');
+const { beatPresence, clearPresence, beatQuietly, refreshQuietly, clearQuietly, scanPresence, scanProject, cleanupPresence, deferralSection, CODE_PHASES } = require('./domain/presence.cjs');
 const { applySessionLabel, restoreSessionLabel, repairSessionLabels, setLabelConfig } = require('./domain/session-label.cjs');
 const { createWorkUnit } = require('./domain/workunit-create.cjs');
 const { completeWorkUnit, cancelWorkUnit, reactivateWorkUnit, pivotWorkUnit } = require('./domain/workunit-lifecycle.cjs');
@@ -147,7 +148,7 @@ Commands:
   topic start <work-unit> <phase> <topic>
   topic triage <work-unit> <phase> <topic> [--concern <file> --slug <kebab> -m <message>]
   topic queue <work-unit> <phase> <topic>
-  topic absorb <work-unit> <phase> <topic> --file <NNN-slug.md> -m <message>
+  topic absorb <work-unit> <phase> <topic> --file <NNN-slug.md> [--subtopic <name>] -m <message>
   topic requeue <work-unit> <from-phase> <to-phase> <topic> --file <NNN-slug.md> -m <message>
   presence beat <work-unit> <phase> <topic>
   presence clear <work-unit> <phase> <topic>
@@ -161,6 +162,11 @@ Commands:
   topic supersede <work-unit> <phase> <topic> --by <topic>
   topic cancel <work-unit> <phase> <topic> [--cascade]
   topic reactivate <work-unit> <phase> <topic>
+  experiment create <work-unit> <topic> --slug <kebab> (--from <research|discussion> --problem <file> | --parent <E{n}>)
+  experiment advance <work-unit> <topic> <id>
+  experiment approve <work-unit> <topic> <id>
+  experiment conclude <work-unit> <topic> <id> --verdict <one line>
+  experiment abandon <work-unit> <topic> <id> --reason <one line>
   sources stale <work-unit> <discussion> [--except <spec-topic>]
   task init <work-unit> <topic>
   task start <work-unit> <topic> <internal-id>
@@ -236,6 +242,13 @@ Commands:
   render topic-collision-gate
   render triage-closed-target <wu.discovery.target>
   render conclude-gate    <wu.phase.topic>   (discussion|investigation|implementation|planning)
+  render closing-gate     <wu.discussion.topic> --variant re-review|findings-owed|final-review|wrap-up [--reason <text>]
+  render experiment-register <wu.experiment.topic>
+  render experiment-approval-gate <wu.experiment.topic> --id <E{n}>
+  render experiment-pick <wu.experiment.topic>
+  render experiment-next-gate <wu.experiment.topic>
+  render experiment-spawn-gate <wu.research|discussion.topic> --id <E{n}>
+  render experiment-wait-gate <wu.research|discussion.topic>
   render summary-backfill-gate <wu> --variant batch|unsourced [--file <payload.json>]
   render external-dependency-gate <wu.planning.topic> --variant blocking|pick [--blocking <topic,topic,…>]
   render checkpoint-files-gate <wu.implementation.topic>
@@ -272,11 +285,15 @@ Commands:
   render cycle-gate
   render workunit-receipt  <wu> --verb complete|cancel|reactivate|pivot [--pipeline [--skipped-review]] [--warn]
   render topic-receipt     <wu.phase.topic> --verb complete|cancel|reactivate [--warn]
-  render absorb-receipt    <epic> --topic <name> [--moved research,seeds,imports] [--warn]
+  render absorb-summary    <feature> --into <epic> --topic <name>
+  render absorb-receipt    <epic> --topic <name> [--moved research,seeds,imports] [--experiments <N>] [--warn]
+  render absorb-continuation <epic> --feature <name>
   render promote-receipt   <wu.specification.topic> --to <cc-work-unit> [--warn]
   render pivot-continuation <wu>
   render session-receipt   <wu> [--warn]
   render absorb-target     <feature>
+  render absorb-name-gate  <feature> --into <epic>
+  render absorb-confirm-gate <feature>
   render plan-topics       <wu>
   render revisit-phases    <wu>
   render roadmap-view
@@ -819,7 +836,10 @@ function runTopic(argv) {
         throw new Error('Usage: engine topic queue <work-unit> <phase> <topic>');
       }
       const status = queueStatus(process.cwd(), workUnit, phase, topic);
-      beatQuietly(process.cwd(), workUnit, phase, topic);
+      // A read is reachable for any topic — a foreign queue is legitimately
+      // checked from another session — so it refreshes an owned hold only,
+      // never creates one.
+      refreshQuietly(process.cwd(), workUnit, phase, topic);
       respond(status);
       return;
     }
@@ -827,17 +847,19 @@ function runTopic(argv) {
       /** @type {string[]} */ const pos = [];
       /** @type {string|undefined} */ let file;
       /** @type {string|undefined} */ let message;
+      /** @type {string|undefined} */ let subtopic;
       for (let i = 0; i < rest.length; i++) {
         const a = rest[i];
         if (a === '--file') file = rest[++i];
+        else if (a === '--subtopic') subtopic = rest[++i];
         else if (a === '-m' || a === '--message') message = rest[++i];
         else pos.push(a);
       }
       const [workUnit, phase, topic] = pos;
       if (!workUnit || !phase || !topic || pos.length !== 3 || !file || !message) {
-        throw new Error('Usage: engine topic absorb <work-unit> <phase> <topic> --file <NNN-slug.md> -m <message>');
+        throw new Error('Usage: engine topic absorb <work-unit> <phase> <topic> --file <NNN-slug.md> [--subtopic <name>] -m <message>');
       }
-      const absorbed = absorbConcern(process.cwd(), workUnit, phase, topic, { file, message });
+      const absorbed = absorbConcern(process.cwd(), workUnit, phase, topic, { file, message, subtopic });
       beatQuietly(process.cwd(), workUnit, phase, topic);
       respond(absorbed);
       return;
@@ -903,6 +925,64 @@ function runTopic(argv) {
     // it has finished, and none of it should re-take the hold.
     if (command === 'complete') clearQuietly(process.cwd(), workUnit, phase, topic);
     respond(result);
+  } catch (err) {
+    failJson(err);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// experiment — the series lifecycle on a topic's experiment item
+// (domain/experiment.cjs): create is the spawn (id + item + the spawning
+// item's evidence lock — or a sub-experiment under a running parent);
+// advance/approve/conclude/abandon record one experiment's design-before-data
+// walk. Manifest writes with no git commit — the session's commit cadence
+// picks the change up.
+//
+// Beats follow the acting session: `create --from` is the spawning research
+// or discussion session recording the spawn on its own item, so it beats
+// that phase; every other verb (splits included) is the laboratory session
+// working its own topic, so it beats the experiment slot — and a top-level
+// conclude or abandon clears it: the record's close is the session's release.
+// ---------------------------------------------------------------------------
+
+/** @param {string[]} argv */
+function runExperiment(argv) {
+  const [command, ...rest] = argv;
+  const cwd = process.cwd();
+  try {
+    const { opts, positional } = parseArgs(rest);
+    const [workUnit, topic, id] = positional;
+    if (command === 'create') {
+      if (!workUnit || !topic || positional.length !== 2 || !opts.slug) {
+        throw new Error('Usage: engine experiment create <work-unit> <topic> --slug <kebab> (--from <research|discussion> --problem <file> | --parent <E{n}>)');
+      }
+      const created = createExperiment(cwd, workUnit, topic, { slug: opts.slug, from: opts.from, parent: opts.parent, problem: opts.problem });
+      beatQuietly(cwd, workUnit, opts.from ?? 'experiment', topic);
+      respond(created);
+      return;
+    }
+    if (command === 'conclude' || command === 'abandon') {
+      const payload = command === 'conclude' ? opts.verdict : opts.reason;
+      if (!workUnit || !topic || !id || positional.length !== 3 || payload === undefined) {
+        throw new Error(`Usage: engine experiment ${command} <work-unit> <topic> <id> --${command === 'conclude' ? 'verdict' : 'reason'} <one line>`);
+      }
+      const result = command === 'conclude'
+        ? concludeExperiment(cwd, workUnit, topic, id, { verdict: payload })
+        : abandonExperiment(cwd, workUnit, topic, id, { reason: payload });
+      (isParentExperimentId(id) ? clearQuietly : beatQuietly)(cwd, workUnit, 'experiment', topic);
+      respond(result);
+      return;
+    }
+    if (command === 'advance' || command === 'approve') {
+      if (!workUnit || !topic || !id || positional.length !== 3) {
+        throw new Error(`Usage: engine experiment ${command} <work-unit> <topic> <id>`);
+      }
+      const result = (command === 'advance' ? advanceExperiment : approveExperiment)(cwd, workUnit, topic, id);
+      beatQuietly(cwd, workUnit, 'experiment', topic);
+      respond(result);
+      return;
+    }
+    throw new Error('Usage: engine experiment <create|advance|approve|conclude|abandon> <work-unit> <topic> …');
   } catch (err) {
     failJson(err);
   }
@@ -1164,8 +1244,9 @@ function runCache(argv) {
 
 // ---------------------------------------------------------------------------
 // agent — the background-agent lifecycle store (domain/agent-state.cjs).
-// Every verb addresses the session's own topic — dispatching, scanning, and
-// walking its own agents' findings — so every one heartbeats.
+// The write verbs address the session's own topic — dispatching and walking
+// its own agents' findings — so every one heartbeats. `scan` is a read,
+// reachable for any topic, so it refreshes an owned hold only.
 // ---------------------------------------------------------------------------
 
 /** @param {string[]} argv */
@@ -1191,7 +1272,9 @@ function runAgent(argv) {
       if (!workUnit || !phase || !topic || positional.length !== 3) {
         throw new Error('Usage: engine agent scan <work-unit> <phase> <topic>');
       }
-      answer(agentState.scanAgents(cwd, workUnit, phase, topic));
+      const scanned = agentState.scanAgents(cwd, workUnit, phase, topic);
+      refreshQuietly(cwd, workUnit, phase, topic);
+      respond(scanned);
       return;
     }
     if (command === 'ack') {
@@ -1253,6 +1336,7 @@ function runBoot() {
 // ride the same commit.
 const TOPIC_COMMIT_ARTIFACTS = /** @type {Record<string, (wu: string, topic: string) => string[]>} */ ({
   research: (wu, t) => [`.workflows/${wu}/research/${t}.md`, `.workflows/${wu}/research/.triage/${t}`],
+  experiment: (wu, t) => [`.workflows/${wu}/experiment/${t}`],
   discussion: (wu, t) => [`.workflows/${wu}/discussion/${t}.md`, `.workflows/${wu}/discussion/.triage/${t}`],
   investigation: (wu, t) => [`.workflows/${wu}/investigation/${t}.md`, `.workflows/${wu}/investigation/.triage/${t}`],
   specification: (wu, t) => [`.workflows/${wu}/specification/${t}`],
@@ -1668,6 +1752,9 @@ function runCli(argv) {
       break;
     case 'topic':
       runTopic(rest);
+      break;
+    case 'experiment':
+      runExperiment(rest);
       break;
     case 'sources':
       runSources(rest);
