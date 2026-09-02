@@ -13,17 +13,17 @@ import (
 
 const themePkg = "github.com/leeovery/portal/internal/theme"
 
-const xdgPkg = "github.com/leeovery/portal/internal/xdg"
-
 const themesDirEnvVar = "PORTAL_THEMES_DIR"
 
+// The loader resolves nothing and decides nothing about logging: the themes
+// directory is resolved by cmd/config.go and arrives here as an injected
+// value, which rules out internal/xdg in particular. The one edge the package
+// does own is the event logger it emits through.
+var themeMayImport = []string{"github.com/leeovery/portal/internal/log"}
+
 func TestThemePackage_ResolvesNoPaths(t *testing.T) {
-	t.Run("does not depend on internal/xdg", func(t *testing.T) {
-		for _, dep := range sourceguardtest.PackageDeps(t, themePkg) {
-			if dep == xdgPkg {
-				t.Fatalf("internal/theme transitively imports %s — the themes directory is resolved by cmd/config.go's themesDirPath and injected, never looked up here", xdgPkg)
-			}
-		}
+	t.Run("depends on no path-resolving package", func(t *testing.T) {
+		sourceguardtest.AssertDepsWithin(t, themePkg, themeMayImport)
 	})
 
 	t.Run("reads neither the themes env var nor the home directory", func(t *testing.T) {

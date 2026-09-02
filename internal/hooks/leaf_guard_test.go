@@ -1,7 +1,6 @@
 package hooks_test
 
 import (
-	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -12,7 +11,7 @@ import (
 
 const (
 	modulePrefix = "github.com/leeovery/portal/"
-	hooksPkgPath = "internal/hooks"
+	hooksPkg     = modulePrefix + "internal/hooks"
 )
 
 // The store is a JSON persistence leaf on the hydrate hot path, and the edge it
@@ -20,11 +19,11 @@ const (
 // it back. internal/state — which owns the pane-token option and the capture
 // column carrying the token — is the package most likely to want this store,
 // and an import of the session or tmux tree here locks it out for good.
-var hooksMayImport = map[string]bool{
-	"internal/fileutil": true,
-	"internal/log":      true,
-	"internal/nanoid":   true,
-	"internal/storelog": true,
+var hooksMayImport = []string{
+	modulePrefix + "internal/fileutil",
+	modulePrefix + "internal/log",
+	modulePrefix + "internal/nanoid",
+	modulePrefix + "internal/storelog",
 }
 
 func TestHooksPackage_ImportsOnlyLeaves(t *testing.T) {
@@ -35,27 +34,14 @@ func TestHooksPackage_ImportsOnlyLeaves(t *testing.T) {
 				if uerr != nil {
 					t.Fatalf("%s: unquote import path %s: %v", source.Path, spec.Path.Value, uerr)
 				}
-				internalPath, isInternal := strings.CutPrefix(imported, modulePrefix)
-				if isInternal && !hooksMayImport[internalPath] {
-					t.Errorf("%s imports %s — internal/hooks may import only %v", source.Path, imported, sortedKeys(hooksMayImport))
+				if strings.HasPrefix(imported, modulePrefix) && !slices.Contains(hooksMayImport, imported) {
+					t.Errorf("%s imports %s — internal/hooks may import only %v", source.Path, imported, hooksMayImport)
 				}
 			}
 		}
 	})
 
 	t.Run("it drags in no session, tmux or state tree transitively", func(t *testing.T) {
-		for _, dep := range sourceguardtest.PackageDeps(t, modulePrefix+hooksPkgPath) {
-			internalPath, isInternal := strings.CutPrefix(dep, modulePrefix)
-			if internalPath == hooksPkgPath {
-				continue
-			}
-			if isInternal && !hooksMayImport[internalPath] {
-				t.Errorf("internal/hooks transitively depends on %s — it must reach no further than %v", dep, sortedKeys(hooksMayImport))
-			}
-		}
+		sourceguardtest.AssertDepsWithin(t, hooksPkg, hooksMayImport)
 	})
-}
-
-func sortedKeys(set map[string]bool) []string {
-	return slices.Sorted(maps.Keys(set))
 }
