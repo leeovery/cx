@@ -2,7 +2,6 @@ package hooks_test
 
 import (
 	"errors"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
@@ -12,37 +11,6 @@ import (
 	"github.com/leeovery/portal/internal/hookstest"
 	"github.com/leeovery/portal/internal/logtest"
 )
-
-// assertLockWarn pins the single record a mutation that could not take the lock
-// leaves: the operation's own op, its key, its caller, and the lock error.
-func assertLockWarn(t *testing.T, sink *logtest.Sink, wantOp, wantKey, wantVia string) logtest.Record {
-	t.Helper()
-
-	rec := sink.Records().Only(t, "log record")
-	if rec.Level != slog.LevelWarn {
-		t.Errorf("level = %v, want WARN", rec.Level)
-	}
-	if rec.Msg != wantOp {
-		t.Errorf("msg = %q, want %q", rec.Msg, wantOp)
-	}
-	if got := rec.AttrString(t, "op"); got != wantOp {
-		t.Errorf("op = %q, want %q", got, wantOp)
-	}
-	if got := rec.AttrString(t, "component"); got != "hooks" {
-		t.Errorf("component = %q, want %q", got, "hooks")
-	}
-	if got := rec.AttrString(t, "hook_key"); got != wantKey {
-		t.Errorf("hook_key = %q, want %q", got, wantKey)
-	}
-	if got := rec.AttrString(t, "via"); got != wantVia {
-		t.Errorf("via = %q, want %q", got, wantVia)
-	}
-	loggedErr := rec.ErrorAttr(t, "error")
-	if loggedErr == nil || loggedErr.Error() == "" {
-		t.Error("error attr is empty — the lock failure must be carried")
-	}
-	return rec
-}
 
 func TestMutationLockTimeoutWritesNothing(t *testing.T) {
 	t.Run("it writes nothing when Set cannot take the lock", func(t *testing.T) {
@@ -127,7 +95,7 @@ func TestMutationLockTimeoutLogging(t *testing.T) {
 			t.Fatal("expected an error when the lock will not yield, got nil")
 		}
 
-		assertLockWarn(t, sink, "set", "tok123", "cli")
+		hookstest.AssertLockWarn(t, sink, "set", "tok123", "cli")
 	})
 
 	t.Run("it files under op=set even where a completed call would have classified as modify", func(t *testing.T) {
@@ -146,7 +114,7 @@ func TestMutationLockTimeoutLogging(t *testing.T) {
 			t.Fatal("expected an error when the lock will not yield, got nil")
 		}
 
-		assertLockWarn(t, sink, "set", "tok123", "cli")
+		hookstest.AssertLockWarn(t, sink, "set", "tok123", "cli")
 	})
 
 	t.Run("it emits one WARN under op=rm for a timed-out removal", func(t *testing.T) {
@@ -166,47 +134,7 @@ func TestMutationLockTimeoutLogging(t *testing.T) {
 			t.Error("removed = true, want false when the lock could not be taken")
 		}
 
-		assertLockWarn(t, sink, "rm", "tok123", "internal")
-	})
-
-	t.Run("it carries no error_class and no value on the lock WARN", func(t *testing.T) {
-		hooks.SetLockTimeoutForTest(t, 40*time.Millisecond)
-
-		t.Run("set", func(t *testing.T) {
-			path := filepath.Join(t.TempDir(), "hooks.json")
-			hookstest.HoldHooksSidecar(t, path)
-
-			sink := logtest.Install(t)
-			if err := hooks.NewStore(path).Set("tok123", "on-resume", "npm start", hooks.ViaCLI); err == nil {
-				t.Fatal("expected an error, got nil")
-			}
-
-			rec := assertLockWarn(t, sink, "set", "tok123", "cli")
-			if rec.HasAttr("error_class") {
-				t.Errorf("lock WARN carries error_class — no write phase ran: %+v", rec.Attrs)
-			}
-			if rec.HasAttr("value") {
-				t.Errorf("lock WARN carries value — the file was never opened: %+v", rec.Attrs)
-			}
-		})
-
-		t.Run("rm", func(t *testing.T) {
-			path := filepath.Join(t.TempDir(), "hooks.json")
-			hookstest.HoldHooksSidecar(t, path)
-
-			sink := logtest.Install(t)
-			if _, err := hooks.NewStore(path).Remove("tok123", "on-resume", hooks.ViaCLI); err == nil {
-				t.Fatal("expected an error, got nil")
-			}
-
-			rec := assertLockWarn(t, sink, "rm", "tok123", "cli")
-			if rec.HasAttr("error_class") {
-				t.Errorf("lock WARN carries error_class — no write phase ran: %+v", rec.Attrs)
-			}
-			if rec.HasAttr("value") {
-				t.Errorf("lock WARN carries value — the file was never opened: %+v", rec.Attrs)
-			}
-		})
+		hookstest.AssertLockWarn(t, sink, "rm", "tok123", "internal")
 	})
 
 	t.Run("it still emits nothing when Remove removes nothing", func(t *testing.T) {
@@ -269,7 +197,7 @@ func TestMutationLockTimeoutLogging(t *testing.T) {
 			t.Fatal("Set succeeded under a directory that permits no file creation")
 		}
 
-		assertLockWarn(t, sink, "set", "tok123", "cli")
+		hookstest.AssertLockWarn(t, sink, "set", "tok123", "cli")
 		if _, statErr := os.Stat(path); !errors.Is(statErr, os.ErrNotExist) {
 			t.Fatalf("hooks.json written: %v", statErr)
 		}

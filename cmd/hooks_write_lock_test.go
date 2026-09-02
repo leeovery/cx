@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"errors"
-	"log/slog"
 	"os"
 	"strings"
 	"testing"
@@ -36,29 +35,6 @@ func assertLockFailureReachesStderr(t *testing.T, out string, err error) {
 	}
 	if strings.Contains(out, "Usage:") {
 		t.Errorf("command output = %q, want no usage dump", out)
-	}
-}
-
-// assertOneLockWarn pins the single WARN a timed-out mutation leaves as the
-// command runs it: the operation's own op, the key it could not write, and the
-// caller. One line, so the dirty-flag touch cannot have run behind it either.
-func assertOneLockWarn(t *testing.T, sink *logtest.Sink, wantOp, wantKey string) {
-	t.Helper()
-	rec := sink.RecordsAtOrAboveLevel(slog.LevelWarn).Only(t, "record at or above WARN")
-	assertHooksRecord(t, rec, hooksRecordWant{
-		level: slog.LevelWarn,
-		msg:   wantOp,
-		op:    wantOp,
-		via:   "cli",
-	})
-	if got := rec.AttrString(t, "hook_key"); got != wantKey {
-		t.Errorf("hook_key = %q, want %q", got, wantKey)
-	}
-	if rec.HasAttr("error_class") {
-		t.Errorf("lock WARN carries error_class — no write phase ran: %+v", rec.Attrs)
-	}
-	if rec.HasAttr("value") {
-		t.Errorf("lock WARN carries value — the file was never opened: %+v", rec.Attrs)
 	}
 }
 
@@ -98,7 +74,7 @@ func TestHookSetLockTimeout(t *testing.T) {
 		sink := logtest.Install(t)
 		out, err := runHookSet(t, "claude --resume abc")
 		assertLockFailureReachesStderr(t, out, err)
-		assertOneLockWarn(t, sink, "set", hookstest.SubjectSeedA)
+		hookstest.AssertLockWarn(t, sink, "set", hookstest.SubjectSeedA, "cli")
 		assertHooksFileUnchanged(t, hooksFile, before)
 	})
 
@@ -219,7 +195,7 @@ func TestHookRmLockTimeout(t *testing.T) {
 		sink := logtest.Install(t)
 		out, err := runHookRm(t)
 		assertLockFailureReachesStderr(t, out, err)
-		assertOneLockWarn(t, sink, "rm", hookstest.SubjectSeedA)
+		hookstest.AssertLockWarn(t, sink, "rm", hookstest.SubjectSeedA, "cli")
 		assertHooksFileUnchanged(t, hooksFile, before)
 	})
 

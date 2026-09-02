@@ -8,6 +8,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/leeovery/portal/internal/harnesstest"
 	"github.com/leeovery/portal/internal/logtest"
 )
 
@@ -90,6 +91,35 @@ func openSidecar(t *testing.T, hooksPath string) *os.File {
 func UnlockedRecords(t *testing.T, sink *logtest.Sink) logtest.Records {
 	t.Helper()
 	return sink.RecordsWithMessage("load-unlocked")
+}
+
+// AssertLockWarn pins the whole of the single line a mutation that could not
+// take the sidecar leaves: exactly one record at or above WARN, carrying the
+// operation's own op, the key it could not write, the caller and the lock
+// error — and neither error_class nor value, the two attrs a write phase adds,
+// whose absence is what says no write was ever attempted.
+func AssertLockWarn(t harnesstest.TestingT, sink *logtest.Sink, op, key, via string) {
+	t.Helper()
+	rec := sink.RecordsAtOrAboveLevel(slog.LevelWarn).Only(t, "record at or above WARN")
+	logtest.AssertRecord(t, rec, logtest.RecordWant{
+		Level:     slog.LevelWarn,
+		Msg:       op,
+		Component: "hooks",
+		Op:        op,
+		Via:       via,
+	})
+	if got := rec.AttrString(t, "hook_key"); got != key {
+		t.Errorf("hook_key = %q, want %q", got, key)
+	}
+	if rec.HasAttr("error_class") {
+		t.Errorf("lock WARN carries error_class — no write phase ran: %+v", rec.Attrs)
+	}
+	if rec.HasAttr("value") {
+		t.Errorf("lock WARN carries value — the file was never opened: %+v", rec.Attrs)
+	}
+	if err := rec.ErrorAttr(t, "error"); err == nil || err.Error() == "" {
+		t.Errorf("error attr is empty — the lock failure must be carried: %+v", rec.Attrs)
+	}
 }
 
 // AssertDegradedRead pins the whole shape of a degraded read's single
