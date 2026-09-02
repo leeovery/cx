@@ -300,7 +300,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 8,
-          "current_task": "resume-hooks-silently-lost-8-13",
+          "current_task": "resume-hooks-silently-lost-8-14",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -423,7 +423,8 @@
             "resume-hooks-silently-lost-8-9",
             "resume-hooks-silently-lost-8-10",
             "resume-hooks-silently-lost-8-11",
-            "resume-hooks-silently-lost-8-12"
+            "resume-hooks-silently-lost-8-12",
+            "resume-hooks-silently-lost-8-13"
           ],
           "staging": {
             "p1": {
@@ -911,6 +912,68 @@
               "detail": "internal/portaltest/isolated_env_test.go:22 registers defer func() { _ = os.RemoveAll(sandbox) }() and then ends with os.Exit(m.Run()) at line 27 — os.Exit skips deferred functions, so each go test ./internal/portaltest/ run leaves a portaltest-self-sandbox-* directory in $TMPDIR. Pre-existing, untouched by this diff; the fix is to capture the code, run the cleanup, then exit.",
               "files": [
                 "internal/portaltest/isolated_env_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-13",
+              "source": "executor",
+              "summary": "The composite-e2e daemon-convergence assertion flakes under machine load, on main as much as here.",
+              "detail": "pgrep -fx reports count=0 after bootstrap with a 10s AwaitProgress budget — reproduced on an unmodified copy of HEAD, ~1-in-3 while other suites ran, 0-in-6 idle. The budget, not the code under test, looks like the variable. Sites: cmd/bootstrap/composition_e2e_f_observables_integration_test.go:32, cmd/bootstrap/composition_e2e_fresh_acquire_integration_test.go:29, cmd/bootstrap/composition_e2e_convergence_integration_test.go:41 — all through the shared harness at cmd/bootstrap/composition_e2e_harness_integration_test.go. (Third independent corroboration; the 8-10 reviewer measured 3-in-10 pre-change vs 0-in-10 post-change on the same assertion.)",
+              "files": [
+                "cmd/bootstrap/composition_e2e_harness_integration_test.go",
+                "cmd/bootstrap/composition_e2e_f_observables_integration_test.go",
+                "cmd/bootstrap/composition_e2e_fresh_acquire_integration_test.go",
+                "cmd/bootstrap/composition_e2e_convergence_integration_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-13",
+              "source": "executor",
+              "summary": "restoretest.OpenRebootGap asserts the kill landed with a single un-retried list-sessions, where the promoted helper now owns that question.",
+              "detail": "internal/restoretest/reboot.go:22-28 probes once immediately after KillServer and fatals if it succeeds; it also does not wait for the pane shells to exit, so every reboot fixture routed through it re-opens the same shells-outlive-the-server window this task closed for teardown. Composing it over portaltest.AwaitTmuxServerGone would give it both the wait and the assertion from one source — but it spans every restore fixture, so it is not this task surface.",
+              "files": [
+                "internal/restoretest/reboot.go",
+                "internal/portaltest/tmux_server_wait.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-13",
+              "source": "reviewer",
+              "summary": "Move the server-unreachable wait into tmuxtest.New own cleanup, closing the class with the strong wait at zero call-site cost.",
+              "detail": "The branch taken here is the weaker of the two the task offered, and structurally so. awaitDirQuiescent (internal/portaltest/teardown_guard.go:83-93) returns as soon as two consecutive 50ms snapshots match, so over an empty temp HOME it returns at t=50ms having observed nothing — a shell that flushes at t=120ms is missed entirely. The state-dir guard has no such hole because it gates on the daemon pid dying first (:58-62); the HOME guard has no process gate. The env pins at isolated_env.go:41-43 are what actually closes the race; the guard is belt-and-braces that can miss the case it names. The strong wait could cover every fixture with no signature churn if tmuxtest.New folded it into the closure it already registers — t.Cleanup(func(){ s.KillServer(); awaitGone(); os.RemoveAll(dir) }) at internal/tmuxtest/socket.go:39-42 — the one place the socket is known and which every server fixture already calls. That would also let reapTmuxServer in the coldboot suite collapse to nothing. tmuxtest could export the socket-args composition in the same pass, retiring the restatement at internal/portaltest/tmux_server_wait.go:36.",
+              "files": [
+                "internal/tmuxtest/socket.go",
+                "internal/portaltest/tmux_server_wait.go",
+                "internal/portaltest/teardown_guard.go",
+                "cmd/concurrent_coldboot_integration_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-13",
+              "source": "reviewer",
+              "summary": "The tmux socket argv convention now exists in two places, and a wrong copy fails silently (an unreachable socket reads as gone).",
+              "detail": "internal/portaltest/tmux_server_wait.go:35-37 hand-writes -S <socketPath> -f /dev/null, which is exactly internal/tmuxtest/socket.go:16-18 unexported socketArgs. Consolidating — either exporting socketArgs, or re-homing the probe as a tmuxtest.Socket method / tmuxtest.ServerUnreachable(socketPath) with AwaitTmuxServerGone delegating — puts one owner on the convention. Out of this task scope because the task named internal/portaltest as the home and the fix reaches into internal/tmuxtest.",
+              "files": [
+                "internal/portaltest/tmux_server_wait.go",
+                "internal/tmuxtest/socket.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-13",
+              "source": "reviewer",
+              "summary": "The HISTFILE=/dev/null isolation pin is defeated on this machine, and the deterministic replacement is now one line away.",
+              "detail": "Reviewer note, promoted so it is not lost. /etc/zshrc_Apple_Terminal (which owns .zsh_sessions and does honour SHELL_SESSIONS_DISABLE=1) is sourced by nothing under /etc on this machine, while /etc/zshrc — which every interactive zsh reads — unconditionally reassigns HISTFILE=${ZDOTDIR:-$HOME}/.zsh_history, overriding IsolateStateForTest HISTFILE=/dev/null pin and writing into the temp HOME. So the env pins are defensive rather than operative and the quiescence wait is what closes the race. The deterministic fix is cheap now that ZDOTDIR points at the temp HOME: stage a one-line .zshrc there (unset HISTFILE / SAVEHIST=0) to stop the write at source.",
+              "files": [
+                "internal/portaltest/isolated_env.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-13",
+              "source": "reviewer",
+              "summary": "MEASURED, supersedes the earlier note on this: the isolated env shell pins are inert on this machine; the quiescence wait is carrying the whole fix, and the working lever is different from the one banked earlier.",
+              "detail": "Probed with a sandboxed -S server and an interactive /bin/zsh pane under a temp HOME. (a) /etc/zshrc:16 sets HISTFILE=${ZDOTDIR:-$HOME}/.zsh_history unconditionally, so the long-standing exported HISTFILE=/dev/null (internal/portaltest/isolated_env.go:43) is overridden and .zsh_history lands in the temp HOME on every run — that is the writer the teardown actually races. (b) .zsh_sessions never appeared, including with TERM_PROGRAM=Apple_Terminal and TERM_SESSION_ID set, so SHELL_SESSIONS_DISABLE=1 (:44) neutralises nothing. (c) ZDOTDIR=homeDir (:45) is a no-op by construction — ${ZDOTDIR:-$HOME} already resolves to the temp HOME. The lever that works is ZDOTDIR pointed OUTSIDE the framework TempDir tree: with it set, the probe temp HOME came back empty. (Note this differs from the earlier banked remedy of staging a .zshrc in the temp HOME.) The executor implemented the task instruction verbatim, so this is a defect in the prescription, not the execution — and the remedy reaches the pre-existing HISTFILE pin and an isolation contract every fixture inherits, so it wants its own deliberate change.",
+              "files": [
+                "internal/portaltest/isolated_env.go"
               ]
             }
           ]
