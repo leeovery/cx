@@ -300,7 +300,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 8,
-          "current_task": "resume-hooks-silently-lost-8-19",
+          "current_task": "resume-hooks-silently-lost-8-20",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -428,7 +428,8 @@
             "resume-hooks-silently-lost-8-14",
             "resume-hooks-silently-lost-8-16",
             "resume-hooks-silently-lost-8-17",
-            "resume-hooks-silently-lost-8-18"
+            "resume-hooks-silently-lost-8-18",
+            "resume-hooks-silently-lost-8-19"
           ],
           "staging": {
             "p1": {
@@ -1075,6 +1076,40 @@
                 "internal/restore/integration_full_test.go",
                 "cmd/bootstrap/reboot_roundtrip_test.go",
                 "internal/restoretest/live_pane_coords.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-19",
+              "source": "executor",
+              "summary": "The same token-shaped hand-rolled key literals survive outside cmd, where the width-move reclassification risk is identical.",
+              "detail": "tok999 at internal/hooks/lock_write_test.go:66 and :215, plus the aaa111/tok123 family in internal/restore/session_test.go, internal/restore/rename_reboot_shared_test.go, internal/tmux/hookkey_format_realtmux_test.go and internal/tmux/resolve_hookkey_realtmux_test.go. Routing them through the hookstest named seeds is one sweep, but it reaches four packages this task does not own — and internal/tmux would gain a hookstest import it currently has no edge to, which is a decision, not a rename.",
+              "files": [
+                "internal/hooks/lock_write_test.go",
+                "internal/restore/session_test.go",
+                "internal/restore/rename_reboot_shared_test.go",
+                "internal/tmux/hookkey_format_realtmux_test.go",
+                "internal/tmux/resolve_hookkey_realtmux_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-19",
+              "source": "executor",
+              "summary": "The single-entry stale seed body is re-authored inline six times across three cmd suites.",
+              "detail": "The identical fmt.Sprintf single-entry cmd-gone body appears at cmd/state_daemon_hook_cleanup_test.go:37,95,149 and cmd/state_daemon_run_test.go:598,631,662. StaleHookSeed already owns the two-entry body next door; a StaleOnlyHookSeed beside it would make the one-entry case a name too, so a future re-point cannot land on five of six copies. Adding it touches the shared package on behalf of suites beyond this task fixtures.",
+              "files": [
+                "internal/hookstest/hooks.go",
+                "cmd/state_daemon_hook_cleanup_test.go",
+                "cmd/state_daemon_run_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-19",
+              "source": "reviewer",
+              "summary": "The hookstest self-test completeness now rests on a hand-maintained name list — the same class of silent shrink this task closed one level down.",
+              "detail": "internal/hookstest/hooks_test.go:15-35 duplicates the Seed* names into two maps and claims to name every seed the vocabulary mints. Adding an eighth SubjectSeedE without touching the maps leaves it unverified and the comment false — the for-n-range-4 failure mode, relocated. Exposure is narrow because tokenShapedHookKey already panics at package init on shape drift for every seed named or not, so only a duplicated index (a new seed re-using 7) would escape the distinctness check. The repo idiom closes it structurally: a sourceguardtest.PackageGoFiles walk asserting every Seed[A-Z] declaration in hooks.go appears in the maps.",
+              "files": [
+                "internal/hookstest/hooks_test.go",
+                "internal/hookstest/hooks.go"
               ]
             }
           ]
