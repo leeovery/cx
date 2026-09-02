@@ -264,7 +264,7 @@
           "status": "in-progress",
           "task_gate_mode": "auto",
           "fix_gate_mode": "auto",
-          "analysis_gate_mode": "auto",
+          "analysis_gate_mode": "gated",
           "consolidation_gate_mode": "gated",
           "fix_attempts": 0,
           "analysis_cycle_total": 3,
@@ -300,7 +300,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 8,
-          "current_task": "resume-hooks-silently-lost-8-9",
+          "current_task": "resume-hooks-silently-lost-8-10",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -419,7 +419,8 @@
             "resume-hooks-silently-lost-8-5",
             "resume-hooks-silently-lost-8-6",
             "resume-hooks-silently-lost-8-7",
-            "resume-hooks-silently-lost-8-8"
+            "resume-hooks-silently-lost-8-8",
+            "resume-hooks-silently-lost-8-9"
           ],
           "staging": {
             "p1": {
@@ -810,6 +811,37 @@
               "files": [
                 "CLAUDE.md",
                 "README.md"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-9",
+              "source": "reviewer",
+              "summary": "Two of the four new subtests restate coverage that already exists in sibling tests.",
+              "detail": "cmd/doctor_fix_hook_prune_report_test.go:16-28 (it prints one pruned line per reaped key) re-asserts what assertStalePrunesApplied already pins at cmd/doctor_test.go:860-869 for the same fixture; cmd/doctor_fix_hook_prune_report_test.go:30-36 (it prints a skipped line when the sweep stands down) is the same fixture and same assertion as cmd/doctor_test.go:1579-1582. The new countPrefixedLines helper (line 98) also duplicates the inline loop at cmd/doctor_test.go:860-865. Consolidating touches tests written by earlier tasks in this phase.",
+              "files": [
+                "cmd/doctor_fix_hook_prune_report_test.go",
+                "cmd/doctor_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-9",
+              "source": "reviewer",
+              "summary": "doctor --fix attributes the hook sweep logging to the bootstrap component, which now sits oddly beside this task own ruling on ownership.",
+              "detail": "cmd/doctor.go:200 passes bootstrapLogger as countsLogger and cmd/doctor.go:202 emits the failure WARN under it, while step 3 rationale for the nil-default change is that a bootstrap step is forbidden from calling the sweep. Pre-existing and outside this task Do list, but the two decisions should be reconciled in one pass (moving them to hooksLogger would also move the WARN assertion at cmd/doctor_fix_hook_prune_report_test.go:45).",
+              "files": [
+                "cmd/doctor.go",
+                "cmd/run_hook_stale_cleanup.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-9",
+              "source": "reviewer",
+              "summary": "Line-counting scaffolding is now restated four ways across the cmd doctor test files.",
+              "detail": "countExactLines / countPrefixedLines (cmd/doctor_fix_hook_prune_report_test.go:94-112) duplicate the inline split-and-scan loops in assertStalePrunesApplied (cmd/doctor_test.go:859-869), assertSkippedPruneLine (cmd/doctor_test.go:1654-1667) and renderStaleHooksLine (cmd/doctor_stand_down_copy_test.go:153-158). A single pair of package-local helpers would serve all four, but the fix edits three files outside this task.",
+              "files": [
+                "cmd/doctor_fix_hook_prune_report_test.go",
+                "cmd/doctor_test.go",
+                "cmd/doctor_stand_down_copy_test.go"
               ]
             }
           ]
