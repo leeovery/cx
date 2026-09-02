@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/leeovery/portal/internal/commandertest"
 	"github.com/leeovery/portal/internal/tmux"
 )
 
 func TestRegisterPortalHooks_NonSessionClosedEventsRouteToNotifyCommand(t *testing.T) {
 	for _, ev := range nonSessionClosedSaveTriggerEvents {
 		t.Run(fmt.Sprintf("%s is registered with notifyCommand and not commitNowCommand", ev), func(t *testing.T) {
-			mock := &MockCommander{RunFunc: perEventDispatch(t, "", nil)}
+			mock := commandertest.FromFunc(perEventDispatch(t, "", nil))
 			client := tmux.NewClient(mock)
 
 			if err := tmux.RegisterPortalHooks(client, nil); err != nil {
@@ -18,7 +19,7 @@ func TestRegisterPortalHooks_NonSessionClosedEventsRouteToNotifyCommand(t *testi
 			}
 
 			var eventCalls [][2]string
-			for _, c := range setHookCalls(mock.Calls) {
+			for _, c := range setHookCalls(mock.Calls()) {
 				if c[0] == ev {
 					eventCalls = append(eventCalls, c)
 				}
@@ -28,7 +29,7 @@ func TestRegisterPortalHooks_NonSessionClosedEventsRouteToNotifyCommand(t *testi
 				t.Fatalf(
 					"expected exactly 1 set-hook -ga on %q, got %d: %v\n"+
 						"--- full set-hook -ga call log ---\n%v",
-					ev, len(eventCalls), eventCalls, setHookCalls(mock.Calls),
+					ev, len(eventCalls), eventCalls, setHookCalls(mock.Calls()),
 				)
 			}
 

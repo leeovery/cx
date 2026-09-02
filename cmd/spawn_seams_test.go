@@ -7,6 +7,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/leeovery/portal/internal/commandertest"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/spawn"
 	"github.com/leeovery/portal/internal/tmux"
@@ -37,7 +38,7 @@ func TestBuildProductionSpawnSeams(t *testing.T) {
 
 	sink := logtest.Install(t)
 
-	cmder := quietCommander()
+	cmder := commandertest.Quiet()
 	client := tmux.NewClient(cmder)
 
 	seams := buildProductionSpawnSeams(client)

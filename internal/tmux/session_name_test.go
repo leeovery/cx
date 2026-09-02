@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/portal/internal/commandertest"
 	"github.com/leeovery/portal/internal/tmux"
 	"github.com/leeovery/portal/internal/tmuxerr"
 )
@@ -13,7 +14,7 @@ const colonSession = "a:b"
 
 func TestRenameSessionRefusesColon(t *testing.T) {
 	t.Run("it refuses a rename to a name containing a colon", func(t *testing.T) {
-		client := tmux.NewClient(&MockCommander{})
+		client := tmux.NewClient(commandertest.Quiet())
 
 		err := client.RenameSession("old-name", colonSession)
 
@@ -26,7 +27,7 @@ func TestRenameSessionRefusesColon(t *testing.T) {
 	})
 
 	t.Run("it names the offending character in the refusal message", func(t *testing.T) {
-		client := tmux.NewClient(&MockCommander{})
+		client := tmux.NewClient(commandertest.Quiet())
 
 		err := client.RenameSession("old-name", colonSession)
 
@@ -39,29 +40,29 @@ func TestRenameSessionRefusesColon(t *testing.T) {
 	})
 
 	t.Run("it issues no tmux command for a refused rename", func(t *testing.T) {
-		mock := &MockCommander{}
+		mock := commandertest.Quiet()
 		client := tmux.NewClient(mock)
 
 		_ = client.RenameSession("old-name", colonSession)
 
-		if len(mock.Calls) != 0 {
-			t.Errorf("refused rename issued %d tmux calls (%v); want none", len(mock.Calls), mock.Calls)
+		if len(mock.Calls()) != 0 {
+			t.Errorf("refused rename issued %d tmux calls (%v); want none", len(mock.Calls()), mock.Calls())
 		}
 	})
 
 	t.Run("it renames a colon-free name unchanged", func(t *testing.T) {
-		mock := &MockCommander{}
+		mock := commandertest.Quiet()
 		client := tmux.NewClient(mock)
 
 		if err := client.RenameSession("old-name", "new-name"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if len(mock.Calls) != 1 {
-			t.Fatalf("expected 1 call, got %d: %v", len(mock.Calls), mock.Calls)
+		if len(mock.Calls()) != 1 {
+			t.Fatalf("expected 1 call, got %d: %v", len(mock.Calls()), mock.Calls())
 		}
 		const wantArgs = "rename-session -t =old-name new-name"
-		if got := strings.Join(mock.Calls[0], " "); got != wantArgs {
+		if got := strings.Join(mock.Calls()[0], " "); got != wantArgs {
 			t.Errorf("called with %q, want %q", got, wantArgs)
 		}
 	})
@@ -70,15 +71,13 @@ func TestRenameSessionRefusesColon(t *testing.T) {
 // noSuchSessionCommander answers every command the way tmux answers a target it
 // cannot resolve — the same stderr for a vanished session and for a live session
 // whose name the exact-target form cannot express.
-func noSuchSessionCommander(target string) *MockCommander {
-	return &MockCommander{
-		RunFunc: func(...string) (string, error) {
-			return "", &tmux.CommandError{
-				Stderr: "no such session: " + target,
-				Err:    errors.New("exit status 1"),
-			}
-		},
-	}
+func noSuchSessionCommander(target string) *commandertest.Scripted {
+	return commandertest.FromFunc(func(...string) (string, error) {
+		return "", &tmux.CommandError{
+			Stderr: "no such session: " + target,
+			Err:    errors.New("exit status 1"),
+		}
+	})
 }
 
 func TestShowEnvironmentClassifiesUnaddressableName(t *testing.T) {

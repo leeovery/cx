@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/portal/internal/commandertest"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
@@ -221,28 +222,28 @@ func TestBootstrapPortalSaver_CreatesOnFreshServer(t *testing.T) {
 		setOption:   func(call int) (string, error) { return "", nil },
 		respawnPane: func(call int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.BootstrapPortalSaver(client, "/tmp/portal-state"); err != nil {
 		t.Fatalf("BootstrapPortalSaver returned error: %v", err)
 	}
 
-	if got := countCalls(mock.Calls, "new-session"); got != 1 {
-		t.Errorf("expected exactly 1 new-session call, got %d (calls: %v)", got, mock.Calls)
+	if got := countCalls(mock.Calls(), "new-session"); got != 1 {
+		t.Errorf("expected exactly 1 new-session call, got %d (calls: %v)", got, mock.Calls())
 	}
-	if got := countCalls(mock.Calls, "set-option"); got != 1 {
-		t.Errorf("expected exactly 1 set-option call, got %d (calls: %v)", got, mock.Calls)
+	if got := countCalls(mock.Calls(), "set-option"); got != 1 {
+		t.Errorf("expected exactly 1 set-option call, got %d (calls: %v)", got, mock.Calls())
 	}
-	if got := countCalls(mock.Calls, "respawn-pane"); got != 1 {
-		t.Errorf("expected exactly 1 respawn-pane call, got %d (calls: %v)", got, mock.Calls)
+	if got := countCalls(mock.Calls(), "respawn-pane"); got != 1 {
+		t.Errorf("expected exactly 1 respawn-pane call, got %d (calls: %v)", got, mock.Calls())
 	}
-	if got := countCalls(mock.Calls, "kill-session"); got != 0 {
+	if got := countCalls(mock.Calls(), "kill-session"); got != 0 {
 		t.Errorf("expected 0 kill-session calls, got %d", got)
 	}
 
 	wantNewSession := "new-session -d -s _portal-saver " + tmux.PortalSaverPlaceholderCommand
-	for _, c := range mock.Calls {
+	for _, c := range mock.Calls() {
 		if c[0] != "new-session" {
 			continue
 		}
@@ -253,7 +254,7 @@ func TestBootstrapPortalSaver_CreatesOnFreshServer(t *testing.T) {
 	}
 
 	wantRespawn := "respawn-pane -k -t " + tmux.ExactCoordTarget(tmux.PortalSaverName) + " " + tmux.PortalSaverDaemonCommand
-	for _, c := range mock.Calls {
+	for _, c := range mock.Calls() {
 		if c[0] != "respawn-pane" {
 			continue
 		}
@@ -276,7 +277,7 @@ func TestBootstrapPortalSaver_CreateOrderingIsCreateThenSetOptionThenRespawn(t *
 		setOption:   func(call int) (string, error) { return "", nil },
 		respawnPane: func(call int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.BootstrapPortalSaver(client, "/tmp/portal-state"); err != nil {
@@ -284,7 +285,7 @@ func TestBootstrapPortalSaver_CreateOrderingIsCreateThenSetOptionThenRespawn(t *
 	}
 
 	newIdx, setIdx, respawnIdx := -1, -1, -1
-	for i, c := range mock.Calls {
+	for i, c := range mock.Calls() {
 		if len(c) == 0 {
 			continue
 		}
@@ -304,10 +305,10 @@ func TestBootstrapPortalSaver_CreateOrderingIsCreateThenSetOptionThenRespawn(t *
 		}
 	}
 	if newIdx == -1 || setIdx == -1 || respawnIdx == -1 {
-		t.Fatalf("missing call: new=%d set=%d respawn=%d (calls=%v)", newIdx, setIdx, respawnIdx, mock.Calls)
+		t.Fatalf("missing call: new=%d set=%d respawn=%d (calls=%v)", newIdx, setIdx, respawnIdx, mock.Calls())
 	}
 	if newIdx >= setIdx || setIdx >= respawnIdx {
-		t.Errorf("expected create-then-set-option-then-respawn ordering; got new=%d set=%d respawn=%d (calls=%v)", newIdx, setIdx, respawnIdx, mock.Calls)
+		t.Errorf("expected create-then-set-option-then-respawn ordering; got new=%d set=%d respawn=%d (calls=%v)", newIdx, setIdx, respawnIdx, mock.Calls())
 	}
 }
 
@@ -323,7 +324,7 @@ func TestBootstrapPortalSaver_PropagatesRespawnPaneFailureWithRespawnDaemonConte
 		setOption:   func(call int) (string, error) { return "", nil },
 		respawnPane: func(call int) (string, error) { return "", errors.New("pane vanished mid-flight") },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	err := tmux.BootstrapPortalSaver(client, "/tmp/portal-state")
@@ -354,14 +355,12 @@ func TestCreatePortalSaverWithRetry_UsesPlaceholderCommand(t *testing.T) {
 		setOption:   func(call int) (string, error) { return "", nil },
 		respawnPane: func(call int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{
-		RunFunc: func(args ...string) (string, error) {
-			if len(args) > 0 && args[0] == "new-session" {
-				newSessionArgv = append([]string{}, args...)
-			}
-			return script.run(t)(args...)
-		},
-	}
+	mock := commandertest.FromFunc(func(args ...string) (string, error) {
+		if len(args) > 0 && args[0] == "new-session" {
+			newSessionArgv = append([]string{}, args...)
+		}
+		return script.run(t)(args...)
+	})
 	client := tmux.NewClient(mock)
 
 	if err := tmux.BootstrapPortalSaver(client, "/tmp/portal-state"); err != nil {
@@ -391,35 +390,33 @@ func TestBootstrapPortalSaver_ConcurrentRaceTreatsExistingSessionAsSuccess_AndSt
 	respawnPaneCall := 0
 	setOptionCall := 0
 
-	mock := &MockCommander{
-		RunFunc: func(args ...string) (string, error) {
-			switch args[0] {
-			case "has-session":
-				hasSessionCall++
-				if hasSessionCall == 1 {
-					return "", errors.New("can't find session")
-				}
-				return "", nil
-			case "new-session":
-				newSessionCall++
-				return "", errors.New("duplicate session: _portal-saver")
-			case "set-option":
-				setOptionCall++
-				return "", nil
-			case "respawn-pane":
-				respawnPaneCall++
-				return "", nil
-			case "list-panes":
-				if saverScriptListPanesFormat(args) == "#{pane_id}" {
-					return "%0\n", nil
-				}
-				return "1\n", nil
-			default:
-				t.Fatalf("unexpected command: %v", args)
-				return "", nil
+	mock := commandertest.FromFunc(func(args ...string) (string, error) {
+		switch args[0] {
+		case "has-session":
+			hasSessionCall++
+			if hasSessionCall == 1 {
+				return "", errors.New("can't find session")
 			}
-		},
-	}
+			return "", nil
+		case "new-session":
+			newSessionCall++
+			return "", errors.New("duplicate session: _portal-saver")
+		case "set-option":
+			setOptionCall++
+			return "", nil
+		case "respawn-pane":
+			respawnPaneCall++
+			return "", nil
+		case "list-panes":
+			if saverScriptListPanesFormat(args) == "#{pane_id}" {
+				return "%0\n", nil
+			}
+			return "1\n", nil
+		default:
+			t.Fatalf("unexpected command: %v", args)
+			return "", nil
+		}
+	})
 	client := tmux.NewClient(mock)
 
 	if err := tmux.BootstrapPortalSaver(client, "/tmp/portal-state"); err != nil {
@@ -445,20 +442,20 @@ func TestBootstrapPortalSaver_NoOpWhenSessionExistsAndDaemonAlive(t *testing.T) 
 		hasSession: func(call int) (string, error) { return "", nil },
 		setOption:  func(call int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.BootstrapPortalSaver(client, "/tmp/portal-state"); err != nil {
 		t.Fatalf("BootstrapPortalSaver returned error: %v", err)
 	}
 
-	if got := countCalls(mock.Calls, "new-session"); got != 0 {
-		t.Errorf("expected 0 new-session calls, got %d (calls: %v)", got, mock.Calls)
+	if got := countCalls(mock.Calls(), "new-session"); got != 0 {
+		t.Errorf("expected 0 new-session calls, got %d (calls: %v)", got, mock.Calls())
 	}
-	if got := countCalls(mock.Calls, "kill-session"); got != 0 {
+	if got := countCalls(mock.Calls(), "kill-session"); got != 0 {
 		t.Errorf("expected 0 kill-session calls, got %d", got)
 	}
-	if got := countCalls(mock.Calls, "set-option"); got != 1 {
+	if got := countCalls(mock.Calls(), "set-option"); got != 1 {
 		t.Errorf("expected exactly 1 set-option call, got %d", got)
 	}
 }
@@ -474,24 +471,24 @@ func TestBootstrapPortalSaver_KillsAndRecreatesWhenSessionExistsButDaemonDead(t 
 		setOption:   func(call int) (string, error) { return "", nil },
 		respawnPane: func(call int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.BootstrapPortalSaver(client, "/tmp/portal-state"); err != nil {
 		t.Fatalf("BootstrapPortalSaver returned error: %v", err)
 	}
 
-	if got := countCalls(mock.Calls, "kill-session"); got != 1 {
-		t.Errorf("expected 1 kill-session call, got %d (calls: %v)", got, mock.Calls)
+	if got := countCalls(mock.Calls(), "kill-session"); got != 1 {
+		t.Errorf("expected 1 kill-session call, got %d (calls: %v)", got, mock.Calls())
 	}
-	if got := countCalls(mock.Calls, "new-session"); got != 1 {
+	if got := countCalls(mock.Calls(), "new-session"); got != 1 {
 		t.Errorf("expected 1 new-session call, got %d", got)
 	}
-	if got := countCalls(mock.Calls, "set-option"); got != 1 {
+	if got := countCalls(mock.Calls(), "set-option"); got != 1 {
 		t.Errorf("expected 1 set-option call, got %d", got)
 	}
 
-	assertKillBeforeNew(t, mock.Calls)
+	assertKillBeforeNew(t, mock.Calls())
 }
 
 func TestBootstrapPortalSaver_RecoversFromFlockLoserEmptySession(t *testing.T) {
@@ -506,21 +503,21 @@ func TestBootstrapPortalSaver_RecoversFromFlockLoserEmptySession(t *testing.T) {
 		setOption:   func(call int) (string, error) { return "", nil },
 		respawnPane: func(call int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.BootstrapPortalSaver(client, "/tmp/portal-state"); err != nil {
 		t.Fatalf("BootstrapPortalSaver returned error: %v", err)
 	}
 
-	if got := countCalls(mock.Calls, "new-session"); got != 1 {
-		t.Errorf("expected exactly 1 new-session call, got %d (calls: %v)", got, mock.Calls)
+	if got := countCalls(mock.Calls(), "new-session"); got != 1 {
+		t.Errorf("expected exactly 1 new-session call, got %d (calls: %v)", got, mock.Calls())
 	}
-	if got := countCalls(mock.Calls, "set-option"); got != 1 {
-		t.Errorf("expected exactly 1 set-option call, got %d (calls: %v)", got, mock.Calls)
+	if got := countCalls(mock.Calls(), "set-option"); got != 1 {
+		t.Errorf("expected exactly 1 set-option call, got %d (calls: %v)", got, mock.Calls())
 	}
-	if got := countCalls(mock.Calls, "kill-session"); got != 0 {
-		t.Errorf("expected 0 kill-session calls (no prior session to kill), got %d (calls: %v)", got, mock.Calls)
+	if got := countCalls(mock.Calls(), "kill-session"); got != 0 {
+		t.Errorf("expected 0 kill-session calls (no prior session to kill), got %d (calls: %v)", got, mock.Calls())
 	}
 }
 
@@ -535,24 +532,24 @@ func TestBootstrapPortalSaver_RecoversFromFlockLoserDeadPaneSession(t *testing.T
 		setOption:   func(call int) (string, error) { return "", nil },
 		respawnPane: func(call int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.BootstrapPortalSaver(client, "/tmp/portal-state"); err != nil {
 		t.Fatalf("BootstrapPortalSaver returned error: %v", err)
 	}
 
-	if got := countCalls(mock.Calls, "kill-session"); got != 1 {
-		t.Errorf("expected 1 kill-session call, got %d (calls: %v)", got, mock.Calls)
+	if got := countCalls(mock.Calls(), "kill-session"); got != 1 {
+		t.Errorf("expected 1 kill-session call, got %d (calls: %v)", got, mock.Calls())
 	}
-	if got := countCalls(mock.Calls, "new-session"); got != 1 {
-		t.Errorf("expected 1 new-session call, got %d (calls: %v)", got, mock.Calls)
+	if got := countCalls(mock.Calls(), "new-session"); got != 1 {
+		t.Errorf("expected 1 new-session call, got %d (calls: %v)", got, mock.Calls())
 	}
-	if got := countCalls(mock.Calls, "set-option"); got != 1 {
-		t.Errorf("expected 1 set-option call, got %d (calls: %v)", got, mock.Calls)
+	if got := countCalls(mock.Calls(), "set-option"); got != 1 {
+		t.Errorf("expected 1 set-option call, got %d (calls: %v)", got, mock.Calls())
 	}
 
-	assertKillBeforeNew(t, mock.Calls)
+	assertKillBeforeNew(t, mock.Calls())
 }
 
 func TestBootstrapPortalSaver_AlwaysSetsDestroyUnattachedOff(t *testing.T) {
@@ -564,14 +561,12 @@ func TestBootstrapPortalSaver_AlwaysSetsDestroyUnattachedOff(t *testing.T) {
 		hasSession: func(call int) (string, error) { return "", nil },
 		setOption:  func(call int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{
-		RunFunc: func(args ...string) (string, error) {
-			if len(args) > 0 && args[0] == "set-option" {
-				setOptionArgs = append([]string{}, args...)
-			}
-			return script.run(t)(args...)
-		},
-	}
+	mock := commandertest.FromFunc(func(args ...string) (string, error) {
+		if len(args) > 0 && args[0] == "set-option" {
+			setOptionArgs = append([]string{}, args...)
+		}
+		return script.run(t)(args...)
+	})
 	client := tmux.NewClient(mock)
 
 	if err := tmux.BootstrapPortalSaver(client, "/tmp/portal-state"); err != nil {
@@ -597,14 +592,14 @@ func TestBootstrapPortalSaver_NeverUsesGlobalScopeForSetOption(t *testing.T) {
 		hasSession: func(call int) (string, error) { return "", nil },
 		setOption:  func(call int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.BootstrapPortalSaver(client, "/tmp/portal-state"); err != nil {
 		t.Fatalf("BootstrapPortalSaver returned error: %v", err)
 	}
 
-	for _, call := range mock.Calls {
+	for _, call := range mock.Calls() {
 		if len(call) == 0 || call[0] != "set-option" {
 			continue
 		}
@@ -623,33 +618,31 @@ func TestBootstrapPortalSaver_RetriesNewSessionUpTo3TimesOnTransientFailure(t *t
 	hasSessionCall := 0
 	newSessionCall := 0
 
-	mock := &MockCommander{
-		RunFunc: func(args ...string) (string, error) {
-			switch args[0] {
-			case "has-session":
-				hasSessionCall++
-				return "", errors.New("can't find session")
-			case "new-session":
-				newSessionCall++
-				if newSessionCall < 3 {
-					return "", errors.New("transient tmux error")
-				}
-				return "", nil
-			case "set-option":
-				return "", nil
-			case "respawn-pane":
-				return "", nil
-			case "list-panes":
-				if saverScriptListPanesFormat(args) == "#{pane_id}" {
-					return "%0\n", nil
-				}
-				return "1\n", nil
-			default:
-				t.Fatalf("unexpected command: %v", args)
-				return "", nil
+	mock := commandertest.FromFunc(func(args ...string) (string, error) {
+		switch args[0] {
+		case "has-session":
+			hasSessionCall++
+			return "", errors.New("can't find session")
+		case "new-session":
+			newSessionCall++
+			if newSessionCall < 3 {
+				return "", errors.New("transient tmux error")
 			}
-		},
-	}
+			return "", nil
+		case "set-option":
+			return "", nil
+		case "respawn-pane":
+			return "", nil
+		case "list-panes":
+			if saverScriptListPanesFormat(args) == "#{pane_id}" {
+				return "%0\n", nil
+			}
+			return "1\n", nil
+		default:
+			t.Fatalf("unexpected command: %v", args)
+			return "", nil
+		}
+	})
 	client := tmux.NewClient(mock)
 
 	if err := tmux.BootstrapPortalSaver(client, "/tmp/portal-state"); err != nil {
@@ -659,10 +652,10 @@ func TestBootstrapPortalSaver_RetriesNewSessionUpTo3TimesOnTransientFailure(t *t
 	if newSessionCall != 3 {
 		t.Errorf("expected 3 new-session calls, got %d", newSessionCall)
 	}
-	if got := countCalls(mock.Calls, "set-option"); got != 1 {
+	if got := countCalls(mock.Calls(), "set-option"); got != 1 {
 		t.Errorf("expected 1 set-option call after retry success, got %d", got)
 	}
-	if got := countCalls(mock.Calls, "respawn-pane"); got != 1 {
+	if got := countCalls(mock.Calls(), "respawn-pane"); got != 1 {
 		t.Errorf("expected 1 respawn-pane call after retry success, got %d", got)
 	}
 }
@@ -671,25 +664,23 @@ func TestBootstrapPortalSaver_ReturnsWrappedErrorAfterRetryExhaustion(t *testing
 	stubAliveCheck(t, false)
 	shrinkRetryDelay(t)
 
-	mock := &MockCommander{
-		RunFunc: func(args ...string) (string, error) {
-			switch args[0] {
-			case "has-session":
-				return "", errors.New("can't find session")
-			case "new-session":
-				return "", errors.New("persistent tmux failure")
-			case "set-option":
-				t.Fatalf("set-option must not be called when create exhausts retries")
-				return "", nil
-			case "respawn-pane":
-				t.Fatalf("respawn-pane must not be called when create exhausts retries")
-				return "", nil
-			default:
-				t.Fatalf("unexpected command: %v", args)
-				return "", nil
-			}
-		},
-	}
+	mock := commandertest.FromFunc(func(args ...string) (string, error) {
+		switch args[0] {
+		case "has-session":
+			return "", errors.New("can't find session")
+		case "new-session":
+			return "", errors.New("persistent tmux failure")
+		case "set-option":
+			t.Fatalf("set-option must not be called when create exhausts retries")
+			return "", nil
+		case "respawn-pane":
+			t.Fatalf("respawn-pane must not be called when create exhausts retries")
+			return "", nil
+		default:
+			t.Fatalf("unexpected command: %v", args)
+			return "", nil
+		}
+	})
 	client := tmux.NewClient(mock)
 
 	err := tmux.BootstrapPortalSaver(client, "/tmp/portal-state")
@@ -703,13 +694,13 @@ func TestBootstrapPortalSaver_ReturnsWrappedErrorAfterRetryExhaustion(t *testing
 		t.Errorf("error %q should wrap underlying tmux error", err.Error())
 	}
 
-	if got := countCalls(mock.Calls, "new-session"); got != 3 {
+	if got := countCalls(mock.Calls(), "new-session"); got != 3 {
 		t.Errorf("expected exactly 3 new-session attempts, got %d", got)
 	}
-	if got := countCalls(mock.Calls, "set-option"); got != 0 {
+	if got := countCalls(mock.Calls(), "set-option"); got != 0 {
 		t.Errorf("set-option must not run after retry exhaustion, got %d calls", got)
 	}
-	if got := countCalls(mock.Calls, "respawn-pane"); got != 0 {
+	if got := countCalls(mock.Calls(), "respawn-pane"); got != 0 {
 		t.Errorf("respawn-pane must not run after retry exhaustion, got %d calls", got)
 	}
 }
@@ -725,20 +716,20 @@ func TestBootstrapPortalSaver_ToleratesKillSessionFailureWhenTransitioningFromOr
 		setOption:   func(call int) (string, error) { return "", nil },
 		respawnPane: func(call int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.BootstrapPortalSaver(client, "/tmp/portal-state"); err != nil {
 		t.Fatalf("BootstrapPortalSaver should tolerate kill failure, got: %v", err)
 	}
 
-	if got := countCalls(mock.Calls, "kill-session"); got != 1 {
+	if got := countCalls(mock.Calls(), "kill-session"); got != 1 {
 		t.Errorf("expected 1 kill-session call, got %d", got)
 	}
-	if got := countCalls(mock.Calls, "new-session"); got != 1 {
+	if got := countCalls(mock.Calls(), "new-session"); got != 1 {
 		t.Errorf("expected creation to proceed despite kill failure, got %d new-session calls", got)
 	}
-	if got := countCalls(mock.Calls, "set-option"); got != 1 {
+	if got := countCalls(mock.Calls(), "set-option"); got != 1 {
 		t.Errorf("expected 1 set-option call, got %d", got)
 	}
 }
@@ -751,7 +742,7 @@ func TestBootstrapPortalSaver_PropagatesSetOptionFailureWithSessionAndOptionName
 		hasSession: func(call int) (string, error) { return "", nil },
 		setOption:  func(call int) (string, error) { return "", errors.New("permission denied") },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	err := tmux.BootstrapPortalSaver(client, "/tmp/portal-state")
@@ -776,33 +767,31 @@ func TestBootstrapPortalSaver_NoRedundantCreateOnConcurrentBootstrapRace(t *test
 	hasSessionCall := 0
 	newSessionCall := 0
 
-	mock := &MockCommander{
-		RunFunc: func(args ...string) (string, error) {
-			switch args[0] {
-			case "has-session":
-				hasSessionCall++
-				if hasSessionCall == 1 {
-					return "", errors.New("can't find session")
-				}
-				return "", nil
-			case "new-session":
-				newSessionCall++
-				return "", errors.New("duplicate session: _portal-saver")
-			case "set-option":
-				return "", nil
-			case "respawn-pane":
-				return "", nil
-			case "list-panes":
-				if saverScriptListPanesFormat(args) == "#{pane_id}" {
-					return "%0\n", nil
-				}
-				return "1\n", nil
-			default:
-				t.Fatalf("unexpected command: %v", args)
-				return "", nil
+	mock := commandertest.FromFunc(func(args ...string) (string, error) {
+		switch args[0] {
+		case "has-session":
+			hasSessionCall++
+			if hasSessionCall == 1 {
+				return "", errors.New("can't find session")
 			}
-		},
-	}
+			return "", nil
+		case "new-session":
+			newSessionCall++
+			return "", errors.New("duplicate session: _portal-saver")
+		case "set-option":
+			return "", nil
+		case "respawn-pane":
+			return "", nil
+		case "list-panes":
+			if saverScriptListPanesFormat(args) == "#{pane_id}" {
+				return "%0\n", nil
+			}
+			return "1\n", nil
+		default:
+			t.Fatalf("unexpected command: %v", args)
+			return "", nil
+		}
+	})
 	client := tmux.NewClient(mock)
 
 	if err := tmux.BootstrapPortalSaver(client, "/tmp/portal-state"); err != nil {
@@ -812,7 +801,7 @@ func TestBootstrapPortalSaver_NoRedundantCreateOnConcurrentBootstrapRace(t *test
 	if newSessionCall != 1 {
 		t.Errorf("expected exactly 1 new-session attempt before race detected, got %d", newSessionCall)
 	}
-	if got := countCalls(mock.Calls, "set-option"); got != 1 {
+	if got := countCalls(mock.Calls(), "set-option"); got != 1 {
 		t.Errorf("expected set-option to still run after race detected, got %d calls", got)
 	}
 }
@@ -877,10 +866,10 @@ func (s *versionScenario) run(t *testing.T) func(args ...string) (string, error)
 	}
 }
 
-func newVersionScenarioClient(t *testing.T, sessionPresent bool) (*versionScenario, *MockCommander, *tmux.Client) {
+func newVersionScenarioClient(t *testing.T, sessionPresent bool) (*versionScenario, *commandertest.Scripted, *tmux.Client) {
 	t.Helper()
 	scenario := &versionScenario{sessionPresent: sessionPresent}
-	mock := &MockCommander{RunFunc: scenario.run(t)}
+	mock := commandertest.FromFunc(scenario.run(t))
 	return scenario, mock, tmux.NewClient(mock)
 }
 
@@ -948,7 +937,7 @@ func TestEnsurePortalSaverVersion_KillsAndRecreatesWhenStoredDiffersFromCurrent(
 		t.Errorf("expected exactly 1 set-option call, got %d", scenario.setOptionCalls)
 	}
 
-	assertKillBeforeNew(t, mock.Calls)
+	assertKillBeforeNew(t, mock.Calls())
 }
 
 func TestEnsurePortalSaverVersion_AlwaysRestartsWhenCurrentIsEmpty(t *testing.T) {
@@ -1069,7 +1058,7 @@ func TestEnsurePortalSaverVersion_ToleratesKillSessionErrorForAbsentSession(t *t
 		sessionPresent: true,
 		killSessionErr: errors.New("can't find session: _portal-saver"),
 	}
-	mock := &MockCommander{RunFunc: scenario.run(t)}
+	mock := commandertest.FromFunc(scenario.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.EnsurePortalSaverVersion(client, dir, "v0.4.2"); err != nil {
@@ -1093,14 +1082,12 @@ func TestEnsurePortalSaverVersion_AlwaysInvokesBootstrapPortalSaver(t *testing.T
 
 	var setOptionArgs []string
 	scenario := &versionScenario{sessionPresent: true}
-	mock := &MockCommander{
-		RunFunc: func(args ...string) (string, error) {
-			if len(args) > 0 && args[0] == "set-option" {
-				setOptionArgs = append([]string{}, args...)
-			}
-			return scenario.run(t)(args...)
-		},
-	}
+	mock := commandertest.FromFunc(func(args ...string) (string, error) {
+		if len(args) > 0 && args[0] == "set-option" {
+			setOptionArgs = append([]string{}, args...)
+		}
+		return scenario.run(t)(args...)
+	})
 	client := tmux.NewClient(mock)
 
 	if err := tmux.EnsurePortalSaverVersion(client, dir, "v0.4.2"); err != nil {
@@ -1243,15 +1230,15 @@ func TestKillSaverAndWaitForDaemon_ReturnsNilWithNoWarnWhenPriorPIDDiesBeforeTim
 	script := &portalSaverScript{
 		killSession: func(call int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.KillSaverAndWaitForDaemon(client, t.TempDir()); err != nil {
 		t.Fatalf("killSaverAndWaitForDaemon returned error: %v", err)
 	}
 
-	if got := countCalls(mock.Calls, "kill-session"); got != 1 {
-		t.Errorf("expected exactly 1 kill-session call, got %d (calls: %v)", got, mock.Calls)
+	if got := countCalls(mock.Calls(), "kill-session"); got != 1 {
+		t.Errorf("expected exactly 1 kill-session call, got %d (calls: %v)", got, mock.Calls())
 	}
 	if len(log.warns()) != 0 {
 		t.Errorf("expected 0 WARN lines on clean exit, got %d: %v", len(log.warns()), log.warns())
@@ -1269,7 +1256,7 @@ func TestKillSaverAndWaitForDaemon_EmitsOneWarnAndReturnsNilWhenPriorPIDNeverDie
 	script := &portalSaverScript{
 		killSession: func(call int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	start := time.Now()
@@ -1278,7 +1265,7 @@ func TestKillSaverAndWaitForDaemon_EmitsOneWarnAndReturnsNilWhenPriorPIDNeverDie
 	}
 	elapsed := time.Since(start)
 
-	if got := countCalls(mock.Calls, "kill-session"); got != 1 {
+	if got := countCalls(mock.Calls(), "kill-session"); got != 1 {
 		t.Errorf("expected exactly 1 kill-session call, got %d", got)
 	}
 	if len(log.warns()) != 1 {
@@ -1305,14 +1292,14 @@ func TestKillSaverAndWaitForDaemon_SkipsPollingWhenPIDFileAbsent(t *testing.T) {
 	script := &portalSaverScript{
 		killSession: func(call int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.KillSaverAndWaitForDaemon(client, t.TempDir()); err != nil {
 		t.Fatalf("killSaverAndWaitForDaemon returned error: %v", err)
 	}
 
-	if got := countCalls(mock.Calls, "kill-session"); got != 1 {
+	if got := countCalls(mock.Calls(), "kill-session"); got != 1 {
 		t.Errorf("expected exactly 1 kill-session call, got %d", got)
 	}
 	if aliveCalls != 0 {
@@ -1341,14 +1328,14 @@ func TestKillSaverAndWaitForDaemon_SkipsPollingWhenPIDFileCorrupted(t *testing.T
 	script := &portalSaverScript{
 		killSession: func(call int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.KillSaverAndWaitForDaemon(client, t.TempDir()); err != nil {
 		t.Fatalf("killSaverAndWaitForDaemon returned error: %v", err)
 	}
 
-	if got := countCalls(mock.Calls, "kill-session"); got != 1 {
+	if got := countCalls(mock.Calls(), "kill-session"); got != 1 {
 		t.Errorf("expected exactly 1 kill-session call, got %d", got)
 	}
 	if aliveCalls != 0 {
@@ -1377,14 +1364,14 @@ func TestKillSaverAndWaitForDaemon_SkipsPollingWhenPIDFileUnreadable(t *testing.
 	script := &portalSaverScript{
 		killSession: func(call int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.KillSaverAndWaitForDaemon(client, t.TempDir()); err != nil {
 		t.Fatalf("killSaverAndWaitForDaemon returned error: %v", err)
 	}
 
-	if got := countCalls(mock.Calls, "kill-session"); got != 1 {
+	if got := countCalls(mock.Calls(), "kill-session"); got != 1 {
 		t.Errorf("expected exactly 1 kill-session call, got %d", got)
 	}
 	if aliveCalls != 0 {
@@ -1411,14 +1398,14 @@ func TestKillSaverAndWaitForDaemon_SkipsPollingWhenPriorPIDAlreadyDead(t *testin
 	script := &portalSaverScript{
 		killSession: func(call int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.KillSaverAndWaitForDaemon(client, t.TempDir()); err != nil {
 		t.Fatalf("killSaverAndWaitForDaemon returned error: %v", err)
 	}
 
-	if got := countCalls(mock.Calls, "kill-session"); got != 1 {
+	if got := countCalls(mock.Calls(), "kill-session"); got != 1 {
 		t.Errorf("expected exactly 1 kill-session call, got %d", got)
 	}
 	if aliveCalls != 1 {
@@ -1442,14 +1429,14 @@ func TestKillSaverAndWaitForDaemon_ToleratesFailingKillSession(t *testing.T) {
 			return "", errors.New("session vanished mid-flight")
 		},
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.KillSaverAndWaitForDaemon(client, t.TempDir()); err != nil {
 		t.Fatalf("killSaverAndWaitForDaemon must tolerate kill-session error, got: %v", err)
 	}
 
-	if got := countCalls(mock.Calls, "kill-session"); got != 1 {
+	if got := countCalls(mock.Calls(), "kill-session"); got != 1 {
 		t.Errorf("expected exactly 1 kill-session call even when it errors, got %d", got)
 	}
 	if len(log.warns()) != 0 {
@@ -1477,7 +1464,7 @@ func TestKillSaverAndWaitForDaemon_DoesNotMutateStateDirectory(t *testing.T) {
 	script := &portalSaverScript{
 		killSession: func(call int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.KillSaverAndWaitForDaemon(client, dir); err != nil {
@@ -1535,8 +1522,8 @@ func TestEnsurePortalSaverVersion_InvokesBarrierHelperOnVersionMismatch(t *testi
 	if calls[0].stateDir != dir {
 		t.Errorf("barrier invoked with stateDir=%q, want %q", calls[0].stateDir, dir)
 	}
-	if got := countCalls(mock.Calls, "kill-session"); got != 0 {
-		t.Errorf("expected 0 direct kill-session calls when helper is stubbed, got %d (calls: %v)", got, mock.Calls)
+	if got := countCalls(mock.Calls(), "kill-session"); got != 0 {
+		t.Errorf("expected 0 direct kill-session calls when helper is stubbed, got %d (calls: %v)", got, mock.Calls())
 	}
 }
 
@@ -1582,7 +1569,7 @@ func TestBootstrapPortalSaver_InvokesBarrierHelperOnStaleDaemon(t *testing.T) {
 		setOption:   func(int) (string, error) { return "", nil },
 		respawnPane: func(int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.BootstrapPortalSaver(client, dir); err != nil {
@@ -1598,8 +1585,8 @@ func TestBootstrapPortalSaver_InvokesBarrierHelperOnStaleDaemon(t *testing.T) {
 	if calls[0].stateDir != dir {
 		t.Errorf("barrier invoked with stateDir=%q, want %q", calls[0].stateDir, dir)
 	}
-	if got := countCalls(mock.Calls, "kill-session"); got != 0 {
-		t.Errorf("expected 0 direct kill-session calls when helper is stubbed, got %d (calls: %v)", got, mock.Calls)
+	if got := countCalls(mock.Calls(), "kill-session"); got != 0 {
+		t.Errorf("expected 0 direct kill-session calls when helper is stubbed, got %d (calls: %v)", got, mock.Calls())
 	}
 }
 
@@ -1623,7 +1610,7 @@ func TestBootstrapPortalSaver_DoesNotInvokeBarrierHelperWhenSessionAbsent(t *tes
 		setOption:   func(int) (string, error) { return "", nil },
 		respawnPane: func(int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.BootstrapPortalSaver(client, dir); err != nil {
@@ -1651,7 +1638,7 @@ func TestBootstrapPortalSaver_DoesNotInvokeBarrierHelperWhenDaemonAlive(t *testi
 		hasSession: func(int) (string, error) { return "", nil },
 		setOption:  func(int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.BootstrapPortalSaver(client, dir); err != nil {
@@ -1678,17 +1665,17 @@ func TestBootstrapPortalSaver_PreservesKillSessionWhenRealHelperRuns(t *testing.
 		setOption:   func(int) (string, error) { return "", nil },
 		respawnPane: func(int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.BootstrapPortalSaver(client, dir); err != nil {
 		t.Fatalf("BootstrapPortalSaver returned error: %v", err)
 	}
 
-	if got := countCalls(mock.Calls, "kill-session"); got != 1 {
-		t.Errorf("expected exactly 1 kill-session via real helper fast path, got %d (calls: %v)", got, mock.Calls)
+	if got := countCalls(mock.Calls(), "kill-session"); got != 1 {
+		t.Errorf("expected exactly 1 kill-session via real helper fast path, got %d (calls: %v)", got, mock.Calls())
 	}
-	if got := countCalls(mock.Calls, "new-session"); got != 1 {
+	if got := countCalls(mock.Calls(), "new-session"); got != 1 {
 		t.Errorf("expected 1 new-session call, got %d", got)
 	}
 }
@@ -1707,14 +1694,14 @@ func TestBootstrapPortalSaver_PreservesKillBeforeNewSessionOrderThroughBarrier(t
 		setOption:   func(int) (string, error) { return "", nil },
 		respawnPane: func(int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.BootstrapPortalSaver(client, dir); err != nil {
 		t.Fatalf("BootstrapPortalSaver returned error: %v", err)
 	}
 
-	assertKillBeforeNew(t, mock.Calls)
+	assertKillBeforeNew(t, mock.Calls())
 }
 
 func TestBootstrapPortalSaver_ToleratesBarrierWarnOnTimeoutPath(t *testing.T) {
@@ -1737,7 +1724,7 @@ func TestBootstrapPortalSaver_ToleratesBarrierWarnOnTimeoutPath(t *testing.T) {
 		setOption:   func(int) (string, error) { return "", nil },
 		respawnPane: func(int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.BootstrapPortalSaver(client, dir); err != nil {
@@ -1747,7 +1734,7 @@ func TestBootstrapPortalSaver_ToleratesBarrierWarnOnTimeoutPath(t *testing.T) {
 	if len(log.warns()) != 1 {
 		t.Errorf("expected exactly 1 WARN on timeout, got %d: %v", len(log.warns()), log.warns())
 	}
-	if got := countCalls(mock.Calls, "new-session"); got != 1 {
+	if got := countCalls(mock.Calls(), "new-session"); got != 1 {
 		t.Errorf("expected new-session to proceed after barrier timeout, got %d new-session calls", got)
 	}
 }
@@ -1768,7 +1755,7 @@ func TestSetBarrierLogger_RoutesWarnOnTimeoutThroughInstalledLogger(t *testing.T
 	script := &portalSaverScript{
 		killSession: func(int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.KillSaverAndWaitForDaemon(client, t.TempDir()); err != nil {
@@ -2003,7 +1990,7 @@ func TestEnsurePortalSaverVersion_ConsultsAliveCheckBeforeVersionMismatchDecisio
 
 	tmux.BootstrapAliveCheck = func(string) bool { return true }
 	scenario2 := &versionScenario{sessionPresent: true}
-	mock2 := &MockCommander{RunFunc: scenario2.run(t)}
+	mock2 := commandertest.FromFunc(scenario2.run(t))
 	client2 := tmux.NewClient(mock2)
 	if err := tmux.EnsurePortalSaverVersion(client2, dir, "v0.4.2"); err != nil {
 		t.Fatalf("EnsurePortalSaverVersion (alive=true) returned error: %v", err)
@@ -2115,14 +2102,12 @@ func TestEnsurePortalSaverVersion_Alive_Absent_InvokesDefensiveWriteBeforeBootst
 	})
 
 	scenario := &versionScenario{sessionPresent: true}
-	mock := &MockCommander{
-		RunFunc: func(args ...string) (string, error) {
-			if len(args) > 0 {
-				order = append(order, args[0])
-			}
-			return scenario.run(t)(args...)
-		},
-	}
+	mock := commandertest.FromFunc(func(args ...string) (string, error) {
+		if len(args) > 0 {
+			order = append(order, args[0])
+		}
+		return scenario.run(t)(args...)
+	})
 	client := tmux.NewClient(mock)
 
 	if err := tmux.EnsurePortalSaverVersion(client, dir, "v0.4.2"); err != nil {
@@ -2170,12 +2155,10 @@ func TestEnsurePortalSaverVersion_Alive_Absent_DefensiveWriteErrorPropagatesAndS
 		return sentinel
 	})
 
-	mock := &MockCommander{
-		RunFunc: func(args ...string) (string, error) {
-			t.Fatalf("BootstrapPortalSaver was invoked despite defensive write failure: %v", args)
-			return "", nil
-		},
-	}
+	mock := commandertest.FromFunc(func(args ...string) (string, error) {
+		t.Fatalf("BootstrapPortalSaver was invoked despite defensive write failure: %v", args)
+		return "", nil
+	})
 	client := tmux.NewClient(mock)
 
 	err := tmux.EnsurePortalSaverVersion(client, dir, "v0.4.2")
@@ -2662,7 +2645,7 @@ func TestBootstrapPortalSaver_InvokesReadinessBarrierAfterRespawnOnCreatePath(t 
 			return "", nil
 		},
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.BootstrapPortalSaver(client, "/tmp/portal-state"); err != nil {
@@ -2691,7 +2674,7 @@ func TestBootstrapPortalSaver_DoesNotInvokeReadinessBarrierOnSessionPresentAndAl
 		hasSession: func(int) (string, error) { return "", nil },
 		setOption:  func(int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.BootstrapPortalSaver(client, "/tmp/portal-state"); err != nil {
@@ -2722,7 +2705,7 @@ func TestBootstrapPortalSaver_ReadinessBarrierStateDirThreadedFromCaller(t *test
 		setOption:   func(int) (string, error) { return "", nil },
 		respawnPane: func(int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.BootstrapPortalSaver(client, wantDir); err != nil {
@@ -2821,30 +2804,30 @@ func TestBootstrapPortalSaver_RecyclesPlaceholderOnlySaverViaNewOrdering(t *test
 		setOption:   func(int) (string, error) { return "", nil },
 		respawnPane: func(int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.BootstrapPortalSaver(client, t.TempDir()); err != nil {
 		t.Fatalf("BootstrapPortalSaver returned error: %v", err)
 	}
 
-	if got := countCalls(mock.Calls, "kill-session"); got != 1 {
-		t.Errorf("expected exactly 1 kill-session call, got %d (calls: %v)", got, mock.Calls)
+	if got := countCalls(mock.Calls(), "kill-session"); got != 1 {
+		t.Errorf("expected exactly 1 kill-session call, got %d (calls: %v)", got, mock.Calls())
 	}
-	if got := countCalls(mock.Calls, "new-session"); got != 1 {
+	if got := countCalls(mock.Calls(), "new-session"); got != 1 {
 		t.Errorf("expected exactly 1 new-session call, got %d", got)
 	}
-	if got := countCalls(mock.Calls, "set-option"); got != 1 {
+	if got := countCalls(mock.Calls(), "set-option"); got != 1 {
 		t.Errorf("expected exactly 1 set-option call, got %d", got)
 	}
-	if got := countCalls(mock.Calls, "respawn-pane"); got != 1 {
+	if got := countCalls(mock.Calls(), "respawn-pane"); got != 1 {
 		t.Errorf("expected exactly 1 respawn-pane call, got %d", got)
 	}
 
-	assertKillNewSetRespawnOrdering(t, mock.Calls)
+	assertKillNewSetRespawnOrdering(t, mock.Calls())
 
 	wantNew := "new-session -d -s _portal-saver " + tmux.PortalSaverPlaceholderCommand
-	for _, c := range mock.Calls {
+	for _, c := range mock.Calls() {
 		if c[0] != "new-session" {
 			continue
 		}
@@ -2854,7 +2837,7 @@ func TestBootstrapPortalSaver_RecyclesPlaceholderOnlySaverViaNewOrdering(t *test
 	}
 
 	wantRespawn := "respawn-pane -k -t " + tmux.ExactCoordTarget(tmux.PortalSaverName) + " " + tmux.PortalSaverDaemonCommand
-	for _, c := range mock.Calls {
+	for _, c := range mock.Calls() {
 		if c[0] != "respawn-pane" {
 			continue
 		}
@@ -2891,10 +2874,10 @@ func TestEnsurePortalSaverVersion_AliveMismatch_FlowsThroughNewBootstrapOrdering
 		t.Errorf("expected exactly 1 respawn-pane after set-option, got %d", scenario.respawnPaneCalls)
 	}
 
-	assertKillNewSetRespawnOrdering(t, mock.Calls)
+	assertKillNewSetRespawnOrdering(t, mock.Calls())
 
 	wantNew := "new-session -d -s _portal-saver " + tmux.PortalSaverPlaceholderCommand
-	for _, c := range mock.Calls {
+	for _, c := range mock.Calls() {
 		if c[0] != "new-session" {
 			continue
 		}
@@ -2931,7 +2914,7 @@ func TestEnsurePortalSaverVersion_NotAlive_SkipsKillAndStillUsesNewOrdering(t *t
 	}
 
 	newIdx, setIdx, respawnIdx := -1, -1, -1
-	for i, c := range mock.Calls {
+	for i, c := range mock.Calls() {
 		if len(c) == 0 {
 			continue
 		}
@@ -2951,15 +2934,15 @@ func TestEnsurePortalSaverVersion_NotAlive_SkipsKillAndStillUsesNewOrdering(t *t
 		}
 	}
 	if newIdx == -1 || setIdx == -1 || respawnIdx == -1 {
-		t.Fatalf("missing call: new=%d set=%d respawn=%d (calls=%v)", newIdx, setIdx, respawnIdx, mock.Calls)
+		t.Fatalf("missing call: new=%d set=%d respawn=%d (calls=%v)", newIdx, setIdx, respawnIdx, mock.Calls())
 	}
 	if newIdx >= setIdx || setIdx >= respawnIdx {
 		t.Errorf("expected ordering new < set < respawn on no-kill path; got new=%d set=%d respawn=%d (calls=%v)",
-			newIdx, setIdx, respawnIdx, mock.Calls)
+			newIdx, setIdx, respawnIdx, mock.Calls())
 	}
 
 	wantNew := "new-session -d -s _portal-saver " + tmux.PortalSaverPlaceholderCommand
-	for _, c := range mock.Calls {
+	for _, c := range mock.Calls() {
 		if c[0] != "new-session" {
 			continue
 		}
@@ -2981,7 +2964,7 @@ func TestBootstrapPortalSaver_NoPersistentPlaceholderLeakAcrossSingleRecovery(t 
 		setOption:   func(int) (string, error) { return "", nil },
 		respawnPane: func(int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.BootstrapPortalSaver(client, t.TempDir()); err != nil {
@@ -2990,7 +2973,7 @@ func TestBootstrapPortalSaver_NoPersistentPlaceholderLeakAcrossSingleRecovery(t 
 
 	lastPaneMutator := ""
 	lastPaneCommand := ""
-	for _, c := range mock.Calls {
+	for _, c := range mock.Calls() {
 		if len(c) == 0 {
 			continue
 		}
@@ -3010,11 +2993,11 @@ func TestBootstrapPortalSaver_NoPersistentPlaceholderLeakAcrossSingleRecovery(t 
 
 	if lastPaneMutator != "respawn-pane" {
 		t.Errorf("final pane mutator = %q, want %q — placeholder leaked past recovery cycle (calls: %v)",
-			lastPaneMutator, "respawn-pane", mock.Calls)
+			lastPaneMutator, "respawn-pane", mock.Calls())
 	}
 	if lastPaneCommand != tmux.PortalSaverDaemonCommand {
 		t.Errorf("final pane command = %q, want %q (daemon) — placeholder leak detected (calls: %v)",
-			lastPaneCommand, tmux.PortalSaverDaemonCommand, mock.Calls)
+			lastPaneCommand, tmux.PortalSaverDaemonCommand, mock.Calls())
 	}
 	if lastPaneCommand == tmux.PortalSaverPlaceholderCommand {
 		t.Errorf("final pane command is still the placeholder %q — persistent placeholder leak across recovery cycle",
@@ -3024,14 +3007,12 @@ func TestBootstrapPortalSaver_NoPersistentPlaceholderLeakAcrossSingleRecovery(t 
 
 func TestNewDetachedSessionNoCwd_ArgvHasNoEnvOverrides(t *testing.T) {
 	var newSessionArgv []string
-	mock := &MockCommander{
-		RunFunc: func(args ...string) (string, error) {
-			if len(args) > 0 && args[0] == "new-session" {
-				newSessionArgv = append([]string{}, args...)
-			}
-			return "", nil
-		},
-	}
+	mock := commandertest.FromFunc(func(args ...string) (string, error) {
+		if len(args) > 0 && args[0] == "new-session" {
+			newSessionArgv = append([]string{}, args...)
+		}
+		return "", nil
+	})
 	client := tmux.NewClient(mock)
 
 	if err := client.NewDetachedSessionNoCwd("_some-session", "sh -c 'exec tail -f /dev/null'"); err != nil {
@@ -3039,7 +3020,7 @@ func TestNewDetachedSessionNoCwd_ArgvHasNoEnvOverrides(t *testing.T) {
 	}
 
 	if newSessionArgv == nil {
-		t.Fatalf("new-session was not invoked; Calls=%v", mock.Calls)
+		t.Fatalf("new-session was not invoked; Calls=%v", mock.Calls())
 	}
 
 	for i, arg := range newSessionArgv {
@@ -3101,7 +3082,7 @@ func TestKillSaverAndWaitForDaemon_Escalation_IdentityChecksAsPortalDaemonThenSI
 	script := &portalSaverScript{
 		killSession: func(int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.KillSaverAndWaitForDaemon(client, t.TempDir()); err != nil {
@@ -3145,7 +3126,7 @@ func TestKillSaverAndWaitForDaemon_Escalation_IdentifyDead_SkipsSIGKILL_WarnsAnd
 	script := &portalSaverScript{
 		killSession: func(int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.KillSaverAndWaitForDaemon(client, t.TempDir()); err != nil {
@@ -3183,7 +3164,7 @@ func TestKillSaverAndWaitForDaemon_Escalation_IdentifyNotPortalDaemon_SkipsSIGKI
 	script := &portalSaverScript{
 		killSession: func(int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.KillSaverAndWaitForDaemon(client, t.TempDir()); err != nil {
@@ -3221,7 +3202,7 @@ func TestKillSaverAndWaitForDaemon_Escalation_TransientIdentityError_SkipsSIGKIL
 	script := &portalSaverScript{
 		killSession: func(int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.KillSaverAndWaitForDaemon(client, t.TempDir()); err != nil {
@@ -3267,7 +3248,7 @@ func TestKillSaverAndWaitForDaemon_Escalation_SIGKILLSucceedsAndProcessExitsWith
 	script := &portalSaverScript{
 		killSession: func(int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.KillSaverAndWaitForDaemon(client, t.TempDir()); err != nil {
@@ -3305,7 +3286,7 @@ func TestKillSaverAndWaitForDaemon_Escalation_SIGKILLSucceedsButProcessSurvives_
 	script := &portalSaverScript{
 		killSession: func(int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.KillSaverAndWaitForDaemon(client, t.TempDir()); err != nil {
@@ -3364,7 +3345,7 @@ func TestKillSaverAndWaitForDaemon_Escalation_IdentityCheckIsImmediatelyPrecedin
 			return "", nil
 		},
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.KillSaverAndWaitForDaemon(client, t.TempDir()); err != nil {
@@ -3427,7 +3408,7 @@ func TestKillSaverAndWaitForDaemon_Escalation_NeverSendsSIGTERM(t *testing.T) {
 	script := &portalSaverScript{
 		killSession: func(int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.KillSaverAndWaitForDaemon(client, t.TempDir()); err != nil {
@@ -3472,7 +3453,7 @@ func TestKillSaverAndWaitForDaemon_Escalation_PriorPIDDiesDuringSessionKillPoll_
 	script := &portalSaverScript{
 		killSession: func(int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.KillSaverAndWaitForDaemon(client, t.TempDir()); err != nil {
@@ -3514,7 +3495,7 @@ func TestKillSaverAndWaitForDaemon_Escalation_NoPIDFile_EscalationNeverRuns(t *t
 	script := &portalSaverScript{
 		killSession: func(int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.KillSaverAndWaitForDaemon(client, t.TempDir()); err != nil {
@@ -3561,7 +3542,7 @@ func TestEscalateKillToSIGKILL_EmitsDebugBreadcrumbWithTargetPIDOnEscalationBran
 	script := &portalSaverScript{
 		killSession: func(int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.KillSaverAndWaitForDaemon(client, t.TempDir()); err != nil {
@@ -3623,7 +3604,7 @@ func TestEscalateKillToSIGKILL_NoBreadcrumbOnSkipBranch(t *testing.T) {
 			script := &portalSaverScript{
 				killSession: func(int) (string, error) { return "", nil },
 			}
-			mock := &MockCommander{RunFunc: script.run(t)}
+			mock := commandertest.FromFunc(script.run(t))
 			client := tmux.NewClient(mock)
 
 			if err := tmux.KillSaverAndWaitForDaemon(client, t.TempDir()); err != nil {
@@ -3665,7 +3646,7 @@ func TestEscalateKillToSIGKILL_BreadcrumbEmittedBeforeSIGKILL(t *testing.T) {
 	script := &portalSaverScript{
 		killSession: func(int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.KillSaverAndWaitForDaemon(client, t.TempDir()); err != nil {

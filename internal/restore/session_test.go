@@ -10,33 +10,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/portal/internal/commandertest"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/restore"
 	"github.com/leeovery/portal/internal/restoretest"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
 )
-
-type mockCommander struct {
-	Calls   [][]string
-	RunFunc func(args ...string) (string, error)
-}
-
-func (m *mockCommander) Run(args ...string) (string, error) {
-	m.Calls = append(m.Calls, args)
-	if m.RunFunc != nil {
-		return m.RunFunc(args...)
-	}
-	return "", nil
-}
-
-func (m *mockCommander) RunRaw(args ...string) (string, error) {
-	m.Calls = append(m.Calls, args)
-	if m.RunFunc != nil {
-		return m.RunFunc(args...)
-	}
-	return "", nil
-}
 
 func defaultRunFunc(args ...string) (string, error) {
 	return "", nil
@@ -87,7 +67,7 @@ func newPaneWithToken(idx int, cwd, scrollback, token string) state.Pane {
 }
 
 func TestSessionRestorer_SinglePaneNoEnvironment(t *testing.T) {
-	mock := &mockCommander{RunFunc: restoreRunFunc("0:0")}
+	mock := commandertest.FromFunc(restoreRunFunc("0:0"))
 	client := tmux.NewClient(mock)
 	dir := t.TempDir()
 	r := &restore.SessionRestorer{Client: client, StateDir: dir}
@@ -102,16 +82,16 @@ func TestSessionRestorer_SinglePaneNoEnvironment(t *testing.T) {
 		t.Fatalf("Restore returned error: %v", err)
 	}
 
-	if got := len(findAllCalls(mock.Calls, "new-session")); got != 1 {
+	if got := len(findAllCalls(mock.Calls(), "new-session")); got != 1 {
 		t.Errorf("new-session calls = %d, want 1", got)
 	}
-	if got := len(findAllCalls(mock.Calls, "set-environment")); got != 0 {
+	if got := len(findAllCalls(mock.Calls(), "set-environment")); got != 0 {
 		t.Errorf("set-environment calls = %d, want 0", got)
 	}
-	if got := len(findAllCalls(mock.Calls, "new-window")); got != 0 {
+	if got := len(findAllCalls(mock.Calls(), "new-window")); got != 0 {
 		t.Errorf("new-window calls = %d, want 0", got)
 	}
-	if got := len(findAllCalls(mock.Calls, "split-window")); got != 0 {
+	if got := len(findAllCalls(mock.Calls(), "split-window")); got != 0 {
 		t.Errorf("split-window calls = %d, want 0", got)
 	}
 
@@ -125,7 +105,7 @@ func TestSessionRestorer_SinglePaneNoEnvironment(t *testing.T) {
 }
 
 func TestSessionRestorer_MultiPaneSingleWindow(t *testing.T) {
-	mock := &mockCommander{RunFunc: restoreRunFunc("0:0\n0:1\n0:2")}
+	mock := commandertest.FromFunc(restoreRunFunc("0:0\n0:1\n0:2"))
 	client := tmux.NewClient(mock)
 	r := &restore.SessionRestorer{Client: client, StateDir: t.TempDir()}
 
@@ -141,19 +121,19 @@ func TestSessionRestorer_MultiPaneSingleWindow(t *testing.T) {
 		t.Fatalf("Restore returned error: %v", err)
 	}
 
-	if got := len(findAllCalls(mock.Calls, "new-session")); got != 1 {
+	if got := len(findAllCalls(mock.Calls(), "new-session")); got != 1 {
 		t.Errorf("new-session calls = %d, want 1", got)
 	}
-	if got := len(findAllCalls(mock.Calls, "split-window")); got != 2 {
+	if got := len(findAllCalls(mock.Calls(), "split-window")); got != 2 {
 		t.Errorf("split-window calls = %d, want 2", got)
 	}
-	if got := len(findAllCalls(mock.Calls, "new-window")); got != 0 {
+	if got := len(findAllCalls(mock.Calls(), "new-window")); got != 0 {
 		t.Errorf("new-window calls = %d, want 0", got)
 	}
 }
 
 func TestSessionRestorer_MultiWindowMultiPane(t *testing.T) {
-	mock := &mockCommander{RunFunc: defaultRunFunc}
+	mock := commandertest.FromFunc(defaultRunFunc)
 	client := tmux.NewClient(mock)
 	r := &restore.SessionRestorer{Client: client, StateDir: t.TempDir()}
 
@@ -173,19 +153,19 @@ func TestSessionRestorer_MultiWindowMultiPane(t *testing.T) {
 		t.Fatalf("Restore returned error: %v", err)
 	}
 
-	if got := len(findAllCalls(mock.Calls, "new-session")); got != 1 {
+	if got := len(findAllCalls(mock.Calls(), "new-session")); got != 1 {
 		t.Errorf("new-session calls = %d, want 1", got)
 	}
-	if got := len(findAllCalls(mock.Calls, "new-window")); got != 1 {
+	if got := len(findAllCalls(mock.Calls(), "new-window")); got != 1 {
 		t.Errorf("new-window calls = %d, want 1", got)
 	}
-	if got := len(findAllCalls(mock.Calls, "split-window")); got != 3 {
+	if got := len(findAllCalls(mock.Calls(), "split-window")); got != 3 {
 		t.Errorf("split-window calls = %d, want 3", got)
 	}
 }
 
 func TestSessionRestorer_EnvironmentAppliedAfterNewSessionBeforeNewWindow(t *testing.T) {
-	mock := &mockCommander{RunFunc: defaultRunFunc}
+	mock := commandertest.FromFunc(defaultRunFunc)
 	client := tmux.NewClient(mock)
 	r := &restore.SessionRestorer{Client: client, StateDir: t.TempDir()}
 
@@ -202,9 +182,9 @@ func TestSessionRestorer_EnvironmentAppliedAfterNewSessionBeforeNewWindow(t *tes
 		t.Fatalf("Restore: %v", err)
 	}
 
-	newSessionAt := callsAt(mock.Calls, "new-session")
-	setEnvAt := callsAt(mock.Calls, "set-environment")
-	newWindowAt := callsAt(mock.Calls, "new-window")
+	newSessionAt := callsAt(mock.Calls(), "new-session")
+	setEnvAt := callsAt(mock.Calls(), "set-environment")
+	newWindowAt := callsAt(mock.Calls(), "new-window")
 
 	if newSessionAt < 0 || setEnvAt < 0 || newWindowAt < 0 {
 		t.Fatalf("expected new-session, set-environment, new-window all present; got new-session=%d set-environment=%d new-window=%d", newSessionAt, setEnvAt, newWindowAt)
@@ -215,7 +195,7 @@ func TestSessionRestorer_EnvironmentAppliedAfterNewSessionBeforeNewWindow(t *tes
 }
 
 func TestSessionRestorer_EnvironmentAppliedInSortedOrder(t *testing.T) {
-	mock := &mockCommander{RunFunc: defaultRunFunc}
+	mock := commandertest.FromFunc(defaultRunFunc)
 	client := tmux.NewClient(mock)
 	r := &restore.SessionRestorer{Client: client, StateDir: t.TempDir()}
 
@@ -228,13 +208,13 @@ func TestSessionRestorer_EnvironmentAppliedInSortedOrder(t *testing.T) {
 		t.Fatalf("Restore: %v", err)
 	}
 
-	envIdxs := findAllCalls(mock.Calls, "set-environment")
+	envIdxs := findAllCalls(mock.Calls(), "set-environment")
 	if len(envIdxs) != 3 {
 		t.Fatalf("set-environment calls = %d, want 3", len(envIdxs))
 	}
 	wantKeys := []string{"ALPHA", "MIKE", "ZULU"}
 	for i, idx := range envIdxs {
-		c := mock.Calls[idx]
+		c := mock.Calls()[idx]
 		if len(c) != 5 {
 			t.Fatalf("set-environment[%d] args = %v, want 5", i, c)
 		}
@@ -245,7 +225,7 @@ func TestSessionRestorer_EnvironmentAppliedInSortedOrder(t *testing.T) {
 }
 
 func TestSessionRestorer_EmptyEnvironmentSkipsSetEnvironment(t *testing.T) {
-	mock := &mockCommander{RunFunc: defaultRunFunc}
+	mock := commandertest.FromFunc(defaultRunFunc)
 	client := tmux.NewClient(mock)
 	r := &restore.SessionRestorer{Client: client, StateDir: t.TempDir()}
 
@@ -257,13 +237,13 @@ func TestSessionRestorer_EmptyEnvironmentSkipsSetEnvironment(t *testing.T) {
 		t.Fatalf("Restore: %v", err)
 	}
 
-	if got := len(findAllCalls(mock.Calls, "set-environment")); got != 0 {
+	if got := len(findAllCalls(mock.Calls(), "set-environment")); got != 0 {
 		t.Errorf("set-environment calls = %d, want 0", got)
 	}
 }
 
 func TestSessionRestorer_HydrateCommandContainsAbsoluteScrollbackPath(t *testing.T) {
-	mock := &mockCommander{RunFunc: restoreRunFunc("0:0")}
+	mock := commandertest.FromFunc(restoreRunFunc("0:0"))
 	client := tmux.NewClient(mock)
 	dir := t.TempDir()
 	r := &restore.SessionRestorer{Client: client, StateDir: dir}
@@ -278,7 +258,7 @@ func TestSessionRestorer_HydrateCommandContainsAbsoluteScrollbackPath(t *testing
 		t.Fatalf("Restore: %v", err)
 	}
 
-	hydrate := respawnPaneHydrateCommand(t, mock.Calls)
+	hydrate := respawnPaneHydrateCommand(t, mock.Calls())
 	wantAbs := filepath.Join(dir, "scrollback/work__0.0.bin")
 	if !strings.Contains(hydrate, "--file '"+wantAbs+"'") {
 		t.Errorf("hydrate cmd %q does not contain --file '%s'", hydrate, wantAbs)
@@ -287,7 +267,7 @@ func TestSessionRestorer_HydrateCommandContainsAbsoluteScrollbackPath(t *testing
 
 func TestSessionRestorer_HydrateCommandBakesSavedPaneToken(t *testing.T) {
 	t.Run("it bakes the saved pane token as the hydrate hook key", func(t *testing.T) {
-		mock := &mockCommander{RunFunc: restoreRunFunc("0:0")}
+		mock := commandertest.FromFunc(restoreRunFunc("0:0"))
 		client := tmux.NewClient(mock)
 		dir := t.TempDir()
 		r := &restore.SessionRestorer{Client: client, StateDir: dir}
@@ -302,14 +282,14 @@ func TestSessionRestorer_HydrateCommandBakesSavedPaneToken(t *testing.T) {
 			t.Fatalf("Restore: %v", err)
 		}
 
-		hydrate := respawnPaneHydrateCommand(t, mock.Calls)
+		hydrate := respawnPaneHydrateCommand(t, mock.Calls())
 		if !strings.Contains(hydrate, "--hook-key 'tok123'") {
 			t.Errorf("hydrate cmd %q does not contain --hook-key 'tok123'", hydrate)
 		}
 	})
 
 	t.Run("it omits the hook-key flag for a saved pane with no token", func(t *testing.T) {
-		mock := &mockCommander{RunFunc: restoreRunFunc("0:0")}
+		mock := commandertest.FromFunc(restoreRunFunc("0:0"))
 		client := tmux.NewClient(mock)
 		dir := t.TempDir()
 		r := &restore.SessionRestorer{Client: client, StateDir: dir}
@@ -324,7 +304,7 @@ func TestSessionRestorer_HydrateCommandBakesSavedPaneToken(t *testing.T) {
 			t.Fatalf("Restore: %v", err)
 		}
 
-		hydrate := respawnPaneHydrateCommand(t, mock.Calls)
+		hydrate := respawnPaneHydrateCommand(t, mock.Calls())
 		if strings.Contains(hydrate, "--hook-key") {
 			t.Errorf("hydrate cmd %q must carry no --hook-key flag for an untokened pane", hydrate)
 		}
@@ -333,7 +313,7 @@ func TestSessionRestorer_HydrateCommandBakesSavedPaneToken(t *testing.T) {
 
 func TestSessionRestorer_HydrateBakesOneTokenPerPane(t *testing.T) {
 	t.Run("it bakes each pane's own token for a multi-pane session", func(t *testing.T) {
-		mock := &mockCommander{RunFunc: restoreRunFunc("0:0\n0:1\n1:0")}
+		mock := commandertest.FromFunc(restoreRunFunc("0:0\n0:1\n1:0"))
 		client := tmux.NewClient(mock)
 		dir := t.TempDir()
 		r := &restore.SessionRestorer{Client: client, StateDir: dir}
@@ -352,7 +332,7 @@ func TestSessionRestorer_HydrateBakesOneTokenPerPane(t *testing.T) {
 			t.Fatalf("Restore: %v", err)
 		}
 
-		bakedKeys := respawnPaneHookKeys(t, mock.Calls)
+		bakedKeys := respawnPaneHookKeys(t, mock.Calls())
 		wantKeys := []string{"tokA", "tokB", "tokC"}
 		if len(bakedKeys) != len(wantKeys) {
 			t.Fatalf("baked hook keys = %v, want %v", bakedKeys, wantKeys)
@@ -367,17 +347,15 @@ func TestSessionRestorer_HydrateBakesOneTokenPerPane(t *testing.T) {
 
 func TestSessionRestorer_HydrateBakesKeyFromSavedStateOnly(t *testing.T) {
 	t.Run("it derives the baked key from saved state, never from the live server", func(t *testing.T) {
-		mock := &mockCommander{
-			RunFunc: func(args ...string) (string, error) {
-				if len(args) > 0 && args[0] == "display-message" {
-					t.Errorf("unexpected live read while baking the hook key: %v", args)
-				}
-				if len(args) > 0 && args[0] == "list-panes" {
-					return "0:0", nil
-				}
-				return "", nil
-			},
-		}
+		mock := commandertest.FromFunc(func(args ...string) (string, error) {
+			if len(args) > 0 && args[0] == "display-message" {
+				t.Errorf("unexpected live read while baking the hook key: %v", args)
+			}
+			if len(args) > 0 && args[0] == "list-panes" {
+				return "0:0", nil
+			}
+			return "", nil
+		})
 		client := tmux.NewClient(mock)
 		dir := t.TempDir()
 		r := &restore.SessionRestorer{Client: client, StateDir: dir}
@@ -392,7 +370,7 @@ func TestSessionRestorer_HydrateBakesKeyFromSavedStateOnly(t *testing.T) {
 			t.Fatalf("Restore: %v", err)
 		}
 
-		if got := respawnPaneHookKeys(t, mock.Calls); len(got) != 1 || got[0] != sess.Windows[0].Panes[0].PortalPaneID {
+		if got := respawnPaneHookKeys(t, mock.Calls()); len(got) != 1 || got[0] != sess.Windows[0].Panes[0].PortalPaneID {
 			t.Errorf("baked hook keys = %v, want the saved pane token %q", got, sess.Windows[0].Panes[0].PortalPaneID)
 		}
 	})
@@ -445,14 +423,12 @@ func extractHookKey(t *testing.T, hydrate string) (string, bool) {
 }
 
 func TestSessionRestorer_FIFOUsesLivePaneKeyFromListPanesReQuery(t *testing.T) {
-	mock := &mockCommander{
-		RunFunc: func(args ...string) (string, error) {
-			if len(args) > 0 && args[0] == "list-panes" {
-				return "5:5", nil
-			}
-			return "", nil
-		},
-	}
+	mock := commandertest.FromFunc(func(args ...string) (string, error) {
+		if len(args) > 0 && args[0] == "list-panes" {
+			return "5:5", nil
+		}
+		return "", nil
+	})
 	client := tmux.NewClient(mock)
 	dir := t.TempDir()
 	r := &restore.SessionRestorer{Client: client, StateDir: dir}
@@ -478,11 +454,11 @@ func TestSessionRestorer_FIFOUsesLivePaneKeyFromListPanesReQuery(t *testing.T) {
 		t.Errorf("did not expect FIFO at saved-key path %s; should only exist at live key", savedFIFO)
 	}
 
-	respIdx := callsAt(mock.Calls, "respawn-pane")
+	respIdx := callsAt(mock.Calls(), "respawn-pane")
 	if respIdx < 0 {
-		t.Fatalf("expected respawn-pane call to deliver hydrate command; calls: %v", mock.Calls)
+		t.Fatalf("expected respawn-pane call to deliver hydrate command; calls: %v", mock.Calls())
 	}
-	args := mock.Calls[respIdx]
+	args := mock.Calls()[respIdx]
 	if len(args) != 5 {
 		t.Fatalf("respawn-pane args = %v, want length 5", args)
 	}
@@ -502,19 +478,19 @@ func TestSessionRestorer_FIFOUsesLivePaneKeyFromListPanesReQuery(t *testing.T) {
 		t.Errorf("hydrate cmd %q does not reference saved scrollback %s", hydrate, wantFile)
 	}
 
-	nsIdx := callsAt(mock.Calls, "new-session")
+	nsIdx := callsAt(mock.Calls(), "new-session")
 	if nsIdx < 0 {
-		t.Fatalf("expected new-session; calls: %v", mock.Calls)
+		t.Fatalf("expected new-session; calls: %v", mock.Calls())
 	}
-	for _, a := range mock.Calls[nsIdx] {
+	for _, a := range mock.Calls()[nsIdx] {
 		if strings.Contains(a, "state hydrate") {
-			t.Errorf("new-session must not carry hydrate command; got args %v", mock.Calls[nsIdx])
+			t.Errorf("new-session must not carry hydrate command; got args %v", mock.Calls()[nsIdx])
 		}
 	}
 }
 
 func TestSessionRestorer_MultibyteSessionNamePassesUnchangedToNewSession(t *testing.T) {
-	mock := &mockCommander{RunFunc: defaultRunFunc}
+	mock := commandertest.FromFunc(defaultRunFunc)
 	client := tmux.NewClient(mock)
 	r := &restore.SessionRestorer{Client: client, StateDir: t.TempDir()}
 
@@ -527,18 +503,18 @@ func TestSessionRestorer_MultibyteSessionNamePassesUnchangedToNewSession(t *test
 		t.Fatalf("Restore: %v", err)
 	}
 
-	idx := callsAt(mock.Calls, "new-session")
+	idx := callsAt(mock.Calls(), "new-session")
 	if idx < 0 {
 		t.Fatalf("no new-session call")
 	}
-	got := mock.Calls[idx][3]
+	got := mock.Calls()[idx][3]
 	if got != name {
 		t.Errorf("new-session -s arg = %q, want %q", got, name)
 	}
 }
 
 func TestSessionRestorer_HashSuffixedPaneKeyOnSanitizationCollision(t *testing.T) {
-	mock := &mockCommander{RunFunc: restoreRunFunc("0:0")}
+	mock := commandertest.FromFunc(restoreRunFunc("0:0"))
 	client := tmux.NewClient(mock)
 	dir := t.TempDir()
 	r := &restore.SessionRestorer{Client: client, StateDir: dir}
@@ -563,17 +539,15 @@ func TestSessionRestorer_HashSuffixedPaneKeyOnSanitizationCollision(t *testing.T
 }
 
 func TestSessionRestorer_LogsAndContinuesOnSetEnvironmentFailure(t *testing.T) {
-	mock := &mockCommander{
-		RunFunc: func(args ...string) (string, error) {
-			if len(args) >= 4 && args[0] == "set-environment" && args[3] == "BREAK" {
-				return "", errors.New("env error")
-			}
-			if len(args) >= 2 && args[0] == "show-option" && args[1] == "-sv" {
-				return "", errors.New("unknown option")
-			}
-			return "", nil
-		},
-	}
+	mock := commandertest.FromFunc(func(args ...string) (string, error) {
+		if len(args) >= 4 && args[0] == "set-environment" && args[3] == "BREAK" {
+			return "", errors.New("env error")
+		}
+		if len(args) >= 2 && args[0] == "show-option" && args[1] == "-sv" {
+			return "", errors.New("unknown option")
+		}
+		return "", nil
+	})
 	client := tmux.NewClient(mock)
 	dir := t.TempDir()
 	logger := restoretest.OpenTestLogger(t, dir)
@@ -588,26 +562,24 @@ func TestSessionRestorer_LogsAndContinuesOnSetEnvironmentFailure(t *testing.T) {
 	if _, err := r.Restore(sess); err != nil {
 		t.Fatalf("Restore returned error %v, expected nil (failure should be logged + continue)", err)
 	}
-	if got := len(findAllCalls(mock.Calls, "set-environment")); got != 3 {
+	if got := len(findAllCalls(mock.Calls(), "set-environment")); got != 3 {
 		t.Errorf("set-environment calls = %d, want 3 (each attempted)", got)
 	}
-	if got := len(findAllCalls(mock.Calls, "new-window")); got != 1 {
+	if got := len(findAllCalls(mock.Calls(), "new-window")); got != 1 {
 		t.Errorf("new-window calls = %d, want 1", got)
 	}
 }
 
 func TestSessionRestorer_WrappedErrorOnSplitWindowFailure(t *testing.T) {
-	mock := &mockCommander{
-		RunFunc: func(args ...string) (string, error) {
-			if len(args) > 0 && args[0] == "split-window" {
-				return "", errors.New("boom")
-			}
-			if len(args) >= 2 && args[0] == "show-option" && args[1] == "-sv" {
-				return "", errors.New("unknown option")
-			}
-			return "", nil
-		},
-	}
+	mock := commandertest.FromFunc(func(args ...string) (string, error) {
+		if len(args) > 0 && args[0] == "split-window" {
+			return "", errors.New("boom")
+		}
+		if len(args) >= 2 && args[0] == "show-option" && args[1] == "-sv" {
+			return "", errors.New("unknown option")
+		}
+		return "", nil
+	})
 	client := tmux.NewClient(mock)
 	r := &restore.SessionRestorer{Client: client, StateDir: t.TempDir()}
 
@@ -628,7 +600,7 @@ func TestSessionRestorer_WrappedErrorOnSplitWindowFailure(t *testing.T) {
 }
 
 func TestSessionRestorer_WrappedErrorOnCreateFIFOFailure(t *testing.T) {
-	mock := &mockCommander{RunFunc: restoreRunFunc("0:0")}
+	mock := commandertest.FromFunc(restoreRunFunc("0:0"))
 	client := tmux.NewClient(mock)
 
 	dir := filepath.Join(t.TempDir(), "missing-parent", "state")
@@ -648,7 +620,7 @@ func TestSessionRestorer_WrappedErrorOnCreateFIFOFailure(t *testing.T) {
 }
 
 func TestSessionRestorer_HydrateCommandFormat(t *testing.T) {
-	mock := &mockCommander{RunFunc: restoreRunFunc("0:0")}
+	mock := commandertest.FromFunc(restoreRunFunc("0:0"))
 	client := tmux.NewClient(mock)
 	dir := t.TempDir()
 	r := &restore.SessionRestorer{
@@ -665,7 +637,7 @@ func TestSessionRestorer_HydrateCommandFormat(t *testing.T) {
 		t.Fatalf("Restore: %v", err)
 	}
 
-	hydrate := respawnPaneHydrateCommand(t, mock.Calls)
+	hydrate := respawnPaneHydrateCommand(t, mock.Calls())
 
 	liveKey := state.SanitizePaneKey("work", 0, 0)
 	wantFIFO := state.FIFOPath(dir, liveKey)
@@ -680,7 +652,7 @@ func TestSessionRestorer_HydrateCommandFormat(t *testing.T) {
 }
 
 func TestSessionRestorer_ArmPanesWarnsAndArmsOnlyPairedPanesWhenLiveCountExceedsSaved(t *testing.T) {
-	mock := &mockCommander{RunFunc: restoreRunFunc("0:0\n0:1")}
+	mock := commandertest.FromFunc(restoreRunFunc("0:0\n0:1"))
 	client := tmux.NewClient(mock)
 	dir := t.TempDir()
 	logger, sink := logtest.NewCaptureLogger(t)
@@ -696,12 +668,12 @@ func TestSessionRestorer_ArmPanesWarnsAndArmsOnlyPairedPanesWhenLiveCountExceeds
 		t.Fatalf("Restore: %v", err)
 	}
 
-	respawnIdxs := findAllCalls(mock.Calls, "respawn-pane")
+	respawnIdxs := findAllCalls(mock.Calls(), "respawn-pane")
 	if len(respawnIdxs) != 1 {
-		t.Errorf("respawn-pane calls = %d, want 1 (only paired pane armed); calls: %v", len(respawnIdxs), mock.Calls)
+		t.Errorf("respawn-pane calls = %d, want 1 (only paired pane armed); calls: %v", len(respawnIdxs), mock.Calls())
 	}
 	if len(respawnIdxs) >= 1 {
-		args := mock.Calls[respawnIdxs[0]]
+		args := mock.Calls()[respawnIdxs[0]]
 		if len(args) >= 4 && args[3] != "=work:0.0" {
 			t.Errorf("respawn-pane target = %q, want %q (first live pane)", args[3], "=work:0.0")
 		}
@@ -723,7 +695,7 @@ func TestSessionRestorer_ArmPanesWarnsAndArmsOnlyPairedPanesWhenLiveCountExceeds
 }
 
 func TestSessionRestorer_ArmPanesWarnsAndArmsOnlyFirstWhenLiveCountIsLessThanSaved(t *testing.T) {
-	mock := &mockCommander{RunFunc: restoreRunFunc("0:0")}
+	mock := commandertest.FromFunc(restoreRunFunc("0:0"))
 	client := tmux.NewClient(mock)
 	dir := t.TempDir()
 	logger, sink := logtest.NewCaptureLogger(t)
@@ -744,9 +716,9 @@ func TestSessionRestorer_ArmPanesWarnsAndArmsOnlyFirstWhenLiveCountIsLessThanSav
 		t.Errorf("livePanes length = %d, want 1 (the actual live count)", len(livePanes))
 	}
 
-	respawnIdxs := findAllCalls(mock.Calls, "respawn-pane")
+	respawnIdxs := findAllCalls(mock.Calls(), "respawn-pane")
 	if len(respawnIdxs) != 1 {
-		t.Errorf("respawn-pane calls = %d, want 1 (only first paired pane armed); calls: %v", len(respawnIdxs), mock.Calls)
+		t.Errorf("respawn-pane calls = %d, want 1 (only first paired pane armed); calls: %v", len(respawnIdxs), mock.Calls())
 	}
 
 	firstFIFO := state.FIFOPath(dir, state.SanitizePaneKey("work", 0, 0))
@@ -761,17 +733,15 @@ func TestSessionRestorer_ArmPanesWarnsAndArmsOnlyFirstWhenLiveCountIsLessThanSav
 }
 
 func TestSessionRestorer_ArmPanesReturnsWrappedErrorOnRespawnPaneFailure(t *testing.T) {
-	mock := &mockCommander{
-		RunFunc: func(args ...string) (string, error) {
-			if len(args) > 0 && args[0] == "list-panes" {
-				return "0:0\n0:1\n0:2", nil
-			}
-			if len(args) >= 4 && args[0] == "respawn-pane" && args[3] == "=work:0.1" {
-				return "", errors.New("respawn boom")
-			}
-			return "", nil
-		},
-	}
+	mock := commandertest.FromFunc(func(args ...string) (string, error) {
+		if len(args) > 0 && args[0] == "list-panes" {
+			return "0:0\n0:1\n0:2", nil
+		}
+		if len(args) >= 4 && args[0] == "respawn-pane" && args[3] == "=work:0.1" {
+			return "", errors.New("respawn boom")
+		}
+		return "", nil
+	})
 	client := tmux.NewClient(mock)
 	dir := t.TempDir()
 	logger := restoretest.OpenTestLogger(t, dir)
@@ -799,14 +769,14 @@ func TestSessionRestorer_ArmPanesReturnsWrappedErrorOnRespawnPaneFailure(t *test
 		t.Errorf("error %q lacks session name context", restoreErr)
 	}
 
-	respawnIdxs := findAllCalls(mock.Calls, "respawn-pane")
+	respawnIdxs := findAllCalls(mock.Calls(), "respawn-pane")
 	if len(respawnIdxs) != 2 {
-		t.Errorf("respawn-pane calls = %d, want 2 (pane 0 armed, pane 1 failed, pane 2 skipped); calls: %v", len(respawnIdxs), mock.Calls)
+		t.Errorf("respawn-pane calls = %d, want 2 (pane 0 armed, pane 1 failed, pane 2 skipped); calls: %v", len(respawnIdxs), mock.Calls())
 	}
 }
 
 func TestSessionRestorer_IssuesNoSessionOptionStampDuringSkeletonCreation(t *testing.T) {
-	mock := &mockCommander{RunFunc: restoreRunFunc("0:0")}
+	mock := commandertest.FromFunc(restoreRunFunc("0:0"))
 	client := tmux.NewClient(mock)
 	dir := t.TempDir()
 	r := &restore.SessionRestorer{Client: client, StateDir: dir}
@@ -819,7 +789,7 @@ func TestSessionRestorer_IssuesNoSessionOptionStampDuringSkeletonCreation(t *tes
 		t.Fatalf("Restore: %v", err)
 	}
 
-	for _, c := range mock.Calls {
+	for _, c := range mock.Calls() {
 		if len(c) >= 4 && c[0] == "set-option" && c[1] == "-t" && c[2] == "work" {
 			t.Errorf("unexpected session-scoped set-option during skeleton creation: %v", c)
 		}
@@ -827,7 +797,7 @@ func TestSessionRestorer_IssuesNoSessionOptionStampDuringSkeletonCreation(t *tes
 }
 
 func TestSessionRestorer_RejectsEmptyTopology(t *testing.T) {
-	mock := &mockCommander{RunFunc: defaultRunFunc}
+	mock := commandertest.FromFunc(defaultRunFunc)
 	client := tmux.NewClient(mock)
 	r := &restore.SessionRestorer{Client: client, StateDir: t.TempDir()}
 
@@ -879,7 +849,7 @@ func failOnPaneOptionTarget(livePanesOutput, failTarget string) func(args ...str
 
 func TestSessionRestorer_ReStampsSavedPaneToken(t *testing.T) {
 	t.Run("it stamps each saved token onto its paired live pane", func(t *testing.T) {
-		mock := &mockCommander{RunFunc: restoreRunFunc("0:0\n0:1")}
+		mock := commandertest.FromFunc(restoreRunFunc("0:0\n0:1"))
 		r := &restore.SessionRestorer{Client: tmux.NewClient(mock), StateDir: t.TempDir()}
 
 		sess := newSession("work", nil,
@@ -893,16 +863,16 @@ func TestSessionRestorer_ReStampsSavedPaneToken(t *testing.T) {
 			t.Fatalf("Restore: %v", err)
 		}
 
-		stamps := setPaneOptionCalls(mock.Calls)
+		stamps := setPaneOptionCalls(mock.Calls())
 		if len(stamps) != 2 {
-			t.Fatalf("set-option -p calls = %d, want 2; calls: %v", len(stamps), mock.Calls)
+			t.Fatalf("set-option -p calls = %d, want 2; calls: %v", len(stamps), mock.Calls())
 		}
 		assertPaneTokenStamp(t, stamps[0], "=work:0.0", "tokA")
 		assertPaneTokenStamp(t, stamps[1], "=work:0.1", "tokB")
 	})
 
 	t.Run("it stamps before it arms the pane", func(t *testing.T) {
-		mock := &mockCommander{RunFunc: restoreRunFunc("0:0")}
+		mock := commandertest.FromFunc(restoreRunFunc("0:0"))
 		r := &restore.SessionRestorer{Client: tmux.NewClient(mock), StateDir: t.TempDir()}
 
 		sess := newSession("work", nil,
@@ -913,10 +883,10 @@ func TestSessionRestorer_ReStampsSavedPaneToken(t *testing.T) {
 			t.Fatalf("Restore: %v", err)
 		}
 
-		stampIdx := callsAt(mock.Calls, "set-option")
-		respawnIdx := callsAt(mock.Calls, "respawn-pane")
+		stampIdx := callsAt(mock.Calls(), "set-option")
+		respawnIdx := callsAt(mock.Calls(), "respawn-pane")
 		if stampIdx < 0 || respawnIdx < 0 {
-			t.Fatalf("expected both set-option and respawn-pane; calls: %v", mock.Calls)
+			t.Fatalf("expected both set-option and respawn-pane; calls: %v", mock.Calls())
 		}
 		if stampIdx > respawnIdx {
 			t.Errorf("set-option at %d follows respawn-pane at %d; the stamp must precede the arm", stampIdx, respawnIdx)
@@ -924,7 +894,7 @@ func TestSessionRestorer_ReStampsSavedPaneToken(t *testing.T) {
 	})
 
 	t.Run("it stamps nothing for a saved pane with an empty token", func(t *testing.T) {
-		mock := &mockCommander{RunFunc: restoreRunFunc("0:0")}
+		mock := commandertest.FromFunc(restoreRunFunc("0:0"))
 		logger, sink := logtest.NewCaptureLogger(t)
 		r := &restore.SessionRestorer{Client: tmux.NewClient(mock), StateDir: t.TempDir(), Logger: logger}
 
@@ -936,7 +906,7 @@ func TestSessionRestorer_ReStampsSavedPaneToken(t *testing.T) {
 			t.Fatalf("Restore: %v", err)
 		}
 
-		if stamps := setPaneOptionCalls(mock.Calls); len(stamps) != 0 {
+		if stamps := setPaneOptionCalls(mock.Calls()); len(stamps) != 0 {
 			t.Errorf("set-option -p calls = %v, want none for an untokened saved pane", stamps)
 		}
 		if body := sink.Body(); body != "" {
@@ -945,7 +915,7 @@ func TestSessionRestorer_ReStampsSavedPaneToken(t *testing.T) {
 	})
 
 	t.Run("it warns and continues when the stamp fails", func(t *testing.T) {
-		mock := &mockCommander{RunFunc: failOnPaneOptionTarget("0:0", "=work:0.0")}
+		mock := commandertest.FromFunc(failOnPaneOptionTarget("0:0", "=work:0.0"))
 		logger, sink := logtest.NewCaptureLogger(t)
 		r := &restore.SessionRestorer{Client: tmux.NewClient(mock), StateDir: t.TempDir(), Logger: logger}
 
@@ -960,7 +930,7 @@ func TestSessionRestorer_ReStampsSavedPaneToken(t *testing.T) {
 		if len(livePanes) != 1 {
 			t.Errorf("livePanes = %v, want the one live pane", livePanes)
 		}
-		if got := len(findAllCalls(mock.Calls, "respawn-pane")); got != 1 {
+		if got := len(findAllCalls(mock.Calls(), "respawn-pane")); got != 1 {
 			t.Errorf("respawn-pane calls = %d, want 1 (the pane is still armed)", got)
 		}
 
@@ -982,7 +952,7 @@ func TestSessionRestorer_ReStampsSavedPaneToken(t *testing.T) {
 	})
 
 	t.Run("it names the live structural key in pane_key", func(t *testing.T) {
-		mock := &mockCommander{RunFunc: failOnPaneOptionTarget("5:5", "=work:5.5")}
+		mock := commandertest.FromFunc(failOnPaneOptionTarget("5:5", "=work:5.5"))
 		logger, sink := logtest.NewCaptureLogger(t)
 		r := &restore.SessionRestorer{Client: tmux.NewClient(mock), StateDir: t.TempDir(), Logger: logger}
 
@@ -1011,7 +981,7 @@ func TestSessionRestorer_ReStampsSavedPaneToken(t *testing.T) {
 	})
 
 	t.Run("it keeps stamping the remaining panes after one fails", func(t *testing.T) {
-		mock := &mockCommander{RunFunc: failOnPaneOptionTarget("0:0\n0:1", "=work:0.0")}
+		mock := commandertest.FromFunc(failOnPaneOptionTarget("0:0\n0:1", "=work:0.0"))
 		logger, _ := logtest.NewCaptureLogger(t)
 		r := &restore.SessionRestorer{Client: tmux.NewClient(mock), StateDir: t.TempDir(), Logger: logger}
 
@@ -1026,15 +996,15 @@ func TestSessionRestorer_ReStampsSavedPaneToken(t *testing.T) {
 			t.Fatalf("Restore: %v", err)
 		}
 
-		stamps := setPaneOptionCalls(mock.Calls)
+		stamps := setPaneOptionCalls(mock.Calls())
 		if len(stamps) != 2 {
-			t.Fatalf("set-option -p calls = %d, want 2 (the second is still attempted); calls: %v", len(stamps), mock.Calls)
+			t.Fatalf("set-option -p calls = %d, want 2 (the second is still attempted); calls: %v", len(stamps), mock.Calls())
 		}
 		assertPaneTokenStamp(t, stamps[1], "=work:0.1", "tokB")
 	})
 
 	t.Run("it stamps only the paired prefix when more live panes than saved", func(t *testing.T) {
-		mock := &mockCommander{RunFunc: restoreRunFunc("0:0\n0:1\n0:2")}
+		mock := commandertest.FromFunc(restoreRunFunc("0:0\n0:1\n0:2"))
 		logger, _ := logtest.NewCaptureLogger(t)
 		r := &restore.SessionRestorer{Client: tmux.NewClient(mock), StateDir: t.TempDir(), Logger: logger}
 
@@ -1049,9 +1019,9 @@ func TestSessionRestorer_ReStampsSavedPaneToken(t *testing.T) {
 			t.Fatalf("Restore: %v", err)
 		}
 
-		stamps := setPaneOptionCalls(mock.Calls)
+		stamps := setPaneOptionCalls(mock.Calls())
 		if len(stamps) != 2 {
-			t.Fatalf("set-option -p calls = %d, want 2; calls: %v", len(stamps), mock.Calls)
+			t.Fatalf("set-option -p calls = %d, want 2; calls: %v", len(stamps), mock.Calls())
 		}
 		assertPaneTokenStamp(t, stamps[0], "=work:0.0", "tokA")
 		assertPaneTokenStamp(t, stamps[1], "=work:0.1", "tokB")
@@ -1063,7 +1033,7 @@ func TestSessionRestorer_ReStampsSavedPaneToken(t *testing.T) {
 	})
 
 	t.Run("it stamps only the paired prefix when more saved panes than live", func(t *testing.T) {
-		mock := &mockCommander{RunFunc: restoreRunFunc("0:0\n0:1")}
+		mock := commandertest.FromFunc(restoreRunFunc("0:0\n0:1"))
 		logger, _ := logtest.NewCaptureLogger(t)
 		r := &restore.SessionRestorer{Client: tmux.NewClient(mock), StateDir: t.TempDir(), Logger: logger}
 
@@ -1079,9 +1049,9 @@ func TestSessionRestorer_ReStampsSavedPaneToken(t *testing.T) {
 			t.Fatalf("Restore: %v", err)
 		}
 
-		stamps := setPaneOptionCalls(mock.Calls)
+		stamps := setPaneOptionCalls(mock.Calls())
 		if len(stamps) != 2 {
-			t.Fatalf("set-option -p calls = %d, want 2; calls: %v", len(stamps), mock.Calls)
+			t.Fatalf("set-option -p calls = %d, want 2; calls: %v", len(stamps), mock.Calls())
 		}
 		assertPaneTokenStamp(t, stamps[0], "=work:0.0", "tokA")
 		assertPaneTokenStamp(t, stamps[1], "=work:0.1", "tokB")
@@ -1093,7 +1063,7 @@ func TestSessionRestorer_ReStampsSavedPaneToken(t *testing.T) {
 	})
 
 	t.Run("it emits no warn on a boot where every saved pane is unstamped", func(t *testing.T) {
-		mock := &mockCommander{RunFunc: restoreRunFunc("0:0\n0:1\n1:0")}
+		mock := commandertest.FromFunc(restoreRunFunc("0:0\n0:1\n1:0"))
 		logger, sink := logtest.NewCaptureLogger(t)
 		r := &restore.SessionRestorer{Client: tmux.NewClient(mock), StateDir: t.TempDir(), Logger: logger}
 

@@ -5,13 +5,17 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/portal/internal/commandertest"
 	"github.com/leeovery/portal/internal/tmux"
 )
 
 func TestShowGlobalHooksForEvent(t *testing.T) {
-	t.Run("calls show-hooks -g <event> and returns raw output", func(t *testing.T) {
-		raw := "pane-focus-out[0] run-shell 'command -v portal'\n"
-		mock := &MockCommander{Output: raw}
+	t.Run("calls show-hooks -g <event> and returns the unparsed output", func(t *testing.T) {
+		// Two entries the method must not split, filter or reorder, and a
+		// trailing newline the read through Run trims — so a move to RunRaw is
+		// visible here rather than silent.
+		raw := "pane-focus-out[0] run-shell 'command -v portal'\npane-focus-out[1] run-shell 'echo hi'\n"
+		mock := commandertest.Quiet(commandertest.Returns(raw))
 		client := tmux.NewClient(mock)
 
 		got, err := client.ShowGlobalHooksForEvent("pane-focus-out")
@@ -19,18 +23,18 @@ func TestShowGlobalHooksForEvent(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if got != raw {
-			t.Errorf("ShowGlobalHooksForEvent() = %q, want %q (verbatim)", got, raw)
+		if want := strings.TrimSpace(raw); got != want {
+			t.Errorf("ShowGlobalHooksForEvent() = %q, want %q", got, want)
 		}
 
-		if len(mock.Calls) != 1 {
-			t.Fatalf("expected 1 call, got %d", len(mock.Calls))
+		if len(mock.Calls()) != 1 {
+			t.Fatalf("expected 1 call, got %d", len(mock.Calls()))
 		}
 		wantArgs := []string{"show-hooks", "-g", "pane-focus-out"}
-		if len(mock.Calls[0]) != len(wantArgs) {
-			t.Fatalf("got %d args %v, want %d args %v", len(mock.Calls[0]), mock.Calls[0], len(wantArgs), wantArgs)
+		if len(mock.Calls()[0]) != len(wantArgs) {
+			t.Fatalf("got %d args %v, want %d args %v", len(mock.Calls()[0]), mock.Calls()[0], len(wantArgs), wantArgs)
 		}
-		for i, arg := range mock.Calls[0] {
+		for i, arg := range mock.Calls()[0] {
 			if arg != wantArgs[i] {
 				t.Errorf("args[%d] = %q, want %q", i, arg, wantArgs[i])
 			}
@@ -38,7 +42,7 @@ func TestShowGlobalHooksForEvent(t *testing.T) {
 	})
 
 	t.Run("returns empty string without error when output is empty", func(t *testing.T) {
-		mock := &MockCommander{Output: ""}
+		mock := commandertest.Quiet(commandertest.Returns(""))
 		client := tmux.NewClient(mock)
 
 		got, err := client.ShowGlobalHooksForEvent("window-renamed")
@@ -53,7 +57,7 @@ func TestShowGlobalHooksForEvent(t *testing.T) {
 
 	t.Run("propagates commander error wrapped via %w", func(t *testing.T) {
 		sentinel := errors.New("tmux exec failed")
-		mock := &MockCommander{Err: sentinel}
+		mock := commandertest.Quiet(commandertest.Fails(sentinel))
 		client := tmux.NewClient(mock)
 
 		got, err := client.ShowGlobalHooksForEvent("window-resized")
@@ -75,7 +79,7 @@ func TestShowGlobalHooksForEvent(t *testing.T) {
 
 func TestAppendGlobalHook(t *testing.T) {
 	t.Run("calls set-hook -ga with event and command as separate argv elements", func(t *testing.T) {
-		mock := &MockCommander{}
+		mock := commandertest.Quiet()
 		client := tmux.NewClient(mock)
 
 		event := "session-created"
@@ -87,14 +91,14 @@ func TestAppendGlobalHook(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if len(mock.Calls) != 1 {
-			t.Fatalf("expected 1 call, got %d", len(mock.Calls))
+		if len(mock.Calls()) != 1 {
+			t.Fatalf("expected 1 call, got %d", len(mock.Calls()))
 		}
 		wantArgs := []string{"set-hook", "-ga", event, command}
-		if len(mock.Calls[0]) != len(wantArgs) {
-			t.Fatalf("got %d args %v, want %d args %v", len(mock.Calls[0]), mock.Calls[0], len(wantArgs), wantArgs)
+		if len(mock.Calls()[0]) != len(wantArgs) {
+			t.Fatalf("got %d args %v, want %d args %v", len(mock.Calls()[0]), mock.Calls()[0], len(wantArgs), wantArgs)
 		}
-		for i, arg := range mock.Calls[0] {
+		for i, arg := range mock.Calls()[0] {
 			if arg != wantArgs[i] {
 				t.Errorf("args[%d] = %q, want %q", i, arg, wantArgs[i])
 			}
@@ -102,7 +106,7 @@ func TestAppendGlobalHook(t *testing.T) {
 	})
 
 	t.Run("preserves single quotes inside the hook command argument", func(t *testing.T) {
-		mock := &MockCommander{}
+		mock := commandertest.Quiet()
 		client := tmux.NewClient(mock)
 
 		command := `run-shell 'command -v portal >/dev/null 2>&1 && portal state signal-hydrate #{session_name}'`
@@ -113,20 +117,20 @@ func TestAppendGlobalHook(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if len(mock.Calls) != 1 {
-			t.Fatalf("expected 1 call, got %d", len(mock.Calls))
+		if len(mock.Calls()) != 1 {
+			t.Fatalf("expected 1 call, got %d", len(mock.Calls()))
 		}
-		if len(mock.Calls[0]) != 4 {
-			t.Fatalf("got %d args %v, want 4 args", len(mock.Calls[0]), mock.Calls[0])
+		if len(mock.Calls()[0]) != 4 {
+			t.Fatalf("got %d args %v, want 4 args", len(mock.Calls()[0]), mock.Calls()[0])
 		}
-		if mock.Calls[0][3] != command {
-			t.Errorf("command argv element = %q, want %q (single quotes preserved)", mock.Calls[0][3], command)
+		if mock.Calls()[0][3] != command {
+			t.Errorf("command argv element = %q, want %q (single quotes preserved)", mock.Calls()[0][3], command)
 		}
 	})
 
 	t.Run("wraps commander error with the event name", func(t *testing.T) {
 		sentinel := errors.New("tmux failed")
-		mock := &MockCommander{Err: sentinel}
+		mock := commandertest.Quiet(commandertest.Fails(sentinel))
 		client := tmux.NewClient(mock)
 
 		err := client.AppendGlobalHook("session-renamed", "run-shell 'noop'")
@@ -148,7 +152,7 @@ func TestAppendGlobalHook(t *testing.T) {
 
 func TestUnsetGlobalHookAt(t *testing.T) {
 	t.Run("formats target as event[index] for set-hook -gu", func(t *testing.T) {
-		mock := &MockCommander{}
+		mock := commandertest.Quiet()
 		client := tmux.NewClient(mock)
 
 		err := client.UnsetGlobalHookAt("session-created", 2)
@@ -157,14 +161,14 @@ func TestUnsetGlobalHookAt(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if len(mock.Calls) != 1 {
-			t.Fatalf("expected 1 call, got %d", len(mock.Calls))
+		if len(mock.Calls()) != 1 {
+			t.Fatalf("expected 1 call, got %d", len(mock.Calls()))
 		}
 		wantArgs := []string{"set-hook", "-gu", "session-created[2]"}
-		if len(mock.Calls[0]) != len(wantArgs) {
-			t.Fatalf("got %d args %v, want %d args %v", len(mock.Calls[0]), mock.Calls[0], len(wantArgs), wantArgs)
+		if len(mock.Calls()[0]) != len(wantArgs) {
+			t.Fatalf("got %d args %v, want %d args %v", len(mock.Calls()[0]), mock.Calls()[0], len(wantArgs), wantArgs)
 		}
-		for i, arg := range mock.Calls[0] {
+		for i, arg := range mock.Calls()[0] {
 			if arg != wantArgs[i] {
 				t.Errorf("args[%d] = %q, want %q", i, arg, wantArgs[i])
 			}
@@ -173,7 +177,7 @@ func TestUnsetGlobalHookAt(t *testing.T) {
 
 	t.Run("wraps commander error with event and index", func(t *testing.T) {
 		sentinel := errors.New("tmux failed")
-		mock := &MockCommander{Err: sentinel}
+		mock := commandertest.Quiet(commandertest.Fails(sentinel))
 		client := tmux.NewClient(mock)
 
 		err := client.UnsetGlobalHookAt("client-attached", 5)

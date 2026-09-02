@@ -4,13 +4,14 @@ import (
 	"context"
 	"testing"
 
+	"github.com/leeovery/portal/internal/commandertest"
 	"github.com/leeovery/portal/internal/tmux"
 	"github.com/spf13/cobra"
 )
 
-func coldCommander() *scriptedCommander {
-	return quietCommander(
-		fails(context.DeadlineExceeded, "info"),
+func coldCommander() *commandertest.Scripted {
+	return commandertest.Quiet(
+		commandertest.Fails(context.DeadlineExceeded, "info"),
 	)
 }
 

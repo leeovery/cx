@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/leeovery/portal/internal/commandertest"
 	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/project"
@@ -1099,7 +1100,7 @@ func TestOpenCommand_ZoxidePin_EmitsNoResolveLine(t *testing.T) {
 func TestOpenSession_DelegatesToBuildSessionConnector(t *testing.T) {
 	t.Setenv("TMUX", "/tmp/fake-socket,1,0")
 
-	cmder := quietCommander()
+	cmder := commandertest.Quiet()
 	client := tmux.NewClient(cmder)
 	cmd := cmdWithClient(client)
 
@@ -1671,8 +1672,8 @@ func (s *stubAliasEditor) DeleteAndSave(name, _ string) (bool, error) {
 
 // stubTmuxCommander answers the session enumeration with one stub row and
 // stays quiet for every other tmux call.
-func stubTmuxCommander() *scriptedCommander {
-	return quietCommander(returns("stub|1|0|", "list-sessions"))
+func stubTmuxCommander() *commandertest.Scripted {
+	return commandertest.Quiet(commandertest.Returns("stub|1|0|", "list-sessions"))
 }
 
 func defaultTestTUIConfig() tuiConfig {

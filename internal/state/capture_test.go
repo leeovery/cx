@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/portal/internal/commandertest"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
@@ -27,34 +28,37 @@ type captureMock struct {
 	showEnvCalls      int
 }
 
-func (m *captureMock) Run(args ...string) (string, error) {
-	if len(args) == 0 {
-		m.t.Fatalf("captureMock invoked with no args")
+// commander builds the tmux.Commander this fixture answers through: the shared
+// fake in strict mode, because capture must read through Run alone — a RunRaw
+// call is a failure, not a read to be served.
+func (m *captureMock) commander() *commandertest.Scripted {
+	return commandertest.New(m.t,
+		commandertest.Answering(commandertest.ArgvPrefix("list-sessions"), m.answerListSessions),
+		commandertest.Answering(commandertest.ArgvPrefix("list-panes"), m.answerListPanes),
+		commandertest.Answering(commandertest.ArgvPrefix("show-environment"), m.answerShowEnvironment),
+	).Strict()
+}
+
+func (m *captureMock) answerListSessions(...string) (string, error) {
+	m.listSessionsCalls++
+	return m.listSessions, m.listSessionsE
+}
+
+func (m *captureMock) answerListPanes(...string) (string, error) {
+	m.listPanesCalls++
+	return m.listPanes, m.listPanesE
+}
+
+func (m *captureMock) answerShowEnvironment(args ...string) (string, error) {
+	m.showEnvCalls++
+	if len(args) < 3 {
+		m.t.Fatalf("show-environment called with insufficient args: %v", args)
 	}
-	switch args[0] {
-	case "list-sessions":
-		m.listSessionsCalls++
-		return m.listSessions, m.listSessionsE
-	case "list-panes":
-		m.listPanesCalls++
-		return m.listPanes, m.listPanesE
-	case "show-environment":
-		m.showEnvCalls++
-		if len(args) < 3 {
-			m.t.Fatalf("show-environment called with insufficient args: %v", args)
-		}
-		session := sessionFromExactTarget(args[2])
-		if err, ok := m.envErrs[session]; ok {
-			return "", err
-		}
-		if out, ok := m.envBySession[session]; ok {
-			return out, nil
-		}
-		return "", nil
-	default:
-		m.t.Fatalf("captureMock: unexpected command %v", args)
-		return "", nil
+	session := sessionFromExactTarget(args[2])
+	if err, ok := m.envErrs[session]; ok {
+		return "", err
 	}
+	return m.envBySession[session], nil
 }
 
 // sessionFromExactTarget undoes the "=" exact-match prefix the tmux client
@@ -62,11 +66,6 @@ func (m *captureMock) Run(args ...string) (string, error) {
 // tmux would.
 func sessionFromExactTarget(target string) string {
 	return strings.TrimPrefix(target, "=")
-}
-
-func (m *captureMock) RunRaw(args ...string) (string, error) {
-	m.t.Fatalf("captureMock.RunRaw unexpectedly called with %v", args)
-	return "", nil
 }
 
 func listSessionsFor(names ...string) string {
@@ -105,7 +104,7 @@ func TestCaptureStructure(t *testing.T) {
 			),
 			t: t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 
 		idx, err := state.CaptureStructure(client, nil, nil, nil)
 		if err != nil {
@@ -150,7 +149,7 @@ func TestCaptureStructure(t *testing.T) {
 			}, "\n"),
 			t: t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 
 		idx, err := state.CaptureStructure(client, nil, nil, nil)
 		if err != nil {
@@ -169,7 +168,7 @@ func TestCaptureStructure(t *testing.T) {
 			listSessions: listSessionsFor("_portal-saver"),
 			t:            t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 
 		idx, err := state.CaptureStructure(client, nil, nil, nil)
 		if err != nil {
@@ -192,7 +191,7 @@ func TestCaptureStructure(t *testing.T) {
 			},
 			t: t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 
 		idx, err := state.CaptureStructure(client, nil, nil, nil)
 		if err != nil {
@@ -216,7 +215,7 @@ func TestCaptureStructure(t *testing.T) {
 			},
 			t: t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 
 		idx, err := state.CaptureStructure(client, nil, nil, nil)
 		if err != nil {
@@ -243,7 +242,7 @@ func TestCaptureStructure(t *testing.T) {
 			},
 			t: t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 
 		idx, err := state.CaptureStructure(client, nil, nil, nil)
 		if err != nil {
@@ -265,7 +264,7 @@ func TestCaptureStructure(t *testing.T) {
 			listPanes:    paneLine(name, 0, "m", "L", false, true, 0, "/", true, "zsh"),
 			t:            t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 
 		idx, err := state.CaptureStructure(client, nil, nil, nil)
 		if err != nil {
@@ -285,7 +284,7 @@ func TestCaptureStructure(t *testing.T) {
 			},
 			t: t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 
 		idx, err := state.CaptureStructure(client, nil, nil, nil)
 		if err != nil {
@@ -306,7 +305,7 @@ func TestCaptureStructure(t *testing.T) {
 			}, "\n"),
 			t: t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 
 		idx, err := state.CaptureStructure(client, nil, nil, nil)
 		if err != nil {
@@ -333,7 +332,7 @@ func TestCaptureStructure(t *testing.T) {
 			}, "\n"),
 			t: t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 
 		idx, err := state.CaptureStructure(client, nil, nil, nil)
 		if err != nil {
@@ -358,7 +357,7 @@ func TestCaptureStructure(t *testing.T) {
 			listPanes:    paneLine(session, 2, "m", "L", false, true, 3, "/", true, "zsh"),
 			t:            t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 
 		idx, err := state.CaptureStructure(client, nil, nil, nil)
 		if err != nil {
@@ -381,7 +380,7 @@ func TestCaptureStructure(t *testing.T) {
 			}, "\n"),
 			t: t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 
 		idx, err := state.CaptureStructure(client, nil, nil, nil)
 		if err != nil {
@@ -413,7 +412,7 @@ func TestCaptureStructure(t *testing.T) {
 			}, "\n"),
 			t: t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 
 		idx, err := state.CaptureStructure(client, nil, nil, nil)
 		if err != nil {
@@ -438,7 +437,7 @@ func TestCaptureStructure(t *testing.T) {
 			listPanes:    paneLine("work", 0, "m", "L", false, true, 0, "/", true, "zsh"),
 			t:            t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 
 		idx, err := state.CaptureStructure(client, nil, nil, nil)
 		if err != nil {
@@ -455,7 +454,7 @@ func TestCaptureStructure(t *testing.T) {
 			listPanes:    paneLine("work", 0, "m", "L", false, true, 0, "/", true, "zsh"),
 			t:            t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 
 		before := time.Now().UTC()
 		idx, err := state.CaptureStructure(client, nil, nil, nil)
@@ -477,7 +476,7 @@ func TestCaptureStructure(t *testing.T) {
 			listPanesE:   errors.New("tmux exploded"),
 			t:            t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 
 		idx, err := state.CaptureStructure(client, nil, nil, nil)
 		if err == nil {
@@ -497,7 +496,7 @@ func TestCaptureStructure(t *testing.T) {
 			},
 			t: t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 
 		_, err := state.CaptureStructure(client, nil, nil, nil)
 		if err == nil {
@@ -515,7 +514,7 @@ func TestCaptureStructurePortalPaneID(t *testing.T) {
 			),
 			t: t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 
 		idx, err := state.CaptureStructure(client, nil, nil, nil)
 		if err != nil {
@@ -538,7 +537,7 @@ func TestCaptureStructurePortalPaneID(t *testing.T) {
 			}, "\n"),
 			t: t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 
 		idx, err := state.CaptureStructure(client, nil, nil, nil)
 		if err != nil {
@@ -565,7 +564,7 @@ func TestCaptureStructurePortalPaneID(t *testing.T) {
 			listPanes:    paneLine("work", 0, "main", "L", false, true, 0, "/tmp", true, "zsh"),
 			t:            t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 		sink := &logtest.Sink{}
 
 		idx, err := state.CaptureStructure(client, nil, nil, slog.New(sink))
@@ -595,7 +594,7 @@ func TestCaptureStructurePortalPaneID(t *testing.T) {
 					listPanes:    row,
 					t:            t,
 				}
-				client := tmux.NewClient(mock)
+				client := tmux.NewClient(mock.commander())
 
 				idx, err := state.CaptureStructure(client, nil, nil, nil)
 				if err == nil {
@@ -633,7 +632,7 @@ func TestCaptureStructurePortalPaneID(t *testing.T) {
 			listPanes:    paneLine("work", 0, "main", "L", false, true, 0, "/tmp", true, "zsh"),
 			t:            t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 		skip := map[string]struct{}{state.SanitizePaneKey("work", 0, 0): {}}
 
 		idx, err := state.CaptureStructure(client, skip, &prev, nil)
@@ -654,7 +653,7 @@ func TestCaptureStructurePortalPaneID(t *testing.T) {
 			),
 			t: t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 
 		idx, err := state.CaptureStructure(client, nil, nil, nil)
 		if err != nil {
@@ -695,7 +694,7 @@ func TestCaptureStructurePortalPaneID(t *testing.T) {
 			listPanes:    "",
 			t:            t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 
 		idx, err := state.CaptureStructure(client, nil, nil, nil)
 		if err != nil {
@@ -731,7 +730,7 @@ func TestCaptureStructurePerSessionLogAndContinue(t *testing.T) {
 			},
 			t: t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 
 		idx, err := state.CaptureStructure(client, nil, nil, nil)
 		if err != nil {
@@ -759,7 +758,7 @@ func TestCaptureStructurePerSessionLogAndContinue(t *testing.T) {
 			},
 			t: t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 
 		idx, err := state.CaptureStructure(client, nil, nil, nil)
 		if err != nil {
@@ -786,7 +785,7 @@ func TestCaptureStructurePerSessionLogAndContinue(t *testing.T) {
 			},
 			t: t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 
 		idx, err := state.CaptureStructure(client, nil, nil, nil)
 		if err == nil {
@@ -810,7 +809,7 @@ func TestCaptureStructurePerSessionLogAndContinue(t *testing.T) {
 			},
 			t: t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 
 		idx, err := state.CaptureStructure(client, nil, nil, nil)
 		if err == nil {
@@ -835,7 +834,7 @@ func TestCaptureStructurePerSessionLogAndContinue(t *testing.T) {
 			},
 			t: t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 
 		idx, err := state.CaptureStructure(client, nil, nil, nil)
 		if err != nil {
@@ -863,7 +862,7 @@ func TestCaptureStructurePerSessionLogAndContinue(t *testing.T) {
 			},
 			t: t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 
 		_, err := state.CaptureStructure(client, nil, nil, logger)
 		if err != nil {
@@ -894,7 +893,7 @@ func TestCaptureStructurePerSessionLogAndContinue(t *testing.T) {
 			},
 			t: t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 
 		idx, err := state.CaptureStructure(client, nil, nil, nil)
 		if err != nil {
@@ -921,7 +920,7 @@ func TestCaptureStructurePerSessionLogAndContinue(t *testing.T) {
 			},
 			t: t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 
 		idx, err := state.CaptureStructure(client, nil, nil, nil)
 		if err != nil {
@@ -982,7 +981,7 @@ func TestCaptureStructureMergeSkippedPanes(t *testing.T) {
 			listPanes:    paneLine("work", 0, "main", "L", false, true, 0, "/new", true, "zsh"),
 			t:            t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 		skip := map[string]struct{}{
 			state.SanitizePaneKey("work", 0, 0): {},
 		}
@@ -1023,7 +1022,7 @@ func TestCaptureStructureMergeSkippedPanes(t *testing.T) {
 			listPanes:    paneLine("work", 0, "main", "L", false, true, 0, "/new", true, "zsh"),
 			t:            t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 		skip := map[string]struct{}{
 			state.SanitizePaneKey("work", 0, 0): {},
 		}
@@ -1081,7 +1080,7 @@ func TestCaptureStructureMergeSkippedPanes(t *testing.T) {
 			listPanes:    paneLine("new", 0, "n", "L", false, true, 0, "/new", true, "zsh"),
 			t:            t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 		skip := map[string]struct{}{
 			state.SanitizePaneKey("old", 1, 2): {},
 		}
@@ -1121,7 +1120,7 @@ func TestCaptureStructureMergeSkippedPanes(t *testing.T) {
 			listPanes:    paneLine("work", 0, "m", "L", false, true, 0, "/new", true, "zsh"),
 			t:            t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 
 		idx, err := state.CaptureStructure(client, map[string]struct{}{}, &prev, nil)
 		if err != nil {
@@ -1138,7 +1137,7 @@ func TestCaptureStructureMergeSkippedPanes(t *testing.T) {
 			listPanes:    paneLine("work", 0, "m", "L", false, true, 0, "/new", true, "zsh"),
 			t:            t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 		skip := map[string]struct{}{"work__0.0": {}}
 
 		idx, err := state.CaptureStructure(client, skip, nil, nil)
@@ -1189,7 +1188,7 @@ func TestCaptureStructureMergeSkippedPanes(t *testing.T) {
 			listPanes:    paneLine("work", 0, "main", "L0", false, true, 0, "/new", true, "zsh"),
 			t:            t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 		skip := map[string]struct{}{
 			state.SanitizePaneKey("work", 5, 0): {},
 		}
@@ -1245,7 +1244,7 @@ func TestCaptureStructureMergeSkippedPanes(t *testing.T) {
 			listPanes:    paneLine("work", 0, "main", "L0", false, true, 0, "/fresh0", true, "zsh"),
 			t:            t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 		skip := map[string]struct{}{
 			state.SanitizePaneKey("work", 0, 0): {},
 			state.SanitizePaneKey("work", 7, 0): {},
@@ -1313,7 +1312,7 @@ func TestCaptureStructureMergeSkippedPanes(t *testing.T) {
 			}, "\n"),
 			t: t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 		skip := map[string]struct{}{
 			state.SanitizePaneKey("work", 0, 0): {},
 			state.SanitizePaneKey("work", 2, 0): {},
@@ -1369,7 +1368,7 @@ func TestCaptureStructureMergeSkippedPanes(t *testing.T) {
 			listPanes:    paneLine("work", 0, "main", "L0", false, true, 0, "/new", true, "zsh"),
 			t:            t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 		skip := map[string]struct{}{
 			state.SanitizePaneKey("work", 0, 1): {},
 		}
@@ -1427,7 +1426,7 @@ func TestCaptureStructureMergeSkippedPanes(t *testing.T) {
 			}, "\n"),
 			t: t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 		skip := map[string]struct{}{
 			state.SanitizePaneKey("work", 0, 0): {},
 			state.SanitizePaneKey("work", 0, 2): {},
@@ -1484,7 +1483,7 @@ func TestCaptureStructureMergeSkippedPanes(t *testing.T) {
 			listPanes:    paneLine(survivor, 0, "main", "L", false, true, 0, "/new", true, "zsh"),
 			t:            t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 		skip := map[string]struct{}{
 			state.SanitizePaneKey(killed, 1, 1): {},
 		}
@@ -1543,7 +1542,7 @@ func TestCaptureStructureMergeSkippedPanes(t *testing.T) {
 			}, "\n"),
 			t: t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 		skip := map[string]struct{}{
 			state.SanitizePaneKey("zeta", 0, 0): {},
 		}
@@ -1618,7 +1617,7 @@ func TestCaptureStructurePreLoopFailFatal(t *testing.T) {
 			listPanesE:   errors.New("list-panes failed"),
 			t:            t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 
 		idx, err := state.CaptureStructure(client, nil, nil, nil)
 		if err == nil {
@@ -1641,7 +1640,7 @@ func TestCaptureStructurePreLoopFailFatal(t *testing.T) {
 			listPanes:    "work|||0|||main",
 			t:            t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 
 		idx, err := state.CaptureStructure(client, nil, nil, nil)
 		if err == nil {
@@ -1660,7 +1659,7 @@ func TestCaptureStructurePreLoopFailFatal(t *testing.T) {
 			listSessions: listSessionsFor("_portal-saver"),
 			t:            t,
 		}
-		client := tmux.NewClient(mock)
+		client := tmux.NewClient(mock.commander())
 
 		idx, err := state.CaptureStructure(client, nil, nil, nil)
 		if err != nil {

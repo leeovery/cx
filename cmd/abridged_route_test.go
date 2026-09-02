@@ -7,31 +7,32 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/cmd/bootstrap"
+	"github.com/leeovery/portal/internal/commandertest"
 	"github.com/leeovery/portal/internal/tmux"
 	"github.com/leeovery/portal/internal/warning"
 	"github.com/spf13/cobra"
 )
 
-func satisfiedLatchAliveSaverCommander() *scriptedCommander {
-	return quietCommander(
-		returns(version, "show-option"),    // stored latch == running version -> satisfied
-		when(panePIDProbe, "12345\n", nil), // _portal-saver pane alive
+func satisfiedLatchAliveSaverCommander() *commandertest.Scripted {
+	return commandertest.Quiet(
+		commandertest.Returns(version, "show-option"),    // stored latch == running version -> satisfied
+		commandertest.When(panePIDProbe, "12345\n", nil), // _portal-saver pane alive
 	)
 }
 
 // Carries no latch arm: ensureSaverLiveness never reads the latch.
-func saverAbsentReviveFailsCommander() *scriptedCommander {
-	return quietCommander(
-		fails(noSuchSessionErr(), "list-panes"),                // saver absent -> revive
-		fails(errors.New("can't find session"), "has-session"), // absent
-		fails(errors.New("create denied"), "new-session"),      // revive fails across all retries
+func saverAbsentReviveFailsCommander() *commandertest.Scripted {
+	return commandertest.Quiet(
+		commandertest.Fails(noSuchSessionErr(), "list-panes"),                // saver absent -> revive
+		commandertest.Fails(errors.New("can't find session"), "has-session"), // absent
+		commandertest.Fails(errors.New("create denied"), "new-session"),      // revive fails across all retries
 	)
 }
 
-func satisfiedLatchSaverAbsentCommander() *scriptedCommander {
-	return commanderDelegatingTo(
+func satisfiedLatchSaverAbsentCommander() *commandertest.Scripted {
+	return commandertest.Delegating(
 		saverAbsentReviveFailsCommander(),
-		returns(version, "show-option"), // stored latch == running version -> satisfied
+		commandertest.Returns(version, "show-option"), // stored latch == running version -> satisfied
 	)
 }
 
@@ -48,8 +49,8 @@ func optionAbsentErr() error {
 // real tmux server the developer is running (whose latch may coincide with
 // the dev version).
 func notSatisfiedLatchClient() *tmux.Client {
-	return tmux.NewClient(quietCommander(
-		fails(optionAbsentErr(), "show-option"),
+	return tmux.NewClient(commandertest.Quiet(
+		commandertest.Fails(optionAbsentErr(), "show-option"),
 	))
 }
 
@@ -97,8 +98,8 @@ func TestPersistentPreRunE_FullBootstrap_WhenNotSatisfied(t *testing.T) {
 				t.Cleanup(func() { version = prevVersion })
 			}
 
-			client := tmux.NewClient(quietCommander(
-				when(argvPrefix("show-option"), tc.showOptValue, tc.showOptErr),
+			client := tmux.NewClient(commandertest.Quiet(
+				commandertest.When(commandertest.ArgvPrefix("show-option"), tc.showOptValue, tc.showOptErr),
 			))
 			runner := &recordingRunner{started: false}
 			withBootstrapDeps(t, BootstrapDeps{Orchestrator: runner, Client: client})

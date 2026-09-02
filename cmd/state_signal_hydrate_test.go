@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/portal/internal/commandertest"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/statetest"
@@ -40,11 +41,11 @@ func listPanesOutput(panes [][2]int) string {
 
 // signalHydrateClient replies to the two tmux calls signal-hydrate makes;
 // anything else fails the test.
-func signalHydrateClient(t *testing.T, markersRaw string, panes [][2]int) (*tmux.Client, *scriptedCommander) {
+func signalHydrateClient(t *testing.T, markersRaw string, panes [][2]int) (*tmux.Client, *commandertest.Scripted) {
 	t.Helper()
-	cmder := newScriptedCommander(t,
-		returns(markersRaw, "show-options"),
-		returns(listPanesOutput(panes), "list-panes"),
+	cmder := commandertest.New(t,
+		commandertest.Returns(markersRaw, "show-options"),
+		commandertest.Returns(listPanesOutput(panes), "list-panes"),
 	)
 	return tmux.NewClient(cmder), cmder
 }
@@ -196,9 +197,9 @@ func TestSignalHydrate_SoftFailsWhenSessionDoesNotExist(t *testing.T) {
 	dir := t.TempDir()
 	session := "ghost"
 
-	cmder := newScriptedCommander(t,
-		returns("", "show-options"),
-		fails(errors.New("can't find session: ghost"), "list-panes"),
+	cmder := commandertest.New(t,
+		commandertest.Returns("", "show-options"),
+		commandertest.Fails(errors.New("can't find session: ghost"), "list-panes"),
 	)
 	client := tmux.NewClient(cmder)
 	signaler := &statetest.RecordingFIFOSignaler{}
@@ -226,12 +227,12 @@ func TestSignalHydrate_IsIdempotentAcrossRepeatedInvocations(t *testing.T) {
 	var markerSet = true
 	// The marker entry's predicate is evaluated per call, so clearing markerSet
 	// between invocations retires it in favour of the empty read below it.
-	cmder := newScriptedCommander(t,
-		when(func(args []string) bool {
-			return markerSet && argvPrefix("show-options")(args)
+	cmder := commandertest.New(t,
+		commandertest.When(func(args []string) bool {
+			return markerSet && commandertest.ArgvPrefix("show-options")(args)
 		}, markersOption(key), nil),
-		returns("", "show-options"),
-		returns(listPanesOutput(panes), "list-panes"),
+		commandertest.Returns("", "show-options"),
+		commandertest.Returns(listPanesOutput(panes), "list-panes"),
 	)
 	client := tmux.NewClient(cmder)
 
@@ -270,32 +271,32 @@ func TestSignalHydrate_IsIdempotentAcrossRepeatedInvocations(t *testing.T) {
 func TestSignalHydrate_WARNsRenderUnderSignalComponent(t *testing.T) {
 	cases := []struct {
 		name    string
-		script  []scriptEntry
+		script  []commandertest.Entry
 		signal  state.FIFOSignaler
 		wantMsg string
 	}{
 		{
 			name: "list skeleton markers failed",
-			script: []scriptEntry{
-				fails(errors.New("show-options boom"), "show-options"),
+			script: []commandertest.Entry{
+				commandertest.Fails(errors.New("show-options boom"), "show-options"),
 			},
 			signal:  &statetest.RecordingFIFOSignaler{},
 			wantMsg: "list skeleton markers failed",
 		},
 		{
 			name: "list panes for session failed",
-			script: []scriptEntry{
-				returns(markersOption(state.SanitizePaneKey("foo", 0, 0)), "show-options"),
-				fails(errors.New("can't find session: foo"), "list-panes"),
+			script: []commandertest.Entry{
+				commandertest.Returns(markersOption(state.SanitizePaneKey("foo", 0, 0)), "show-options"),
+				commandertest.Fails(errors.New("can't find session: foo"), "list-panes"),
 			},
 			signal:  &statetest.RecordingFIFOSignaler{},
 			wantMsg: "list panes for session failed",
 		},
 		{
 			name: "write fifo failed",
-			script: []scriptEntry{
-				returns(markersOption(state.SanitizePaneKey("foo", 0, 0)), "show-options"),
-				returns(listPanesOutput([][2]int{{0, 0}}), "list-panes"),
+			script: []commandertest.Entry{
+				commandertest.Returns(markersOption(state.SanitizePaneKey("foo", 0, 0)), "show-options"),
+				commandertest.Returns(listPanesOutput([][2]int{{0, 0}}), "list-panes"),
 			},
 			signal:  &statetest.RecordingFIFOSignaler{Err: errors.New("retry exhausted (sentinel)")},
 			wantMsg: "write fifo failed",
@@ -309,7 +310,7 @@ func TestSignalHydrate_WARNsRenderUnderSignalComponent(t *testing.T) {
 			cfg := signalHydrateConfig{
 				Session:  "foo",
 				StateDir: t.TempDir(),
-				Client:   tmux.NewClient(newScriptedCommander(t, tc.script...)),
+				Client:   tmux.NewClient(commandertest.New(t, tc.script...)),
 				Signaler: tc.signal,
 			}
 			if err := runSignalHydrate(cfg); err != nil {

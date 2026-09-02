@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/portal/internal/commandertest"
 	"github.com/leeovery/portal/internal/tmux"
 )
 
@@ -71,12 +72,12 @@ const wantCompletionMessage = "Portal's tmux runtime removed. Your saved session
 
 func TestUninstall_KillsPortalSaverBeforeRemovingHooks(t *testing.T) {
 	raw := "session-created[0] run-shell 'command -v portal >/dev/null 2>&1 && portal state notify'\n"
-	cmder := newScriptedCommander(t,
-		returns("", "info"),
-		returns("", "has-session"),
-		returns("", "kill-session"),
-		returns(raw, "show-hooks"),
-		returns("", "set-hook"),
+	cmder := commandertest.New(t,
+		commandertest.Returns("", "info"),
+		commandertest.Returns("", "has-session"),
+		commandertest.Returns("", "kill-session"),
+		commandertest.Returns(raw, "show-hooks"),
+		commandertest.Returns("", "set-hook"),
 	)
 	installUninstallDeps(t, &UninstallDeps{Client: tmux.NewClient(cmder)})
 
@@ -117,8 +118,8 @@ func TestUninstall_KillsPortalSaverBeforeRemovingHooks(t *testing.T) {
 func TestUninstall_NoServerRunningIsGracefulNoOpAndPrintsMessage(t *testing.T) {
 	// Nothing beyond the server probe is scripted: any further call fails the
 	// test, which is the "graceful no-op" claim.
-	cmder := newScriptedCommander(t,
-		fails(errors.New("no server running on /tmp/tmux-501/default"), "info"),
+	cmder := commandertest.New(t,
+		commandertest.Fails(errors.New("no server running on /tmp/tmux-501/default"), "info"),
 	)
 	installUninstallDeps(t, &UninstallDeps{Client: tmux.NewClient(cmder)})
 
@@ -141,10 +142,10 @@ func TestUninstall_NoServerRunningIsGracefulNoOpAndPrintsMessage(t *testing.T) {
 func TestUninstall_IsIdempotentWhenSaverAbsent(t *testing.T) {
 	// kill-session is deliberately unscripted: invoking it when the saver is
 	// absent fails the test through the unmatched default.
-	cmder := newScriptedCommander(t,
-		returns("", "info"),
-		fails(newExitError(t), "has-session"),
-		returns("", "show-hooks"),
+	cmder := commandertest.New(t,
+		commandertest.Returns("", "info"),
+		commandertest.Fails(newExitError(t), "has-session"),
+		commandertest.Returns("", "show-hooks"),
 	)
 	installUninstallDeps(t, &UninstallDeps{Client: tmux.NewClient(cmder)})
 
@@ -163,10 +164,10 @@ func TestUninstall_IsIdempotentWhenSaverAbsent(t *testing.T) {
 }
 
 func TestUninstall_PrintsExactCompletionMessage(t *testing.T) {
-	cmder := newScriptedCommander(t,
-		returns("", "info"),
-		fails(newExitError(t), "has-session"),
-		returns("", "show-hooks"),
+	cmder := commandertest.New(t,
+		commandertest.Returns("", "info"),
+		commandertest.Fails(newExitError(t), "has-session"),
+		commandertest.Returns("", "show-hooks"),
 	)
 	installUninstallDeps(t, &UninstallDeps{Client: tmux.NewClient(cmder)})
 
@@ -187,10 +188,10 @@ func TestUninstall_AccumulatesHookRemovalFailureWithoutSkippingKill(t *testing.T
 	stub := func(_ *tmux.Client) error {
 		return sentinel
 	}
-	cmder := newScriptedCommander(t,
-		returns("", "info"),
-		returns("", "has-session"),
-		returns("", "kill-session"),
+	cmder := commandertest.New(t,
+		commandertest.Returns("", "info"),
+		commandertest.Returns("", "has-session"),
+		commandertest.Returns("", "kill-session"),
 	)
 	installUninstallDeps(t, &UninstallDeps{
 		Client:     tmux.NewClient(cmder),
@@ -223,9 +224,9 @@ func TestUninstall_TransientProbeFaultSurfacesErrorNotSilentRemoval(t *testing.T
 	logger, sink := newCaptureLoggerForComponent(t, "daemon")
 	// kill-session is deliberately unscripted: running it on a transient probe
 	// fault fails the test through the unmatched default.
-	cmder := newScriptedCommander(t,
-		returns("", "info"),
-		fails(probeFault, "has-session"),
+	cmder := commandertest.New(t,
+		commandertest.Returns("", "info"),
+		commandertest.Fails(probeFault, "has-session"),
 	)
 	installUninstallDeps(t, &UninstallDeps{
 		Client:     tmux.NewClient(cmder),
@@ -265,13 +266,13 @@ func TestUninstall_RegisteredInSkipTmuxCheck(t *testing.T) {
 
 func TestUninstall_ToleratesKillSessionCantFindSessionError(t *testing.T) {
 	raw := "session-created[0] run-shell 'command -v portal >/dev/null 2>&1 && portal state notify'\n"
-	cmder := newScriptedCommander(t,
-		returns("", "info"),
-		returns("", "has-session"),
+	cmder := commandertest.New(t,
+		commandertest.Returns("", "info"),
+		commandertest.Returns("", "has-session"),
 		// Race: tmux auto-destroyed it between has-session and kill-session.
-		fails(errors.New("can't find session: _portal-saver"), "kill-session"),
-		returns(raw, "show-hooks"),
-		returns("", "set-hook"),
+		commandertest.Fails(errors.New("can't find session: _portal-saver"), "kill-session"),
+		commandertest.Returns(raw, "show-hooks"),
+		commandertest.Returns("", "set-hook"),
 	)
 	installUninstallDeps(t, &UninstallDeps{Client: tmux.NewClient(cmder)})
 
@@ -293,10 +294,10 @@ func TestUninstall_KillSessionOtherFailureContributesJoinedErrorAndStillRunsUnre
 		unregisterCalled = true
 		return nil
 	}
-	cmder := newScriptedCommander(t,
-		returns("", "info"),
-		returns("", "has-session"),
-		fails(errors.New("permission denied"), "kill-session"),
+	cmder := commandertest.New(t,
+		commandertest.Returns("", "info"),
+		commandertest.Returns("", "has-session"),
+		commandertest.Fails(errors.New("permission denied"), "kill-session"),
 	)
 	installUninstallDeps(t, &UninstallDeps{
 		Client:     tmux.NewClient(cmder),
@@ -324,11 +325,11 @@ func TestUninstall_KillSessionOtherFailureContributesJoinedErrorAndStillRunsUnre
 func TestUninstall_LogsInfoWhenSaverKilledSuccessfully(t *testing.T) {
 	logger, sink := newCaptureLoggerForComponent(t, "daemon")
 
-	cmder := newScriptedCommander(t,
-		returns("", "info"),
-		returns("", "has-session"),
-		returns("", "kill-session"),
-		returns("", "show-hooks"),
+	cmder := commandertest.New(t,
+		commandertest.Returns("", "info"),
+		commandertest.Returns("", "has-session"),
+		commandertest.Returns("", "kill-session"),
+		commandertest.Returns("", "show-hooks"),
 	)
 	installUninstallDeps(t, &UninstallDeps{
 		Client: tmux.NewClient(cmder),
@@ -357,10 +358,10 @@ func TestUninstall_LogsInfoWhenSaverKilledSuccessfully(t *testing.T) {
 func TestUninstall_DoesNotInvokeBootstrap(t *testing.T) {
 	withBootstrapDeps(t, BootstrapDeps{Orchestrator: panicRunner{}})
 
-	cmder := newScriptedCommander(t,
-		returns("", "info"),
-		fails(newExitError(t), "has-session"),
-		returns("", "show-hooks"),
+	cmder := commandertest.New(t,
+		commandertest.Returns("", "info"),
+		commandertest.Fails(newExitError(t), "has-session"),
+		commandertest.Returns("", "show-hooks"),
 	)
 	installUninstallDeps(t, &UninstallDeps{Client: tmux.NewClient(cmder)})
 

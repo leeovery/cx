@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/portal/internal/commandertest"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/restore"
 	"github.com/leeovery/portal/internal/restoretest"
@@ -73,7 +74,7 @@ func allSetOptionCalls(calls [][]string) []int {
 }
 
 func TestApplySkeletonMarkers_SetsOneMarkerPerSuppliedLivePane(t *testing.T) {
-	mock := &mockCommander{}
+	mock := commandertest.Quiet()
 	client := tmux.NewClient(mock)
 	r := &restore.SessionRestorer{Client: client}
 
@@ -85,13 +86,13 @@ func TestApplySkeletonMarkers_SetsOneMarkerPerSuppliedLivePane(t *testing.T) {
 
 	r.ApplySkeletonMarkers(sess, livePanes)
 
-	if got := len(findAllCalls(mock.Calls, "list-panes")); got != 0 {
-		t.Errorf("list-panes calls = %d, want 0 (caller supplies livePanes); calls: %v", got, mock.Calls)
+	if got := len(findAllCalls(mock.Calls(), "list-panes")); got != 0 {
+		t.Errorf("list-panes calls = %d, want 0 (caller supplies livePanes); calls: %v", got, mock.Calls())
 	}
 
-	setIdxs := allSetOptionCalls(mock.Calls)
+	setIdxs := allSetOptionCalls(mock.Calls())
 	if len(setIdxs) != 3 {
-		t.Fatalf("set-option calls = %d, want 3; calls: %v", len(setIdxs), mock.Calls)
+		t.Fatalf("set-option calls = %d, want 3; calls: %v", len(setIdxs), mock.Calls())
 	}
 
 	wantMarkers := []string{
@@ -100,14 +101,14 @@ func TestApplySkeletonMarkers_SetsOneMarkerPerSuppliedLivePane(t *testing.T) {
 		"@portal-skeleton-" + state.SanitizePaneKey("work", 1, 0),
 	}
 	for _, m := range wantMarkers {
-		if findSetOptionMarker(mock.Calls, m) < 0 {
-			t.Errorf("expected set-option for marker %q; calls: %v", m, mock.Calls)
+		if findSetOptionMarker(mock.Calls(), m) < 0 {
+			t.Errorf("expected set-option for marker %q; calls: %v", m, mock.Calls())
 		}
 	}
 }
 
 func TestApplySkeletonMarkers_UsesLivePaneKey(t *testing.T) {
-	mock := &mockCommander{}
+	mock := commandertest.Quiet()
 	client := tmux.NewClient(mock)
 	dir := t.TempDir()
 	logger := restoretest.OpenTestLogger(t, dir)
@@ -122,13 +123,13 @@ func TestApplySkeletonMarkers_UsesLivePaneKey(t *testing.T) {
 	r.ApplySkeletonMarkers(sess, livePanes)
 
 	wantLive := "@portal-skeleton-" + state.SanitizePaneKey("work", 1, 0)
-	if findSetOptionMarker(mock.Calls, wantLive) < 0 {
-		t.Errorf("expected set-option for live marker %q; calls: %v", wantLive, mock.Calls)
+	if findSetOptionMarker(mock.Calls(), wantLive) < 0 {
+		t.Errorf("expected set-option for live marker %q; calls: %v", wantLive, mock.Calls())
 	}
 }
 
 func TestApplySkeletonMarkers_LogsSanityWarningOnPaneCountMismatch(t *testing.T) {
-	mock := &mockCommander{}
+	mock := commandertest.Quiet()
 	client := tmux.NewClient(mock)
 	logger, sink := logtest.NewCaptureLogger(t)
 
@@ -148,7 +149,7 @@ func TestApplySkeletonMarkers_LogsSanityWarningOnPaneCountMismatch(t *testing.T)
 }
 
 func TestApplySkeletonMarkers_UsesServerScopeFlagAndNeverGlobal(t *testing.T) {
-	mock := &mockCommander{}
+	mock := commandertest.Quiet()
 	client := tmux.NewClient(mock)
 	r := &restore.SessionRestorer{Client: client}
 
@@ -159,8 +160,8 @@ func TestApplySkeletonMarkers_UsesServerScopeFlagAndNeverGlobal(t *testing.T) {
 
 	r.ApplySkeletonMarkers(sess, livePanes)
 
-	for _, idx := range allSetOptionCalls(mock.Calls) {
-		args := mock.Calls[idx]
+	for _, idx := range allSetOptionCalls(mock.Calls()) {
+		args := mock.Calls()[idx]
 		hasS := false
 		for _, a := range args {
 			if a == "-s" {
@@ -178,16 +179,14 @@ func TestApplySkeletonMarkers_UsesServerScopeFlagAndNeverGlobal(t *testing.T) {
 
 func TestApplySkeletonMarkers_ContinuesWhenOneSetOptionFails(t *testing.T) {
 	failMarker := "@portal-skeleton-" + state.SanitizePaneKey("work", 0, 0)
-	mock := &mockCommander{
-		RunFunc: func(args ...string) (string, error) {
-			if len(args) > 0 && args[0] == "set-option" {
-				if slices.Contains(args, failMarker) {
-					return "", errors.New("set-option failure")
-				}
+	mock := commandertest.FromFunc(func(args ...string) (string, error) {
+		if len(args) > 0 && args[0] == "set-option" {
+			if slices.Contains(args, failMarker) {
+				return "", errors.New("set-option failure")
 			}
-			return "", nil
-		},
-	}
+		}
+		return "", nil
+	})
 	client := tmux.NewClient(mock)
 	dir := t.TempDir()
 	logger := restoretest.OpenTestLogger(t, dir)
@@ -200,14 +199,14 @@ func TestApplySkeletonMarkers_ContinuesWhenOneSetOptionFails(t *testing.T) {
 
 	r.ApplySkeletonMarkers(sess, livePanes)
 
-	setIdxs := allSetOptionCalls(mock.Calls)
+	setIdxs := allSetOptionCalls(mock.Calls())
 	if len(setIdxs) != 3 {
 		t.Errorf("set-option calls = %d, want 3 (each attempted)", len(setIdxs))
 	}
 }
 
 func TestApplySkeletonMarkers_SetsMarkerValueToLiteralOne(t *testing.T) {
-	mock := &mockCommander{}
+	mock := commandertest.Quiet()
 	client := tmux.NewClient(mock)
 	r := &restore.SessionRestorer{Client: client}
 
@@ -218,11 +217,11 @@ func TestApplySkeletonMarkers_SetsMarkerValueToLiteralOne(t *testing.T) {
 
 	r.ApplySkeletonMarkers(sess, livePanes)
 
-	setIdxs := allSetOptionCalls(mock.Calls)
+	setIdxs := allSetOptionCalls(mock.Calls())
 	if len(setIdxs) != 1 {
 		t.Fatalf("set-option calls = %d, want 1", len(setIdxs))
 	}
-	args := mock.Calls[setIdxs[0]]
+	args := mock.Calls()[setIdxs[0]]
 	if len(args) != 4 {
 		t.Fatalf("set-option args = %v, want length 4", args)
 	}
@@ -232,7 +231,7 @@ func TestApplySkeletonMarkers_SetsMarkerValueToLiteralOne(t *testing.T) {
 }
 
 func TestApplySkeletonMarkers_UsesHashedPaneKeyForCollisionSession(t *testing.T) {
-	mock := &mockCommander{}
+	mock := commandertest.Quiet()
 	client := tmux.NewClient(mock)
 	r := &restore.SessionRestorer{Client: client}
 
@@ -249,13 +248,13 @@ func TestApplySkeletonMarkers_UsesHashedPaneKeyForCollisionSession(t *testing.T)
 		t.Fatalf("sanity: paneKey %q should contain hash suffix marker 'foo_bar-'", wantKey)
 	}
 	wantMarker := "@portal-skeleton-" + wantKey
-	if findSetOptionMarker(mock.Calls, wantMarker) < 0 {
-		t.Errorf("expected set-option for hashed marker %q; calls: %v", wantMarker, mock.Calls)
+	if findSetOptionMarker(mock.Calls(), wantMarker) < 0 {
+		t.Errorf("expected set-option for hashed marker %q; calls: %v", wantMarker, mock.Calls())
 	}
 }
 
 func TestApplySkeletonMarkers_EnumeratesLivePanesInSuppliedOrder(t *testing.T) {
-	mock := &mockCommander{}
+	mock := commandertest.Quiet()
 	client := tmux.NewClient(mock)
 	r := &restore.SessionRestorer{Client: client}
 
@@ -267,7 +266,7 @@ func TestApplySkeletonMarkers_EnumeratesLivePanesInSuppliedOrder(t *testing.T) {
 
 	r.ApplySkeletonMarkers(sess, livePanes)
 
-	setIdxs := allSetOptionCalls(mock.Calls)
+	setIdxs := allSetOptionCalls(mock.Calls())
 	if len(setIdxs) != 4 {
 		t.Fatalf("set-option calls = %d, want 4", len(setIdxs))
 	}
@@ -279,7 +278,7 @@ func TestApplySkeletonMarkers_EnumeratesLivePanesInSuppliedOrder(t *testing.T) {
 		"@portal-skeleton-" + state.SanitizePaneKey("work", 1, 1),
 	}
 	for i, idx := range setIdxs {
-		args := mock.Calls[idx]
+		args := mock.Calls()[idx]
 		if len(args) < 3 {
 			t.Fatalf("set-option[%d] args = %v, want length >= 3", i, args)
 		}
@@ -290,7 +289,7 @@ func TestApplySkeletonMarkers_EnumeratesLivePanesInSuppliedOrder(t *testing.T) {
 }
 
 func TestApplySkeletonMarkers_MarksExtraLivePanesWhenLiveCountExceedsSaved(t *testing.T) {
-	mock := &mockCommander{}
+	mock := commandertest.Quiet()
 	client := tmux.NewClient(mock)
 	dir := t.TempDir()
 	logger := restoretest.OpenTestLogger(t, dir)
@@ -308,8 +307,8 @@ func TestApplySkeletonMarkers_MarksExtraLivePanesWhenLiveCountExceedsSaved(t *te
 		"@portal-skeleton-" + state.SanitizePaneKey("work", 0, 1),
 	}
 	for _, m := range wantMarkers {
-		if findSetOptionMarker(mock.Calls, m) < 0 {
-			t.Errorf("expected set-option for marker %q; calls: %v", m, mock.Calls)
+		if findSetOptionMarker(mock.Calls(), m) < 0 {
+			t.Errorf("expected set-option for marker %q; calls: %v", m, mock.Calls())
 		}
 	}
 }

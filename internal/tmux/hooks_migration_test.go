@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/portal/internal/commandertest"
 	"github.com/leeovery/portal/internal/tmux"
 	"github.com/leeovery/portal/internal/tmuxtest"
 )
@@ -207,8 +208,8 @@ func TestRegisterPortalHooks_HydrationPerIndexEvictFailureWarnsAndContinues(t *t
 	failingTarget := "client-attached[0]"
 	sentinel := errors.New("tmux unset failure")
 
-	mock := &MockCommander{RunFunc: perEventDispatchWithFaults(t, raw.String(), nil, nil,
-		map[string]error{failingTarget: sentinel})}
+	mock := commandertest.FromFunc(perEventDispatchWithFaults(t, raw.String(), nil, nil,
+		map[string]error{failingTarget: sentinel}))
 	client := tmux.NewClient(mock)
 
 	log := &migrationLog{}
@@ -239,7 +240,7 @@ func TestRegisterPortalHooks_HydrationScansEveryRuntimeTriggerEvent(t *testing.T
 	for _, ev := range tmux.HydrationTriggerEvents {
 		fmt.Fprintf(&raw, "%s[0] => %q\n", ev, staleSignalHydrateCommand)
 	}
-	mock := &MockCommander{RunFunc: perEventDispatch(t, raw.String(), nil)}
+	mock := commandertest.FromFunc(perEventDispatch(t, raw.String(), nil))
 	client := tmux.NewClient(mock)
 
 	log := &migrationLog{}
@@ -248,7 +249,7 @@ func TestRegisterPortalHooks_HydrationScansEveryRuntimeTriggerEvent(t *testing.T
 	}
 
 	gotEvents := map[string]bool{}
-	for _, u := range unsetHookCalls(mock.Calls) {
+	for _, u := range unsetHookCalls(mock.Calls()) {
 		gotEvents[eventOfUnsetTarget(u)] = true
 	}
 	for _, want := range tmux.HydrationTriggerEvents {
@@ -267,9 +268,7 @@ func TestRegisterPortalHooks_HydrationScansEveryRuntimeTriggerEvent(t *testing.T
 
 func TestRegisterPortalHooks_HydrationReadFailureWrapsErrorAndSkipsSetHook(t *testing.T) {
 	sentinel := errors.New("tmux show-hooks failure")
-	mock := &MockCommander{
-		RunFunc: perEventDispatchWithFaults(t, "", nil, readErrForAllManagedEvents(sentinel), nil),
-	}
+	mock := commandertest.FromFunc(perEventDispatchWithFaults(t, "", nil, readErrForAllManagedEvents(sentinel), nil))
 	client := tmux.NewClient(mock)
 
 	log := &migrationLog{}
@@ -282,7 +281,7 @@ func TestRegisterPortalHooks_HydrationReadFailureWrapsErrorAndSkipsSetHook(t *te
 		t.Errorf("error %v does not wrap sentinel %v", err, sentinel)
 	}
 
-	assertNoSetHookCalls(t, mock.Calls)
+	assertNoSetHookCalls(t, mock.Calls())
 	if !strings.Contains(err.Error(), "show-hooks failed") {
 		t.Errorf("error %q does not contain expected wrap %q", err.Error(), "show-hooks failed")
 	}

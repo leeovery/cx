@@ -185,6 +185,7 @@ func TestSurfaceAudit_NoNewPackageForPreview(t *testing.T) {
 		"alias":            {},
 		"bootstrapadapter": {},
 		"capture":          {},
+		"commandertest":    {},
 		"fileutil":         {},
 		"fuzzy":            {},
 		"hooks":            {},

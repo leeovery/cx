@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/portal/internal/commandertest"
 	"github.com/leeovery/portal/internal/tmux"
 )
 
@@ -15,7 +16,7 @@ func TestPortalHookCountsByEvent_CountsOnlyPortalFingerprintEntries(t *testing.T
 		fmt.Sprintf("pane-focus-out[1] => '%s'\n", foreign) +
 		fmt.Sprintf("window-layout-changed[1] => '%s'\n", expectedNotifyCommand)
 
-	mock := &MockCommander{RunFunc: perEventDispatch(t, seeded, nil)}
+	mock := commandertest.FromFunc(perEventDispatch(t, seeded, nil))
 	client := tmux.NewClient(mock)
 
 	counts, err := tmux.PortalHookCountsByEvent(client)
@@ -49,8 +50,8 @@ func TestPortalHookCountsByEvent_CountsOnlyPortalFingerprintEntries(t *testing.T
 
 func TestPortalHookCountsByEvent_PerEventReadFailurePropagates(t *testing.T) {
 	sentinel := errors.New("tmux show-hooks failure on pane-focus-out")
-	mock := &MockCommander{RunFunc: perEventDispatchWithFaults(t, convergedTable(), nil,
-		map[string]error{"pane-focus-out": sentinel}, nil)}
+	mock := commandertest.FromFunc(perEventDispatchWithFaults(t, convergedTable(), nil,
+		map[string]error{"pane-focus-out": sentinel}, nil))
 	client := tmux.NewClient(mock)
 
 	counts, err := tmux.PortalHookCountsByEvent(client)

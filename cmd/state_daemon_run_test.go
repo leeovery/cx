@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/portal/internal/commandertest"
 	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/hookstest"
 	"github.com/leeovery/portal/internal/logtest"
@@ -21,14 +22,14 @@ import (
 )
 
 // daemonFakeCommander is kept bespoke rather than retired onto
-// scriptedCommander: it is not an argv-pattern script but a model of the
+// commandertest.Scripted: it is not an argv-pattern script but a model of the
 // daemon's whole tmux surface, and it carries one behaviour a static script
 // cannot express — dispatchHook, a callback that fires after every dispatch,
 // matched or not, so a caller can cancel the context while a tmux subcall is
 // in flight. The mutex covers the concurrent drive from the goroutines
 // running defaultDaemonRun. Its Run/RunRaw still route through
-// commanderRun/commanderRunRaw, so the trim-versus-verbatim contract has one
-// implementation for this package.
+// commandertest.Trim/Verbatim, so the trim-versus-verbatim contract keeps its
+// single implementation.
 //
 // Unset commands return ("", nil), so unrelated tmux calls do not fail a test.
 type daemonFakeCommander struct {
@@ -68,7 +69,7 @@ func (c *daemonFakeCommander) Run(args ...string) (string, error) {
 	if hook != nil {
 		hook(args)
 	}
-	return commanderRun(out, err)
+	return commandertest.Trim(out, err)
 }
 
 func (c *daemonFakeCommander) RunRaw(args ...string) (string, error) {
@@ -80,7 +81,7 @@ func (c *daemonFakeCommander) RunRaw(args ...string) (string, error) {
 	if hook != nil {
 		hook(args)
 	}
-	return commanderRunRaw(out, err)
+	return commandertest.Verbatim(out, err)
 }
 
 func (c *daemonFakeCommander) dispatch(args []string) (string, error) {

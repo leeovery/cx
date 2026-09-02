@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/portal/internal/commandertest"
 	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/state"
@@ -257,7 +258,7 @@ func TestStateDaemon_ShutdownFlushSkippedWhenRestoringSet(t *testing.T) {
 	initTestLogToStateDir(t, dir, "test")
 	withDaemonLockFileReset(t)
 
-	fc := newScriptedCommander(t, returns("1", "show-option")).allowingUnmatched("", nil)
+	fc := commandertest.New(t, commandertest.Returns("1", "show-option")).AllowingUnmatched("", nil)
 	client := tmux.NewClient(fc)
 
 	prev := daemonRunFunc
@@ -290,7 +291,7 @@ func TestStateDaemon_ShutdownFlushRunsWhenRestoringUnset(t *testing.T) {
 	initTestLogToStateDir(t, dir, "test")
 	withDaemonLockFileReset(t)
 
-	fc := newScriptedCommander(t, fails(tmux.ErrOptionNotFound, "show-option")).allowingUnmatched("", nil)
+	fc := commandertest.New(t, commandertest.Fails(tmux.ErrOptionNotFound, "show-option")).AllowingUnmatched("", nil)
 	client := tmux.NewClient(fc)
 
 	prev := daemonRunFunc
@@ -691,9 +692,9 @@ func TestSelfSupervisionHysteresisTicks_ClampInvariant(t *testing.T) {
 
 func TestDefaultSaverMembershipProbe(t *testing.T) {
 	t.Run("it returns false when HasSession is false", func(t *testing.T) {
-		fc := newScriptedCommander(t,
-			fails(fmt.Errorf("exit status 1"), "has-session"),
-		).allowingUnmatched("", nil)
+		fc := commandertest.New(t,
+			commandertest.Fails(fmt.Errorf("exit status 1"), "has-session"),
+		).AllowingUnmatched("", nil)
 		client := tmux.NewClient(fc)
 
 		if defaultSaverMembershipProbe(client, os.Getpid()) {
@@ -707,13 +708,13 @@ func TestDefaultSaverMembershipProbe(t *testing.T) {
 	})
 
 	t.Run("it returns false when SaverPanePID errors", func(t *testing.T) {
-		fc := newScriptedCommander(t,
-			returns("", "has-session"),
-			fails(&tmux.CommandError{
+		fc := commandertest.New(t,
+			commandertest.Returns("", "has-session"),
+			commandertest.Fails(&tmux.CommandError{
 				Stderr: "no such session: _portal-saver",
 				Err:    fmt.Errorf("exit status 1"),
 			}, "list-panes"),
-		).allowingUnmatched("", nil)
+		).AllowingUnmatched("", nil)
 		client := tmux.NewClient(fc)
 
 		if defaultSaverMembershipProbe(client, os.Getpid()) {
@@ -723,10 +724,10 @@ func TestDefaultSaverMembershipProbe(t *testing.T) {
 
 	t.Run("it returns true when the pid matches selfPID", func(t *testing.T) {
 		const selfPID = 4242
-		fc := newScriptedCommander(t,
-			returns("", "has-session"),
-			returns(fmt.Sprintf("%d\n", selfPID), "list-panes"),
-		).allowingUnmatched("", nil)
+		fc := commandertest.New(t,
+			commandertest.Returns("", "has-session"),
+			commandertest.Returns(fmt.Sprintf("%d\n", selfPID), "list-panes"),
+		).AllowingUnmatched("", nil)
 		client := tmux.NewClient(fc)
 
 		if !defaultSaverMembershipProbe(client, selfPID) {
@@ -735,10 +736,10 @@ func TestDefaultSaverMembershipProbe(t *testing.T) {
 	})
 
 	t.Run("it returns false when the pid does not match selfPID", func(t *testing.T) {
-		fc := newScriptedCommander(t,
-			returns("", "has-session"),
-			returns("9999\n", "list-panes"),
-		).allowingUnmatched("", nil)
+		fc := commandertest.New(t,
+			commandertest.Returns("", "has-session"),
+			commandertest.Returns("9999\n", "list-panes"),
+		).AllowingUnmatched("", nil)
 		client := tmux.NewClient(fc)
 
 		if defaultSaverMembershipProbe(client, 4242) {
@@ -880,10 +881,10 @@ func TestSaverMembershipProbeSeam_DefaultsToProduction(t *testing.T) {
 	// behaviourally: a mis-wired one would short HasSession or return true on a
 	// pid mismatch.
 	const selfPID = 4242
-	fc := newScriptedCommander(t,
-		returns("", "has-session"),
-		returns(fmt.Sprintf("%d\n", selfPID), "list-panes"),
-	).allowingUnmatched("", nil)
+	fc := commandertest.New(t,
+		commandertest.Returns("", "has-session"),
+		commandertest.Returns(fmt.Sprintf("%d\n", selfPID), "list-panes"),
+	).AllowingUnmatched("", nil)
 	client := tmux.NewClient(fc)
 
 	if !saverMembershipProbe(client, selfPID) {

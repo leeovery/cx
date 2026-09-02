@@ -5,15 +5,16 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/leeovery/portal/internal/commandertest"
 	"github.com/leeovery/portal/internal/tmux"
 )
 
 func TestShowEnvironment_ErrNoSuchSession(t *testing.T) {
 	t.Run("it returns an error matching ErrNoSuchSession when stderr contains 'no such session'", func(t *testing.T) {
-		mock := &MockCommander{Err: &tmux.CommandError{
+		mock := commandertest.Quiet(commandertest.Fails(&tmux.CommandError{
 			Stderr: "no such session: missing",
 			Err:    errors.New("exit status 1"),
-		}}
+		}))
 		client := tmux.NewClient(mock)
 
 		_, err := client.ShowEnvironment("missing")
@@ -27,10 +28,10 @@ func TestShowEnvironment_ErrNoSuchSession(t *testing.T) {
 	})
 
 	t.Run("it does not match ErrNoSuchSession when stderr is empty", func(t *testing.T) {
-		mock := &MockCommander{Err: &tmux.CommandError{
+		mock := commandertest.Quiet(commandertest.Fails(&tmux.CommandError{
 			Stderr: "",
 			Err:    errors.New("exit status 1"),
-		}}
+		}))
 		client := tmux.NewClient(mock)
 
 		_, err := client.ShowEnvironment("missing")
@@ -44,7 +45,7 @@ func TestShowEnvironment_ErrNoSuchSession(t *testing.T) {
 	})
 
 	t.Run("it does not match ErrNoSuchSession for a non-CommandError exec failure", func(t *testing.T) {
-		mock := &MockCommander{Err: fmt.Errorf("exec lookup failed")}
+		mock := commandertest.Quiet(commandertest.Fails(fmt.Errorf("exec lookup failed")))
 		client := tmux.NewClient(mock)
 
 		_, err := client.ShowEnvironment("missing")
@@ -62,7 +63,7 @@ func TestShowEnvironment_ErrNoSuchSession(t *testing.T) {
 			Stderr: "no such session: missing",
 			Err:    errors.New("exit status 1"),
 		}
-		mock := &MockCommander{Err: cmdErr}
+		mock := commandertest.Quiet(commandertest.Fails(cmdErr))
 		client := tmux.NewClient(mock)
 
 		_, err := client.ShowEnvironment("missing")
@@ -80,10 +81,10 @@ func TestShowEnvironment_ErrNoSuchSession(t *testing.T) {
 	})
 
 	t.Run("it does not match ErrNoSuchSession for mixed-case 'No such session'", func(t *testing.T) {
-		mock := &MockCommander{Err: &tmux.CommandError{
+		mock := commandertest.Quiet(commandertest.Fails(&tmux.CommandError{
 			Stderr: "No such session: missing",
 			Err:    errors.New("exit status 1"),
-		}}
+		}))
 		client := tmux.NewClient(mock)
 
 		_, err := client.ShowEnvironment("missing")
@@ -97,10 +98,10 @@ func TestShowEnvironment_ErrNoSuchSession(t *testing.T) {
 	})
 
 	t.Run("it does not match ErrNoSuchSession for unrelated non-zero exits", func(t *testing.T) {
-		mock := &MockCommander{Err: &tmux.CommandError{
+		mock := commandertest.Quiet(commandertest.Fails(&tmux.CommandError{
 			Stderr: "connection refused",
 			Err:    errors.New("exit status 1"),
-		}}
+		}))
 		client := tmux.NewClient(mock)
 
 		_, err := client.ShowEnvironment("missing")

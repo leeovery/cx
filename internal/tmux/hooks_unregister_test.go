@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/portal/internal/commandertest"
 	"github.com/leeovery/portal/internal/tmux"
 )
 
@@ -30,7 +31,7 @@ func unsetHookCalls(calls [][]string) []string {
 func TestUnregisterPortalHooks(t *testing.T) {
 	t.Run("removes a single Portal entry from an otherwise-empty array", func(t *testing.T) {
 		raw := `session-created[0] => "run-shell \"command -v portal >/dev/null 2>&1 && portal state notify\""` + "\n"
-		mock := &MockCommander{RunFunc: dispatchUnregisterHooks(t, raw, nil)}
+		mock := commandertest.FromFunc(dispatchUnregisterHooks(t, raw, nil))
 		client := tmux.NewClient(mock)
 
 		err := tmux.UnregisterPortalHooks(client)
@@ -38,7 +39,7 @@ func TestUnregisterPortalHooks(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		got := unsetHookCalls(mock.Calls)
+		got := unsetHookCalls(mock.Calls())
 		want := []string{"session-created[0]"}
 		if len(got) != len(want) {
 			t.Fatalf("set-hook -gu calls = %v, want %v", got, want)
@@ -55,7 +56,7 @@ func TestUnregisterPortalHooks(t *testing.T) {
 			"session-created[1] run-shell 'command -v portal >/dev/null 2>&1 && portal state notify'\n" +
 			"session-created[2] run-shell 'user custom hook'\n" +
 			"session-created[3] run-shell 'command -v portal >/dev/null 2>&1 && portal state notify'\n"
-		mock := &MockCommander{RunFunc: dispatchUnregisterHooks(t, raw, nil)}
+		mock := commandertest.FromFunc(dispatchUnregisterHooks(t, raw, nil))
 		client := tmux.NewClient(mock)
 
 		err := tmux.UnregisterPortalHooks(client)
@@ -63,7 +64,7 @@ func TestUnregisterPortalHooks(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		got := unsetHookCalls(mock.Calls)
+		got := unsetHookCalls(mock.Calls())
 		want := []string{"session-created[3]", "session-created[1]"}
 		if len(got) != len(want) {
 			t.Fatalf("set-hook -gu calls = %v, want %v", got, want)
@@ -84,7 +85,7 @@ func TestUnregisterPortalHooks(t *testing.T) {
 		raw := "session-closed[0] run-shell 'command -v portal >/dev/null 2>&1 && portal state notify'\n" +
 			"session-closed[2] run-shell 'command -v portal >/dev/null 2>&1 && portal state notify'\n" +
 			"session-closed[4] run-shell 'command -v portal >/dev/null 2>&1 && portal state notify'\n"
-		mock := &MockCommander{RunFunc: dispatchUnregisterHooks(t, raw, nil)}
+		mock := commandertest.FromFunc(dispatchUnregisterHooks(t, raw, nil))
 		client := tmux.NewClient(mock)
 
 		err := tmux.UnregisterPortalHooks(client)
@@ -92,7 +93,7 @@ func TestUnregisterPortalHooks(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		got := unsetHookCalls(mock.Calls)
+		got := unsetHookCalls(mock.Calls())
 		want := []string{"session-closed[4]", "session-closed[2]", "session-closed[0]"}
 		if len(got) != len(want) {
 			t.Fatalf("set-hook -gu calls = %v, want %v", got, want)
@@ -107,7 +108,7 @@ func TestUnregisterPortalHooks(t *testing.T) {
 	t.Run("removes both Portal entries on session-renamed (notify and migrate-rename)", func(t *testing.T) {
 		raw := "session-renamed[0] run-shell 'command -v portal >/dev/null 2>&1 && portal state notify'\n" +
 			"session-renamed[1] run-shell 'command -v portal >/dev/null 2>&1 && portal state migrate-rename old new'\n"
-		mock := &MockCommander{RunFunc: dispatchUnregisterHooks(t, raw, nil)}
+		mock := commandertest.FromFunc(dispatchUnregisterHooks(t, raw, nil))
 		client := tmux.NewClient(mock)
 
 		err := tmux.UnregisterPortalHooks(client)
@@ -115,7 +116,7 @@ func TestUnregisterPortalHooks(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		got := unsetHookCalls(mock.Calls)
+		got := unsetHookCalls(mock.Calls())
 		want := []string{"session-renamed[1]", "session-renamed[0]"}
 		if len(got) != len(want) {
 			t.Fatalf("set-hook -gu calls = %v, want %v", got, want)
@@ -130,7 +131,7 @@ func TestUnregisterPortalHooks(t *testing.T) {
 	t.Run("is a no-op when no Portal entries are present", func(t *testing.T) {
 		raw := "session-created[0] run-shell 'tmux-resurrect save'\n" +
 			"session-closed[0] run-shell 'user-defined notify'\n"
-		mock := &MockCommander{RunFunc: dispatchUnregisterHooks(t, raw, nil)}
+		mock := commandertest.FromFunc(dispatchUnregisterHooks(t, raw, nil))
 		client := tmux.NewClient(mock)
 
 		err := tmux.UnregisterPortalHooks(client)
@@ -138,7 +139,7 @@ func TestUnregisterPortalHooks(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if got := unsetHookCalls(mock.Calls); len(got) != 0 {
+		if got := unsetHookCalls(mock.Calls()); len(got) != 0 {
 			t.Errorf("expected 0 set-hook -gu calls, got %d: %v", len(got), got)
 		}
 	})
@@ -146,7 +147,7 @@ func TestUnregisterPortalHooks(t *testing.T) {
 	t.Run("ignores matching substrings on events outside Portal's event list", func(t *testing.T) {
 		raw := "window-renamed[0] run-shell 'command -v portal >/dev/null 2>&1 && portal state notify'\n" +
 			"after-select-pane[0] run-shell 'command -v portal >/dev/null 2>&1 && portal state migrate-rename a b'\n"
-		mock := &MockCommander{RunFunc: dispatchUnregisterHooks(t, raw, nil)}
+		mock := commandertest.FromFunc(dispatchUnregisterHooks(t, raw, nil))
 		client := tmux.NewClient(mock)
 
 		err := tmux.UnregisterPortalHooks(client)
@@ -154,16 +155,14 @@ func TestUnregisterPortalHooks(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if got := unsetHookCalls(mock.Calls); len(got) != 0 {
+		if got := unsetHookCalls(mock.Calls()); len(got) != 0 {
 			t.Errorf("expected 0 set-hook -gu calls (events outside portalEvents), got %d: %v", len(got), got)
 		}
 	})
 
 	t.Run("returns the aggregate error and removes nothing when every per-event read fails", func(t *testing.T) {
 		sentinel := errors.New("tmux exec failed")
-		mock := &MockCommander{
-			RunFunc: perEventDispatchWithFaults(t, "", nil, readErrForAllManagedEvents(sentinel), nil),
-		}
+		mock := commandertest.FromFunc(perEventDispatchWithFaults(t, "", nil, readErrForAllManagedEvents(sentinel), nil))
 		client := tmux.NewClient(mock)
 
 		err := tmux.UnregisterPortalHooks(client)
@@ -177,7 +176,7 @@ func TestUnregisterPortalHooks(t *testing.T) {
 		if !strings.Contains(err.Error(), "show-hooks failed") {
 			t.Errorf("error %q does not contain expected wrap message %q", err.Error(), "show-hooks failed")
 		}
-		if got := unsetHookCalls(mock.Calls); len(got) != 0 {
+		if got := unsetHookCalls(mock.Calls()); len(got) != 0 {
 			t.Errorf("expected 0 removals when every read fails, got %d: %v", len(got), got)
 		}
 	})
@@ -186,9 +185,7 @@ func TestUnregisterPortalHooks(t *testing.T) {
 		sentinel := errors.New("transient show-hooks failure")
 		raw := "session-created[0] run-shell 'command -v portal >/dev/null 2>&1 && portal state notify'\n" +
 			"pane-focus-out[0] run-shell 'command -v portal >/dev/null 2>&1 && portal state notify'\n"
-		mock := &MockCommander{
-			RunFunc: perEventDispatchWithFaults(t, raw, nil, map[string]error{"pane-focus-out": sentinel}, nil),
-		}
+		mock := commandertest.FromFunc(perEventDispatchWithFaults(t, raw, nil, map[string]error{"pane-focus-out": sentinel}, nil))
 		client := tmux.NewClient(mock)
 
 		err := tmux.UnregisterPortalHooks(client)
@@ -202,7 +199,7 @@ func TestUnregisterPortalHooks(t *testing.T) {
 		if !strings.Contains(err.Error(), "show-hooks failed") {
 			t.Errorf("error %q does not contain expected wrap message %q", err.Error(), "show-hooks failed")
 		}
-		got := unsetHookCalls(mock.Calls)
+		got := unsetHookCalls(mock.Calls())
 		want := []string{"session-created[0]"}
 		if len(got) != len(want) {
 			t.Fatalf("set-hook -gu calls = %v, want %v (readable event still torn down)", got, want)
@@ -221,7 +218,7 @@ func TestUnregisterPortalHooks(t *testing.T) {
 		failures := map[string]error{
 			"session-created[1]": errors.New("transient tmux failure"),
 		}
-		mock := &MockCommander{RunFunc: dispatchUnregisterHooks(t, raw, failures)}
+		mock := commandertest.FromFunc(dispatchUnregisterHooks(t, raw, failures))
 		client := tmux.NewClient(mock)
 
 		err := tmux.UnregisterPortalHooks(client)
@@ -229,7 +226,7 @@ func TestUnregisterPortalHooks(t *testing.T) {
 		if err == nil {
 			t.Fatal("expected aggregate error, got nil")
 		}
-		got := unsetHookCalls(mock.Calls)
+		got := unsetHookCalls(mock.Calls())
 		want := []string{"session-created[2]", "session-created[1]", "session-created[0]"}
 		if len(got) != len(want) {
 			t.Fatalf("set-hook -gu calls = %v, want %v (every removal attempted)", got, want)
@@ -250,7 +247,7 @@ func TestUnregisterPortalHooks(t *testing.T) {
 			"session-created[0]": sentinelA,
 			"client-attached[2]": sentinelB,
 		}
-		mock := &MockCommander{RunFunc: dispatchUnregisterHooks(t, raw, failures)}
+		mock := commandertest.FromFunc(dispatchUnregisterHooks(t, raw, failures))
 		client := tmux.NewClient(mock)
 
 		err := tmux.UnregisterPortalHooks(client)
@@ -294,22 +291,22 @@ func TestUnregisterPortalHooks(t *testing.T) {
 			t.Fatalf("unexpected command: %v", args)
 			return "", nil
 		}
-		mock := &MockCommander{RunFunc: runFunc}
+		mock := commandertest.FromFunc(runFunc)
 		client := tmux.NewClient(mock)
 
 		if err := tmux.UnregisterPortalHooks(client); err != nil {
 			t.Fatalf("first run: unexpected error: %v", err)
 		}
-		firstRunRemovals := len(unsetHookCalls(mock.Calls))
+		firstRunRemovals := len(unsetHookCalls(mock.Calls()))
 		if firstRunRemovals != 1 {
 			t.Fatalf("first run set-hook -gu count = %d, want 1", firstRunRemovals)
 		}
 
-		mock.Calls = nil
+		mock.ResetCalls()
 		if err := tmux.UnregisterPortalHooks(client); err != nil {
 			t.Fatalf("second run: unexpected error: %v", err)
 		}
-		if got := unsetHookCalls(mock.Calls); len(got) != 0 {
+		if got := unsetHookCalls(mock.Calls()); len(got) != 0 {
 			t.Errorf("second run produced %d removals, want 0 (idempotent): %v", len(got), got)
 		}
 	})
@@ -317,7 +314,7 @@ func TestUnregisterPortalHooks(t *testing.T) {
 	t.Run("does not match user entries that mention 'portal' but not Portal commands", func(t *testing.T) {
 		raw := "session-created[0] run-shell 'echo my portal is open'\n" +
 			"session-closed[0] run-shell 'echo migrating my portal'\n"
-		mock := &MockCommander{RunFunc: dispatchUnregisterHooks(t, raw, nil)}
+		mock := commandertest.FromFunc(dispatchUnregisterHooks(t, raw, nil))
 		client := tmux.NewClient(mock)
 
 		err := tmux.UnregisterPortalHooks(client)
@@ -325,7 +322,7 @@ func TestUnregisterPortalHooks(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if got := unsetHookCalls(mock.Calls); len(got) != 0 {
+		if got := unsetHookCalls(mock.Calls()); len(got) != 0 {
 			t.Errorf("expected 0 set-hook -gu calls (no Portal command substrings present), got %d: %v",
 				len(got), got)
 		}
@@ -336,14 +333,14 @@ func TestUnregisterPortalHooks(t *testing.T) {
 			"client-attached[1] run-shell 'command -v portal >/dev/null 2>&1 && portal state signal-hydrate #{session_name}'\n" +
 			"session-renamed[0] run-shell 'command -v portal >/dev/null 2>&1 && portal state notify'\n" +
 			"session-renamed[1] run-shell 'command -v portal >/dev/null 2>&1 && portal state migrate-rename a b'\n"
-		mock := &MockCommander{RunFunc: dispatchUnregisterHooks(t, raw, nil)}
+		mock := commandertest.FromFunc(dispatchUnregisterHooks(t, raw, nil))
 		client := tmux.NewClient(mock)
 
 		if err := tmux.UnregisterPortalHooks(client); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		got := unsetHookCalls(mock.Calls)
+		got := unsetHookCalls(mock.Calls())
 		want := []string{
 			"session-created[0]",
 			"session-renamed[1]",

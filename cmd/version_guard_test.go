@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/portal/internal/commandertest"
 	"github.com/leeovery/portal/internal/tmux"
 	"github.com/spf13/cobra"
 )
@@ -142,7 +143,7 @@ func TestVersionGuard_NotInvokedForExemptCommands(t *testing.T) {
 
 			// uninstall builds a tmux client in its real body.
 			installUninstallDeps(t, &UninstallDeps{
-				Client:     tmux.NewClient(quietCommander()),
+				Client:     tmux.NewClient(commandertest.Quiet()),
 				Unregister: func(*tmux.Client) error { return nil },
 			})
 

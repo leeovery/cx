@@ -5,15 +5,14 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/leeovery/portal/internal/commandertest"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/tmux"
 )
 
 func TestUnregisterPortalHooks_ShowHooksFailureEmitsCanonicalWarn(t *testing.T) {
 	sentinel := errors.New("tmux show-hooks failure (teardown)")
-	mock := &MockCommander{
-		RunFunc: perEventDispatchWithFaults(t, "", nil, readErrForAllManagedEvents(sentinel), nil),
-	}
+	mock := commandertest.FromFunc(perEventDispatchWithFaults(t, "", nil, readErrForAllManagedEvents(sentinel), nil))
 	client := tmux.NewClient(mock)
 
 	sink := &logtest.Sink{}

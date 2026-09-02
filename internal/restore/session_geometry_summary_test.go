@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/portal/internal/commandertest"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/restore"
 	"github.com/leeovery/portal/internal/tmux"
@@ -29,7 +30,7 @@ func geometrySummaryLine(t *testing.T, sink *logtest.Sink) string {
 }
 
 func TestApplyWindowGeometry_EmitsGeometryCompleteSummaryOnCleanReplay(t *testing.T) {
-	mock := &mockCommander{}
+	mock := commandertest.Quiet()
 	client := tmux.NewClient(mock)
 	logger, sink := logtest.NewCaptureLogger(t)
 	r := &restore.SessionRestorer{Client: client, Logger: logger}
@@ -57,7 +58,7 @@ func TestApplyWindowGeometry_EmitsGeometryCompleteSummaryOnCleanReplay(t *testin
 }
 
 func TestApplyWindowGeometry_SummaryPanesEqualsLivePaneCount(t *testing.T) {
-	mock := &mockCommander{}
+	mock := commandertest.Quiet()
 	client := tmux.NewClient(mock)
 	logger, sink := logtest.NewCaptureLogger(t)
 	r := &restore.SessionRestorer{Client: client, Logger: logger}
@@ -76,7 +77,7 @@ func TestApplyWindowGeometry_SummaryPanesEqualsLivePaneCount(t *testing.T) {
 }
 
 func TestApplyWindowGeometry_SummaryHasOnlyPanesTookAnomalousAttrs(t *testing.T) {
-	mock := &mockCommander{}
+	mock := commandertest.Quiet()
 	client := tmux.NewClient(mock)
 	logger, sink := logtest.NewCaptureLogger(t)
 	r := &restore.SessionRestorer{Client: client, Logger: logger}
@@ -100,7 +101,7 @@ func TestApplyWindowGeometry_SummaryHasOnlyPanesTookAnomalousAttrs(t *testing.T)
 }
 
 func TestApplyWindowGeometry_EmitsExactlyOneSummaryPerCall(t *testing.T) {
-	mock := &mockCommander{}
+	mock := commandertest.Quiet()
 	client := tmux.NewClient(mock)
 	logger, sink := logtest.NewCaptureLogger(t)
 	r := &restore.SessionRestorer{Client: client, Logger: logger}
@@ -120,14 +121,12 @@ func TestApplyWindowGeometry_EmitsExactlyOneSummaryPerCall(t *testing.T) {
 }
 
 func TestApplyWindowGeometry_SelectLayoutFailureIncrementsAnomalousAndRetainsWarn(t *testing.T) {
-	mock := &mockCommander{
-		RunFunc: func(args ...string) (string, error) {
-			if len(args) >= 4 && args[0] == "select-layout" && args[3] == "broken" {
-				return "", errors.New("layout parse failed")
-			}
-			return "", nil
-		},
-	}
+	mock := commandertest.FromFunc(func(args ...string) (string, error) {
+		if len(args) >= 4 && args[0] == "select-layout" && args[3] == "broken" {
+			return "", errors.New("layout parse failed")
+		}
+		return "", nil
+	})
 	client := tmux.NewClient(mock)
 	logger, sink := logtest.NewCaptureLogger(t)
 	r := &restore.SessionRestorer{Client: client, Logger: logger}
@@ -145,20 +144,18 @@ func TestApplyWindowGeometry_SelectLayoutFailureIncrementsAnomalousAndRetainsWar
 	if !strings.Contains(sink.Body(), "falling back to tiled") {
 		t.Errorf("per-step WARN about saved-layout failure must still fire; body:\n%s", sink.Body())
 	}
-	if findCallTarget(mock.Calls, "select-pane", "=work:0.0") < 0 {
-		t.Errorf("expected select-pane to still run after layout failure; calls: %v", mock.Calls)
+	if findCallTarget(mock.Calls(), "select-pane", "=work:0.0") < 0 {
+		t.Errorf("expected select-pane to still run after layout failure; calls: %v", mock.Calls())
 	}
 }
 
 func TestApplyWindowGeometry_DoubleLayoutFailureIsOneAnomalous(t *testing.T) {
-	mock := &mockCommander{
-		RunFunc: func(args ...string) (string, error) {
-			if len(args) > 0 && args[0] == "select-layout" {
-				return "", errors.New("layout failed")
-			}
-			return "", nil
-		},
-	}
+	mock := commandertest.FromFunc(func(args ...string) (string, error) {
+		if len(args) > 0 && args[0] == "select-layout" {
+			return "", errors.New("layout failed")
+		}
+		return "", nil
+	})
 	client := tmux.NewClient(mock)
 	logger, sink := logtest.NewCaptureLogger(t)
 	r := &restore.SessionRestorer{Client: client, Logger: logger}
@@ -183,14 +180,12 @@ func TestApplyWindowGeometry_DoubleLayoutFailureIsOneAnomalous(t *testing.T) {
 }
 
 func TestApplyWindowGeometry_SelectPaneFailureIncrementsAnomalous(t *testing.T) {
-	mock := &mockCommander{
-		RunFunc: func(args ...string) (string, error) {
-			if len(args) > 0 && args[0] == "select-pane" {
-				return "", errors.New("select-pane failed")
-			}
-			return "", nil
-		},
-	}
+	mock := commandertest.FromFunc(func(args ...string) (string, error) {
+		if len(args) > 0 && args[0] == "select-pane" {
+			return "", errors.New("select-pane failed")
+		}
+		return "", nil
+	})
 	client := tmux.NewClient(mock)
 	logger, sink := logtest.NewCaptureLogger(t)
 	r := &restore.SessionRestorer{Client: client, Logger: logger}
@@ -211,14 +206,12 @@ func TestApplyWindowGeometry_SelectPaneFailureIncrementsAnomalous(t *testing.T) 
 }
 
 func TestApplyWindowGeometry_ZoomFailureIncrementsAnomalous(t *testing.T) {
-	mock := &mockCommander{
-		RunFunc: func(args ...string) (string, error) {
-			if len(args) >= 2 && args[0] == "resize-pane" && args[1] == "-Z" {
-				return "", errors.New("resize-pane -Z failed")
-			}
-			return "", nil
-		},
-	}
+	mock := commandertest.FromFunc(func(args ...string) (string, error) {
+		if len(args) >= 2 && args[0] == "resize-pane" && args[1] == "-Z" {
+			return "", errors.New("resize-pane -Z failed")
+		}
+		return "", nil
+	})
 	client := tmux.NewClient(mock)
 	logger, sink := logtest.NewCaptureLogger(t)
 	r := &restore.SessionRestorer{Client: client, Logger: logger}
@@ -239,7 +232,7 @@ func TestApplyWindowGeometry_ZoomFailureIncrementsAnomalous(t *testing.T) {
 }
 
 func TestApplyWindowGeometry_EmptySavedWindowGroupSkippedNotAnomalous(t *testing.T) {
-	mock := &mockCommander{}
+	mock := commandertest.Quiet()
 	client := tmux.NewClient(mock)
 	logger, sink := logtest.NewCaptureLogger(t)
 	r := &restore.SessionRestorer{Client: client, Logger: logger}
@@ -259,14 +252,14 @@ func TestApplyWindowGeometry_EmptySavedWindowGroupSkippedNotAnomalous(t *testing
 	if !strings.Contains(line, "panes=1") {
 		t.Errorf("summary %q: panes must equal len(livePanes)=1", line)
 	}
-	if findSelectLayoutTarget(mock.Calls, "work:1", "L1") >= 0 {
-		t.Errorf("did not expect select-layout for empty-group window 1; calls: %v", mock.Calls)
+	if findSelectLayoutTarget(mock.Calls(), "work:1", "L1") >= 0 {
+		t.Errorf("did not expect select-layout for empty-group window 1; calls: %v", mock.Calls())
 	}
-	if findCallTarget(mock.Calls, "select-pane", "=work:1.0") >= 0 {
-		t.Errorf("did not expect select-pane for empty-group window 1; calls: %v", mock.Calls)
+	if findCallTarget(mock.Calls(), "select-pane", "=work:1.0") >= 0 {
+		t.Errorf("did not expect select-pane for empty-group window 1; calls: %v", mock.Calls())
 	}
-	if findResizePaneZoom(mock.Calls, "=work:1.0") >= 0 {
-		t.Errorf("did not expect resize-pane -Z for empty-group window 1; calls: %v", mock.Calls)
+	if findResizePaneZoom(mock.Calls(), "=work:1.0") >= 0 {
+		t.Errorf("did not expect resize-pane -Z for empty-group window 1; calls: %v", mock.Calls())
 	}
 }
 

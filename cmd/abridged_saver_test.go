@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/leeovery/portal/cmd/bootstrap"
+	"github.com/leeovery/portal/internal/commandertest"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/tmux"
 )
@@ -74,7 +75,7 @@ func TestEnsureSaverLiveness_NoOpWhenSaverPresentAndAlive(t *testing.T) {
 
 	// Anything beyond the presence probe fails the test: the alive saver's
 	// whole contract is that no other tmux call is made.
-	cmder := newScriptedCommander(t, when(panePIDProbe, "12345\n", nil))
+	cmder := commandertest.New(t, commandertest.When(panePIDProbe, "12345\n", nil))
 
 	ensureSaverLiveness(tmux.NewClient(cmder), t.TempDir())
 
@@ -95,15 +96,15 @@ func TestEnsureSaverLiveness_RevivesViaBootstrapPortalSaverWhenAbsent(t *testing
 	resetBootstrapWarnings(t)
 	stubSaverAliveCheck(t, false)
 
-	cmder := newScriptedCommander(t,
-		when(panePIDProbe, "", noSuchSessionErr()),
-		returns("%1\n", "list-panes"),                          // SaverPaneID (#{pane_id}), best-effort
-		fails(errors.New("can't find session"), "has-session"), // absent -> create branch
-		returns("", "new-session"),                             // createPortalSaverWithRetry succeeds
-		returns("", "set-option"),
+	cmder := commandertest.New(t,
+		commandertest.When(panePIDProbe, "", noSuchSessionErr()),
+		commandertest.Returns("%1\n", "list-panes"),                          // SaverPaneID (#{pane_id}), best-effort
+		commandertest.Fails(errors.New("can't find session"), "has-session"), // absent -> create branch
+		commandertest.Returns("", "new-session"),                             // createPortalSaverWithRetry succeeds
+		commandertest.Returns("", "set-option"),
 		// Failing respawn-pane returns before BootstrapPortalSaver's
 		// daemon-readiness barrier, which package cmd has no seam to reach.
-		fails(errors.New("respawn failed"), "respawn-pane"),
+		commandertest.Fails(errors.New("respawn failed"), "respawn-pane"),
 	)
 
 	ensureSaverLiveness(tmux.NewClient(cmder), t.TempDir())
@@ -117,14 +118,14 @@ func TestEnsureSaverLiveness_TreatsProbeTransientErrorAsAbsentAndRevives(t *test
 	resetBootstrapWarnings(t)
 	stubSaverAliveCheck(t, false)
 
-	cmder := newScriptedCommander(t,
+	cmder := commandertest.New(t,
 		// Non-sentinel transient: parseable-looking but not a base-10 pid.
-		when(panePIDProbe, "not-a-pid\n", nil),
-		returns("%1\n", "list-panes"),
-		fails(errors.New("can't find session"), "has-session"),
-		returns("", "new-session"),
-		returns("", "set-option"),
-		fails(errors.New("respawn failed"), "respawn-pane"),
+		commandertest.When(panePIDProbe, "not-a-pid\n", nil),
+		commandertest.Returns("%1\n", "list-panes"),
+		commandertest.Fails(errors.New("can't find session"), "has-session"),
+		commandertest.Returns("", "new-session"),
+		commandertest.Returns("", "set-option"),
+		commandertest.Fails(errors.New("respawn failed"), "respawn-pane"),
 	)
 
 	ensureSaverLiveness(tmux.NewClient(cmder), t.TempDir())
@@ -182,7 +183,7 @@ func TestEnsureSaverLiveness_LogsNoWarnWhenSaverPresent(t *testing.T) {
 
 	// Anything beyond the presence probe fails the test: the alive saver's
 	// whole contract is that no other tmux call is made.
-	cmder := newScriptedCommander(t, when(panePIDProbe, "12345\n", nil))
+	cmder := commandertest.New(t, commandertest.When(panePIDProbe, "12345\n", nil))
 
 	ensureSaverLiveness(tmux.NewClient(cmder), t.TempDir())
 
@@ -198,7 +199,7 @@ func TestEnsureSaverLiveness_NeverInvokesVersionGate(t *testing.T) {
 	resetBootstrapWarnings(t)
 
 	// present + alive -> no revive path at all; any other argv fails the test.
-	cmder := newScriptedCommander(t, when(panePIDProbe, "12345\n", nil))
+	cmder := commandertest.New(t, commandertest.When(panePIDProbe, "12345\n", nil))
 
 	ensureSaverLiveness(tmux.NewClient(cmder), t.TempDir())
 

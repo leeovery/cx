@@ -4,6 +4,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/leeovery/portal/internal/commandertest"
 	"github.com/leeovery/portal/internal/tmux"
 )
 
@@ -101,13 +102,13 @@ func targetArgOf(t *testing.T, call []string) string {
 func TestSessionTargetsAreComposedExactly(t *testing.T) {
 	for _, route := range perSessionRoutes {
 		t.Run(route.name, func(t *testing.T) {
-			mock := &MockCommander{}
+			mock := commandertest.Quiet()
 			route.invoke(tmux.NewClient(mock))
 
-			if len(mock.Calls) != 1 {
-				t.Fatalf("composed %d tmux calls, want exactly 1: %q", len(mock.Calls), mock.Calls)
+			if len(mock.Calls()) != 1 {
+				t.Fatalf("composed %d tmux calls, want exactly 1: %q", len(mock.Calls()), mock.Calls())
 			}
-			call := mock.Calls[0]
+			call := mock.Calls()[0]
 			if call[0] != route.command {
 				t.Errorf("ran tmux %q, want %q", call[0], route.command)
 			}

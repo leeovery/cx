@@ -4,6 +4,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/leeovery/portal/internal/commandertest"
 	"github.com/leeovery/portal/internal/restore"
 	"github.com/leeovery/portal/internal/tmux"
 )
@@ -13,7 +14,7 @@ import (
 // a create that produced no session would put every split and window into a
 // live stranger whose name starts the same way.
 func TestSessionRestorer_SkeletonTargetsAreExactSessions(t *testing.T) {
-	mock := &mockCommander{RunFunc: restoreRunFunc("0:0\n0:1\n1:0")}
+	mock := commandertest.FromFunc(restoreRunFunc("0:0\n0:1\n1:0"))
 	r := &restore.SessionRestorer{Client: tmux.NewClient(mock), StateDir: t.TempDir()}
 
 	sess := newSession("work", nil,
@@ -32,7 +33,7 @@ func TestSessionRestorer_SkeletonTargetsAreExactSessions(t *testing.T) {
 
 	want := tmux.ExactCoordTarget("work")
 	for _, cmd := range []string{"split-window", "new-window"} {
-		for _, call := range callsNamed(mock.Calls, cmd) {
+		for _, call := range callsNamed(mock.Calls(), cmd) {
 			flag := slices.Index(call, "-t")
 			if flag < 0 || flag+1 >= len(call) {
 				t.Fatalf("%v carries no -t target", call)
@@ -43,10 +44,10 @@ func TestSessionRestorer_SkeletonTargetsAreExactSessions(t *testing.T) {
 		}
 	}
 
-	if got := len(callsNamed(mock.Calls, "split-window")); got != 1 {
+	if got := len(callsNamed(mock.Calls(), "split-window")); got != 1 {
 		t.Errorf("split-window calls = %d, want 1", got)
 	}
-	if got := len(callsNamed(mock.Calls, "new-window")); got != 1 {
+	if got := len(callsNamed(mock.Calls(), "new-window")); got != 1 {
 		t.Errorf("new-window calls = %d, want 1", got)
 	}
 }

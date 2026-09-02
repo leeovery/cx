@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/portal/internal/commandertest"
 	"github.com/leeovery/portal/internal/tmux"
 )
 
@@ -86,7 +87,7 @@ func TestHydrateTimeoutLog_PreservesWarnUnlinkAndMarkerUnset(t *testing.T) {
 	dir := t.TempDir()
 	fifo := makeFIFO(t, dir, "hydrate-pre__0.0.fifo")
 
-	cmder := quietCommander()
+	cmder := commandertest.Quiet()
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
 	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "pre:0.0",
 		OpenFIFO: instantTimeoutOpenFIFO, HandleTimeout: handleHydrateTimeout, Commander: cmder, Logger: logger})
@@ -129,7 +130,7 @@ func TestHydrateTimeoutLog_NilHandleTimeout_NoSignalTimeoutNoExec(t *testing.T) 
 		File:      filepath.Join(dir, "sb"),
 		HookKey:   "nil:0.0",
 		Stdout:    new(bytes.Buffer),
-		Client:    tmux.NewClient(quietCommander()),
+		Client:    tmux.NewClient(commandertest.Quiet()),
 		Logger:    logger,
 		ExecShell: exec.fn(),
 		OpenFIFO:  instantTimeoutOpenFIFO,

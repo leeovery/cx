@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/leeovery/portal/internal/commandertest"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/tmux"
 )
@@ -47,9 +48,7 @@ func assertShowHooksWarnShape(t *testing.T, rec logtest.Record, wantErr error) {
 
 func TestRegisterPortalHooks_HydrationReadFailureEmitsCanonicalWarn(t *testing.T) {
 	sentinel := errors.New("tmux show-hooks failure (hydration)")
-	mock := &MockCommander{
-		RunFunc: perEventDispatchWithFaults(t, "", nil, readErrForAllManagedEvents(sentinel), nil),
-	}
+	mock := commandertest.FromFunc(perEventDispatchWithFaults(t, "", nil, readErrForAllManagedEvents(sentinel), nil))
 	client := tmux.NewClient(mock)
 
 	sink := &logtest.Sink{}
@@ -62,7 +61,7 @@ func TestRegisterPortalHooks_HydrationReadFailureEmitsCanonicalWarn(t *testing.T
 		t.Errorf("error %v does not wrap sentinel %v", err, sentinel)
 	}
 
-	assertNoSetHookCalls(t, mock.Calls)
+	assertNoSetHookCalls(t, mock.Calls())
 
 	warns := showHooksWarnRecords(sink)
 	if len(warns) == 0 {
@@ -73,8 +72,8 @@ func TestRegisterPortalHooks_HydrationReadFailureEmitsCanonicalWarn(t *testing.T
 
 func TestRegisterPortalHooks_SessionClosedReadFailureEmitsCanonicalWarn(t *testing.T) {
 	sentinel := errors.New("tmux show-hooks failure (session-closed)")
-	mock := &MockCommander{RunFunc: perEventDispatchWithFaults(t, "", nil,
-		map[string]error{"session-closed": sentinel}, nil)}
+	mock := commandertest.FromFunc(perEventDispatchWithFaults(t, "", nil,
+		map[string]error{"session-closed": sentinel}, nil))
 	client := tmux.NewClient(mock)
 
 	sink := &logtest.Sink{}
@@ -93,7 +92,7 @@ func TestRegisterPortalHooks_SessionClosedReadFailureEmitsCanonicalWarn(t *testi
 	}
 	assertShowHooksWarnShape(t, warns[0], sentinel)
 
-	for _, c := range setHookCalls(mock.Calls) {
+	for _, c := range setHookCalls(mock.Calls()) {
 		if c[0] == "session-closed" {
 			t.Errorf("session-closed must not be appended when its read fails: %v", c)
 		}
@@ -106,10 +105,8 @@ func TestShowHooksWarn_ErrorAttrCarriesCommandErrorChain(t *testing.T) {
 		Err:    errors.New("exit status 1"),
 		Args:   []string{"show-hooks", "-g", "session-created"},
 	}
-	mock := &MockCommander{
-		RunFunc: perEventDispatchWithFaults(t, "", nil,
-			map[string]error{"session-created": cmdErr}, nil),
-	}
+	mock := commandertest.FromFunc(perEventDispatchWithFaults(t, "", nil,
+		map[string]error{"session-created": cmdErr}, nil))
 	client := tmux.NewClient(mock)
 
 	sink := &logtest.Sink{}
@@ -137,9 +134,7 @@ func TestShowHooksWarn_ErrorAttrCarriesCommandErrorChain(t *testing.T) {
 
 func TestRegisterPortalHooks_ShowHooksFailureLoggedExactlyOnce(t *testing.T) {
 	sentinel := errors.New("tmux show-hooks fails everywhere")
-	mock := &MockCommander{
-		RunFunc: perEventDispatchWithFaults(t, "", nil, readErrForAllManagedEvents(sentinel), nil),
-	}
+	mock := commandertest.FromFunc(perEventDispatchWithFaults(t, "", nil, readErrForAllManagedEvents(sentinel), nil))
 	client := tmux.NewClient(mock)
 
 	sink := &logtest.Sink{}
@@ -153,7 +148,7 @@ func TestRegisterPortalHooks_ShowHooksFailureLoggedExactlyOnce(t *testing.T) {
 		t.Errorf("aggregate error %v does not wrap sentinel %v", err, sentinel)
 	}
 
-	assertNoSetHookCalls(t, mock.Calls)
+	assertNoSetHookCalls(t, mock.Calls())
 
 	wantSiblingFailures := expectedManagedEventCount
 	warns := showHooksWarnRecords(sink)

@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/portal/internal/commandertest"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
@@ -14,16 +15,14 @@ import (
 
 func TestSaverPaneID_ReturnsTrimmedFirstLine(t *testing.T) {
 	var observed []string
-	mock := &MockCommander{
-		RunFunc: func(args ...string) (string, error) {
-			if args[0] == "list-panes" {
-				observed = append([]string{}, args...)
-				return "%42\n", nil
-			}
-			t.Fatalf("unexpected command: %v", args)
-			return "", nil
-		},
-	}
+	mock := commandertest.FromFunc(func(args ...string) (string, error) {
+		if args[0] == "list-panes" {
+			observed = append([]string{}, args...)
+			return "%42\n", nil
+		}
+		t.Fatalf("unexpected command: %v", args)
+		return "", nil
+	})
 	client := tmux.NewClient(mock)
 
 	got, err := client.SaverPaneID("_portal-saver")
@@ -41,11 +40,9 @@ func TestSaverPaneID_ReturnsTrimmedFirstLine(t *testing.T) {
 }
 
 func TestSaverPaneID_PropagatesError(t *testing.T) {
-	mock := &MockCommander{
-		RunFunc: func(args ...string) (string, error) {
-			return "", errors.New("can't find session: _portal-saver")
-		},
-	}
+	mock := commandertest.FromFunc(func(args ...string) (string, error) {
+		return "", errors.New("can't find session: _portal-saver")
+	})
 	client := tmux.NewClient(mock)
 
 	_, err := client.SaverPaneID("_portal-saver")
@@ -74,7 +71,7 @@ func TestBootstrapPortalSaver_EmitsPlaceholderCreatedWithTmuxPane(t *testing.T) 
 			return "1234\n", nil
 		},
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.BootstrapPortalSaver(client, "/tmp/portal-state"); err != nil {
@@ -110,7 +107,7 @@ func TestBootstrapPortalSaver_EmitsDestroyUnattachedOffOnCreateBranch(t *testing
 			return "1234\n", nil
 		},
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.BootstrapPortalSaver(client, "/tmp/portal-state"); err != nil {
@@ -141,7 +138,7 @@ func TestBootstrapPortalSaver_EmitsDestroyUnattachedOffOnAliveHappyPath_AndNotRe
 			return "5678\n", nil
 		},
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.BootstrapPortalSaver(client, "/tmp/portal-state"); err != nil {
@@ -192,7 +189,7 @@ func TestBootstrapPortalSaver_EmitsRespawnDaemonWithFromToPidAndTmuxPane(t *test
 			return "2222\n", nil
 		},
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.BootstrapPortalSaver(client, "/tmp/portal-state"); err != nil {
@@ -239,7 +236,7 @@ func TestBootstrapPortalSaver_StillEmitsRespawnDaemonBestEffortWhenPanePIDReadFa
 			return "2222\n", nil
 		},
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.BootstrapPortalSaver(client, "/tmp/portal-state"); err != nil {
@@ -343,7 +340,7 @@ func TestKillSaverAndWaitForDaemon_EmitsKillBarrierStartedWhenPriorDaemonAlive(t
 			return "", nil
 		},
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.KillSaverAndWaitForDaemon(client, t.TempDir()); err != nil {
@@ -376,7 +373,7 @@ func TestKillSaverAndWaitForDaemon_NoKillBarrierStartedOnNoPriorPIDShortcut(t *t
 	script := &portalSaverScript{
 		killSession: func(int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.KillSaverAndWaitForDaemon(client, t.TempDir()); err != nil {
@@ -401,7 +398,7 @@ func TestKillSaverAndWaitForDaemon_NoKillBarrierStartedWhenPriorDaemonAlreadyDea
 	script := &portalSaverScript{
 		killSession: func(int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.KillSaverAndWaitForDaemon(client, t.TempDir()); err != nil {
@@ -442,7 +439,7 @@ func TestKillSaverAndWaitForDaemon_EmitsKillBarrierEscalatedAboveDebugBreadcrumb
 	script := &portalSaverScript{
 		killSession: func(int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.KillSaverAndWaitForDaemon(client, t.TempDir()); err != nil {
@@ -516,7 +513,7 @@ func TestKillSaverAndWaitForDaemon_NoKillBarrierEscalatedAndKeepsSingleWarnOnIde
 			script := &portalSaverScript{
 				killSession: func(int) (string, error) { return "", nil },
 			}
-			mock := &MockCommander{RunFunc: script.run(t)}
+			mock := commandertest.FromFunc(script.run(t))
 			client := tmux.NewClient(mock)
 
 			if err := tmux.KillSaverAndWaitForDaemon(client, t.TempDir()); err != nil {
@@ -553,7 +550,7 @@ func TestKillSaverAndWaitForDaemon_EmitsPlaceholderDiedReasonSignalOnKillSession
 	script := &portalSaverScript{
 		killSession: func(int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.KillSaverAndWaitForDaemon(client, t.TempDir()); err != nil {
@@ -599,7 +596,7 @@ func TestKillSaverAndWaitForDaemon_EmitsPlaceholderDiedReasonSignalOnPostSIGKILL
 	script := &portalSaverScript{
 		killSession: func(int) (string, error) { return "", nil },
 	}
-	mock := &MockCommander{RunFunc: script.run(t)}
+	mock := commandertest.FromFunc(script.run(t))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.KillSaverAndWaitForDaemon(client, t.TempDir()); err != nil {
@@ -640,7 +637,7 @@ func TestKillSaverAndWaitForDaemon_PreservesAtMostOneWarnContractAcrossLifecycle
 		script := &portalSaverScript{
 			killSession: func(int) (string, error) { return "", nil },
 		}
-		mock := &MockCommander{RunFunc: script.run(t)}
+		mock := commandertest.FromFunc(script.run(t))
 		client := tmux.NewClient(mock)
 
 		if err := tmux.KillSaverAndWaitForDaemon(client, t.TempDir()); err != nil {

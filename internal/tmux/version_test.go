@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/portal/internal/commandertest"
 	"github.com/leeovery/portal/internal/tmux"
 )
 
@@ -208,7 +209,7 @@ func TestCheckTmuxVersion(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mock := &MockCommander{Output: tt.output, Err: tt.runErr}
+			mock := commandertest.Quiet(commandertest.When(commandertest.Any, tt.output, tt.runErr))
 
 			err := tmux.CheckTmuxVersion(mock)
 
@@ -228,11 +229,11 @@ func TestCheckTmuxVersion(t *testing.T) {
 				}
 			}
 
-			if len(mock.Calls) != 1 {
-				t.Fatalf("expected 1 call, got %d", len(mock.Calls))
+			if len(mock.Calls()) != 1 {
+				t.Fatalf("expected 1 call, got %d", len(mock.Calls()))
 			}
-			if len(mock.Calls[0]) != 1 || mock.Calls[0][0] != "-V" {
-				t.Errorf("called with %v, want [-V]", mock.Calls[0])
+			if len(mock.Calls()[0]) != 1 || mock.Calls()[0][0] != "-V" {
+				t.Errorf("called with %v, want [-V]", mock.Calls()[0])
 			}
 		})
 	}
@@ -241,7 +242,7 @@ func TestCheckTmuxVersion(t *testing.T) {
 func TestCheckTmuxVersion_WrapsCommanderError(t *testing.T) {
 	t.Run("wraps original error so errors.Is works", func(t *testing.T) {
 		sentinel := errors.New("the original cause")
-		mock := &MockCommander{Err: sentinel}
+		mock := commandertest.Quiet(commandertest.Fails(sentinel))
 
 		err := tmux.CheckTmuxVersion(mock)
 		if err == nil {

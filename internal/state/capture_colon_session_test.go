@@ -32,7 +32,7 @@ func TestCaptureStructureUnaddressableSessionName(t *testing.T) {
 					},
 					t: t,
 				}
-				client := tmux.NewClient(mock)
+				client := tmux.NewClient(mock.commander())
 
 				idx, err := state.CaptureStructure(client, nil, nil, logger)
 				if err != nil {

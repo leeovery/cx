@@ -10,6 +10,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/leeovery/portal/cmd/bootstrap"
+	"github.com/leeovery/portal/internal/commandertest"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/theme"
@@ -363,7 +364,7 @@ func TestOpenTUI_FatalBeforeModelConstruction(t *testing.T) {
 		t.Fatal("tmux.InsideTmux() is false after setting TMUX — the no-calls tripwire below would be unarmed")
 	}
 
-	commander := quietCommander()
+	commander := commandertest.Quiet()
 	err := openTUI(cmdWithClient(tmux.NewClient(commander)), "", nil, false)
 
 	if err == nil {

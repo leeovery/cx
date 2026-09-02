@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/leeovery/portal/internal/commandertest"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/restore"
 	"github.com/leeovery/portal/internal/restoretest"
@@ -16,7 +17,7 @@ type progressCall struct {
 	m int
 }
 
-func newProgressOrchestrator(t *testing.T, mock *mockCommander, dir string, calls *[]progressCall) *restore.Orchestrator {
+func newProgressOrchestrator(t *testing.T, mock *commandertest.Scripted, dir string, calls *[]progressCall) *restore.Orchestrator {
 	t.Helper()
 	logger, _ := logtest.NewCaptureLogger(t)
 	o := restoretest.NewFakeExeOrchestrator(t, tmux.NewClient(mock), dir, logger)
@@ -42,7 +43,7 @@ func TestProgress_FiresOncePerSessionWithNAdvancingAgainstFixedM(t *testing.T) {
 	writeValidIndex(t, dir, sessions)
 
 	rf := &orchestratorRunFunc{listSessionsOut: "", listPanesOut: "0:0"}
-	mock := &mockCommander{RunFunc: rf.run}
+	mock := commandertest.FromFunc(rf.run)
 	var calls []progressCall
 	o := newProgressOrchestrator(t, mock, dir, &calls)
 	if _, err := o.Restore(); err != nil {
@@ -78,7 +79,7 @@ func TestProgress_AdvancesNOnLiveSkippedSessionsSoCounterReachesMM(t *testing.T)
 	writeValidIndex(t, dir, sessions)
 
 	rf := &orchestratorRunFunc{listSessionsOut: "live|1|0|", listPanesOut: "0:0"}
-	mock := &mockCommander{RunFunc: rf.run}
+	mock := commandertest.FromFunc(rf.run)
 	var calls []progressCall
 	o := newProgressOrchestrator(t, mock, dir, &calls)
 	if _, err := o.Restore(); err != nil {
@@ -122,7 +123,7 @@ func TestProgress_AdvancesNOnSwallowedPerSessionRestoreFailure(t *testing.T) {
 			},
 		},
 	}
-	mock := &mockCommander{RunFunc: rf.run}
+	mock := commandertest.FromFunc(rf.run)
 	var calls []progressCall
 	o := newProgressOrchestrator(t, mock, dir, &calls)
 	if _, err := o.Restore(); err != nil {
@@ -166,7 +167,7 @@ func TestProgress_FiresZeroCallbacksWhenMIsZero(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
 			tc.setup(t, dir)
-			mock := &mockCommander{RunFunc: defaultRunFunc}
+			mock := commandertest.FromFunc(defaultRunFunc)
 			var calls []progressCall
 			o := newProgressOrchestrator(t, mock, dir, &calls)
 			_, _ = o.Restore()
@@ -193,14 +194,14 @@ func TestProgress_NilCallbackLeavesRestoreOutcomesUnchanged(t *testing.T) {
 	run := func(progress func(n, m int)) [][]string {
 		writeValidIndex(t, dir, sessions)
 		rf := &orchestratorRunFunc{listSessionsOut: "", listPanesOut: "0:0"}
-		mock := &mockCommander{RunFunc: rf.run}
+		mock := commandertest.FromFunc(rf.run)
 		logger, _ := logtest.NewCaptureLogger(t)
 		o := restoretest.NewFakeExeOrchestrator(t, tmux.NewClient(mock), dir, logger)
 		o.Progress = progress
 		if _, err := o.Restore(); err != nil {
 			t.Fatalf("Restore: %v", err)
 		}
-		return mock.Calls
+		return mock.Calls()
 	}
 
 	nilCalls := run(nil)

@@ -5,40 +5,65 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/portal/internal/commandertest"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// serverOptionRecorder is a tmux.Commander standing in for the server's option
-// table: it answers show-option from what set-option wrote, so the bracket's two
-// halves are observed through the same read production takes.
+// serverOptionRecorder stands in for the server's option table over the shared
+// commander fake: it answers show-option from what set-option wrote, so the
+// bracket's two halves are observed through the same read production takes.
 type serverOptionRecorder struct {
+	*commandertest.Scripted
 	options map[string]string
-	calls   []string
 }
 
 func newServerOptionRecorder() *serverOptionRecorder {
-	return &serverOptionRecorder{options: map[string]string{}}
+	r := &serverOptionRecorder{options: map[string]string{}}
+	r.Scripted = commandertest.Quiet(
+		commandertest.Answering(optionArgv(4, "set-option", "-s"), r.setOption),
+		commandertest.Answering(optionArgv(3, "set-option", "-su"), r.unsetOption),
+		commandertest.Answering(optionArgv(3, "show-option", "-sv"), r.showOption),
+	)
+	return r
 }
 
-func (r *serverOptionRecorder) Run(args ...string) (string, error) {
-	r.calls = append(r.calls, strings.Join(args, " "))
-	switch {
-	case len(args) == 4 && args[0] == "set-option" && args[1] == "-s":
-		r.options[args[2]] = args[3]
-	case len(args) == 3 && args[0] == "set-option" && args[1] == "-su":
-		delete(r.options, args[2])
-	case len(args) == 3 && args[0] == "show-option" && args[1] == "-sv":
-		return r.options[args[2]], nil
+// optionArgv matches an option argv of exactly arity arguments beginning with
+// prefix, so the neighbouring forms (-s, -su, -sv) cannot answer for each other.
+func optionArgv(arity int, prefix ...string) commandertest.Matcher {
+	byPrefix := commandertest.ArgvPrefix(prefix...)
+	return func(args []string) bool {
+		return len(args) == arity && byPrefix(args)
 	}
+}
+
+func (r *serverOptionRecorder) setOption(args ...string) (string, error) {
+	r.options[args[2]] = args[3]
 	return "", nil
 }
 
-func (r *serverOptionRecorder) RunRaw(args ...string) (string, error) { return r.Run(args...) }
+func (r *serverOptionRecorder) unsetOption(args ...string) (string, error) {
+	delete(r.options, args[2])
+	return "", nil
+}
+
+func (r *serverOptionRecorder) showOption(args ...string) (string, error) {
+	return r.options[args[2]], nil
+}
 
 // index reports where a call appears in the recording, or -1.
 func (r *serverOptionRecorder) index(call string) int {
-	return slices.Index(r.calls, call)
+	return slices.Index(r.renderedCalls(), call)
+}
+
+// renderedCalls is the recorded argv, one space-joined line per call, which is
+// the form the bracket's assertions name.
+func (r *serverOptionRecorder) renderedCalls() []string {
+	rendered := make([]string, 0, len(r.Calls()))
+	for _, args := range r.Calls() {
+		rendered = append(rendered, strings.Join(args, " "))
+	}
+	return rendered
 }
 
 // The whole point of the fixture is the stand-down window it opens around a
@@ -64,10 +89,10 @@ func TestRestoreWithMarker_BracketsTheRestore(t *testing.T) {
 
 		set, unset := rec.index(setCall), rec.index(unsetCall)
 		if set < 0 {
-			t.Fatalf("%s was never set; calls=%v", state.RestoringMarkerName, rec.calls)
+			t.Fatalf("%s was never set; calls=%v", state.RestoringMarkerName, rec.renderedCalls())
 		}
 		if set > unset {
-			t.Errorf("%s was set after it was unset; calls=%v", state.RestoringMarkerName, rec.calls)
+			t.Errorf("%s was set after it was unset; calls=%v", state.RestoringMarkerName, rec.renderedCalls())
 		}
 	})
 
@@ -81,7 +106,7 @@ func TestRestoreWithMarker_BracketsTheRestore(t *testing.T) {
 		}
 
 		if rec.index(unsetCall) < 0 {
-			t.Fatalf("%s was never unset; calls=%v", state.RestoringMarkerName, rec.calls)
+			t.Fatalf("%s was never unset; calls=%v", state.RestoringMarkerName, rec.renderedCalls())
 		}
 		if val, held := rec.options[state.RestoringMarkerName]; held {
 			t.Errorf("%s = %q after the restore returned; want it gone", state.RestoringMarkerName, val)

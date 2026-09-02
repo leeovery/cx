@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/portal/internal/commandertest"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
 )
@@ -103,8 +104,8 @@ func TestDaemonTick_LogsAnomalousShowEnvironmentFailureUnderComponentDaemon(t *t
 		},
 	}
 
-	wrapped := commanderDelegatingTo(fc,
-		when(showEnvironmentFor("B"), "", errors.New("bravo-boom-sentinel")),
+	wrapped := commandertest.Delegating(fc,
+		commandertest.When(showEnvironmentFor("B"), "", errors.New("bravo-boom-sentinel")),
 	)
 
 	logger, sink := newCaptureLoggerForComponent(t, "daemon")
@@ -151,9 +152,9 @@ func TestDaemonTick_LogsPerSessionWarnAndCommitsEmptyOnAllNaturalChurn(t *testin
 		panesOut: "A|||0|||main|||layout|||0|||1|||0|||/tmp|||1|||zsh|||\n" +
 			"B|||0|||main|||layout|||0|||1|||0|||/tmp|||1|||zsh|||",
 	}
-	wrapped := commanderDelegatingTo(fc,
-		when(showEnvironmentFor("A"), "", noSuchSessionCommandErr("A")),
-		when(showEnvironmentFor("B"), "", noSuchSessionCommandErr("B")),
+	wrapped := commandertest.Delegating(fc,
+		commandertest.When(showEnvironmentFor("A"), "", noSuchSessionCommandErr("A")),
+		commandertest.When(showEnvironmentFor("B"), "", noSuchSessionCommandErr("B")),
 	)
 
 	logger, sink := newCaptureLoggerForComponent(t, "daemon")

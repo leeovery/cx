@@ -7,32 +7,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/portal/internal/commandertest"
 	"github.com/leeovery/portal/internal/tmux"
 )
-
-type MockCommander struct {
-	Output     string
-	Err        error
-	Calls      [][]string
-	RunFunc    func(args ...string) (string, error)
-	RunRawFunc func(args ...string) (string, error)
-}
-
-func (m *MockCommander) Run(args ...string) (string, error) {
-	m.Calls = append(m.Calls, args)
-	if m.RunFunc != nil {
-		return m.RunFunc(args...)
-	}
-	return m.Output, m.Err
-}
-
-func (m *MockCommander) RunRaw(args ...string) (string, error) {
-	m.Calls = append(m.Calls, args)
-	if m.RunRawFunc != nil {
-		return m.RunRawFunc(args...)
-	}
-	return m.Output, m.Err
-}
 
 func TestListSessions(t *testing.T) {
 	tests := []struct {
@@ -94,7 +71,7 @@ func TestListSessions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mock := &MockCommander{Output: tt.output, Err: tt.err}
+			mock := commandertest.Quiet(commandertest.When(commandertest.Any, tt.output, tt.err))
 			client := tmux.NewClient(mock)
 
 			got, err := client.ListSessions()
@@ -154,7 +131,7 @@ func TestListSessionsParsesPortalDir(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mock := &MockCommander{Output: tt.output}
+			mock := commandertest.Quiet(commandertest.Returns(tt.output))
 			client := tmux.NewClient(mock)
 
 			got, err := client.ListSessions()
@@ -172,17 +149,17 @@ func TestListSessionsParsesPortalDir(t *testing.T) {
 }
 
 func TestListSessionsFormatStringIncludesPortalDir(t *testing.T) {
-	mock := &MockCommander{Output: "dev|1|0|"}
+	mock := commandertest.Quiet(commandertest.Returns("dev|1|0|"))
 	client := tmux.NewClient(mock)
 
 	if _, err := client.ListSessions(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if len(mock.Calls) == 0 {
+	if len(mock.Calls()) == 0 {
 		t.Fatal("expected at least one tmux call")
 	}
-	args := strings.Join(mock.Calls[0], " ")
+	args := strings.Join(mock.Calls()[0], " ")
 	if !strings.Contains(args, "#{@portal-dir}") {
 		t.Errorf("list-sessions format string %q does not include #{@portal-dir}", args)
 	}
@@ -218,7 +195,7 @@ func TestListSessionsFiltersUnderscorePrefixed(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mock := &MockCommander{Output: tt.output}
+			mock := commandertest.Quiet(commandertest.Returns(tt.output))
 			client := tmux.NewClient(mock)
 
 			got, err := client.ListSessions()
@@ -250,7 +227,7 @@ func TestListSessionsFiltersUnderscorePrefixed(t *testing.T) {
 
 func TestListSessions_PortalSaverExcludedAtSource(t *testing.T) {
 	rawOutput := fmt.Sprintf("dev|2|0|\n%s|1|0|\nwork|3|1|", tmux.PortalSaverName)
-	mock := &MockCommander{Output: rawOutput}
+	mock := commandertest.Quiet(commandertest.Returns(rawOutput))
 	client := tmux.NewClient(mock)
 
 	got, err := client.ListSessions()
@@ -281,7 +258,7 @@ func TestListSessions_PortalSaverExclusionRefactorPin(t *testing.T) {
 		tmux.PortalSaverName,
 		tmux.PortalBootstrapName,
 	)
-	mock := &MockCommander{Output: rawOutput}
+	mock := commandertest.Quiet(commandertest.Returns(rawOutput))
 	client := tmux.NewClient(mock)
 
 	got, err := client.ListSessions()
@@ -311,7 +288,7 @@ func TestListSessions_PortalSaverExclusionRefactorPin(t *testing.T) {
 
 func TestServerRunning(t *testing.T) {
 	t.Run("returns true when tmux server is running", func(t *testing.T) {
-		mock := &MockCommander{}
+		mock := commandertest.Quiet()
 		client := tmux.NewClient(mock)
 
 		got := client.ServerRunning()
@@ -322,7 +299,7 @@ func TestServerRunning(t *testing.T) {
 	})
 
 	t.Run("returns false when no tmux server is running", func(t *testing.T) {
-		mock := &MockCommander{Err: fmt.Errorf("no server running on /tmp/tmux-501/default")}
+		mock := commandertest.Quiet(commandertest.Fails(fmt.Errorf("no server running on /tmp/tmux-501/default")))
 		client := tmux.NewClient(mock)
 
 		got := client.ServerRunning()
@@ -333,27 +310,27 @@ func TestServerRunning(t *testing.T) {
 	})
 
 	t.Run("calls tmux info to check server status", func(t *testing.T) {
-		mock := &MockCommander{}
+		mock := commandertest.Quiet()
 		client := tmux.NewClient(mock)
 
 		client.ServerRunning()
 
-		if len(mock.Calls) != 1 {
-			t.Fatalf("expected 1 call, got %d", len(mock.Calls))
+		if len(mock.Calls()) != 1 {
+			t.Fatalf("expected 1 call, got %d", len(mock.Calls()))
 		}
 		wantArgs := []string{"info"}
-		if len(mock.Calls[0]) != len(wantArgs) {
-			t.Fatalf("got %d args %v, want %d args %v", len(mock.Calls[0]), mock.Calls[0], len(wantArgs), wantArgs)
+		if len(mock.Calls()[0]) != len(wantArgs) {
+			t.Fatalf("got %d args %v, want %d args %v", len(mock.Calls()[0]), mock.Calls()[0], len(wantArgs), wantArgs)
 		}
-		if mock.Calls[0][0] != "info" {
-			t.Errorf("called with %q, want %q", mock.Calls[0][0], "info")
+		if mock.Calls()[0][0] != "info" {
+			t.Errorf("called with %q, want %q", mock.Calls()[0][0], "info")
 		}
 	})
 }
 
 func TestHasSession(t *testing.T) {
 	t.Run("returns true when session exists", func(t *testing.T) {
-		mock := &MockCommander{}
+		mock := commandertest.Quiet()
 		client := tmux.NewClient(mock)
 
 		got := client.HasSession("my-session")
@@ -362,18 +339,18 @@ func TestHasSession(t *testing.T) {
 			t.Error("HasSession() = false, want true")
 		}
 
-		if len(mock.Calls) != 1 {
-			t.Fatalf("expected 1 call, got %d", len(mock.Calls))
+		if len(mock.Calls()) != 1 {
+			t.Fatalf("expected 1 call, got %d", len(mock.Calls()))
 		}
 		wantArgs := "has-session -t =my-session"
-		gotArgs := strings.Join(mock.Calls[0], " ")
+		gotArgs := strings.Join(mock.Calls()[0], " ")
 		if gotArgs != wantArgs {
 			t.Errorf("called with %q, want %q", gotArgs, wantArgs)
 		}
 	})
 
 	t.Run("returns false when session does not exist", func(t *testing.T) {
-		mock := &MockCommander{Err: fmt.Errorf("exit status 1")}
+		mock := commandertest.Quiet(commandertest.Fails(fmt.Errorf("exit status 1")))
 		client := tmux.NewClient(mock)
 
 		got := client.HasSession("nonexistent")
@@ -384,7 +361,7 @@ func TestHasSession(t *testing.T) {
 	})
 
 	t.Run("returns false when no tmux server running", func(t *testing.T) {
-		mock := &MockCommander{Err: fmt.Errorf("no server running on /tmp/tmux-501/default")}
+		mock := commandertest.Quiet(commandertest.Fails(fmt.Errorf("no server running on /tmp/tmux-501/default")))
 		client := tmux.NewClient(mock)
 
 		got := client.HasSession("any-session")
@@ -396,15 +373,15 @@ func TestHasSession(t *testing.T) {
 }
 
 func TestHasSessionUsesExactMatchPrefix(t *testing.T) {
-	mock := &MockCommander{}
+	mock := commandertest.Quiet()
 	client := tmux.NewClient(mock)
 
 	_ = client.HasSession("foo")
 
-	if len(mock.Calls) != 1 {
-		t.Fatalf("expected 1 call, got %d", len(mock.Calls))
+	if len(mock.Calls()) != 1 {
+		t.Fatalf("expected 1 call, got %d", len(mock.Calls()))
 	}
-	got := mock.Calls[0]
+	got := mock.Calls()[0]
 	want := []string{"has-session", "-t", "=foo"}
 	if len(got) != len(want) {
 		t.Fatalf("got %d args %v, want %d args %v", len(got), got, len(want), want)
@@ -419,23 +396,21 @@ func TestHasSessionUsesExactMatchPrefix(t *testing.T) {
 	}
 
 	t.Run("killed foo with live foo-2 reports absent", func(t *testing.T) {
-		exactMock := &MockCommander{
-			RunFunc: func(args ...string) (string, error) {
-				if len(args) >= 3 && args[0] == "has-session" && args[1] == "-t" {
-					switch args[2] {
-					case "=foo":
-						return "", fmt.Errorf("can't find session: foo")
-					case "=foo-2":
-						return "", nil
-					case "foo":
-						// Reaching this arm means the "=" was dropped: real
-						// tmux would prefix-match the live "foo-2" here.
-						return "", nil
-					}
+		exactMock := commandertest.FromFunc(func(args ...string) (string, error) {
+			if len(args) >= 3 && args[0] == "has-session" && args[1] == "-t" {
+				switch args[2] {
+				case "=foo":
+					return "", fmt.Errorf("can't find session: foo")
+				case "=foo-2":
+					return "", nil
+				case "foo":
+					// Reaching this arm means the "=" was dropped: real
+					// tmux would prefix-match the live "foo-2" here.
+					return "", nil
 				}
-				return "", fmt.Errorf("unexpected args: %v", args)
-			},
-		}
+			}
+			return "", fmt.Errorf("unexpected args: %v", args)
+		})
 		c := tmux.NewClient(exactMock)
 		if c.HasSession("foo") {
 			t.Errorf("HasSession(\"foo\") = true while only live session is \"foo-2\"; prefix-collision regression")
@@ -448,7 +423,7 @@ func TestHasSessionUsesExactMatchPrefix(t *testing.T) {
 
 func TestHasSessionProbe(t *testing.T) {
 	t.Run("returns (true, nil) when tmux exits zero", func(t *testing.T) {
-		mock := &MockCommander{}
+		mock := commandertest.Quiet()
 		client := tmux.NewClient(mock)
 
 		present, err := client.HasSessionProbe("my-session")
@@ -460,11 +435,11 @@ func TestHasSessionProbe(t *testing.T) {
 			t.Errorf("err = %v, want nil", err)
 		}
 
-		if len(mock.Calls) != 1 {
-			t.Fatalf("expected 1 call, got %d", len(mock.Calls))
+		if len(mock.Calls()) != 1 {
+			t.Fatalf("expected 1 call, got %d", len(mock.Calls()))
 		}
 		wantArgs := "has-session -t =my-session"
-		gotArgs := strings.Join(mock.Calls[0], " ")
+		gotArgs := strings.Join(mock.Calls()[0], " ")
 		if gotArgs != wantArgs {
 			t.Errorf("called with %q, want %q", gotArgs, wantArgs)
 		}
@@ -472,7 +447,7 @@ func TestHasSessionProbe(t *testing.T) {
 
 	t.Run("returns (false, err) when tmux exits non-zero", func(t *testing.T) {
 		exitErr := syntheticExitError(t)
-		mock := &MockCommander{Err: &tmux.CommandError{Err: exitErr}}
+		mock := commandertest.Quiet(commandertest.Fails(&tmux.CommandError{Err: exitErr}))
 		client := tmux.NewClient(mock)
 
 		present, err := client.HasSessionProbe("nonexistent")
@@ -495,7 +470,7 @@ func TestHasSessionProbe(t *testing.T) {
 
 	t.Run("returns (true, err) on OS-layer failure", func(t *testing.T) {
 		osErr := errors.New("exec: \"tmux\": executable file not found in $PATH")
-		mock := &MockCommander{Err: &tmux.CommandError{Err: osErr}}
+		mock := commandertest.Quiet(commandertest.Fails(&tmux.CommandError{Err: osErr}))
 		client := tmux.NewClient(mock)
 
 		present, err := client.HasSessionProbe("any-session")
@@ -526,7 +501,7 @@ func syntheticExitError(t *testing.T) *exec.ExitError {
 
 func TestNewSession(t *testing.T) {
 	t.Run("creates session with name and directory", func(t *testing.T) {
-		mock := &MockCommander{}
+		mock := commandertest.Quiet()
 		client := tmux.NewClient(mock)
 
 		err := client.NewSession("my-session", "/home/user/project", "")
@@ -535,18 +510,18 @@ func TestNewSession(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if len(mock.Calls) != 1 {
-			t.Fatalf("expected 1 call, got %d", len(mock.Calls))
+		if len(mock.Calls()) != 1 {
+			t.Fatalf("expected 1 call, got %d", len(mock.Calls()))
 		}
 		wantArgs := "new-session -d -s my-session -c /home/user/project"
-		gotArgs := strings.Join(mock.Calls[0], " ")
+		gotArgs := strings.Join(mock.Calls()[0], " ")
 		if gotArgs != wantArgs {
 			t.Errorf("called with %q, want %q", gotArgs, wantArgs)
 		}
 	})
 
 	t.Run("includes shell-command when provided", func(t *testing.T) {
-		mock := &MockCommander{}
+		mock := commandertest.Quiet()
 		client := tmux.NewClient(mock)
 
 		shellCmd := "/bin/zsh -ic 'claude; exec /bin/zsh'"
@@ -556,14 +531,14 @@ func TestNewSession(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if len(mock.Calls) != 1 {
-			t.Fatalf("expected 1 call, got %d", len(mock.Calls))
+		if len(mock.Calls()) != 1 {
+			t.Fatalf("expected 1 call, got %d", len(mock.Calls()))
 		}
 		wantArgs := []string{"new-session", "-d", "-s", "my-session", "-c", "/home/user/project", shellCmd}
-		if len(mock.Calls[0]) != len(wantArgs) {
-			t.Fatalf("got %d args %v, want %d args %v", len(mock.Calls[0]), mock.Calls[0], len(wantArgs), wantArgs)
+		if len(mock.Calls()[0]) != len(wantArgs) {
+			t.Fatalf("got %d args %v, want %d args %v", len(mock.Calls()[0]), mock.Calls()[0], len(wantArgs), wantArgs)
 		}
-		for i, arg := range mock.Calls[0] {
+		for i, arg := range mock.Calls()[0] {
 			if arg != wantArgs[i] {
 				t.Errorf("args[%d] = %q, want %q", i, arg, wantArgs[i])
 			}
@@ -571,7 +546,7 @@ func TestNewSession(t *testing.T) {
 	})
 
 	t.Run("no shell-command argument when empty string", func(t *testing.T) {
-		mock := &MockCommander{}
+		mock := commandertest.Quiet()
 		client := tmux.NewClient(mock)
 
 		err := client.NewSession("my-session", "/home/user/project", "")
@@ -580,16 +555,16 @@ func TestNewSession(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if len(mock.Calls) != 1 {
-			t.Fatalf("expected 1 call, got %d", len(mock.Calls))
+		if len(mock.Calls()) != 1 {
+			t.Fatalf("expected 1 call, got %d", len(mock.Calls()))
 		}
-		if len(mock.Calls[0]) != 6 {
-			t.Errorf("got %d args %v, want 6 args (no shell-command)", len(mock.Calls[0]), mock.Calls[0])
+		if len(mock.Calls()[0]) != 6 {
+			t.Errorf("got %d args %v, want 6 args (no shell-command)", len(mock.Calls()[0]), mock.Calls()[0])
 		}
 	})
 
 	t.Run("returns error when tmux command fails", func(t *testing.T) {
-		mock := &MockCommander{Err: fmt.Errorf("tmux error")}
+		mock := commandertest.Quiet(commandertest.Fails(fmt.Errorf("tmux error")))
 		client := tmux.NewClient(mock)
 
 		err := client.NewSession("my-session", "/some/dir", "")
@@ -602,7 +577,7 @@ func TestNewSession(t *testing.T) {
 
 func TestCurrentSessionName(t *testing.T) {
 	t.Run("returns session name from tmux output", func(t *testing.T) {
-		mock := &MockCommander{Output: "my-project-x7k2m9"}
+		mock := commandertest.Quiet(commandertest.Returns("my-project-x7k2m9"))
 		client := tmux.NewClient(mock)
 
 		got, err := client.CurrentSessionName()
@@ -614,18 +589,18 @@ func TestCurrentSessionName(t *testing.T) {
 			t.Errorf("CurrentSessionName() = %q, want %q", got, "my-project-x7k2m9")
 		}
 
-		if len(mock.Calls) != 1 {
-			t.Fatalf("expected 1 call, got %d", len(mock.Calls))
+		if len(mock.Calls()) != 1 {
+			t.Fatalf("expected 1 call, got %d", len(mock.Calls()))
 		}
 		wantArgs := "display-message -p #{session_name}"
-		gotArgs := strings.Join(mock.Calls[0], " ")
+		gotArgs := strings.Join(mock.Calls()[0], " ")
 		if gotArgs != wantArgs {
 			t.Errorf("called with %q, want %q", gotArgs, wantArgs)
 		}
 	})
 
 	t.Run("returns error when tmux command fails", func(t *testing.T) {
-		mock := &MockCommander{Err: fmt.Errorf("no server running")}
+		mock := commandertest.Quiet(commandertest.Fails(fmt.Errorf("no server running")))
 		client := tmux.NewClient(mock)
 
 		_, err := client.CurrentSessionName()
@@ -638,7 +613,7 @@ func TestCurrentSessionName(t *testing.T) {
 
 func TestKillSession(t *testing.T) {
 	t.Run("runs kill-session with session name", func(t *testing.T) {
-		mock := &MockCommander{}
+		mock := commandertest.Quiet()
 		client := tmux.NewClient(mock)
 
 		err := client.KillSession("my-session")
@@ -647,18 +622,18 @@ func TestKillSession(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if len(mock.Calls) != 1 {
-			t.Fatalf("expected 1 call, got %d", len(mock.Calls))
+		if len(mock.Calls()) != 1 {
+			t.Fatalf("expected 1 call, got %d", len(mock.Calls()))
 		}
 		wantArgs := "kill-session -t =my-session"
-		gotArgs := strings.Join(mock.Calls[0], " ")
+		gotArgs := strings.Join(mock.Calls()[0], " ")
 		if gotArgs != wantArgs {
 			t.Errorf("called with %q, want %q", gotArgs, wantArgs)
 		}
 	})
 
 	t.Run("returns error when tmux command fails", func(t *testing.T) {
-		mock := &MockCommander{Err: fmt.Errorf("session not found")}
+		mock := commandertest.Quiet(commandertest.Fails(fmt.Errorf("session not found")))
 		client := tmux.NewClient(mock)
 
 		err := client.KillSession("nonexistent")
@@ -670,32 +645,30 @@ func TestKillSession(t *testing.T) {
 }
 
 func TestKillSessionUsesExactMatchPrefix(t *testing.T) {
-	exactMock := &MockCommander{
-		RunFunc: func(args ...string) (string, error) {
-			if len(args) >= 3 && args[0] == "kill-session" && args[1] == "-t" {
-				switch args[2] {
-				case "=foo":
-					return "", fmt.Errorf("can't find session: foo")
-				case "=foo-2":
-					return "", nil
-				case "foo":
-					t.Errorf("KillSession reached bare-\"foo\" prefix-match arm; \"=\" prefix dropped, live \"foo-2\" would have been killed")
-					return "", nil
-				}
+	exactMock := commandertest.FromFunc(func(args ...string) (string, error) {
+		if len(args) >= 3 && args[0] == "kill-session" && args[1] == "-t" {
+			switch args[2] {
+			case "=foo":
+				return "", fmt.Errorf("can't find session: foo")
+			case "=foo-2":
+				return "", nil
+			case "foo":
+				t.Errorf("KillSession reached bare-\"foo\" prefix-match arm; \"=\" prefix dropped, live \"foo-2\" would have been killed")
+				return "", nil
 			}
-			return "", fmt.Errorf("unexpected args: %v", args)
-		},
-	}
+		}
+		return "", fmt.Errorf("unexpected args: %v", args)
+	})
 	client := tmux.NewClient(exactMock)
 
 	if err := client.KillSession("foo"); err == nil {
 		t.Errorf("KillSession(\"foo\") = nil error while only live session is \"foo-2\"; prefix-collision regression (foo-2 must not be killed)")
 	}
 
-	if len(exactMock.Calls) == 0 {
+	if len(exactMock.Calls()) == 0 {
 		t.Fatalf("expected at least 1 call, got 0")
 	}
-	got := exactMock.Calls[0]
+	got := exactMock.Calls()[0]
 	if len(got) < 3 || got[0] != "kill-session" || got[1] != "-t" {
 		t.Fatalf("unexpected first call %v, want kill-session -t <target>", got)
 	}
@@ -706,7 +679,7 @@ func TestKillSessionUsesExactMatchPrefix(t *testing.T) {
 
 func TestSwitchClient(t *testing.T) {
 	t.Run("runs switch-client with session name", func(t *testing.T) {
-		mock := &MockCommander{}
+		mock := commandertest.Quiet()
 		client := tmux.NewClient(mock)
 
 		err := client.SwitchClient("my-session")
@@ -715,18 +688,18 @@ func TestSwitchClient(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if len(mock.Calls) != 1 {
-			t.Fatalf("expected 1 call, got %d", len(mock.Calls))
+		if len(mock.Calls()) != 1 {
+			t.Fatalf("expected 1 call, got %d", len(mock.Calls()))
 		}
 		wantArgs := "switch-client -t =my-session"
-		gotArgs := strings.Join(mock.Calls[0], " ")
+		gotArgs := strings.Join(mock.Calls()[0], " ")
 		if gotArgs != wantArgs {
 			t.Errorf("called with %q, want %q", gotArgs, wantArgs)
 		}
 	})
 
 	t.Run("returns error when tmux command fails", func(t *testing.T) {
-		mock := &MockCommander{Err: fmt.Errorf("session not found")}
+		mock := commandertest.Quiet(commandertest.Fails(fmt.Errorf("session not found")))
 		client := tmux.NewClient(mock)
 
 		err := client.SwitchClient("nonexistent")
@@ -739,7 +712,7 @@ func TestSwitchClient(t *testing.T) {
 
 func TestStartServer(t *testing.T) {
 	t.Run("starts tmux server successfully", func(t *testing.T) {
-		mock := &MockCommander{}
+		mock := commandertest.Quiet()
 		client := tmux.NewClient(mock)
 
 		err := client.StartServer()
@@ -748,18 +721,18 @@ func TestStartServer(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if len(mock.Calls) != 1 {
-			t.Fatalf("expected 1 call, got %d", len(mock.Calls))
+		if len(mock.Calls()) != 1 {
+			t.Fatalf("expected 1 call, got %d", len(mock.Calls()))
 		}
 		wantArgs := strings.Join([]string{"new-session", "-d", "-s", tmux.PortalBootstrapName}, " ")
-		gotArgs := strings.Join(mock.Calls[0], " ")
+		gotArgs := strings.Join(mock.Calls()[0], " ")
 		if gotArgs != wantArgs {
 			t.Errorf("called with %q, want %q", gotArgs, wantArgs)
 		}
 	})
 
 	t.Run("returns error when start-server fails", func(t *testing.T) {
-		mock := &MockCommander{Err: fmt.Errorf("tmux failed")}
+		mock := commandertest.Quiet(commandertest.Fails(fmt.Errorf("tmux failed")))
 		client := tmux.NewClient(mock)
 
 		err := client.StartServer()
@@ -780,28 +753,26 @@ func TestStartServer(t *testing.T) {
 	})
 
 	t.Run("does not retry on failure", func(t *testing.T) {
-		mock := &MockCommander{Err: fmt.Errorf("server start failed")}
+		mock := commandertest.Quiet(commandertest.Fails(fmt.Errorf("server start failed")))
 		client := tmux.NewClient(mock)
 
 		_ = client.StartServer()
 
-		if len(mock.Calls) != 1 {
-			t.Errorf("expected exactly 1 call (no retry), got %d", len(mock.Calls))
+		if len(mock.Calls()) != 1 {
+			t.Errorf("expected exactly 1 call (no retry), got %d", len(mock.Calls()))
 		}
 	})
 }
 
 func TestEnsureServer(t *testing.T) {
 	t.Run("returns false when server is already running", func(t *testing.T) {
-		mock := &MockCommander{
-			RunFunc: func(args ...string) (string, error) {
-				if args[0] == "info" {
-					return "", nil
-				}
-				t.Fatalf("unexpected command: %v", args)
+		mock := commandertest.FromFunc(func(args ...string) (string, error) {
+			if args[0] == "info" {
 				return "", nil
-			},
-		}
+			}
+			t.Fatalf("unexpected command: %v", args)
+			return "", nil
+		})
 		client := tmux.NewClient(mock)
 
 		started, err := client.EnsureServer()
@@ -815,18 +786,16 @@ func TestEnsureServer(t *testing.T) {
 	})
 
 	t.Run("starts server and returns true when server is not running", func(t *testing.T) {
-		mock := &MockCommander{
-			RunFunc: func(args ...string) (string, error) {
-				if args[0] == "info" {
-					return "", fmt.Errorf("no server running")
-				}
-				if args[0] == "new-session" {
-					return "", nil
-				}
-				t.Fatalf("unexpected command: %v", args)
+		mock := commandertest.FromFunc(func(args ...string) (string, error) {
+			if args[0] == "info" {
+				return "", fmt.Errorf("no server running")
+			}
+			if args[0] == "new-session" {
 				return "", nil
-			},
-		}
+			}
+			t.Fatalf("unexpected command: %v", args)
+			return "", nil
+		})
 		client := tmux.NewClient(mock)
 
 		started, err := client.EnsureServer()
@@ -840,18 +809,16 @@ func TestEnsureServer(t *testing.T) {
 	})
 
 	t.Run("returns true and error when start-server fails", func(t *testing.T) {
-		mock := &MockCommander{
-			RunFunc: func(args ...string) (string, error) {
-				if args[0] == "info" {
-					return "", fmt.Errorf("no server running")
-				}
-				if args[0] == "new-session" {
-					return "", fmt.Errorf("start failed")
-				}
-				t.Fatalf("unexpected command: %v", args)
-				return "", nil
-			},
-		}
+		mock := commandertest.FromFunc(func(args ...string) (string, error) {
+			if args[0] == "info" {
+				return "", fmt.Errorf("no server running")
+			}
+			if args[0] == "new-session" {
+				return "", fmt.Errorf("start failed")
+			}
+			t.Fatalf("unexpected command: %v", args)
+			return "", nil
+		})
 		client := tmux.NewClient(mock)
 
 		started, err := client.EnsureServer()
@@ -865,30 +832,28 @@ func TestEnsureServer(t *testing.T) {
 	})
 
 	t.Run("does not call start-server when server is running", func(t *testing.T) {
-		mock := &MockCommander{
-			RunFunc: func(args ...string) (string, error) {
-				if args[0] == "info" {
-					return "", nil
-				}
+		mock := commandertest.FromFunc(func(args ...string) (string, error) {
+			if args[0] == "info" {
 				return "", nil
-			},
-		}
+			}
+			return "", nil
+		})
 		client := tmux.NewClient(mock)
 
 		_, _ = client.EnsureServer()
 
-		if len(mock.Calls) != 1 {
-			t.Fatalf("expected 1 call, got %d", len(mock.Calls))
+		if len(mock.Calls()) != 1 {
+			t.Fatalf("expected 1 call, got %d", len(mock.Calls()))
 		}
-		if mock.Calls[0][0] != "info" {
-			t.Errorf("expected call to %q, got %q", "info", mock.Calls[0][0])
+		if mock.Calls()[0][0] != "info" {
+			t.Errorf("expected call to %q, got %q", "info", mock.Calls()[0][0])
 		}
 	})
 }
 
 func TestRenameSession(t *testing.T) {
 	t.Run("runs rename-session with old and new name", func(t *testing.T) {
-		mock := &MockCommander{}
+		mock := commandertest.Quiet()
 		client := tmux.NewClient(mock)
 
 		err := client.RenameSession("old-name", "new-name")
@@ -897,18 +862,18 @@ func TestRenameSession(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if len(mock.Calls) != 1 {
-			t.Fatalf("expected 1 call, got %d", len(mock.Calls))
+		if len(mock.Calls()) != 1 {
+			t.Fatalf("expected 1 call, got %d", len(mock.Calls()))
 		}
 		wantArgs := "rename-session -t =old-name new-name"
-		gotArgs := strings.Join(mock.Calls[0], " ")
+		gotArgs := strings.Join(mock.Calls()[0], " ")
 		if gotArgs != wantArgs {
 			t.Errorf("called with %q, want %q", gotArgs, wantArgs)
 		}
 	})
 
 	t.Run("returns error when tmux command fails", func(t *testing.T) {
-		mock := &MockCommander{Err: fmt.Errorf("session not found")}
+		mock := commandertest.Quiet(commandertest.Fails(fmt.Errorf("session not found")))
 		client := tmux.NewClient(mock)
 
 		err := client.RenameSession("old-name", "new-name")
@@ -920,19 +885,17 @@ func TestRenameSession(t *testing.T) {
 }
 
 func TestRenameSessionUsesExactMatchPrefix(t *testing.T) {
-	exactMock := &MockCommander{
-		RunFunc: func(args ...string) (string, error) {
-			if len(args) >= 3 && args[0] == "rename-session" && args[1] == "-t" {
-				switch args[2] {
-				case "=foo":
-					return "", fmt.Errorf("can't find session: foo")
-				case "foo":
-					t.Fatalf("RenameSession used bare target %q; prefix-collision regression (would rename live foo-2)", args[2])
-				}
+	exactMock := commandertest.FromFunc(func(args ...string) (string, error) {
+		if len(args) >= 3 && args[0] == "rename-session" && args[1] == "-t" {
+			switch args[2] {
+			case "=foo":
+				return "", fmt.Errorf("can't find session: foo")
+			case "foo":
+				t.Fatalf("RenameSession used bare target %q; prefix-collision regression (would rename live foo-2)", args[2])
 			}
-			return "", fmt.Errorf("unexpected args: %v", args)
-		},
-	}
+		}
+		return "", fmt.Errorf("unexpected args: %v", args)
+	})
 	c := tmux.NewClient(exactMock)
 
 	err := c.RenameSession("foo", "bar")
@@ -940,10 +903,10 @@ func TestRenameSessionUsesExactMatchPrefix(t *testing.T) {
 		t.Fatal("RenameSession(\"foo\", \"bar\") returned nil; expected error because \"foo\" is not a live exact match (live foo-2 must NOT be renamed)")
 	}
 
-	if len(exactMock.Calls) != 1 {
-		t.Fatalf("expected 1 call, got %d: %v", len(exactMock.Calls), exactMock.Calls)
+	if len(exactMock.Calls()) != 1 {
+		t.Fatalf("expected 1 call, got %d: %v", len(exactMock.Calls()), exactMock.Calls())
 	}
-	got := exactMock.Calls[0]
+	got := exactMock.Calls()[0]
 	want := []string{"rename-session", "-t", "=foo", "bar"}
 	if len(got) != len(want) {
 		t.Fatalf("got %d args %v, want %d args %v", len(got), got, len(want), want)
@@ -960,7 +923,7 @@ func TestRenameSessionUsesExactMatchPrefix(t *testing.T) {
 
 func TestSetServerOption(t *testing.T) {
 	t.Run("runs set-option -s with name and value", func(t *testing.T) {
-		mock := &MockCommander{}
+		mock := commandertest.Quiet()
 		client := tmux.NewClient(mock)
 
 		err := client.SetServerOption("@portal-active-%3", "1")
@@ -969,18 +932,18 @@ func TestSetServerOption(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if len(mock.Calls) != 1 {
-			t.Fatalf("expected 1 call, got %d", len(mock.Calls))
+		if len(mock.Calls()) != 1 {
+			t.Fatalf("expected 1 call, got %d", len(mock.Calls()))
 		}
 		wantArgs := "set-option -s @portal-active-%3 1"
-		gotArgs := strings.Join(mock.Calls[0], " ")
+		gotArgs := strings.Join(mock.Calls()[0], " ")
 		if gotArgs != wantArgs {
 			t.Errorf("called with %q, want %q", gotArgs, wantArgs)
 		}
 	})
 
 	t.Run("returns error when tmux command fails", func(t *testing.T) {
-		mock := &MockCommander{Err: fmt.Errorf("tmux error")}
+		mock := commandertest.Quiet(commandertest.Fails(fmt.Errorf("tmux error")))
 		client := tmux.NewClient(mock)
 
 		err := client.SetServerOption("@portal-active-%3", "1")
@@ -999,7 +962,7 @@ func TestSetServerOption(t *testing.T) {
 
 func TestSetSessionOption(t *testing.T) {
 	t.Run("runs set-option -t with session, name, and value", func(t *testing.T) {
-		mock := &MockCommander{}
+		mock := commandertest.Quiet()
 		client := tmux.NewClient(mock)
 
 		err := client.SetSessionOption("_portal-saver", "destroy-unattached", "off")
@@ -1008,34 +971,34 @@ func TestSetSessionOption(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if len(mock.Calls) != 1 {
-			t.Fatalf("expected 1 call, got %d", len(mock.Calls))
+		if len(mock.Calls()) != 1 {
+			t.Fatalf("expected 1 call, got %d", len(mock.Calls()))
 		}
 		wantArgs := "set-option -t =_portal-saver: destroy-unattached off"
-		gotArgs := strings.Join(mock.Calls[0], " ")
+		gotArgs := strings.Join(mock.Calls()[0], " ")
 		if gotArgs != wantArgs {
 			t.Errorf("called with %q, want %q", gotArgs, wantArgs)
 		}
 	})
 
 	t.Run("does not pass -g flag (session-scoped, not global)", func(t *testing.T) {
-		mock := &MockCommander{}
+		mock := commandertest.Quiet()
 		client := tmux.NewClient(mock)
 
 		_ = client.SetSessionOption("_portal-saver", "destroy-unattached", "off")
 
-		if len(mock.Calls) != 1 {
-			t.Fatalf("expected 1 call, got %d", len(mock.Calls))
+		if len(mock.Calls()) != 1 {
+			t.Fatalf("expected 1 call, got %d", len(mock.Calls()))
 		}
-		for _, arg := range mock.Calls[0] {
+		for _, arg := range mock.Calls()[0] {
 			if arg == "-g" {
-				t.Errorf("SetSessionOption must not include -g flag, got args %v", mock.Calls[0])
+				t.Errorf("SetSessionOption must not include -g flag, got args %v", mock.Calls()[0])
 			}
 		}
 	})
 
 	t.Run("returns error wrapped with session and option name", func(t *testing.T) {
-		mock := &MockCommander{Err: fmt.Errorf("tmux error")}
+		mock := commandertest.Quiet(commandertest.Fails(fmt.Errorf("tmux error")))
 		client := tmux.NewClient(mock)
 
 		err := client.SetSessionOption("_portal-saver", "destroy-unattached", "off")
@@ -1057,7 +1020,7 @@ func TestSetSessionOption(t *testing.T) {
 
 func TestNewDetachedSessionNoCwd(t *testing.T) {
 	t.Run("creates detached session with name and shell command, no -c", func(t *testing.T) {
-		mock := &MockCommander{}
+		mock := commandertest.Quiet()
 		client := tmux.NewClient(mock)
 
 		err := client.NewDetachedSessionNoCwd("_portal-saver", "portal state daemon")
@@ -1066,27 +1029,27 @@ func TestNewDetachedSessionNoCwd(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if len(mock.Calls) != 1 {
-			t.Fatalf("expected 1 call, got %d", len(mock.Calls))
+		if len(mock.Calls()) != 1 {
+			t.Fatalf("expected 1 call, got %d", len(mock.Calls()))
 		}
 		wantArgs := []string{"new-session", "-d", "-s", "_portal-saver", "portal state daemon"}
-		if len(mock.Calls[0]) != len(wantArgs) {
-			t.Fatalf("got %d args %v, want %d args %v", len(mock.Calls[0]), mock.Calls[0], len(wantArgs), wantArgs)
+		if len(mock.Calls()[0]) != len(wantArgs) {
+			t.Fatalf("got %d args %v, want %d args %v", len(mock.Calls()[0]), mock.Calls()[0], len(wantArgs), wantArgs)
 		}
-		for i, arg := range mock.Calls[0] {
+		for i, arg := range mock.Calls()[0] {
 			if arg != wantArgs[i] {
 				t.Errorf("args[%d] = %q, want %q", i, arg, wantArgs[i])
 			}
 		}
-		for _, arg := range mock.Calls[0] {
+		for _, arg := range mock.Calls()[0] {
 			if arg == "-c" {
-				t.Errorf("NewDetachedSessionNoCwd must not include -c flag, got args %v", mock.Calls[0])
+				t.Errorf("NewDetachedSessionNoCwd must not include -c flag, got args %v", mock.Calls()[0])
 			}
 		}
 	})
 
 	t.Run("omits shell-command argument when empty string", func(t *testing.T) {
-		mock := &MockCommander{}
+		mock := commandertest.Quiet()
 		client := tmux.NewClient(mock)
 
 		err := client.NewDetachedSessionNoCwd("_portal-saver", "")
@@ -1095,14 +1058,14 @@ func TestNewDetachedSessionNoCwd(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if len(mock.Calls) != 1 {
-			t.Fatalf("expected 1 call, got %d", len(mock.Calls))
+		if len(mock.Calls()) != 1 {
+			t.Fatalf("expected 1 call, got %d", len(mock.Calls()))
 		}
 		wantArgs := []string{"new-session", "-d", "-s", "_portal-saver"}
-		if len(mock.Calls[0]) != len(wantArgs) {
-			t.Fatalf("got %d args %v, want %d args %v", len(mock.Calls[0]), mock.Calls[0], len(wantArgs), wantArgs)
+		if len(mock.Calls()[0]) != len(wantArgs) {
+			t.Fatalf("got %d args %v, want %d args %v", len(mock.Calls()[0]), mock.Calls()[0], len(wantArgs), wantArgs)
 		}
-		for i, arg := range mock.Calls[0] {
+		for i, arg := range mock.Calls()[0] {
 			if arg != wantArgs[i] {
 				t.Errorf("args[%d] = %q, want %q", i, arg, wantArgs[i])
 			}
@@ -1110,7 +1073,7 @@ func TestNewDetachedSessionNoCwd(t *testing.T) {
 	})
 
 	t.Run("returns wrapped error when tmux command fails", func(t *testing.T) {
-		mock := &MockCommander{Err: fmt.Errorf("tmux error")}
+		mock := commandertest.Quiet(commandertest.Fails(fmt.Errorf("tmux error")))
 		client := tmux.NewClient(mock)
 
 		err := client.NewDetachedSessionNoCwd("_portal-saver", "portal state daemon")
@@ -1129,7 +1092,7 @@ func TestNewDetachedSessionNoCwd(t *testing.T) {
 
 func TestGetServerOption(t *testing.T) {
 	t.Run("returns value when option exists", func(t *testing.T) {
-		mock := &MockCommander{Output: "1"}
+		mock := commandertest.Quiet(commandertest.Returns("1"))
 		client := tmux.NewClient(mock)
 
 		got, err := client.GetServerOption("@portal-active-%3")
@@ -1141,21 +1104,21 @@ func TestGetServerOption(t *testing.T) {
 			t.Errorf("GetServerOption() = %q, want %q", got, "1")
 		}
 
-		if len(mock.Calls) != 1 {
-			t.Fatalf("expected 1 call, got %d", len(mock.Calls))
+		if len(mock.Calls()) != 1 {
+			t.Fatalf("expected 1 call, got %d", len(mock.Calls()))
 		}
 		wantArgs := "show-option -sv @portal-active-%3"
-		gotArgs := strings.Join(mock.Calls[0], " ")
+		gotArgs := strings.Join(mock.Calls()[0], " ")
 		if gotArgs != wantArgs {
 			t.Errorf("called with %q, want %q", gotArgs, wantArgs)
 		}
 	})
 
 	t.Run("returns ErrOptionNotFound when option does not exist", func(t *testing.T) {
-		mock := &MockCommander{Err: &tmux.CommandError{
+		mock := commandertest.Quiet(commandertest.Fails(&tmux.CommandError{
 			Stderr: "unknown option: @portal-active-%3",
 			Err:    errors.New("exit status 1"),
-		}}
+		}))
 		client := tmux.NewClient(mock)
 
 		got, err := client.GetServerOption("@portal-active-%3")
@@ -1187,7 +1150,7 @@ func TestGetServerOption_TransportError(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			cmdErr := &tmux.CommandError{Stderr: tc.stderr, Err: errors.New("exit status 1")}
-			mock := &MockCommander{Err: cmdErr}
+			mock := commandertest.Quiet(commandertest.Fails(cmdErr))
 			client := tmux.NewClient(mock)
 
 			got, err := client.GetServerOption("@portal-restoring")
@@ -1214,7 +1177,7 @@ func TestGetServerOption_TransportError(t *testing.T) {
 
 func TestGetServerOption_NonExitErrorPropagates(t *testing.T) {
 	cmdErr := &tmux.CommandError{Stderr: "", Err: errors.New("exec: \"tmux\": not found")}
-	mock := &MockCommander{Err: cmdErr}
+	mock := commandertest.Quiet(commandertest.Fails(cmdErr))
 	client := tmux.NewClient(mock)
 
 	got, err := client.GetServerOption("@portal-restoring")
@@ -1239,7 +1202,7 @@ func TestGetServerOption_NonExitErrorPropagates(t *testing.T) {
 
 func TestUnsetServerOption(t *testing.T) {
 	t.Run("runs set-option -su with name", func(t *testing.T) {
-		mock := &MockCommander{}
+		mock := commandertest.Quiet()
 		client := tmux.NewClient(mock)
 
 		err := client.UnsetServerOption("@portal-restoring")
@@ -1248,18 +1211,18 @@ func TestUnsetServerOption(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if len(mock.Calls) != 1 {
-			t.Fatalf("expected 1 call, got %d", len(mock.Calls))
+		if len(mock.Calls()) != 1 {
+			t.Fatalf("expected 1 call, got %d", len(mock.Calls()))
 		}
 		wantArgs := "set-option -su @portal-restoring"
-		gotArgs := strings.Join(mock.Calls[0], " ")
+		gotArgs := strings.Join(mock.Calls()[0], " ")
 		if gotArgs != wantArgs {
 			t.Errorf("called with %q, want %q", gotArgs, wantArgs)
 		}
 	})
 
 	t.Run("succeeds when option does not exist", func(t *testing.T) {
-		mock := &MockCommander{}
+		mock := commandertest.Quiet()
 		client := tmux.NewClient(mock)
 
 		err := client.UnsetServerOption("@nonexistent-option")
@@ -1270,7 +1233,7 @@ func TestUnsetServerOption(t *testing.T) {
 	})
 
 	t.Run("returns wrapped error when tmux command fails", func(t *testing.T) {
-		mock := &MockCommander{Err: fmt.Errorf("tmux error")}
+		mock := commandertest.Quiet(commandertest.Fails(fmt.Errorf("tmux error")))
 		client := tmux.NewClient(mock)
 
 		err := client.UnsetServerOption("@portal-restoring")
@@ -1290,25 +1253,23 @@ func TestUnsetServerOption(t *testing.T) {
 func TestEnsureServerThenListSessions(t *testing.T) {
 	t.Run("bootstrap session is queryable and server is running after EnsureServer starts server", func(t *testing.T) {
 		infoCallCount := 0
-		mock := &MockCommander{
-			RunFunc: func(args ...string) (string, error) {
-				switch args[0] {
-				case "info":
-					infoCallCount++
-					if infoCallCount == 1 {
-						return "", fmt.Errorf("no server running")
-					}
-					return "", nil
-				case "new-session":
-					return "", nil
-				case "list-sessions":
-					return fmt.Sprintf("%s|1|0|", tmux.PortalBootstrapName), nil
-				default:
-					t.Fatalf("unexpected command: %v", args)
-					return "", nil
+		mock := commandertest.FromFunc(func(args ...string) (string, error) {
+			switch args[0] {
+			case "info":
+				infoCallCount++
+				if infoCallCount == 1 {
+					return "", fmt.Errorf("no server running")
 				}
-			},
-		}
+				return "", nil
+			case "new-session":
+				return "", nil
+			case "list-sessions":
+				return fmt.Sprintf("%s|1|0|", tmux.PortalBootstrapName), nil
+			default:
+				t.Fatalf("unexpected command: %v", args)
+				return "", nil
+			}
+		})
 		client := tmux.NewClient(mock)
 
 		started, err := client.EnsureServer()
@@ -1331,8 +1292,8 @@ func TestEnsureServerThenListSessions(t *testing.T) {
 			t.Error("ServerRunning() = false, want true")
 		}
 
-		if len(mock.Calls) != 4 {
-			t.Fatalf("expected 4 calls, got %d: %v", len(mock.Calls), mock.Calls)
+		if len(mock.Calls()) != 4 {
+			t.Fatalf("expected 4 calls, got %d: %v", len(mock.Calls()), mock.Calls())
 		}
 
 		wantCalls := [][]string{
@@ -1342,7 +1303,7 @@ func TestEnsureServerThenListSessions(t *testing.T) {
 			{"info"},
 		}
 		for i, wantArgs := range wantCalls {
-			gotArgs := strings.Join(mock.Calls[i], " ")
+			gotArgs := strings.Join(mock.Calls()[i], " ")
 			wantJoined := strings.Join(wantArgs, " ")
 			if gotArgs != wantJoined {
 				t.Errorf("call[%d] = %q, want %q", i, gotArgs, wantJoined)
@@ -1353,7 +1314,7 @@ func TestEnsureServerThenListSessions(t *testing.T) {
 
 func TestSendKeys(t *testing.T) {
 	t.Run("sends command followed by Enter to pane", func(t *testing.T) {
-		mock := &MockCommander{}
+		mock := commandertest.Quiet()
 		client := tmux.NewClient(mock)
 
 		err := client.SendKeys("%3", "claude --resume abc123")
@@ -1362,14 +1323,14 @@ func TestSendKeys(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if len(mock.Calls) != 1 {
-			t.Fatalf("expected 1 call, got %d", len(mock.Calls))
+		if len(mock.Calls()) != 1 {
+			t.Fatalf("expected 1 call, got %d", len(mock.Calls()))
 		}
 		wantArgs := []string{"send-keys", "-t", "%3", "claude --resume abc123", "Enter"}
-		if len(mock.Calls[0]) != len(wantArgs) {
-			t.Fatalf("got %d args %v, want %d args %v", len(mock.Calls[0]), mock.Calls[0], len(wantArgs), wantArgs)
+		if len(mock.Calls()[0]) != len(wantArgs) {
+			t.Fatalf("got %d args %v, want %d args %v", len(mock.Calls()[0]), mock.Calls()[0], len(wantArgs), wantArgs)
 		}
-		for i, arg := range mock.Calls[0] {
+		for i, arg := range mock.Calls()[0] {
 			if arg != wantArgs[i] {
 				t.Errorf("args[%d] = %q, want %q", i, arg, wantArgs[i])
 			}
@@ -1377,7 +1338,7 @@ func TestSendKeys(t *testing.T) {
 	})
 
 	t.Run("returns error when pane does not exist", func(t *testing.T) {
-		mock := &MockCommander{Err: errors.New("can't find pane: %99")}
+		mock := commandertest.Quiet(commandertest.Fails(errors.New("can't find pane: %99")))
 		client := tmux.NewClient(mock)
 
 		err := client.SendKeys("%99", "some-command")
@@ -1396,7 +1357,7 @@ func TestSendKeys(t *testing.T) {
 
 func TestListSessionNames(t *testing.T) {
 	t.Run("returns just the names from list-sessions output", func(t *testing.T) {
-		mock := &MockCommander{Output: "dev|3|1|\nwork|5|0|"}
+		mock := commandertest.Quiet(commandertest.Returns("dev|3|1|\nwork|5|0|"))
 		client := tmux.NewClient(mock)
 
 		got, err := client.ListSessionNames()
@@ -1415,7 +1376,7 @@ func TestListSessionNames(t *testing.T) {
 	})
 
 	t.Run("returns empty slice when no sessions exist", func(t *testing.T) {
-		mock := &MockCommander{Output: ""}
+		mock := commandertest.Quiet(commandertest.Returns(""))
 		client := tmux.NewClient(mock)
 
 		got, err := client.ListSessionNames()
@@ -1430,7 +1391,7 @@ func TestListSessionNames(t *testing.T) {
 
 func TestShowEnvironment(t *testing.T) {
 	t.Run("returns raw output from show-environment for the named session", func(t *testing.T) {
-		mock := &MockCommander{Output: "LANG=en_US.UTF-8\nTERM=xterm-256color"}
+		mock := commandertest.Quiet(commandertest.Returns("LANG=en_US.UTF-8\nTERM=xterm-256color"))
 		client := tmux.NewClient(mock)
 
 		got, err := client.ShowEnvironment("work")
@@ -1442,18 +1403,18 @@ func TestShowEnvironment(t *testing.T) {
 			t.Errorf("ShowEnvironment() = %q, want %q", got, "LANG=en_US.UTF-8\nTERM=xterm-256color")
 		}
 
-		if len(mock.Calls) != 1 {
-			t.Fatalf("expected 1 call, got %d", len(mock.Calls))
+		if len(mock.Calls()) != 1 {
+			t.Fatalf("expected 1 call, got %d", len(mock.Calls()))
 		}
 		wantArgs := "show-environment -t =work"
-		gotArgs := strings.Join(mock.Calls[0], " ")
+		gotArgs := strings.Join(mock.Calls()[0], " ")
 		if gotArgs != wantArgs {
 			t.Errorf("called with %q, want %q", gotArgs, wantArgs)
 		}
 	})
 
 	t.Run("returns wrapped error containing session name when tmux fails", func(t *testing.T) {
-		mock := &MockCommander{Err: fmt.Errorf("can't find session")}
+		mock := commandertest.Quiet(commandertest.Fails(fmt.Errorf("can't find session")))
 		client := tmux.NewClient(mock)
 
 		_, err := client.ShowEnvironment("nonexistent")
@@ -1470,7 +1431,7 @@ func TestShowEnvironment(t *testing.T) {
 	})
 
 	t.Run("returns empty string when output is empty", func(t *testing.T) {
-		mock := &MockCommander{Output: ""}
+		mock := commandertest.Quiet(commandertest.Returns(""))
 		client := tmux.NewClient(mock)
 
 		got, err := client.ShowEnvironment("empty")
@@ -1486,7 +1447,7 @@ func TestShowEnvironment(t *testing.T) {
 
 func TestListAllPanesWithFormat(t *testing.T) {
 	t.Run("returns raw output from list-panes -a with the given format", func(t *testing.T) {
-		mock := &MockCommander{Output: "work|||0|||main|||layout|||0|||1|||0|||/tmp|||1|||zsh"}
+		mock := commandertest.Quiet(commandertest.Returns("work|||0|||main|||layout|||0|||1|||0|||/tmp|||1|||zsh"))
 		client := tmux.NewClient(mock)
 
 		format := "#{session_name}|||#{window_index}|||#{window_name}|||#{window_layout}|||#{window_zoomed_flag}|||#{window_active}|||#{pane_index}|||#{pane_current_path}|||#{pane_active}|||#{pane_current_command}"
@@ -1499,14 +1460,14 @@ func TestListAllPanesWithFormat(t *testing.T) {
 			t.Errorf("ListAllPanesWithFormat() = %q, want raw output", got)
 		}
 
-		if len(mock.Calls) != 1 {
-			t.Fatalf("expected 1 call, got %d", len(mock.Calls))
+		if len(mock.Calls()) != 1 {
+			t.Fatalf("expected 1 call, got %d", len(mock.Calls()))
 		}
 		wantArgs := []string{"list-panes", "-a", "-F", format}
-		if len(mock.Calls[0]) != len(wantArgs) {
-			t.Fatalf("got %d args %v, want %d args %v", len(mock.Calls[0]), mock.Calls[0], len(wantArgs), wantArgs)
+		if len(mock.Calls()[0]) != len(wantArgs) {
+			t.Fatalf("got %d args %v, want %d args %v", len(mock.Calls()[0]), mock.Calls()[0], len(wantArgs), wantArgs)
 		}
-		for i, arg := range mock.Calls[0] {
+		for i, arg := range mock.Calls()[0] {
 			if arg != wantArgs[i] {
 				t.Errorf("args[%d] = %q, want %q", i, arg, wantArgs[i])
 			}
@@ -1514,7 +1475,7 @@ func TestListAllPanesWithFormat(t *testing.T) {
 	})
 
 	t.Run("returns wrapped error when tmux fails", func(t *testing.T) {
-		mock := &MockCommander{Err: fmt.Errorf("no server running")}
+		mock := commandertest.Quiet(commandertest.Fails(fmt.Errorf("no server running")))
 		client := tmux.NewClient(mock)
 
 		_, err := client.ListAllPanesWithFormat("#{session_name}")
@@ -1530,11 +1491,9 @@ func TestListAllPanesWithFormat(t *testing.T) {
 
 func TestCapturePane(t *testing.T) {
 	t.Run("uses capture-pane -e -p -S - -t <target> verbatim", func(t *testing.T) {
-		mock := &MockCommander{
-			RunRawFunc: func(args ...string) (string, error) {
-				return "", nil
-			},
-		}
+		mock := commandertest.FromFunc(func(args ...string) (string, error) {
+			return "", nil
+		})
 		client := tmux.NewClient(mock)
 
 		_, err := client.CapturePane("my-session:0.1")
@@ -1542,14 +1501,14 @@ func TestCapturePane(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if len(mock.Calls) != 1 {
-			t.Fatalf("expected 1 call, got %d", len(mock.Calls))
+		if len(mock.Calls()) != 1 {
+			t.Fatalf("expected 1 call, got %d", len(mock.Calls()))
 		}
 		wantArgs := []string{"capture-pane", "-e", "-p", "-S", "-", "-t", "my-session:0.1"}
-		if len(mock.Calls[0]) != len(wantArgs) {
-			t.Fatalf("got %d args %v, want %d args %v", len(mock.Calls[0]), mock.Calls[0], len(wantArgs), wantArgs)
+		if len(mock.Calls()[0]) != len(wantArgs) {
+			t.Fatalf("got %d args %v, want %d args %v", len(mock.Calls()[0]), mock.Calls()[0], len(wantArgs), wantArgs)
 		}
-		for i, arg := range mock.Calls[0] {
+		for i, arg := range mock.Calls()[0] {
 			if arg != wantArgs[i] {
 				t.Errorf("args[%d] = %q, want %q", i, arg, wantArgs[i])
 			}
@@ -1557,12 +1516,13 @@ func TestCapturePane(t *testing.T) {
 	})
 
 	t.Run("preserves trailing whitespace and ANSI escapes via RunRaw", func(t *testing.T) {
-		raw := "abc\n  \x1b[31m"
-		mock := &MockCommander{
-			RunRawFunc: func(args ...string) (string, error) {
-				return raw, nil
-			},
-		}
+		// The trailing newlines are the whole point: they are what a move to Run
+		// would trim away, so the fixture must carry whitespace the assertion
+		// can miss.
+		raw := "abc\n  \x1b[31m\n\n"
+		mock := commandertest.FromFunc(func(args ...string) (string, error) {
+			return raw, nil
+		})
 		client := tmux.NewClient(mock)
 
 		got, err := client.CapturePane("work:0.0")
@@ -1575,11 +1535,9 @@ func TestCapturePane(t *testing.T) {
 	})
 
 	t.Run("propagates errors with target in message", func(t *testing.T) {
-		mock := &MockCommander{
-			RunRawFunc: func(args ...string) (string, error) {
-				return "", fmt.Errorf("can't find pane")
-			},
-		}
+		mock := commandertest.FromFunc(func(args ...string) (string, error) {
+			return "", fmt.Errorf("can't find pane")
+		})
 		client := tmux.NewClient(mock)
 
 		_, err := client.CapturePane("missing:0.0")
@@ -1597,7 +1555,7 @@ func TestCapturePane(t *testing.T) {
 
 func TestShowAllServerOptions(t *testing.T) {
 	t.Run("invokes show-options -s and returns output", func(t *testing.T) {
-		mock := &MockCommander{Output: "@portal-skeleton-foo__0.0 \"1\"\n@portal-restoring \"1\""}
+		mock := commandertest.Quiet(commandertest.Returns("@portal-skeleton-foo__0.0 \"1\"\n@portal-restoring \"1\""))
 		client := tmux.NewClient(mock)
 
 		got, err := client.ShowAllServerOptions()
@@ -1608,18 +1566,18 @@ func TestShowAllServerOptions(t *testing.T) {
 			t.Errorf("ShowAllServerOptions() = %q, want raw output", got)
 		}
 
-		if len(mock.Calls) != 1 {
-			t.Fatalf("expected 1 call, got %d", len(mock.Calls))
+		if len(mock.Calls()) != 1 {
+			t.Fatalf("expected 1 call, got %d", len(mock.Calls()))
 		}
 		wantArgs := "show-options -s"
-		gotArgs := strings.Join(mock.Calls[0], " ")
+		gotArgs := strings.Join(mock.Calls()[0], " ")
 		if gotArgs != wantArgs {
 			t.Errorf("called with %q, want %q", gotArgs, wantArgs)
 		}
 	})
 
 	t.Run("returns wrapped error when tmux command fails", func(t *testing.T) {
-		mock := &MockCommander{Err: fmt.Errorf("tmux exploded")}
+		mock := commandertest.Quiet(commandertest.Fails(fmt.Errorf("tmux exploded")))
 		client := tmux.NewClient(mock)
 
 		_, err := client.ShowAllServerOptions()
@@ -1634,7 +1592,7 @@ func TestShowAllServerOptions(t *testing.T) {
 
 func TestTryGetServerOption(t *testing.T) {
 	t.Run("returns value and found=true when option exists", func(t *testing.T) {
-		mock := &MockCommander{Output: "1"}
+		mock := commandertest.Quiet(commandertest.Returns("1"))
 		client := tmux.NewClient(mock)
 
 		val, found, err := client.TryGetServerOption("@portal-restoring")
@@ -1650,10 +1608,10 @@ func TestTryGetServerOption(t *testing.T) {
 	})
 
 	t.Run("returns found=false and no error when option not found", func(t *testing.T) {
-		mock := &MockCommander{Err: &tmux.CommandError{
+		mock := commandertest.Quiet(commandertest.Fails(&tmux.CommandError{
 			Stderr: "unknown option: @portal-restoring",
 			Err:    errors.New("exit status 1"),
-		}}
+		}))
 		client := tmux.NewClient(mock)
 
 		val, found, err := client.TryGetServerOption("@portal-restoring")
@@ -1674,7 +1632,7 @@ func TestTryGetServerOption_PropagatesTransportError(t *testing.T) {
 		Stderr: "error connecting to /tmp/tmux-501//default (No such file or directory)",
 		Err:    errors.New("exit status 1"),
 	}
-	mock := &MockCommander{Err: cmdErr}
+	mock := commandertest.Quiet(commandertest.Fails(cmdErr))
 	client := tmux.NewClient(mock)
 
 	val, found, err := client.TryGetServerOption("@portal-restoring")
@@ -1699,7 +1657,7 @@ func TestTryGetServerOption_PropagatesTransportError(t *testing.T) {
 
 func TestNewSessionWithCommand(t *testing.T) {
 	t.Run("creates session with name, cwd, and shell-command", func(t *testing.T) {
-		mock := &MockCommander{}
+		mock := commandertest.Quiet()
 		client := tmux.NewClient(mock)
 
 		shellCmd := "sh -c 'portal state hydrate --fifo X --file Y --hook-key Z; exec $SHELL'"
@@ -1708,11 +1666,11 @@ func TestNewSessionWithCommand(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if len(mock.Calls) != 1 {
-			t.Fatalf("expected 1 call, got %d", len(mock.Calls))
+		if len(mock.Calls()) != 1 {
+			t.Fatalf("expected 1 call, got %d", len(mock.Calls()))
 		}
 		want := []string{"new-session", "-d", "-s", "work", "-c", "/Users/me/project", shellCmd}
-		got := mock.Calls[0]
+		got := mock.Calls()[0]
 		if len(got) != len(want) {
 			t.Fatalf("got %d args %v, want %d args %v", len(got), got, len(want), want)
 		}
@@ -1724,7 +1682,7 @@ func TestNewSessionWithCommand(t *testing.T) {
 	})
 
 	t.Run("omits -c when cwd is empty", func(t *testing.T) {
-		mock := &MockCommander{}
+		mock := commandertest.Quiet()
 		client := tmux.NewClient(mock)
 
 		err := client.NewSessionWithCommand("work", "", "echo hi")
@@ -1733,7 +1691,7 @@ func TestNewSessionWithCommand(t *testing.T) {
 		}
 
 		want := []string{"new-session", "-d", "-s", "work", "echo hi"}
-		got := mock.Calls[0]
+		got := mock.Calls()[0]
 		if len(got) != len(want) {
 			t.Fatalf("got %d args %v, want %d args %v", len(got), got, len(want), want)
 		}
@@ -1745,7 +1703,7 @@ func TestNewSessionWithCommand(t *testing.T) {
 	})
 
 	t.Run("omits trailing shell-command arg when empty", func(t *testing.T) {
-		mock := &MockCommander{}
+		mock := commandertest.Quiet()
 		client := tmux.NewClient(mock)
 
 		err := client.NewSessionWithCommand("work", "/tmp", "")
@@ -1754,14 +1712,14 @@ func TestNewSessionWithCommand(t *testing.T) {
 		}
 
 		want := []string{"new-session", "-d", "-s", "work", "-c", "/tmp"}
-		got := mock.Calls[0]
+		got := mock.Calls()[0]
 		if len(got) != len(want) {
 			t.Fatalf("got %d args %v, want %d args %v", len(got), got, len(want), want)
 		}
 	})
 
 	t.Run("returns wrapped error when tmux command fails", func(t *testing.T) {
-		mock := &MockCommander{Err: fmt.Errorf("tmux failed")}
+		mock := commandertest.Quiet(commandertest.Fails(fmt.Errorf("tmux failed")))
 		client := tmux.NewClient(mock)
 
 		err := client.NewSessionWithCommand("work", "/tmp", "")
@@ -1779,7 +1737,7 @@ func TestNewSessionWithCommand(t *testing.T) {
 
 func TestNewWindow(t *testing.T) {
 	t.Run("creates window with target, name, cwd, and shell-command", func(t *testing.T) {
-		mock := &MockCommander{}
+		mock := commandertest.Quiet()
 		client := tmux.NewClient(mock)
 
 		err := client.NewWindow("work:", "code", "/work", "echo hi")
@@ -1788,7 +1746,7 @@ func TestNewWindow(t *testing.T) {
 		}
 
 		want := []string{"new-window", "-t", "work:", "-n", "code", "-c", "/work", "echo hi"}
-		got := mock.Calls[0]
+		got := mock.Calls()[0]
 		if len(got) != len(want) {
 			t.Fatalf("got %d args %v, want %d args %v", len(got), got, len(want), want)
 		}
@@ -1800,7 +1758,7 @@ func TestNewWindow(t *testing.T) {
 	})
 
 	t.Run("omits -n when name is empty", func(t *testing.T) {
-		mock := &MockCommander{}
+		mock := commandertest.Quiet()
 		client := tmux.NewClient(mock)
 
 		err := client.NewWindow("work:", "", "/work", "")
@@ -1809,14 +1767,14 @@ func TestNewWindow(t *testing.T) {
 		}
 
 		want := []string{"new-window", "-t", "work:", "-c", "/work"}
-		got := mock.Calls[0]
+		got := mock.Calls()[0]
 		if len(got) != len(want) {
 			t.Fatalf("got %d args %v, want %d args %v", len(got), got, len(want), want)
 		}
 	})
 
 	t.Run("omits -c when cwd is empty", func(t *testing.T) {
-		mock := &MockCommander{}
+		mock := commandertest.Quiet()
 		client := tmux.NewClient(mock)
 
 		err := client.NewWindow("work:", "code", "", "")
@@ -1825,14 +1783,14 @@ func TestNewWindow(t *testing.T) {
 		}
 
 		want := []string{"new-window", "-t", "work:", "-n", "code"}
-		got := mock.Calls[0]
+		got := mock.Calls()[0]
 		if len(got) != len(want) {
 			t.Fatalf("got %d args %v, want %d args %v", len(got), got, len(want), want)
 		}
 	})
 
 	t.Run("returns wrapped error when tmux command fails", func(t *testing.T) {
-		mock := &MockCommander{Err: fmt.Errorf("tmux failed")}
+		mock := commandertest.Quiet(commandertest.Fails(fmt.Errorf("tmux failed")))
 		client := tmux.NewClient(mock)
 
 		err := client.NewWindow("work:", "code", "", "")
@@ -1847,7 +1805,7 @@ func TestNewWindow(t *testing.T) {
 
 func TestSplitWindow(t *testing.T) {
 	t.Run("splits window with cwd and shell-command", func(t *testing.T) {
-		mock := &MockCommander{}
+		mock := commandertest.Quiet()
 		client := tmux.NewClient(mock)
 
 		err := client.SplitWindow("work:0", "/work", "echo hi")
@@ -1856,7 +1814,7 @@ func TestSplitWindow(t *testing.T) {
 		}
 
 		want := []string{"split-window", "-t", "work:0", "-c", "/work", "echo hi"}
-		got := mock.Calls[0]
+		got := mock.Calls()[0]
 		if len(got) != len(want) {
 			t.Fatalf("got %d args %v, want %d args %v", len(got), got, len(want), want)
 		}
@@ -1868,7 +1826,7 @@ func TestSplitWindow(t *testing.T) {
 	})
 
 	t.Run("omits -c when cwd is empty", func(t *testing.T) {
-		mock := &MockCommander{}
+		mock := commandertest.Quiet()
 		client := tmux.NewClient(mock)
 
 		err := client.SplitWindow("work:0", "", "")
@@ -1877,14 +1835,14 @@ func TestSplitWindow(t *testing.T) {
 		}
 
 		want := []string{"split-window", "-t", "work:0"}
-		got := mock.Calls[0]
+		got := mock.Calls()[0]
 		if len(got) != len(want) {
 			t.Fatalf("got %d args %v, want %d args %v", len(got), got, len(want), want)
 		}
 	})
 
 	t.Run("returns wrapped error when tmux command fails", func(t *testing.T) {
-		mock := &MockCommander{Err: fmt.Errorf("tmux failed")}
+		mock := commandertest.Quiet(commandertest.Fails(fmt.Errorf("tmux failed")))
 		client := tmux.NewClient(mock)
 
 		err := client.SplitWindow("work:0", "", "")
@@ -1899,7 +1857,7 @@ func TestSplitWindow(t *testing.T) {
 
 func TestSetSessionEnvironment(t *testing.T) {
 	t.Run("sets environment variable on session", func(t *testing.T) {
-		mock := &MockCommander{}
+		mock := commandertest.Quiet()
 		client := tmux.NewClient(mock)
 
 		err := client.SetSessionEnvironment("work", "LANG", "en_US.UTF-8")
@@ -1908,7 +1866,7 @@ func TestSetSessionEnvironment(t *testing.T) {
 		}
 
 		want := []string{"set-environment", "-t", "=work", "LANG", "en_US.UTF-8"}
-		got := mock.Calls[0]
+		got := mock.Calls()[0]
 		if len(got) != len(want) {
 			t.Fatalf("got %d args %v, want %d args %v", len(got), got, len(want), want)
 		}
@@ -1920,7 +1878,7 @@ func TestSetSessionEnvironment(t *testing.T) {
 	})
 
 	t.Run("returns wrapped error when tmux command fails", func(t *testing.T) {
-		mock := &MockCommander{Err: fmt.Errorf("tmux failed")}
+		mock := commandertest.Quiet(commandertest.Fails(fmt.Errorf("tmux failed")))
 		client := tmux.NewClient(mock)
 
 		err := client.SetSessionEnvironment("work", "LANG", "en_US.UTF-8")
@@ -1938,7 +1896,7 @@ func TestSetSessionEnvironment(t *testing.T) {
 
 func TestSelectLayout(t *testing.T) {
 	t.Run("invokes select-layout with composed window target and saved layout string", func(t *testing.T) {
-		mock := &MockCommander{}
+		mock := commandertest.Quiet()
 		client := tmux.NewClient(mock)
 
 		err := client.SelectLayout("work", 1, "abcd,80x24,0,0")
@@ -1947,7 +1905,7 @@ func TestSelectLayout(t *testing.T) {
 		}
 
 		want := []string{"select-layout", "-t", "=work:1", "abcd,80x24,0,0"}
-		got := mock.Calls[0]
+		got := mock.Calls()[0]
 		if len(got) != len(want) {
 			t.Fatalf("got %d args %v, want %d args %v", len(got), got, len(want), want)
 		}
@@ -1959,7 +1917,7 @@ func TestSelectLayout(t *testing.T) {
 	})
 
 	t.Run("returns wrapped error when tmux command fails", func(t *testing.T) {
-		mock := &MockCommander{Err: fmt.Errorf("tmux failed")}
+		mock := commandertest.Quiet(commandertest.Fails(fmt.Errorf("tmux failed")))
 		client := tmux.NewClient(mock)
 
 		err := client.SelectLayout("work", 0, "tiled")
@@ -1977,7 +1935,7 @@ func TestSelectLayout(t *testing.T) {
 
 func TestSelectWindow(t *testing.T) {
 	t.Run("invokes select-window with composed session:window target with exact-match prefix", func(t *testing.T) {
-		mock := &MockCommander{}
+		mock := commandertest.Quiet()
 		client := tmux.NewClient(mock)
 
 		err := client.SelectWindow("work", 2)
@@ -1986,7 +1944,7 @@ func TestSelectWindow(t *testing.T) {
 		}
 
 		want := []string{"select-window", "-t", "=work:2"}
-		got := mock.Calls[0]
+		got := mock.Calls()[0]
 		if len(got) != len(want) {
 			t.Fatalf("got %d args %v, want %d args %v", len(got), got, len(want), want)
 		}
@@ -1998,19 +1956,19 @@ func TestSelectWindow(t *testing.T) {
 	})
 
 	t.Run("issues select-window exactly once", func(t *testing.T) {
-		mock := &MockCommander{}
+		mock := commandertest.Quiet()
 		client := tmux.NewClient(mock)
 
 		if err := client.SelectWindow("work", 2); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if len(mock.Calls) != 1 {
-			t.Fatalf("expected 1 Commander.Run call, got %d", len(mock.Calls))
+		if len(mock.Calls()) != 1 {
+			t.Fatalf("expected 1 Commander.Run call, got %d", len(mock.Calls()))
 		}
 	})
 
 	t.Run("returns nil on zero exit", func(t *testing.T) {
-		mock := &MockCommander{}
+		mock := commandertest.Quiet()
 		client := tmux.NewClient(mock)
 
 		if err := client.SelectWindow("work", 0); err != nil {
@@ -2019,7 +1977,7 @@ func TestSelectWindow(t *testing.T) {
 	})
 
 	t.Run("returns wrapped error when tmux command fails", func(t *testing.T) {
-		mock := &MockCommander{Err: fmt.Errorf("tmux failed")}
+		mock := commandertest.Quiet(commandertest.Fails(fmt.Errorf("tmux failed")))
 		client := tmux.NewClient(mock)
 
 		err := client.SelectWindow("work", 0)
@@ -2036,7 +1994,7 @@ func TestSelectWindow(t *testing.T) {
 
 	t.Run("wraps *CommandError so errors.As recovers it", func(t *testing.T) {
 		cmdErr := &tmux.CommandError{Stderr: "can't find window: 99", Err: fmt.Errorf("exit status 1")}
-		mock := &MockCommander{Err: cmdErr}
+		mock := commandertest.Quiet(commandertest.Fails(cmdErr))
 		client := tmux.NewClient(mock)
 
 		err := client.SelectWindow("work", 99)
@@ -2056,13 +2014,13 @@ func TestSelectWindow(t *testing.T) {
 	})
 
 	t.Run("prepends exact-match prefix to session segment", func(t *testing.T) {
-		mock := &MockCommander{}
+		mock := commandertest.Quiet()
 		client := tmux.NewClient(mock)
 
 		if err := client.SelectWindow("work", 2); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		got := mock.Calls[0]
+		got := mock.Calls()[0]
 		if len(got) < 3 {
 			t.Fatalf("call too short: %v", got)
 		}
@@ -2074,7 +2032,7 @@ func TestSelectWindow(t *testing.T) {
 
 func TestSelectPane(t *testing.T) {
 	t.Run("invokes select-pane with composed window.pane target with exact-match prefix", func(t *testing.T) {
-		mock := &MockCommander{}
+		mock := commandertest.Quiet()
 		client := tmux.NewClient(mock)
 
 		err := client.SelectPane("work", 2, 3)
@@ -2083,7 +2041,7 @@ func TestSelectPane(t *testing.T) {
 		}
 
 		want := []string{"select-pane", "-t", "=work:2.3"}
-		got := mock.Calls[0]
+		got := mock.Calls()[0]
 		if len(got) != len(want) {
 			t.Fatalf("got %d args %v, want %d args %v", len(got), got, len(want), want)
 		}
@@ -2095,7 +2053,7 @@ func TestSelectPane(t *testing.T) {
 	})
 
 	t.Run("returns wrapped error when tmux command fails", func(t *testing.T) {
-		mock := &MockCommander{Err: fmt.Errorf("tmux failed")}
+		mock := commandertest.Quiet(commandertest.Fails(fmt.Errorf("tmux failed")))
 		client := tmux.NewClient(mock)
 
 		err := client.SelectPane("work", 0, 0)
@@ -2113,7 +2071,7 @@ func TestSelectPane(t *testing.T) {
 
 func TestResizePaneZoom(t *testing.T) {
 	t.Run("invokes resize-pane -Z with composed window.pane target with exact-match prefix", func(t *testing.T) {
-		mock := &MockCommander{}
+		mock := commandertest.Quiet()
 		client := tmux.NewClient(mock)
 
 		err := client.ResizePaneZoom("work", 1, 2)
@@ -2122,7 +2080,7 @@ func TestResizePaneZoom(t *testing.T) {
 		}
 
 		want := []string{"resize-pane", "-Z", "-t", "=work:1.2"}
-		got := mock.Calls[0]
+		got := mock.Calls()[0]
 		if len(got) != len(want) {
 			t.Fatalf("got %d args %v, want %d args %v", len(got), got, len(want), want)
 		}
@@ -2134,7 +2092,7 @@ func TestResizePaneZoom(t *testing.T) {
 	})
 
 	t.Run("returns wrapped error when tmux command fails", func(t *testing.T) {
-		mock := &MockCommander{Err: fmt.Errorf("tmux failed")}
+		mock := commandertest.Quiet(commandertest.Fails(fmt.Errorf("tmux failed")))
 		client := tmux.NewClient(mock)
 
 		err := client.ResizePaneZoom("work", 0, 0)
@@ -2152,7 +2110,7 @@ func TestResizePaneZoom(t *testing.T) {
 
 func TestListPanesInSession(t *testing.T) {
 	t.Run("invokes list-panes -s -t <session> with window:pane format", func(t *testing.T) {
-		mock := &MockCommander{Output: "0:0"}
+		mock := commandertest.Quiet(commandertest.Returns("0:0"))
 		client := tmux.NewClient(mock)
 
 		_, err := client.ListPanesInSession("work")
@@ -2161,7 +2119,7 @@ func TestListPanesInSession(t *testing.T) {
 		}
 
 		want := []string{"list-panes", "-s", "-t", "=work:", "-F", "#{window_index}:#{pane_index}"}
-		got := mock.Calls[0]
+		got := mock.Calls()[0]
 		if len(got) != len(want) {
 			t.Fatalf("got %d args %v, want %d args %v", len(got), got, len(want), want)
 		}
@@ -2173,7 +2131,7 @@ func TestListPanesInSession(t *testing.T) {
 	})
 
 	t.Run("parses single pane line", func(t *testing.T) {
-		mock := &MockCommander{Output: "0:0"}
+		mock := commandertest.Quiet(commandertest.Returns("0:0"))
 		client := tmux.NewClient(mock)
 
 		got, err := client.ListPanesInSession("work")
@@ -2190,7 +2148,7 @@ func TestListPanesInSession(t *testing.T) {
 	})
 
 	t.Run("parses multiple panes across windows", func(t *testing.T) {
-		mock := &MockCommander{Output: "0:0\n0:1\n1:0\n1:1\n1:2"}
+		mock := commandertest.Quiet(commandertest.Returns("0:0\n0:1\n1:0\n1:1\n1:2"))
 		client := tmux.NewClient(mock)
 
 		got, err := client.ListPanesInSession("work")
@@ -2215,7 +2173,7 @@ func TestListPanesInSession(t *testing.T) {
 	})
 
 	t.Run("sorts coords by window then pane", func(t *testing.T) {
-		mock := &MockCommander{Output: "1:2\n0:1\n1:0\n0:0"}
+		mock := commandertest.Quiet(commandertest.Returns("1:2\n0:1\n1:0\n0:0"))
 		client := tmux.NewClient(mock)
 
 		got, err := client.ListPanesInSession("work")
@@ -2239,7 +2197,7 @@ func TestListPanesInSession(t *testing.T) {
 	})
 
 	t.Run("returns empty slice when output is empty", func(t *testing.T) {
-		mock := &MockCommander{Output: ""}
+		mock := commandertest.Quiet(commandertest.Returns(""))
 		client := tmux.NewClient(mock)
 
 		got, err := client.ListPanesInSession("work")
@@ -2252,7 +2210,7 @@ func TestListPanesInSession(t *testing.T) {
 	})
 
 	t.Run("returns wrapped error when tmux command fails", func(t *testing.T) {
-		mock := &MockCommander{Err: fmt.Errorf("session not found")}
+		mock := commandertest.Quiet(commandertest.Fails(fmt.Errorf("session not found")))
 		client := tmux.NewClient(mock)
 
 		_, err := client.ListPanesInSession("work")
@@ -2268,7 +2226,7 @@ func TestListPanesInSession(t *testing.T) {
 	})
 
 	t.Run("returns error on unexpected line format", func(t *testing.T) {
-		mock := &MockCommander{Output: "garbage-line"}
+		mock := commandertest.Quiet(commandertest.Returns("garbage-line"))
 		client := tmux.NewClient(mock)
 
 		_, err := client.ListPanesInSession("work")
@@ -2278,7 +2236,7 @@ func TestListPanesInSession(t *testing.T) {
 	})
 
 	t.Run("returns error on non-integer window", func(t *testing.T) {
-		mock := &MockCommander{Output: "abc:0"}
+		mock := commandertest.Quiet(commandertest.Returns("abc:0"))
 		client := tmux.NewClient(mock)
 
 		_, err := client.ListPanesInSession("work")
@@ -2288,7 +2246,7 @@ func TestListPanesInSession(t *testing.T) {
 	})
 
 	t.Run("returns error on non-integer pane", func(t *testing.T) {
-		mock := &MockCommander{Output: "0:abc"}
+		mock := commandertest.Quiet(commandertest.Returns("0:abc"))
 		client := tmux.NewClient(mock)
 
 		_, err := client.ListPanesInSession("work")
@@ -2298,7 +2256,7 @@ func TestListPanesInSession(t *testing.T) {
 	})
 
 	t.Run("skips blank lines and trims whitespace", func(t *testing.T) {
-		mock := &MockCommander{Output: "0:0\n\n  0:1  \n"}
+		mock := commandertest.Quiet(commandertest.Returns("0:0\n\n  0:1  \n"))
 		client := tmux.NewClient(mock)
 
 		got, err := client.ListPanesInSession("work")
@@ -2322,7 +2280,7 @@ func TestListPanesInSession(t *testing.T) {
 
 func TestRespawnPane(t *testing.T) {
 	t.Run("kills existing process and respawns with shell command", func(t *testing.T) {
-		mock := &MockCommander{}
+		mock := commandertest.Quiet()
 		client := tmux.NewClient(mock)
 
 		err := client.RespawnPane("work:0.0", "sh -c 'echo hi; exec $SHELL'")
@@ -2330,11 +2288,11 @@ func TestRespawnPane(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if len(mock.Calls) != 1 {
-			t.Fatalf("expected 1 call, got %d", len(mock.Calls))
+		if len(mock.Calls()) != 1 {
+			t.Fatalf("expected 1 call, got %d", len(mock.Calls()))
 		}
 		want := []string{"respawn-pane", "-k", "-t", "work:0.0", "sh -c 'echo hi; exec $SHELL'"}
-		got := mock.Calls[0]
+		got := mock.Calls()[0]
 		if len(got) != len(want) {
 			t.Fatalf("got %d args %v, want %d args %v", len(got), got, len(want), want)
 		}
@@ -2346,7 +2304,7 @@ func TestRespawnPane(t *testing.T) {
 	})
 
 	t.Run("returns wrapped error when tmux command fails", func(t *testing.T) {
-		mock := &MockCommander{Err: errors.New("tmux failed")}
+		mock := commandertest.Quiet(commandertest.Fails(errors.New("tmux failed")))
 		client := tmux.NewClient(mock)
 
 		err := client.RespawnPane("work:0.0", "sh -c 'x'")
@@ -2409,7 +2367,7 @@ func TestListWindowsAndPanesInSession(t *testing.T) {
 	const us = "\x1f"
 
 	t.Run("it uses the cmd.Run interface with list-panes -s -t <session> and unit-separator format", func(t *testing.T) {
-		mock := &MockCommander{Output: "0" + us + "main" + us + "0"}
+		mock := commandertest.Quiet(commandertest.Returns("0" + us + "main" + us + "0"))
 		client := tmux.NewClient(mock)
 
 		_, err := client.ListWindowsAndPanesInSession("work")
@@ -2417,14 +2375,14 @@ func TestListWindowsAndPanesInSession(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if len(mock.Calls) != 1 {
-			t.Fatalf("expected 1 call, got %d", len(mock.Calls))
+		if len(mock.Calls()) != 1 {
+			t.Fatalf("expected 1 call, got %d", len(mock.Calls()))
 		}
 		want := []string{
 			"list-panes", "-s", "-t", "=work:",
 			"-F", "#{window_index}\x1f#{window_name}\x1f#{pane_index}",
 		}
-		got := mock.Calls[0]
+		got := mock.Calls()[0]
 		if len(got) != len(want) {
 			t.Fatalf("got %d args %v, want %d args %v", len(got), got, len(want), want)
 		}
@@ -2436,14 +2394,14 @@ func TestListWindowsAndPanesInSession(t *testing.T) {
 	})
 
 	t.Run("it returns window-grouped panes ordered by window_index then pane_index", func(t *testing.T) {
-		mock := &MockCommander{Output: strings.Join([]string{
+		mock := commandertest.Quiet(commandertest.Returns(strings.Join([]string{
 			"0" + us + "editor" + us + "0",
 			"0" + us + "editor" + us + "1",
 			"1" + us + "logs" + us + "0",
 			"1" + us + "logs" + us + "1",
 			"2" + us + "repl" + us + "0",
 			"2" + us + "repl" + us + "1",
-		}, "\n")}
+		}, "\n")))
 		client := tmux.NewClient(mock)
 
 		got, err := client.ListWindowsAndPanesInSession("work")
@@ -2460,11 +2418,11 @@ func TestListWindowsAndPanesInSession(t *testing.T) {
 	})
 
 	t.Run("it preserves non-contiguous window_index values verbatim", func(t *testing.T) {
-		mock := &MockCommander{Output: strings.Join([]string{
+		mock := commandertest.Quiet(commandertest.Returns(strings.Join([]string{
 			"0" + us + "alpha" + us + "0",
 			"2" + us + "beta" + us + "0",
 			"5" + us + "gamma" + us + "0",
-		}, "\n")}
+		}, "\n")))
 		client := tmux.NewClient(mock)
 
 		got, err := client.ListWindowsAndPanesInSession("work")
@@ -2481,11 +2439,11 @@ func TestListWindowsAndPanesInSession(t *testing.T) {
 	})
 
 	t.Run("it preserves base-index 1 raw values", func(t *testing.T) {
-		mock := &MockCommander{Output: strings.Join([]string{
+		mock := commandertest.Quiet(commandertest.Returns(strings.Join([]string{
 			"1" + us + "first" + us + "1",
 			"1" + us + "first" + us + "2",
 			"2" + us + "second" + us + "1",
-		}, "\n")}
+		}, "\n")))
 		client := tmux.NewClient(mock)
 
 		got, err := client.ListWindowsAndPanesInSession("work")
@@ -2501,7 +2459,7 @@ func TestListWindowsAndPanesInSession(t *testing.T) {
 	})
 
 	t.Run("it preserves window names containing whitespace", func(t *testing.T) {
-		mock := &MockCommander{Output: "0" + us + "my window name" + us + "0"}
+		mock := commandertest.Quiet(commandertest.Returns("0" + us + "my window name" + us + "0"))
 		client := tmux.NewClient(mock)
 
 		got, err := client.ListWindowsAndPanesInSession("work")
@@ -2516,7 +2474,7 @@ func TestListWindowsAndPanesInSession(t *testing.T) {
 	})
 
 	t.Run("it preserves window names containing the pipe delimiter", func(t *testing.T) {
-		mock := &MockCommander{Output: "0" + us + "name|with|pipes" + us + "0"}
+		mock := commandertest.Quiet(commandertest.Returns("0" + us + "name|with|pipes" + us + "0"))
 		client := tmux.NewClient(mock)
 
 		got, err := client.ListWindowsAndPanesInSession("work")
@@ -2531,11 +2489,11 @@ func TestListWindowsAndPanesInSession(t *testing.T) {
 	})
 
 	t.Run("it groups multiple panes within the same window correctly", func(t *testing.T) {
-		mock := &MockCommander{Output: strings.Join([]string{
+		mock := commandertest.Quiet(commandertest.Returns(strings.Join([]string{
 			"0" + us + "main" + us + "2",
 			"0" + us + "main" + us + "0",
 			"0" + us + "main" + us + "1",
-		}, "\n")}
+		}, "\n")))
 		client := tmux.NewClient(mock)
 
 		got, err := client.ListWindowsAndPanesInSession("work")
@@ -2550,10 +2508,10 @@ func TestListWindowsAndPanesInSession(t *testing.T) {
 	})
 
 	t.Run("it preserves first-seen window name when later rows share the index", func(t *testing.T) {
-		mock := &MockCommander{Output: strings.Join([]string{
+		mock := commandertest.Quiet(commandertest.Returns(strings.Join([]string{
 			"0" + us + "first-seen" + us + "0",
 			"0" + us + "ignored" + us + "1",
-		}, "\n")}
+		}, "\n")))
 		client := tmux.NewClient(mock)
 
 		got, err := client.ListWindowsAndPanesInSession("work")
@@ -2568,11 +2526,11 @@ func TestListWindowsAndPanesInSession(t *testing.T) {
 	})
 
 	t.Run("it sorts windows ascending even when tmux output is unordered", func(t *testing.T) {
-		mock := &MockCommander{Output: strings.Join([]string{
+		mock := commandertest.Quiet(commandertest.Returns(strings.Join([]string{
 			"2" + us + "two" + us + "0",
 			"0" + us + "zero" + us + "0",
 			"1" + us + "one" + us + "0",
-		}, "\n")}
+		}, "\n")))
 		client := tmux.NewClient(mock)
 
 		got, err := client.ListWindowsAndPanesInSession("work")
@@ -2589,7 +2547,7 @@ func TestListWindowsAndPanesInSession(t *testing.T) {
 	})
 
 	t.Run("it returns an error when tmux exits non-zero", func(t *testing.T) {
-		mock := &MockCommander{Output: "", Err: errors.New("exit status 1: no such session")}
+		mock := commandertest.Quiet(commandertest.When(commandertest.Any, "", errors.New("exit status 1: no such session")))
 		client := tmux.NewClient(mock)
 
 		got, err := client.ListWindowsAndPanesInSession("work")
@@ -2602,7 +2560,7 @@ func TestListWindowsAndPanesInSession(t *testing.T) {
 	})
 
 	t.Run("it returns an empty slice when stdout is empty and exit is zero", func(t *testing.T) {
-		mock := &MockCommander{Output: "", Err: nil}
+		mock := commandertest.Quiet(commandertest.When(commandertest.Any, "", nil))
 		client := tmux.NewClient(mock)
 
 		got, err := client.ListWindowsAndPanesInSession("work")
@@ -2618,7 +2576,7 @@ func TestListWindowsAndPanesInSession(t *testing.T) {
 	})
 
 	t.Run("it returns an empty slice for whitespace-only stdout", func(t *testing.T) {
-		mock := &MockCommander{Output: "\n", Err: nil}
+		mock := commandertest.Quiet(commandertest.When(commandertest.Any, "\n", nil))
 		client := tmux.NewClient(mock)
 
 		got, err := client.ListWindowsAndPanesInSession("work")
@@ -2635,7 +2593,7 @@ func TestListWindowsAndPanesInSession(t *testing.T) {
 
 	t.Run("the wrapped error includes the session name", func(t *testing.T) {
 		const sessionName = "my-session-name"
-		mock := &MockCommander{Err: errors.New("exit status 1")}
+		mock := commandertest.Quiet(commandertest.Fails(errors.New("exit status 1")))
 		client := tmux.NewClient(mock)
 
 		_, err := client.ListWindowsAndPanesInSession(sessionName)
@@ -2649,7 +2607,7 @@ func TestListWindowsAndPanesInSession(t *testing.T) {
 
 	t.Run("the wrapped error preserves the original via errors.Is", func(t *testing.T) {
 		sentinel := errors.New("sentinel tmux failure")
-		mock := &MockCommander{Err: sentinel}
+		mock := commandertest.Quiet(commandertest.Fails(sentinel))
 		client := tmux.NewClient(mock)
 
 		_, err := client.ListWindowsAndPanesInSession("work")
@@ -2664,7 +2622,7 @@ func TestListWindowsAndPanesInSession(t *testing.T) {
 	t.Run("the wrapped error uses the spec-mandated prefix without quoting the session name", func(t *testing.T) {
 		const sessionName = "work"
 		sentinel := errors.New("boom")
-		mock := &MockCommander{Err: sentinel}
+		mock := commandertest.Quiet(commandertest.Fails(sentinel))
 		client := tmux.NewClient(mock)
 
 		_, err := client.ListWindowsAndPanesInSession(sessionName)
@@ -2806,7 +2764,7 @@ func TestCommandError_StructLiteralConstruction(t *testing.T) {
 
 func TestActivePaneCurrentPath(t *testing.T) {
 	t.Run("reads only the active pane via display-message, not list-panes", func(t *testing.T) {
-		mock := &MockCommander{Output: "/home/user/project"}
+		mock := commandertest.Quiet(commandertest.Returns("/home/user/project"))
 		client := tmux.NewClient(mock)
 
 		got, err := client.ActivePaneCurrentPath("my-session")
@@ -2817,19 +2775,19 @@ func TestActivePaneCurrentPath(t *testing.T) {
 		if got != "/home/user/project" {
 			t.Errorf("got %q, want %q", got, "/home/user/project")
 		}
-		if len(mock.Calls) != 1 {
-			t.Fatalf("expected exactly 1 call, got %d: %v", len(mock.Calls), mock.Calls)
+		if len(mock.Calls()) != 1 {
+			t.Fatalf("expected exactly 1 call, got %d: %v", len(mock.Calls()), mock.Calls())
 		}
 		wantArgs := []string{"display-message", "-p", "-t", "=my-session:", "-F", "#{pane_current_path}"}
-		if len(mock.Calls[0]) != len(wantArgs) {
-			t.Fatalf("got args %v, want %v", mock.Calls[0], wantArgs)
+		if len(mock.Calls()[0]) != len(wantArgs) {
+			t.Fatalf("got args %v, want %v", mock.Calls()[0], wantArgs)
 		}
 		for i, want := range wantArgs {
-			if mock.Calls[0][i] != want {
-				t.Errorf("arg[%d] = %q, want %q (full %v)", i, mock.Calls[0][i], want, mock.Calls[0])
+			if mock.Calls()[0][i] != want {
+				t.Errorf("arg[%d] = %q, want %q (full %v)", i, mock.Calls()[0][i], want, mock.Calls()[0])
 			}
 		}
-		joined := strings.Join(mock.Calls[0], " ")
+		joined := strings.Join(mock.Calls()[0], " ")
 		if strings.Contains(joined, "list-panes") {
 			t.Errorf("must not enumerate panes via list-panes, got %q", joined)
 		}
@@ -2841,7 +2799,7 @@ func TestActivePaneCurrentPath(t *testing.T) {
 	t.Run("it returns empty and nil for a session no pane answers to", func(t *testing.T) {
 		// tmux exits 0 with an empty expansion and no stderr for an unmatched
 		// display-message target, so the miss arrives as a value, not an error.
-		mock := &MockCommander{Output: ""}
+		mock := commandertest.Quiet(commandertest.Returns(""))
 		client := tmux.NewClient(mock)
 
 		got, err := client.ActivePaneCurrentPath("gone")
@@ -2859,7 +2817,7 @@ func TestActivePaneCurrentPath(t *testing.T) {
 			Stderr: "error connecting to /private/tmp/tmux-501/gone (No such file or directory)",
 			Err:    errors.New("exit status 1"),
 		}
-		mock := &MockCommander{Err: cmdErr}
+		mock := commandertest.Quiet(commandertest.Fails(cmdErr))
 		client := tmux.NewClient(mock)
 
 		got, err := client.ActivePaneCurrentPath("my-session")
@@ -2883,7 +2841,7 @@ func TestActivePaneCurrentPath(t *testing.T) {
 		// would be a contract no caller could ever observe. A caller that wants
 		// tmux's words reads the recoverable *CommandError.
 		cmdErr := &tmux.CommandError{Stderr: "no such session: gone", Err: errors.New("exit status 1")}
-		mock := &MockCommander{Err: cmdErr}
+		mock := commandertest.Quiet(commandertest.Fails(cmdErr))
 		client := tmux.NewClient(mock)
 
 		_, err := client.ActivePaneCurrentPath("gone")
@@ -2900,7 +2858,7 @@ func TestActivePaneCurrentPath(t *testing.T) {
 	})
 
 	t.Run("propagates a non-command error wrapped with the session name", func(t *testing.T) {
-		mock := &MockCommander{Err: fmt.Errorf("some transport failure")}
+		mock := commandertest.Quiet(commandertest.Fails(fmt.Errorf("some transport failure")))
 		client := tmux.NewClient(mock)
 
 		_, err := client.ActivePaneCurrentPath("my-session")

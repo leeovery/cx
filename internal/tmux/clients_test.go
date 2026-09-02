@@ -5,12 +5,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/portal/internal/commandertest"
 	"github.com/leeovery/portal/internal/tmux"
 )
 
 func TestListClients(t *testing.T) {
 	t.Run("it parses client_pid and client_activity lines into ClientInfo", func(t *testing.T) {
-		mock := &MockCommander{Output: "501 1720000000\n502 1720000005"}
+		mock := commandertest.Quiet(commandertest.Returns("501 1720000000\n502 1720000005"))
 		client := tmux.NewClient(mock)
 
 		got, err := client.ListClients("dev")
@@ -36,7 +37,7 @@ func TestListClients(t *testing.T) {
 	})
 
 	t.Run("it parses a single client line", func(t *testing.T) {
-		mock := &MockCommander{Output: "777 1699999999"}
+		mock := commandertest.Quiet(commandertest.Returns("777 1699999999"))
 		client := tmux.NewClient(mock)
 
 		got, err := client.ListClients("dev")
@@ -52,7 +53,7 @@ func TestListClients(t *testing.T) {
 	})
 
 	t.Run("it tolerates the no-clients case as an empty slice", func(t *testing.T) {
-		mock := &MockCommander{Output: "", Err: fmt.Errorf("exit status 1")}
+		mock := commandertest.Quiet(commandertest.When(commandertest.Any, "", fmt.Errorf("exit status 1")))
 		client := tmux.NewClient(mock)
 
 		got, err := client.ListClients("dev")
@@ -68,7 +69,7 @@ func TestListClients(t *testing.T) {
 	})
 
 	t.Run("it tolerates empty output as an empty slice", func(t *testing.T) {
-		mock := &MockCommander{Output: ""}
+		mock := commandertest.Quiet(commandertest.Returns(""))
 		client := tmux.NewClient(mock)
 
 		got, err := client.ListClients("dev")
@@ -94,7 +95,7 @@ func TestListClients(t *testing.T) {
 		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
-				mock := &MockCommander{Output: tc.output}
+				mock := commandertest.Quiet(commandertest.Returns(tc.output))
 				client := tmux.NewClient(mock)
 
 				if _, err := client.ListClients("dev"); err == nil {
@@ -105,16 +106,16 @@ func TestListClients(t *testing.T) {
 	})
 
 	t.Run("it targets the session exactly and requests pid+activity", func(t *testing.T) {
-		mock := &MockCommander{Output: "501 1720000000"}
+		mock := commandertest.Quiet(commandertest.Returns("501 1720000000"))
 		client := tmux.NewClient(mock)
 
 		if _, err := client.ListClients("dev"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if len(mock.Calls) == 0 {
+		if len(mock.Calls()) == 0 {
 			t.Fatal("expected at least one tmux call")
 		}
-		args := strings.Join(mock.Calls[0], " ")
+		args := strings.Join(mock.Calls()[0], " ")
 		if !strings.Contains(args, "list-clients") {
 			t.Errorf("args %q do not invoke list-clients", args)
 		}

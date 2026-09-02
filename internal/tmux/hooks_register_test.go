@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/portal/internal/commandertest"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/tmux"
 )
@@ -172,14 +173,14 @@ func convergedTable() string {
 }
 
 func TestRegisterPortalHooks_FreshTable(t *testing.T) {
-	mock := &MockCommander{RunFunc: perEventDispatch(t, "", nil)}
+	mock := commandertest.FromFunc(perEventDispatch(t, "", nil))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.RegisterPortalHooks(client, nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	got := setHookCalls(mock.Calls)
+	got := setHookCalls(mock.Calls())
 	if len(got) != expectedManagedEventCount {
 		t.Fatalf("set-hook -ga call count = %d, want %d: %v", len(got), expectedManagedEventCount, got)
 	}
@@ -211,13 +212,13 @@ func TestRegisterPortalHooks_FreshTable(t *testing.T) {
 		}
 	}
 
-	if unsets := unsetHookCalls(mock.Calls); len(unsets) != 0 {
+	if unsets := unsetHookCalls(mock.Calls()); len(unsets) != 0 {
 		t.Errorf("expected 0 set-hook -gu on empty table, got %d: %v", len(unsets), unsets)
 	}
 }
 
 func TestRegisterPortalHooks_IdempotentFastPath(t *testing.T) {
-	mock := &MockCommander{RunFunc: perEventDispatch(t, convergedTable(), nil)}
+	mock := commandertest.FromFunc(perEventDispatch(t, convergedTable(), nil))
 	client := tmux.NewClient(mock)
 
 	logger := &migrationLog{}
@@ -225,10 +226,10 @@ func TestRegisterPortalHooks_IdempotentFastPath(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if appends := setHookCalls(mock.Calls); len(appends) != 0 {
+	if appends := setHookCalls(mock.Calls()); len(appends) != 0 {
 		t.Errorf("expected 0 set-hook -ga on converged table, got %d: %v", len(appends), appends)
 	}
-	if unsets := unsetHookCalls(mock.Calls); len(unsets) != 0 {
+	if unsets := unsetHookCalls(mock.Calls()); len(unsets) != 0 {
 		t.Errorf("expected 0 set-hook -gu on converged table, got %d: %v", len(unsets), unsets)
 	}
 	for _, line := range logger.infos() {
@@ -244,7 +245,7 @@ func TestRegisterPortalHooks_KDeepStackCollapse(t *testing.T) {
 	for i := range k {
 		fmt.Fprintf(&b, "pane-focus-out[%d] => '%s'\n", i, expectedNotifyCommand)
 	}
-	mock := &MockCommander{RunFunc: perEventDispatch(t, b.String(), nil)}
+	mock := commandertest.FromFunc(perEventDispatch(t, b.String(), nil))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.RegisterPortalHooks(client, nil); err != nil {
@@ -252,7 +253,7 @@ func TestRegisterPortalHooks_KDeepStackCollapse(t *testing.T) {
 	}
 
 	var paneFocusUnsets []string
-	for _, u := range unsetHookCalls(mock.Calls) {
+	for _, u := range unsetHookCalls(mock.Calls()) {
 		if strings.HasPrefix(u, "pane-focus-out[") {
 			paneFocusUnsets = append(paneFocusUnsets, u)
 		}
@@ -270,7 +271,7 @@ func TestRegisterPortalHooks_KDeepStackCollapse(t *testing.T) {
 	appendIdx, lastUnsetIdx := -1, -1
 	var appendBody string
 	var paneFocusAppends int
-	for i, e := range setHookEvents(mock.Calls) {
+	for i, e := range setHookEvents(mock.Calls()) {
 		if e.Verb == "-ga" && e.Target == "pane-focus-out" {
 			paneFocusAppends++
 			appendIdx = i
@@ -279,7 +280,7 @@ func TestRegisterPortalHooks_KDeepStackCollapse(t *testing.T) {
 			lastUnsetIdx = i
 		}
 	}
-	for _, c := range setHookCalls(mock.Calls) {
+	for _, c := range setHookCalls(mock.Calls()) {
 		if c[0] == "pane-focus-out" {
 			appendBody = c[1]
 		}
@@ -297,7 +298,7 @@ func TestRegisterPortalHooks_KDeepStackCollapse(t *testing.T) {
 
 func TestRegisterPortalHooks_StaleSignalHydrateMigratesInPlace(t *testing.T) {
 	raw := fmt.Sprintf("client-attached[0] => '%s'\n", staleSignalHydrateCommand)
-	mock := &MockCommander{RunFunc: perEventDispatch(t, raw, nil)}
+	mock := commandertest.FromFunc(perEventDispatch(t, raw, nil))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.RegisterPortalHooks(client, nil); err != nil {
@@ -305,7 +306,7 @@ func TestRegisterPortalHooks_StaleSignalHydrateMigratesInPlace(t *testing.T) {
 	}
 
 	var attachedUnsets []string
-	for _, u := range unsetHookCalls(mock.Calls) {
+	for _, u := range unsetHookCalls(mock.Calls()) {
 		if strings.HasPrefix(u, "client-attached[") {
 			attachedUnsets = append(attachedUnsets, u)
 		}
@@ -316,7 +317,7 @@ func TestRegisterPortalHooks_StaleSignalHydrateMigratesInPlace(t *testing.T) {
 
 	var appendCount int
 	var appendBody string
-	for _, c := range setHookCalls(mock.Calls) {
+	for _, c := range setHookCalls(mock.Calls()) {
 		if c[0] == "client-attached" {
 			appendCount++
 			appendBody = c[1]
@@ -332,7 +333,7 @@ func TestRegisterPortalHooks_StaleSignalHydrateMigratesInPlace(t *testing.T) {
 
 func TestRegisterPortalHooks_StaleNotifyOnSessionClosedMigratesToCommitNow(t *testing.T) {
 	raw := fmt.Sprintf("session-closed[0] => '%s'\n", expectedNotifyCommand)
-	mock := &MockCommander{RunFunc: perEventDispatch(t, raw, nil)}
+	mock := commandertest.FromFunc(perEventDispatch(t, raw, nil))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.RegisterPortalHooks(client, nil); err != nil {
@@ -340,7 +341,7 @@ func TestRegisterPortalHooks_StaleNotifyOnSessionClosedMigratesToCommitNow(t *te
 	}
 
 	var closedUnsets []string
-	for _, u := range unsetHookCalls(mock.Calls) {
+	for _, u := range unsetHookCalls(mock.Calls()) {
 		if strings.HasPrefix(u, "session-closed[") {
 			closedUnsets = append(closedUnsets, u)
 		}
@@ -352,7 +353,7 @@ func TestRegisterPortalHooks_StaleNotifyOnSessionClosedMigratesToCommitNow(t *te
 	unsetIdx, appendIdx := -1, -1
 	var appendBody string
 	var closedAppends int
-	for i, e := range setHookEvents(mock.Calls) {
+	for i, e := range setHookEvents(mock.Calls()) {
 		if e.Verb == "-gu" && e.Target == "session-closed[0]" {
 			unsetIdx = i
 		}
@@ -361,7 +362,7 @@ func TestRegisterPortalHooks_StaleNotifyOnSessionClosedMigratesToCommitNow(t *te
 			appendIdx = i
 		}
 	}
-	for _, c := range setHookCalls(mock.Calls) {
+	for _, c := range setHookCalls(mock.Calls()) {
 		if c[0] == "session-closed" {
 			appendBody = c[1]
 		}
@@ -379,19 +380,19 @@ func TestRegisterPortalHooks_StaleNotifyOnSessionClosedMigratesToCommitNow(t *te
 
 func TestRegisterPortalHooks_SessionClosedUnionFastPath(t *testing.T) {
 	raw := fmt.Sprintf("session-closed[0] => '%s'\n", expectedCommitNowCommand)
-	mock := &MockCommander{RunFunc: perEventDispatch(t, raw, nil)}
+	mock := commandertest.FromFunc(perEventDispatch(t, raw, nil))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.RegisterPortalHooks(client, nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	for _, c := range setHookCalls(mock.Calls) {
+	for _, c := range setHookCalls(mock.Calls()) {
 		if c[0] == "session-closed" {
 			t.Errorf("unexpected set-hook -ga on already-converged session-closed: %q", c[1])
 		}
 	}
-	for _, u := range unsetHookCalls(mock.Calls) {
+	for _, u := range unsetHookCalls(mock.Calls()) {
 		if strings.HasPrefix(u, "session-closed[") {
 			t.Errorf("unexpected set-hook -gu on already-converged session-closed: %q", u)
 		}
@@ -405,7 +406,7 @@ func TestRegisterPortalHooks_SessionClosedSubstringEvictsPortalStateNotifyBody(t
 	}
 
 	raw := fmt.Sprintf("session-closed[0] => '%s'\n", notifyDebugBody)
-	mock := &MockCommander{RunFunc: perEventDispatch(t, raw, nil)}
+	mock := commandertest.FromFunc(perEventDispatch(t, raw, nil))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.RegisterPortalHooks(client, nil); err != nil {
@@ -413,7 +414,7 @@ func TestRegisterPortalHooks_SessionClosedSubstringEvictsPortalStateNotifyBody(t
 	}
 
 	var closedUnsets []string
-	for _, u := range unsetHookCalls(mock.Calls) {
+	for _, u := range unsetHookCalls(mock.Calls()) {
 		if strings.HasPrefix(u, "session-closed[") {
 			closedUnsets = append(closedUnsets, u)
 		}
@@ -424,7 +425,7 @@ func TestRegisterPortalHooks_SessionClosedSubstringEvictsPortalStateNotifyBody(t
 
 	var appends int
 	var body string
-	for _, c := range setHookCalls(mock.Calls) {
+	for _, c := range setHookCalls(mock.Calls()) {
 		if c[0] == "session-closed" {
 			appends++
 			body = c[1]
@@ -445,14 +446,14 @@ func TestRegisterPortalHooks_SessionClosedNonMatchingUserHookSurvives(t *testing
 	}
 
 	raw := fmt.Sprintf("session-closed[0] => '%s'\n", userHook)
-	mock := &MockCommander{RunFunc: perEventDispatch(t, raw, nil)}
+	mock := commandertest.FromFunc(perEventDispatch(t, raw, nil))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.RegisterPortalHooks(client, nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	for _, u := range unsetHookCalls(mock.Calls) {
+	for _, u := range unsetHookCalls(mock.Calls()) {
 		if strings.HasPrefix(u, "session-closed[") {
 			t.Errorf("unexpected unset on non-matching user hook: %q", u)
 		}
@@ -460,7 +461,7 @@ func TestRegisterPortalHooks_SessionClosedNonMatchingUserHookSurvives(t *testing
 
 	var appends int
 	var body string
-	for _, c := range setHookCalls(mock.Calls) {
+	for _, c := range setHookCalls(mock.Calls()) {
 		if c[0] == "session-closed" {
 			appends++
 			body = c[1]
@@ -477,14 +478,14 @@ func TestRegisterPortalHooks_SessionClosedNonMatchingUserHookSurvives(t *testing
 func TestRegisterPortalHooks_UserHookUntouched(t *testing.T) {
 	const userHook = `run-shell "tmux-resurrect save"`
 	raw := fmt.Sprintf("pane-focus-out[0] => '%s'\n", userHook)
-	mock := &MockCommander{RunFunc: perEventDispatch(t, raw, nil)}
+	mock := commandertest.FromFunc(perEventDispatch(t, raw, nil))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.RegisterPortalHooks(client, nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	for _, u := range unsetHookCalls(mock.Calls) {
+	for _, u := range unsetHookCalls(mock.Calls()) {
 		if strings.HasPrefix(u, "pane-focus-out[") {
 			t.Errorf("unexpected unset on user hook: %q", u)
 		}
@@ -492,7 +493,7 @@ func TestRegisterPortalHooks_UserHookUntouched(t *testing.T) {
 
 	var appends int
 	var body string
-	for _, c := range setHookCalls(mock.Calls) {
+	for _, c := range setHookCalls(mock.Calls()) {
 		if c[0] == "pane-focus-out" {
 			appends++
 			body = c[1]
@@ -508,8 +509,8 @@ func TestRegisterPortalHooks_UserHookUntouched(t *testing.T) {
 
 func TestRegisterPortalHooks_PerEventReadFailureFolds(t *testing.T) {
 	sentinel := errors.New("tmux show-hooks failure on session-renamed")
-	mock := &MockCommander{RunFunc: perEventDispatchWithFaults(t, "", nil,
-		map[string]error{"session-renamed": sentinel}, nil)}
+	mock := commandertest.FromFunc(perEventDispatchWithFaults(t, "", nil,
+		map[string]error{"session-renamed": sentinel}, nil))
 	client := tmux.NewClient(mock)
 
 	logger := &migrationLog{}
@@ -532,14 +533,14 @@ func TestRegisterPortalHooks_PerEventReadFailureFolds(t *testing.T) {
 		t.Errorf("expected at least one WARN for the show-hooks failure, got none")
 	}
 
-	for _, c := range setHookCalls(mock.Calls) {
+	for _, c := range setHookCalls(mock.Calls()) {
 		if c[0] == "session-renamed" {
 			t.Errorf("session-renamed must not be appended when its read fails: %v", c)
 		}
 	}
 
 	got := map[string]int{}
-	for _, c := range setHookCalls(mock.Calls) {
+	for _, c := range setHookCalls(mock.Calls()) {
 		got[c[0]]++
 	}
 	for _, ev := range expectedSaveTriggerEvents {
@@ -561,8 +562,8 @@ func TestRegisterPortalHooks_PerIndexUnsetFailureWarnsAndContinues(t *testing.T)
 	raw := fmt.Sprintf("pane-focus-out[0] => '%s'\npane-focus-out[1] => '%s'\n",
 		expectedNotifyCommand, expectedNotifyCommand)
 	sentinel := errors.New("tmux unset failed at index 1")
-	mock := &MockCommander{RunFunc: perEventDispatchWithFaults(t, raw, nil, nil,
-		map[string]error{"pane-focus-out[1]": sentinel})}
+	mock := commandertest.FromFunc(perEventDispatchWithFaults(t, raw, nil, nil,
+		map[string]error{"pane-focus-out[1]": sentinel}))
 	client := tmux.NewClient(mock)
 
 	logger := &migrationLog{}
@@ -571,7 +572,7 @@ func TestRegisterPortalHooks_PerIndexUnsetFailureWarnsAndContinues(t *testing.T)
 	}
 
 	var unsets []string
-	for _, u := range unsetHookCalls(mock.Calls) {
+	for _, u := range unsetHookCalls(mock.Calls()) {
 		if strings.HasPrefix(u, "pane-focus-out[") {
 			unsets = append(unsets, u)
 		}
@@ -585,7 +586,7 @@ func TestRegisterPortalHooks_PerIndexUnsetFailureWarnsAndContinues(t *testing.T)
 	}
 
 	var appended bool
-	for _, c := range setHookCalls(mock.Calls) {
+	for _, c := range setHookCalls(mock.Calls()) {
 		if c[0] == "pane-focus-out" && c[1] == expectedNotifyCommand {
 			appended = true
 			break
@@ -602,7 +603,7 @@ func TestRegisterPortalHooks_SingleReapedInfoOnEviction(t *testing.T) {
 	fmt.Fprintf(&b, "window-linked[0] => '%s'\n", expectedNotifyCommand)
 	fmt.Fprintf(&b, "window-linked[1] => '%s'\n", expectedNotifyCommand)
 	fmt.Fprintf(&b, "session-created[0] => '%s'\n", staleNotify)
-	mock := &MockCommander{RunFunc: perEventDispatch(t, b.String(), nil)}
+	mock := commandertest.FromFunc(perEventDispatch(t, b.String(), nil))
 	client := tmux.NewClient(mock)
 
 	logger := &migrationLog{}
@@ -624,7 +625,7 @@ func TestRegisterPortalHooks_SingleReapedInfoOnEviction(t *testing.T) {
 
 func TestRegisterPortalHooks_NoReapedInfoOnZeroEviction(t *testing.T) {
 	t.Run("fresh table (all appends, no evictions)", func(t *testing.T) {
-		mock := &MockCommander{RunFunc: perEventDispatch(t, "", nil)}
+		mock := commandertest.FromFunc(perEventDispatch(t, "", nil))
 		client := tmux.NewClient(mock)
 
 		logger := &migrationLog{}
@@ -637,7 +638,7 @@ func TestRegisterPortalHooks_NoReapedInfoOnZeroEviction(t *testing.T) {
 	})
 
 	t.Run("converged table (all fast-path, no evictions)", func(t *testing.T) {
-		mock := &MockCommander{RunFunc: perEventDispatch(t, convergedTable(), nil)}
+		mock := commandertest.FromFunc(perEventDispatch(t, convergedTable(), nil))
 		client := tmux.NewClient(mock)
 
 		logger := &migrationLog{}
@@ -662,7 +663,7 @@ func TestSignalHydrateCommand_HasEndOfFlagsSeparator(t *testing.T) {
 	})
 
 	t.Run("RegisterPortalHooks emits the -- separator on every hydration event", func(t *testing.T) {
-		mock := &MockCommander{RunFunc: perEventDispatch(t, "", nil)}
+		mock := commandertest.FromFunc(perEventDispatch(t, "", nil))
 		client := tmux.NewClient(mock)
 
 		if err := tmux.RegisterPortalHooks(client, nil); err != nil {
@@ -670,7 +671,7 @@ func TestSignalHydrateCommand_HasEndOfFlagsSeparator(t *testing.T) {
 		}
 
 		got := map[string]string{}
-		for _, c := range setHookCalls(mock.Calls) {
+		for _, c := range setHookCalls(mock.Calls()) {
 			got[c[0]] = c[1]
 		}
 		for _, ev := range tmux.HydrationTriggerEvents {
@@ -683,14 +684,14 @@ func TestSignalHydrateCommand_HasEndOfFlagsSeparator(t *testing.T) {
 }
 
 func TestRegisterPortalHooks_NoMigrateRename(t *testing.T) {
-	mock := &MockCommander{RunFunc: perEventDispatch(t, "", nil)}
+	mock := commandertest.FromFunc(perEventDispatch(t, "", nil))
 	client := tmux.NewClient(mock)
 
 	if err := tmux.RegisterPortalHooks(client, nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	for _, c := range setHookCalls(mock.Calls) {
+	for _, c := range setHookCalls(mock.Calls()) {
 		if strings.Contains(c[1], "portal state migrate-rename") {
 			t.Errorf("unexpected migrate-rename registration on event %q: %q", c[0], c[1])
 		}

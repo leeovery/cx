@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/portal/internal/commandertest"
 	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
@@ -71,7 +72,7 @@ func TestHydrate_BlocksOnFIFOUntilSignalArrives(t *testing.T) {
 
 	stdout := new(bytes.Buffer)
 	exec := &stubExecShell{}
-	cmder := quietCommander()
+	cmder := commandertest.Quiet()
 
 	// Inline rather than signalFIFOAsync: this test asserts elapsed-time
 	// bounds, so it needs the embedded delay and a completion channel.
@@ -269,7 +270,7 @@ func TestHydrate_Sleeps100msBeforeUnsettingMarker(t *testing.T) {
 
 	signalFIFOAsync(t, fifo)
 
-	cmder := quietCommander()
+	cmder := commandertest.Quiet()
 	cfg := hydrateCfg(t, hydrateCfgOpts{
 		FIFO:      fifo,
 		File:      scrollback,
@@ -300,7 +301,7 @@ func TestHydrate_UnsetsSkeletonMarkerWithSetOptionSU(t *testing.T) {
 
 	signalFIFOAsync(t, fifo)
 
-	cmder := quietCommander()
+	cmder := commandertest.Quiet()
 	cfg := hydrateCfg(t, hydrateCfgOpts{
 		FIFO:      fifo,
 		File:      scrollback,
@@ -640,7 +641,7 @@ func TestHydrate_FileMissing_MidStreamCopyError_LeavesPartialBytes(t *testing.T)
 	stdout.WriteString(hydrateResetPreamble)
 	stdout.WriteString("partial-bytes-already-on-stdout")
 
-	cmder := quietCommander()
+	cmder := commandertest.Quiet()
 	cfg := hydrateCfg(t, hydrateCfgOpts{
 		FIFO:      fifo,
 		File:      filepath.Join(dir, "sb"),
@@ -795,7 +796,7 @@ func TestHydrate_FileMissing_UnsetsSkeletonMarkerWithSetOptionSU(t *testing.T) {
 
 	signalFIFOAsync(t, fifo)
 
-	cmder := quietCommander()
+	cmder := commandertest.Quiet()
 	cfg := hydrateCfg(t, hydrateCfgOpts{
 		FIFO:              fifo,
 		File:              scrollback,
@@ -986,7 +987,7 @@ func hydrateCfg(t *testing.T, opts hydrateCfgOpts) hydrateConfig {
 		opts.Stdout = io.Discard
 	}
 	if opts.Commander == nil {
-		opts.Commander = quietCommander()
+		opts.Commander = commandertest.Quiet()
 	}
 	if opts.ExecShell == nil {
 		opts.ExecShell = (&stubExecShell{}).fn()
@@ -1091,7 +1092,7 @@ func TestHydrate_TimeoutUnsetsSkeletonMarkerWithSetOptionSU(t *testing.T) {
 	dir := t.TempDir()
 	fifo := makeFIFO(t, dir, "hydrate-tu__0.0.fifo")
 
-	cmder := quietCommander()
+	cmder := commandertest.Quiet()
 	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "tu:0.0",
 		OpenFIFO: instantTimeoutOpenFIFO, HandleTimeout: handleHydrateTimeout, Commander: cmder})
 
@@ -1194,7 +1195,7 @@ func TestHydrate_TimeoutHandler_OrderingAndTimingInvariants(t *testing.T) {
 	dir := t.TempDir()
 	fifo := filepath.Join(dir, "hydrate-ord__0.0.fifo")
 
-	cmder := quietCommander()
+	cmder := commandertest.Quiet()
 	cfg := hydrateCfg(t, hydrateCfgOpts{
 		FIFO:      fifo,
 		HookKey:   "ord:0.0",
@@ -1647,9 +1648,9 @@ func TestHydrate_SignalArrived_LookupHappensAfterSleepAndMarkerUnset(t *testing.
 		mu            sync.Mutex
 		markerUnsetAt time.Time
 	)
-	cmder := quietCommander(
-		returns("", "set-option", "-su", "@portal-skeleton-ord__0.0").
-			doing(func(_ []string) {
+	cmder := commandertest.Quiet(
+		commandertest.Returns("", "set-option", "-su", "@portal-skeleton-ord__0.0").
+			Doing(func(_ []string) {
 				mu.Lock()
 				markerUnsetAt = time.Now()
 				mu.Unlock()
@@ -1706,9 +1707,9 @@ func TestHydrate_FileMissing_LookupHappensAfterMarkerUnset(t *testing.T) {
 		mu            sync.Mutex
 		markerUnsetAt time.Time
 	)
-	cmder := quietCommander(
-		returns("", "set-option", "-su", "@portal-skeleton-fmo__0.0").
-			doing(func(_ []string) {
+	cmder := commandertest.Quiet(
+		commandertest.Returns("", "set-option", "-su", "@portal-skeleton-fmo__0.0").
+			Doing(func(_ []string) {
 				mu.Lock()
 				markerUnsetAt = time.Now()
 				mu.Unlock()

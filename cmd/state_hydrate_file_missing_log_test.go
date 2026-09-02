@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/leeovery/portal/internal/commandertest"
 )
 
 // countLogLines matches on the "<LEVEL> <msg>" prefix so an attr value
@@ -195,7 +197,7 @@ func TestHydrateFileMissingLog_PreservesPerCauseWARNsAndNoSettleSleep(t *testing
 	stdout := new(bytes.Buffer)
 	stdout.WriteString(hydrateResetPreamble)
 
-	cmder := quietCommander()
+	cmder := commandertest.Quiet()
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
 	cfg := hydrateCfg(t, hydrateCfgOpts{
 		FIFO:      fifo,

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/portal/internal/commandertest"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/restore"
 	"github.com/leeovery/portal/internal/restoretest"
@@ -65,14 +66,14 @@ func writeRawIndex(t *testing.T, dir string, raw []byte) {
 	}
 }
 
-func newOrchestrator(t *testing.T, mock *mockCommander, dir string, logger *slog.Logger) *restore.Orchestrator {
+func newOrchestrator(t *testing.T, mock *commandertest.Scripted, dir string, logger *slog.Logger) *restore.Orchestrator {
 	t.Helper()
 	return restoretest.NewFakeExeOrchestrator(t, tmux.NewClient(mock), dir, logger)
 }
 
 func TestOrchestrator_NoOpWhenSessionsJSONAbsent(t *testing.T) {
 	dir := t.TempDir()
-	mock := &mockCommander{RunFunc: defaultRunFunc}
+	mock := commandertest.FromFunc(defaultRunFunc)
 	logger, sink := logtest.NewCaptureLogger(t)
 
 	o := newOrchestrator(t, mock, dir, logger)
@@ -84,8 +85,8 @@ func TestOrchestrator_NoOpWhenSessionsJSONAbsent(t *testing.T) {
 		t.Error("expected corrupt=false on happy path (absent sessions.json); got true")
 	}
 
-	if len(mock.Calls) != 0 {
-		t.Errorf("expected no tmux calls when sessions.json absent; got %v", mock.Calls)
+	if len(mock.Calls()) != 0 {
+		t.Errorf("expected no tmux calls when sessions.json absent; got %v", mock.Calls())
 	}
 
 	body := []byte(sink.Body())
@@ -98,7 +99,7 @@ func TestOrchestrator_ReturnsWrappedErrCorruptIndexAndLogsWhenSessionsJSONCorrup
 	dir := t.TempDir()
 	writeRawIndex(t, dir, []byte("{not json"))
 
-	mock := &mockCommander{RunFunc: defaultRunFunc}
+	mock := commandertest.FromFunc(defaultRunFunc)
 	logger, sink := logtest.NewCaptureLogger(t)
 
 	o := newOrchestrator(t, mock, dir, logger)
@@ -118,12 +119,12 @@ func TestOrchestrator_ReturnsWrappedErrCorruptIndexAndLogsWhenSessionsJSONCorrup
 		t.Errorf("log %q lacks WARN/ReadIndex entry", bodyStr)
 	}
 
-	for _, c := range mock.Calls {
+	for _, c := range mock.Calls() {
 		if len(c) > 0 && c[0] == "list-sessions" {
-			t.Errorf("did not expect list-sessions when sessions.json corrupt; got %v", mock.Calls)
+			t.Errorf("did not expect list-sessions when sessions.json corrupt; got %v", mock.Calls())
 		}
 		if len(c) > 0 && c[0] == "new-session" {
-			t.Errorf("did not expect new-session when sessions.json corrupt; got %v", mock.Calls)
+			t.Errorf("did not expect new-session when sessions.json corrupt; got %v", mock.Calls())
 		}
 	}
 }
@@ -132,17 +133,17 @@ func TestOrchestrator_OnlyListsSessionsWhenIndexEmpty(t *testing.T) {
 	dir := t.TempDir()
 	writeValidIndex(t, dir, []state.Session{})
 
-	mock := &mockCommander{RunFunc: defaultRunFunc}
+	mock := commandertest.FromFunc(defaultRunFunc)
 	logger, _ := logtest.NewCaptureLogger(t)
 	o := newOrchestrator(t, mock, dir, logger)
 	if _, err := o.Restore(); err != nil {
 		t.Fatalf("Restore: %v", err)
 	}
 
-	if got := len(findAllCalls(mock.Calls, "new-session")); got != 0 {
+	if got := len(findAllCalls(mock.Calls(), "new-session")); got != 0 {
 		t.Errorf("new-session calls = %d, want 0", got)
 	}
-	if got := len(findAllCalls(mock.Calls, "list-panes")); got != 0 {
+	if got := len(findAllCalls(mock.Calls(), "list-panes")); got != 0 {
 		t.Errorf("list-panes calls = %d, want 0", got)
 	}
 }
@@ -168,29 +169,29 @@ func TestOrchestrator_SkeletonRestoresSingleMissingSession(t *testing.T) {
 		listSessionsOut: "",
 		listPanesOut:    "0:0",
 	}
-	mock := &mockCommander{RunFunc: rf.run}
+	mock := commandertest.FromFunc(rf.run)
 	logger, _ := logtest.NewCaptureLogger(t)
 	o := newOrchestrator(t, mock, dir, logger)
 	if _, err := o.Restore(); err != nil {
 		t.Fatalf("Restore: %v", err)
 	}
 
-	if got := len(findAllCalls(mock.Calls, "new-session")); got != 1 {
+	if got := len(findAllCalls(mock.Calls(), "new-session")); got != 1 {
 		t.Errorf("new-session calls = %d, want 1", got)
 	}
-	if got := len(findAllCalls(mock.Calls, "set-environment")); got != 1 {
+	if got := len(findAllCalls(mock.Calls(), "set-environment")); got != 1 {
 		t.Errorf("set-environment calls = %d, want 1", got)
 	}
 	wantMarker := "@portal-skeleton-" + state.SanitizePaneKey("work", 0, 0)
 	found := false
-	for _, c := range mock.Calls {
+	for _, c := range mock.Calls() {
 		if len(c) >= 4 && c[0] == "set-option" && c[2] == wantMarker {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Errorf("expected set-option for marker %q; calls: %v", wantMarker, mock.Calls)
+		t.Errorf("expected set-option for marker %q; calls: %v", wantMarker, mock.Calls())
 	}
 }
 
@@ -207,14 +208,14 @@ func TestOrchestrator_SilentlySkipsLiveSession(t *testing.T) {
 	rf := &orchestratorRunFunc{
 		listSessionsOut: "work|1|0|",
 	}
-	mock := &mockCommander{RunFunc: rf.run}
+	mock := commandertest.FromFunc(rf.run)
 	logger, sink := logtest.NewCaptureLogger(t)
 	o := newOrchestrator(t, mock, dir, logger)
 	if _, err := o.Restore(); err != nil {
 		t.Fatalf("Restore: %v", err)
 	}
 
-	if got := len(findAllCalls(mock.Calls, "new-session")); got != 0 {
+	if got := len(findAllCalls(mock.Calls(), "new-session")); got != 0 {
 		t.Errorf("new-session calls = %d, want 0 (live session must be skipped)", got)
 	}
 
@@ -235,14 +236,14 @@ func TestOrchestrator_SkipsUnderscorePrefixedSessions(t *testing.T) {
 	writeValidIndex(t, dir, []state.Session{sess})
 
 	rf := &orchestratorRunFunc{listSessionsOut: ""}
-	mock := &mockCommander{RunFunc: rf.run}
+	mock := commandertest.FromFunc(rf.run)
 	logger, sink := logtest.NewCaptureLogger(t)
 	o := newOrchestrator(t, mock, dir, logger)
 	if _, err := o.Restore(); err != nil {
 		t.Fatalf("Restore: %v", err)
 	}
 
-	if got := len(findAllCalls(mock.Calls, "new-session")); got != 0 {
+	if got := len(findAllCalls(mock.Calls(), "new-session")); got != 0 {
 		t.Errorf("new-session calls = %d, want 0 (underscore-prefixed must be skipped)", got)
 	}
 
@@ -258,14 +259,14 @@ func TestOrchestrator_LogsAndSkipsZeroWindowSession(t *testing.T) {
 	writeValidIndex(t, dir, []state.Session{sess})
 
 	rf := &orchestratorRunFunc{listSessionsOut: ""}
-	mock := &mockCommander{RunFunc: rf.run}
+	mock := commandertest.FromFunc(rf.run)
 	logger, sink := logtest.NewCaptureLogger(t)
 	o := newOrchestrator(t, mock, dir, logger)
 	if _, err := o.Restore(); err != nil {
 		t.Fatalf("Restore: %v", err)
 	}
 
-	if got := len(findAllCalls(mock.Calls, "new-session")); got != 0 {
+	if got := len(findAllCalls(mock.Calls(), "new-session")); got != 0 {
 		t.Errorf("new-session calls = %d, want 0 (zero-window must be skipped)", got)
 	}
 
@@ -287,14 +288,14 @@ func TestOrchestrator_LogsAndSkipsZeroPaneWindow(t *testing.T) {
 	writeValidIndex(t, dir, []state.Session{sess})
 
 	rf := &orchestratorRunFunc{listSessionsOut: ""}
-	mock := &mockCommander{RunFunc: rf.run}
+	mock := commandertest.FromFunc(rf.run)
 	logger, sink := logtest.NewCaptureLogger(t)
 	o := newOrchestrator(t, mock, dir, logger)
 	if _, err := o.Restore(); err != nil {
 		t.Fatalf("Restore: %v", err)
 	}
 
-	if got := len(findAllCalls(mock.Calls, "new-session")); got != 0 {
+	if got := len(findAllCalls(mock.Calls(), "new-session")); got != 0 {
 		t.Errorf("new-session calls = %d, want 0 (zero-pane window must be skipped)", got)
 	}
 
@@ -316,7 +317,7 @@ func TestOrchestrator_NoGeometrySummaryForZeroPaneSession(t *testing.T) {
 	writeValidIndex(t, dir, []state.Session{sess})
 
 	rf := &orchestratorRunFunc{listSessionsOut: ""}
-	mock := &mockCommander{RunFunc: rf.run}
+	mock := commandertest.FromFunc(rf.run)
 	logger, sink := logtest.NewCaptureLogger(t)
 	o := newOrchestrator(t, mock, dir, logger)
 	if _, err := o.Restore(); err != nil {
@@ -359,7 +360,7 @@ func TestOrchestrator_IsolatesPerSessionErrors(t *testing.T) {
 			},
 		},
 	}
-	mock := &mockCommander{RunFunc: rf.run}
+	mock := commandertest.FromFunc(rf.run)
 	logger, sink := logtest.NewCaptureLogger(t)
 
 	o := newOrchestrator(t, mock, stateOK, logger)
@@ -367,19 +368,19 @@ func TestOrchestrator_IsolatesPerSessionErrors(t *testing.T) {
 		t.Fatalf("Restore: %v", err)
 	}
 
-	if got := len(findAllCalls(mock.Calls, "new-session")); got != 2 {
+	if got := len(findAllCalls(mock.Calls(), "new-session")); got != 2 {
 		t.Errorf("new-session calls = %d, want 2 (broken + ok)", got)
 	}
 	wantMarker := "@portal-skeleton-" + state.SanitizePaneKey("ok", 0, 0)
 	foundOK := false
-	for _, c := range mock.Calls {
+	for _, c := range mock.Calls() {
 		if len(c) >= 4 && c[0] == "set-option" && c[2] == wantMarker {
 			foundOK = true
 			break
 		}
 	}
 	if !foundOK {
-		t.Errorf("expected ok-session marker %q to be set despite broken-session failure; calls: %v", wantMarker, mock.Calls)
+		t.Errorf("expected ok-session marker %q to be set despite broken-session failure; calls: %v", wantMarker, mock.Calls())
 	}
 
 	body := []byte(sink.Body())
@@ -401,14 +402,14 @@ func TestOrchestrator_LogsAndReturnsNilWhenListSessionsFails(t *testing.T) {
 	rf := &orchestratorRunFunc{
 		listSessionsOut: "malformed-line",
 	}
-	mock := &mockCommander{RunFunc: rf.run}
+	mock := commandertest.FromFunc(rf.run)
 	logger, sink := logtest.NewCaptureLogger(t)
 	o := newOrchestrator(t, mock, dir, logger)
 	if _, err := o.Restore(); err != nil {
 		t.Fatalf("Restore returned error: %v", err)
 	}
 
-	if got := len(findAllCalls(mock.Calls, "new-session")); got != 0 {
+	if got := len(findAllCalls(mock.Calls(), "new-session")); got != 0 {
 		t.Errorf("new-session calls = %d, want 0 when list-sessions fails", got)
 	}
 
@@ -435,14 +436,14 @@ func TestOrchestrator_ReturnsNilWhenEverySessionErrors(t *testing.T) {
 			},
 		},
 	}
-	mock := &mockCommander{RunFunc: rf.run}
+	mock := commandertest.FromFunc(rf.run)
 	logger, _ := logtest.NewCaptureLogger(t)
 	o := newOrchestrator(t, mock, dir, logger)
 	if _, err := o.Restore(); err != nil {
 		t.Fatalf("Restore returned error %v, expected nil even when every session errors", err)
 	}
 
-	if got := len(findAllCalls(mock.Calls, "new-session")); got != 2 {
+	if got := len(findAllCalls(mock.Calls(), "new-session")); got != 2 {
 		t.Errorf("new-session calls = %d, want 2 (per-session isolation)", got)
 	}
 }
@@ -494,7 +495,7 @@ func TestOrchestrator_EmitsSkeletonCompleteSummaryAfterRestoringSessions(t *test
 		listSessionsOut: "",
 		listPanesOut:    "0:0",
 	}
-	mock := &mockCommander{RunFunc: rf.run}
+	mock := commandertest.FromFunc(rf.run)
 	logger, sink := logtest.NewCaptureLogger(t)
 	o := newOrchestrator(t, mock, dir, logger)
 	if _, err := o.Restore(); err != nil {
@@ -536,7 +537,7 @@ func TestOrchestrator_SkeletonSummaryExcludesLiveSkippedSession(t *testing.T) {
 		listSessionsOut: "live|1|0|",
 		listPanesOut:    "0:0",
 	}
-	mock := &mockCommander{RunFunc: rf.run}
+	mock := commandertest.FromFunc(rf.run)
 	logger, sink := logtest.NewCaptureLogger(t)
 	o := newOrchestrator(t, mock, dir, logger)
 	if _, err := o.Restore(); err != nil {
@@ -571,7 +572,7 @@ func TestOrchestrator_SkeletonSummaryExcludesUnderscorePrefixedSession(t *testin
 	writeValidIndex(t, dir, sessions)
 
 	rf := &orchestratorRunFunc{listSessionsOut: "", listPanesOut: "0:0"}
-	mock := &mockCommander{RunFunc: rf.run}
+	mock := commandertest.FromFunc(rf.run)
 	logger, sink := logtest.NewCaptureLogger(t)
 	o := newOrchestrator(t, mock, dir, logger)
 	if _, err := o.Restore(); err != nil {
@@ -605,7 +606,7 @@ func TestOrchestrator_SkeletonSummaryExcludesInvalidTopologySessions(t *testing.
 	writeValidIndex(t, dir, sessions)
 
 	rf := &orchestratorRunFunc{listSessionsOut: "", listPanesOut: "0:0"}
-	mock := &mockCommander{RunFunc: rf.run}
+	mock := commandertest.FromFunc(rf.run)
 	logger, sink := logtest.NewCaptureLogger(t)
 	o := newOrchestrator(t, mock, dir, logger)
 	if _, err := o.Restore(); err != nil {
@@ -653,7 +654,7 @@ func TestOrchestrator_SkeletonSummaryExcludesRestoreErroredSessionButKeepsWarn(t
 			},
 		},
 	}
-	mock := &mockCommander{RunFunc: rf.run}
+	mock := commandertest.FromFunc(rf.run)
 	logger, sink := logtest.NewCaptureLogger(t)
 	o := newOrchestrator(t, mock, dir, logger)
 	if _, err := o.Restore(); err != nil {
@@ -709,7 +710,7 @@ func TestOrchestrator_EmitsNoSkeletonSummaryOnPreLoopEarlyReturns(t *testing.T) 
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
 			rf := tc.setup(t, dir)
-			mock := &mockCommander{RunFunc: rf.run}
+			mock := commandertest.FromFunc(rf.run)
 			logger, sink := logtest.NewCaptureLogger(t)
 			o := newOrchestrator(t, mock, dir, logger)
 			if _, err := o.Restore(); err != nil {
@@ -726,7 +727,7 @@ func TestOrchestrator_EmitsNoSkeletonSummaryOnCorruptIndex(t *testing.T) {
 	dir := t.TempDir()
 	writeRawIndex(t, dir, []byte("{not json"))
 
-	mock := &mockCommander{RunFunc: defaultRunFunc}
+	mock := commandertest.FromFunc(defaultRunFunc)
 	logger, sink := logtest.NewCaptureLogger(t)
 	o := newOrchestrator(t, mock, dir, logger)
 	corrupt, err := o.Restore()
@@ -764,21 +765,21 @@ func TestOrchestrator_AlwaysRunsApplySkeletonMarkersAfterApplyWindowGeometry(t *
 			},
 		},
 	}
-	mock := &mockCommander{RunFunc: rf.run}
+	mock := commandertest.FromFunc(rf.run)
 	logger, _ := logtest.NewCaptureLogger(t)
 	o := newOrchestrator(t, mock, dir, logger)
 	if _, err := o.Restore(); err != nil {
 		t.Fatalf("Restore: %v", err)
 	}
 
-	newSessionAt := callsAt(mock.Calls, "new-session")
-	listPanesIdxs := findAllCalls(mock.Calls, "list-panes")
-	layoutAt := callsAt(mock.Calls, "select-layout")
-	setOptAt := callsAt(mock.Calls, "set-option")
+	newSessionAt := callsAt(mock.Calls(), "new-session")
+	listPanesIdxs := findAllCalls(mock.Calls(), "list-panes")
+	layoutAt := callsAt(mock.Calls(), "select-layout")
+	setOptAt := callsAt(mock.Calls(), "set-option")
 
 	if newSessionAt < 0 || len(listPanesIdxs) != 1 || layoutAt < 0 || setOptAt < 0 {
 		t.Fatalf("expected calls present (with exactly 1 list-panes): new-session=%d list-panes=%v select-layout=%d set-option=%d; calls: %v",
-			newSessionAt, listPanesIdxs, layoutAt, setOptAt, mock.Calls)
+			newSessionAt, listPanesIdxs, layoutAt, setOptAt, mock.Calls())
 	}
 	armListPanesAt := listPanesIdxs[0]
 	if newSessionAt >= armListPanesAt || armListPanesAt >= layoutAt || layoutAt >= setOptAt {

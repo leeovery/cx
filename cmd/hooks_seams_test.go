@@ -3,6 +3,7 @@ package cmd
 import (
 	"testing"
 
+	"github.com/leeovery/portal/internal/commandertest"
 	"github.com/leeovery/portal/internal/nanoid"
 	"github.com/leeovery/portal/internal/tmux"
 )
@@ -114,7 +115,7 @@ func TestGonePaneErrorCarriesOnePortalClause(t *testing.T) {
 			// the rendering omits the exit-status segment a real refusal adds
 			// between the argv and the stderr. Nothing else is scripted: any
 			// other argv fails the test, which pins the probe itself.
-			gonePane := newScriptedCommander(t, fails(&tmux.CommandError{
+			gonePane := commandertest.New(t, commandertest.Fails(&tmux.CommandError{
 				Args:   []string{"show-options", "-p", "-t", "%999"},
 				Stderr: "no such pane: %999",
 			}, "show-options", "-p", "-t", "%999"))

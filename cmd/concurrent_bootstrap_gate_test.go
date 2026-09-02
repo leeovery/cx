@@ -3,6 +3,7 @@ package cmd
 import (
 	"testing"
 
+	"github.com/leeovery/portal/internal/commandertest"
 	"github.com/leeovery/portal/internal/tmux"
 	"github.com/leeovery/portal/internal/tui"
 	"github.com/spf13/cobra"
@@ -94,7 +95,7 @@ func TestIsTUIPath(t *testing.T) {
 // The decider issues zero tmux round-trips, so the backing commander is
 // never called.
 func probeClient() *tmux.Client {
-	return tmux.NewClient(quietCommander())
+	return tmux.NewClient(commandertest.Quiet())
 }
 
 func TestShouldRunConcurrentBootstrap(t *testing.T) {
@@ -176,7 +177,7 @@ func TestShouldRunConcurrentBootstrap_IssuesNoProbe(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			rec := quietCommander()
+			rec := commandertest.Quiet()
 			client := tmux.NewClient(rec)
 			_ = shouldRunConcurrentBootstrap(tc.cmd, tc.args, client, false)
 			if len(rec.Calls()) != 0 {
