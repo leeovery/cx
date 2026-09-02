@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leeovery/portal/internal/tmuxtest"
+	"github.com/leeovery/portal/internal/harnesstest"
 )
 
 // Generous: a healthy server stops answering within a poll or two of kill-server.
@@ -27,7 +27,7 @@ func AwaitTmuxServerGone(t *testing.T, socketPath string) {
 // awaitTmuxServerGone reports whether the server disappeared inside budget.
 func awaitTmuxServerGone(t *testing.T, socketPath string, budget, tick time.Duration) bool {
 	t.Helper()
-	return tmuxtest.PollUntil(t, budget, tick, tmuxServerUnreachable(socketPath))
+	return harnesstest.PollUntil(t, budget, tick, tmuxServerUnreachable(socketPath))
 }
 
 // -f /dev/null keeps the probe off the user's ~/.tmux.conf; any error from

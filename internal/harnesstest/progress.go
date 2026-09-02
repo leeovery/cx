@@ -1,8 +1,7 @@
-package tmuxtest
+package harnesstest
 
 import (
 	"fmt"
-	"testing"
 	"time"
 )
 
@@ -60,7 +59,7 @@ func (r ProgressResult[T]) String() string {
 // the target, the observation stops changing for the whole stall budget, or the
 // absolute ceiling elapses — whichever comes first. It never fails the test
 // itself; the caller decides what a not-Reached result means.
-func AwaitProgress[T comparable](t *testing.T, w ProgressWait, observe func() T, reached func(T) bool) ProgressResult[T] {
+func AwaitProgress[T comparable](t TestingT, w ProgressWait, observe func() T, reached func(T) bool) ProgressResult[T] {
 	t.Helper()
 	w = w.withDefaults()
 

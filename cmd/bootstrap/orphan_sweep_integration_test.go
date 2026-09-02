@@ -15,6 +15,7 @@ import (
 
 	"github.com/leeovery/portal/cmd/bootstrap"
 	"github.com/leeovery/portal/internal/bootstrapadapter"
+	"github.com/leeovery/portal/internal/harnesstest"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/portalbintest"
 	"github.com/leeovery/portal/internal/portaltest"
@@ -30,13 +31,20 @@ const pgrepConvergencePollTick = 50 * time.Millisecond
 // sit unchanged rather than how long the whole convergence takes, and Ceiling
 // only backstops a population that churns without ever settling: a loaded
 // machine makes convergence slower without making it wrong.
-var pgrepConvergenceWait = tmuxtest.ProgressWait{
+var pgrepConvergenceWait = harnesstest.ProgressWait{
 	Stall:   10 * time.Second,
 	Ceiling: 45 * time.Second,
 	Tick:    pgrepConvergencePollTick,
 }
 
-const saverPanePIDTimeout = 3 * time.Second
+// The saver pane becomes readable through several observable steps (the session
+// appearing, its pane answering, the respawn landing), so Stall bounds how long
+// the read may sit unchanged rather than how long the whole sequence takes.
+var saverPanePIDWait = harnesstest.ProgressWait{
+	Stall:   5 * time.Second,
+	Ceiling: 30 * time.Second,
+	Tick:    pgrepConvergencePollTick,
+}
 
 const recycledPIDSettleWindow = 200 * time.Millisecond
 
@@ -217,36 +225,59 @@ func skipIfNoPgrep(t *testing.T) {
 
 func waitForSaverPanePID(t *testing.T, sock *tmuxtest.Socket) int {
 	t.Helper()
-	var pid int
-	ok := tmuxtest.PollUntil(t, saverPanePIDTimeout, pgrepConvergencePollTick, func() bool {
-		out, err := sock.TryRun("list-panes", "-t", tmux.PortalSaverName, "-F", "#{pane_pid}")
-		if err != nil {
-			return false
-		}
-		p, perr := strconv.Atoi(strings.TrimSpace(out))
-		if perr != nil || p <= 0 {
-			return false
-		}
-		pid = p
-		return true
-	})
-	if !ok {
-		t.Fatalf("saver pane PID did not become observable within %s", saverPanePIDTimeout)
+	res := harnesstest.AwaitProgress(t, saverPanePIDWait,
+		func() panePIDObservation { return observeSaverPanePID(sock) },
+		func(o panePIDObservation) bool { return o.pid() > 0 })
+	if !res.Reached {
+		t.Fatalf("saver pane PID did not become observable (%s)", res)
 	}
+	pid := res.Last.pid()
 	state.RegisterSandboxDaemon(pid)
 	return pid
+}
+
+// panePIDObservation is comparable so the wait can tell a saver pane that is
+// still coming up from one that has stopped changing, and carries the read
+// error rather than discarding it so a red run says why the PID was unreadable.
+type panePIDObservation struct {
+	Out string
+	Err string
+}
+
+func (o panePIDObservation) String() string {
+	if o.Err != "" {
+		return fmt.Sprintf("out=%q err=%s", o.Out, o.Err)
+	}
+	return fmt.Sprintf("out=%q", o.Out)
+}
+
+// pid gives the PID the observation carries, or 0 for a reading that is not one.
+func (o panePIDObservation) pid() int {
+	if o.Err != "" {
+		return 0
+	}
+	pid, err := strconv.Atoi(o.Out)
+	if err != nil || pid <= 0 {
+		return 0
+	}
+	return pid
+}
+
+func observeSaverPanePID(sock *tmuxtest.Socket) panePIDObservation {
+	out, err := sock.TryRun("list-panes", "-t", tmux.PortalSaverName, "-F", "#{pane_pid}")
+	obs := panePIDObservation{Out: strings.TrimSpace(out)}
+	if err != nil {
+		obs.Err = err.Error()
+	}
+	return obs
 }
 
 func readSaverPanePID(t *testing.T, sock *tmuxtest.Socket) int {
 	t.Helper()
 	for range 2 {
-		out, err := sock.TryRun("list-panes", "-t", tmux.PortalSaverName, "-F", "#{pane_pid}")
-		if err == nil {
-			p, perr := strconv.Atoi(strings.TrimSpace(out))
-			if perr == nil && p > 0 {
-				state.RegisterSandboxDaemon(p)
-				return p
-			}
+		if pid := observeSaverPanePID(sock).pid(); pid > 0 {
+			state.RegisterSandboxDaemon(pid)
+			return pid
 		}
 		time.Sleep(pgrepConvergencePollTick)
 	}
@@ -270,9 +301,9 @@ func (o pgrepObservation) String() string {
 	return fmt.Sprintf("count=%d pids=%s", o.Count, o.Pids)
 }
 
-func waitForPgrepCount(t *testing.T, target int) tmuxtest.ProgressResult[pgrepObservation] {
+func waitForPgrepCount(t *testing.T, target int) harnesstest.ProgressResult[pgrepObservation] {
 	t.Helper()
-	return tmuxtest.AwaitProgress(t, pgrepConvergenceWait, observePgrepDaemons,
+	return harnesstest.AwaitProgress(t, pgrepConvergenceWait, observePgrepDaemons,
 		func(o pgrepObservation) bool { return o.Err == "" && o.Count == target })
 }
 

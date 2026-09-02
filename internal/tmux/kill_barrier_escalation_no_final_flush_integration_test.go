@@ -16,19 +16,37 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/portal/internal/harnesstest"
 	"github.com/leeovery/portal/internal/portalbintest"
 	"github.com/leeovery/portal/internal/portaltest"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmuxtest"
 )
 
-const scrollbackEmergenceTimeout = 3 * time.Second
-
 const scrollbackEmergencePollTick = 50 * time.Millisecond
+
+// The scrollback dir fills through observable steps (the daemon's temp files,
+// then the renamed .bin), so Stall bounds how long the directory may sit
+// unchanged rather than how long the first capture takes. Stall stays short on
+// purpose: the orphan self-ejects after ~3 divergent-view ticks, and the caller
+// respawns it, so a wait that lingers only delays that retry.
+var scrollbackEmergenceWait = harnesstest.ProgressWait{
+	Stall:   4 * time.Second,
+	Ceiling: 30 * time.Second,
+	Tick:    scrollbackEmergencePollTick,
+}
 
 const orphanExitTimeout = 3 * time.Second
 
 const orphanExitPollTick = 20 * time.Millisecond
+
+// The orphan is already reaped by the time this runs, so its exit is observable
+// within a poll or two; Stall only covers a descheduled probe.
+var orphanExitWait = harnesstest.ProgressWait{
+	Stall:   orphanExitTimeout,
+	Ceiling: 15 * time.Second,
+	Tick:    orphanExitPollTick,
+}
 
 const postExitSettleWindow = 200 * time.Millisecond
 
@@ -84,9 +102,10 @@ func TestKillBarrierEscalation_NoScrollbackDeltaIn200msPostExit(t *testing.T) {
 			t.Fatalf("touch save.requested: %v", err)
 		}
 
-		if tmuxtest.PollUntil(t, scrollbackEmergenceTimeout, scrollbackEmergencePollTick, func() bool {
-			return countBinFiles(scrollbackDir) >= 1
-		}) {
+		emergence := harnesstest.AwaitProgress(t, scrollbackEmergenceWait,
+			func() scrollbackObservation { return observeScrollback(scrollbackDir) },
+			func(o scrollbackObservation) bool { return o.Bins >= 1 })
+		if emergence.Reached {
 			break
 		}
 
@@ -101,9 +120,9 @@ func TestKillBarrierEscalation_NoScrollbackDeltaIn200msPostExit(t *testing.T) {
 				"(host under sustained load?)\n  scrollback dir: %s\n  contents: %v",
 				maxOrphanAttempts, scrollbackDir, listDirSafe(scrollbackDir))
 		default:
-			t.Fatalf("snapshot never taken — orphan %d is ALIVE but wrote no scrollback within %s "+
+			t.Fatalf("snapshot never taken — orphan %d is ALIVE but wrote no scrollback (%s) "+
 				"(genuine capture failure, not load)\n  scrollback dir: %s\n  contents: %v",
-				orphanPID, scrollbackEmergenceTimeout, scrollbackDir, listDirSafe(scrollbackDir))
+				orphanPID, emergence, scrollbackDir, listDirSafe(scrollbackDir))
 		}
 	}
 
@@ -134,14 +153,13 @@ func TestKillBarrierEscalation_NoScrollbackDeltaIn200msPostExit(t *testing.T) {
 			"the no-final-flush window cannot be timed from process death",
 			orphanPID, orphanExitTimeout)
 	}
-	exited := tmuxtest.PollUntil(t, orphanExitTimeout, orphanExitPollTick, func() bool {
-		err := syscall.Kill(orphanPID, 0)
-		return errors.Is(err, syscall.ESRCH)
-	})
-	if !exited {
-		t.Fatalf("orphan PID %d did not reach ESRCH within %s after reap; "+
+	exited := harnesstest.AwaitProgress(t, orphanExitWait,
+		func() bool { return errors.Is(syscall.Kill(orphanPID, 0), syscall.ESRCH) },
+		func(esrch bool) bool { return esrch })
+	if !exited.Reached {
+		t.Fatalf("orphan PID %d did not reach ESRCH after reap (%s); "+
 			"the no-final-flush window cannot be timed from process death",
-			orphanPID, orphanExitTimeout)
+			orphanPID, exited)
 	}
 
 	time.Sleep(postExitSettleWindow)
@@ -168,18 +186,30 @@ func TestKillBarrierEscalation_NoScrollbackDeltaIn200msPostExit(t *testing.T) {
 	}
 }
 
-func countBinFiles(dir string) int {
+// scrollbackObservation is comparable so the wait can tell a scrollback dir the
+// daemon is still filling from one it has stopped touching: Entries moves while
+// temp files come and go, Bins is the reading the target is stated against.
+type scrollbackObservation struct {
+	Bins    int
+	Entries int
+}
+
+func (o scrollbackObservation) String() string {
+	return fmt.Sprintf("bins=%d entries=%d", o.Bins, o.Entries)
+}
+
+func observeScrollback(dir string) scrollbackObservation {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return 0
+		return scrollbackObservation{}
 	}
-	n := 0
+	obs := scrollbackObservation{Entries: len(entries)}
 	for _, e := range entries {
 		if e.Type().IsRegular() && filepath.Ext(e.Name()) == ".bin" {
-			n++
+			obs.Bins++
 		}
 	}
-	return n
+	return obs
 }
 
 func listDirSafe(dir string) []string {

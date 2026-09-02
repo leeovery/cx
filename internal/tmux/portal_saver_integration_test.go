@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/portal/internal/harnesstest"
 	"github.com/leeovery/portal/internal/portalbintest"
 	"github.com/leeovery/portal/internal/portaltest"
 	"github.com/leeovery/portal/internal/state"
@@ -21,9 +22,17 @@ import (
 	"github.com/leeovery/portal/internal/tmuxtest"
 )
 
-const singletonRecycleTimeout = 5 * time.Second
-
 const daemonPidPollInterval = 50 * time.Millisecond
+
+// A saver recycle converges through observable steps (the old daemon dying,
+// daemon.pid being rewritten, the replacement answering), so Stall bounds how
+// long a reading may sit unchanged rather than how long the recycle takes: a
+// loaded host makes it slower without making it wrong.
+var singletonRecycleWait = harnesstest.ProgressWait{
+	Stall:   8 * time.Second,
+	Ceiling: 45 * time.Second,
+	Tick:    daemonPidPollInterval,
+}
 
 func TestEnsurePortalSaverVersion_SingletonInvariantAcrossRecycle(t *testing.T) {
 	tmuxtest.SkipIfNoTmux(t)
@@ -42,11 +51,11 @@ func TestEnsurePortalSaverVersion_SingletonInvariantAcrossRecycle(t *testing.T) 
 	if err := tmux.EnsurePortalSaverVersion(client, dir, "v-test-1"); err != nil {
 		t.Fatalf("first EnsurePortalSaverVersion: %v", err)
 	}
-	sock.WaitForSession(t, tmux.PortalSaverName, singletonRecycleTimeout)
+	sock.WaitForSession(t, tmux.PortalSaverName, singletonRecycleWait.Ceiling)
 
 	serverPID := captureTmuxServerPID(t, sock)
 
-	priorPID := waitForLiveDaemon(t, dir, singletonRecycleTimeout)
+	priorPID := waitForLiveDaemon(t, dir)
 
 	if err := state.WriteVersionFile(dir, "v-test-0-old", nil); err != nil {
 		t.Fatalf("WriteVersionFile (force mismatch): %v", err)
@@ -55,9 +64,9 @@ func TestEnsurePortalSaverVersion_SingletonInvariantAcrossRecycle(t *testing.T) 
 	if err := tmux.EnsurePortalSaverVersion(client, dir, "v-test-1"); err != nil {
 		t.Fatalf("second EnsurePortalSaverVersion: %v", err)
 	}
-	sock.WaitForSession(t, tmux.PortalSaverName, singletonRecycleTimeout)
+	sock.WaitForSession(t, tmux.PortalSaverName, singletonRecycleWait.Ceiling)
 
-	currentPID := waitForNewLiveDaemon(t, dir, priorPID, singletonRecycleTimeout)
+	currentPID := waitForNewLiveDaemon(t, dir, priorPID)
 
 	if state.IsProcessAlive(priorPID) {
 		dumpDiagnostics(t, dir, serverPID, priorPID, currentPID,
@@ -96,10 +105,10 @@ func TestEnsurePortalSaverVersion_AliveAndVersionAbsent_NoKill(t *testing.T) {
 	if err := tmux.EnsurePortalSaverVersion(client, dir, currentVersion); err != nil {
 		t.Fatalf("initial EnsurePortalSaverVersion: %v", err)
 	}
-	sock.WaitForSession(t, tmux.PortalSaverName, singletonRecycleTimeout)
+	sock.WaitForSession(t, tmux.PortalSaverName, singletonRecycleWait.Ceiling)
 
-	priorPID := waitForLiveDaemon(t, dir, singletonRecycleTimeout)
-	waitForVersionFile(t, dir, singletonRecycleTimeout)
+	priorPID := waitForLiveDaemon(t, dir)
+	waitForVersionFile(t, dir)
 
 	if err := os.Remove(state.DaemonVersion(dir)); err != nil {
 		t.Fatalf("remove daemon.version: %v", err)
@@ -188,15 +197,15 @@ func TestBootstrapPortalSaver_LockContention_CascadeChainReachable(t *testing.T)
 	// the cascade error itself — both outcomes are the behaviour under test.
 	_ = tmux.BootstrapPortalSaver(client, dir)
 
-	if !waitForDaemonNotAlive(t, dir, 1*time.Second, 50*time.Millisecond) {
-		t.Fatalf("state.DaemonAlive(%s) did not return false within 1s "+
-			"(lock-loser daemon should exit before writing daemon.pid or "+
-			"exit shortly after writing it)", dir)
+	if notAlive := waitForDaemonNotAlive(t, dir); !notAlive.Reached {
+		t.Fatalf("state.DaemonAlive(%s) never returned false (%s)\n"+
+			"  the lock-loser daemon should exit before writing daemon.pid or "+
+			"exit shortly after writing it", dir, notAlive)
 	}
 
-	if !waitForSessionAbsent(t, client, tmux.PortalSaverName, 2*time.Second, 100*time.Millisecond) {
-		t.Fatalf("_portal-saver session did not disappear within 2s " +
-			"(pane process should have exited, destroying the session)")
+	if absent := waitForSessionAbsent(t, client, tmux.PortalSaverName); !absent.Reached {
+		t.Fatalf("_portal-saver session did not disappear (%s)\n"+
+			"  its pane process should have exited, destroying the session", absent)
 	}
 
 	err := client.SetSessionOption(tmux.PortalSaverName, "destroy-unattached", "off")
@@ -212,29 +221,63 @@ func TestBootstrapPortalSaver_LockContention_CascadeChainReachable(t *testing.T)
 	}
 }
 
-func waitForDaemonNotAlive(t *testing.T, dir string, timeout, tick time.Duration) bool {
+func waitForDaemonNotAlive(t *testing.T, dir string) harnesstest.ProgressResult[portaltest.DaemonPIDObservation] {
 	t.Helper()
-	return tmuxtest.PollUntil(t, timeout, tick, func() bool {
-		return !state.DaemonAlive(dir)
-	})
+	return harnesstest.AwaitProgress(t, singletonRecycleWait,
+		func() portaltest.DaemonPIDObservation { return portaltest.ObserveDaemonPID(dir) },
+		func(o portaltest.DaemonPIDObservation) bool { return !o.Alive })
 }
 
-func waitForSessionAbsent(t *testing.T, client *tmux.Client, name string, timeout, tick time.Duration) bool {
-	t.Helper()
-	return tmuxtest.PollUntil(t, timeout, tick, func() bool {
-		return !client.HasSession(name)
-	})
+// sessionPresence renders itself so a wait that gives up quotes what the server
+// was still answering rather than a bare false.
+type sessionPresence struct {
+	Name    string
+	Present bool
 }
 
-func waitForVersionFile(t *testing.T, dir string, timeout time.Duration) {
+func (p sessionPresence) String() string {
+	return fmt.Sprintf("session=%s present=%v", p.Name, p.Present)
+}
+
+func waitForSessionAbsent(t *testing.T, client *tmux.Client, name string) harnesstest.ProgressResult[sessionPresence] {
 	t.Helper()
-	if tmuxtest.PollUntil(t, timeout, daemonPidPollInterval, func() bool {
-		_, err := state.ReadVersionFile(dir)
-		return err == nil
-	}) {
-		return
+	return harnesstest.AwaitProgress(t, singletonRecycleWait,
+		func() sessionPresence { return sessionPresence{Name: name, Present: client.HasSession(name)} },
+		func(p sessionPresence) bool { return !p.Present })
+}
+
+// versionFileObservation is comparable so the wait can tell a daemon.version
+// still being written from one that is not coming, and carries the read error
+// rather than discarding it so a red run says why it was unreadable.
+type versionFileObservation struct {
+	Version string
+	Err     string
+}
+
+func (o versionFileObservation) String() string {
+	if o.Err != "" {
+		return fmt.Sprintf("version=%q err=%s", o.Version, o.Err)
 	}
-	t.Fatalf("daemon.version did not appear within %s (state dir=%s)", timeout, dir)
+	return fmt.Sprintf("version=%q", o.Version)
+}
+
+func waitForVersionFile(t *testing.T, dir string) {
+	t.Helper()
+	res := harnesstest.AwaitProgress(t, singletonRecycleWait,
+		func() versionFileObservation { return observeVersionFile(dir) },
+		func(o versionFileObservation) bool { return o.Err == "" })
+	if !res.Reached {
+		t.Fatalf("daemon.version did not appear (%s) (state dir=%s)", res, dir)
+	}
+}
+
+func observeVersionFile(dir string) versionFileObservation {
+	version, err := state.ReadVersionFile(dir)
+	obs := versionFileObservation{Version: version}
+	if err != nil {
+		obs.Err = err.Error()
+	}
+	return obs
 }
 
 func assertNoForbiddenLogSubstrings(t *testing.T, dir string) {
@@ -290,40 +333,27 @@ func countDaemonChildren(t *testing.T, serverPID int) (int, string) {
 	return len(strings.Split(trimmed, "\n")), string(out)
 }
 
-func waitForLiveDaemon(t *testing.T, dir string, timeout time.Duration) int {
+func waitForLiveDaemon(t *testing.T, dir string) int {
 	t.Helper()
-	var livePID int
-	if tmuxtest.PollUntil(t, timeout, daemonPidPollInterval, func() bool {
-		pid, err := state.ReadPIDFile(dir)
-		if err == nil && state.IsProcessAlive(pid) {
-			livePID = pid
-			return true
-		}
-		return false
-	}) {
-		return livePID
+	res := harnesstest.AwaitProgress(t, singletonRecycleWait,
+		func() portaltest.DaemonPIDObservation { return portaltest.ObserveDaemonPID(dir) },
+		func(o portaltest.DaemonPIDObservation) bool { return o.Alive })
+	if !res.Reached {
+		t.Fatalf("daemon.pid did not point at a live process (%s) (state dir=%s)", res, dir)
 	}
-	t.Fatalf("daemon.pid did not point at a live process within %s "+
-		"(state dir=%s)", timeout, dir)
-	return 0
+	return res.Last.PID
 }
 
-func waitForNewLiveDaemon(t *testing.T, dir string, prior int, timeout time.Duration) int {
+func waitForNewLiveDaemon(t *testing.T, dir string, prior int) int {
 	t.Helper()
-	var newPID int
-	if tmuxtest.PollUntil(t, timeout, daemonPidPollInterval, func() bool {
-		pid, err := state.ReadPIDFile(dir)
-		if err == nil && pid != prior && state.IsProcessAlive(pid) {
-			newPID = pid
-			return true
-		}
-		return false
-	}) {
-		return newPID
+	res := harnesstest.AwaitProgress(t, singletonRecycleWait,
+		func() portaltest.DaemonPIDObservation { return portaltest.ObserveDaemonPID(dir) },
+		func(o portaltest.DaemonPIDObservation) bool { return o.Alive && o.PID != prior })
+	if !res.Reached {
+		t.Fatalf("daemon.pid did not converge on a new live PID (prior=%d) (%s) (state dir=%s)",
+			prior, res, dir)
 	}
-	t.Fatalf("daemon.pid did not converge on a new live PID (prior=%d) "+
-		"within %s (state dir=%s)", prior, timeout, dir)
-	return 0
+	return res.Last.PID
 }
 
 func dumpDiagnostics(t *testing.T, dir string, serverPID, priorPID, currentPID int, format string, args ...any) {

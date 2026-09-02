@@ -4,11 +4,13 @@ package bootstrap_test
 
 import (
 	"errors"
+	"fmt"
 	"os/exec"
 	"testing"
 	"time"
 
 	"github.com/leeovery/portal/internal/bootstrapadapter"
+	"github.com/leeovery/portal/internal/harnesstest"
 	"github.com/leeovery/portal/internal/portalbintest"
 	"github.com/leeovery/portal/internal/portaltest"
 	"github.com/leeovery/portal/internal/state"
@@ -16,9 +18,16 @@ import (
 	"github.com/leeovery/portal/internal/tmuxtest"
 )
 
-const upgradePathPIDFileTimeout = 3 * time.Second
-
 const upgradePathPIDFilePollTick = 50 * time.Millisecond
+
+// daemon.pid converges through observable steps (the file appearing, then
+// carrying the respawned daemon's PID), so Stall bounds how long the reading may
+// sit unchanged rather than how long the whole convergence takes.
+var upgradePathPIDFileWait = harnesstest.ProgressWait{
+	Stall:   5 * time.Second,
+	Ceiling: 30 * time.Second,
+	Tick:    upgradePathPIDFilePollTick,
+}
 
 const upgradePathNonDestructiveSettleWindow = 200 * time.Millisecond
 
@@ -178,41 +187,48 @@ func TestUpgradePath_PostBootstrap_FreshAcquireDaemonLockRefuses(t *testing.T) {
 
 func waitForDaemonPID(t *testing.T, stateDir string, expectedPID int) {
 	t.Helper()
-	var lastPID int
-	var lastErr error
-	ok := tmuxtest.PollUntil(t, upgradePathPIDFileTimeout, upgradePathPIDFilePollTick, func() bool {
-		pid, err := state.ReadPIDFile(stateDir)
-		lastPID = pid
-		lastErr = err
-		if err != nil {
-			return false
-		}
-		return pid == expectedPID
-	})
-	if !ok {
-		t.Fatalf("daemon.pid did not converge to expected PID %d within %s\n"+
-			"  last read: pid=%d err=%v\n"+
+	res := harnesstest.AwaitProgress(t, upgradePathPIDFileWait,
+		func() portaltest.DaemonPIDObservation { return portaltest.ObserveDaemonPID(stateDir) },
+		func(o portaltest.DaemonPIDObservation) bool { return o.Err == "" && o.PID == expectedPID })
+	if !res.Reached {
+		t.Fatalf("daemon.pid did not converge to expected PID %d (%s)\n"+
 			"  state dir: %s",
-			expectedPID, upgradePathPIDFileTimeout, lastPID, lastErr, stateDir)
+			expectedPID, res, stateDir)
 	}
 }
 
 func waitForIdentifyDaemon(t *testing.T, pid int) {
 	t.Helper()
-	var lastResult state.IdentifyResult
-	var lastErr error
-	ok := tmuxtest.PollUntil(t, upgradePathPIDFileTimeout, upgradePathPIDFilePollTick, func() bool {
-		result, err := state.IdentifyDaemon(pid)
-		lastResult = result
-		lastErr = err
-		if err != nil {
-			return false
-		}
-		return result == state.IdentifyIsPortalDaemon
-	})
-	if !ok {
-		t.Fatalf("IdentifyDaemon(%d) did not converge to IdentifyIsPortalDaemon within %s\n"+
-			"  last result: %v err=%v",
-			pid, upgradePathPIDFileTimeout, lastResult, lastErr)
+	res := harnesstest.AwaitProgress(t, upgradePathPIDFileWait,
+		func() identifyObservation { return observeIdentifyDaemon(pid) },
+		func(o identifyObservation) bool {
+			return o.Err == "" && o.Result == state.IdentifyIsPortalDaemon
+		})
+	if !res.Reached {
+		t.Fatalf("IdentifyDaemon(%d) did not converge to IdentifyIsPortalDaemon (%s)", pid, res)
 	}
+}
+
+// identifyObservation is comparable so the wait can tell an identity that is
+// still settling from one that has stopped changing, and carries the probe error
+// rather than discarding it so a red run says why the answer was withheld.
+type identifyObservation struct {
+	Result state.IdentifyResult
+	Err    string
+}
+
+func (o identifyObservation) String() string {
+	if o.Err != "" {
+		return fmt.Sprintf("result=%v err=%s", o.Result, o.Err)
+	}
+	return fmt.Sprintf("result=%v", o.Result)
+}
+
+func observeIdentifyDaemon(pid int) identifyObservation {
+	result, err := state.IdentifyDaemon(pid)
+	obs := identifyObservation{Result: result}
+	if err != nil {
+		obs.Err = err.Error()
+	}
+	return obs
 }

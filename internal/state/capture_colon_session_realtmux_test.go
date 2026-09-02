@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/portal/internal/harnesstest"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmuxtest"
 )
@@ -75,7 +76,7 @@ func waitForListedSessions(t *testing.T, ts *tmuxtest.Socket, names ...string) {
 		}
 		return true
 	}
-	if !tmuxtest.PollUntil(t, 2*time.Second, 20*time.Millisecond, listed) {
+	if !harnesstest.PollUntil(t, 2*time.Second, 20*time.Millisecond, listed) {
 		t.Fatalf("sessions %v did not all appear within 2s", names)
 	}
 }

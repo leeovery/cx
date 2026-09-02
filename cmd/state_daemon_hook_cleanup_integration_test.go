@@ -4,6 +4,7 @@ package cmd_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/portal/internal/harnesstest"
 	"github.com/leeovery/portal/internal/hookstest"
 	"github.com/leeovery/portal/internal/portalbintest"
 	"github.com/leeovery/portal/internal/portaltest"
@@ -23,15 +25,12 @@ import (
 
 const (
 	// hookCleanupIntervalMirror duplicates the unexported cmd.hookCleanupInterval
-	// (this file is package cmd_test). Drift cannot false-fail: the observation
-	// budget below is this value plus generous slack.
+	// (this file is package cmd_test). Drift cannot false-fail: the reap wait
+	// below tolerates this value plus generous slack of no change at all.
 	hookCleanupIntervalMirror = 10 * time.Second
 
-	daemonReadyBudget = 3 * time.Second
-	daemonReadyPoll   = 50 * time.Millisecond
-
-	hookCleanupObservationBudget = hookCleanupIntervalMirror + 15*time.Second
-	hookCleanupPollTick          = 250 * time.Millisecond
+	daemonReadyPoll     = 50 * time.Millisecond
+	hookCleanupPollTick = 250 * time.Millisecond
 
 	// preIntervalSafetyCeiling: past this much elapsed wall time the
 	// no-reap-before-interval window cannot be established, so that single
@@ -40,6 +39,26 @@ const (
 
 	liveWorkSession = "work"
 )
+
+// The daemon becomes ready through observable steps (daemon.pid appearing, then
+// naming a process that answers), so Stall bounds how long that reading may sit
+// unchanged rather than how long start-up takes.
+var daemonReadyWait = harnesstest.ProgressWait{
+	Stall:   8 * time.Second,
+	Ceiling: 45 * time.Second,
+	Tick:    daemonReadyPoll,
+}
+
+// The reap is throttled to roughly hookCleanupIntervalMirror, so the key set is
+// EXPECTED to sit unchanged across that whole interval: Stall must comfortably
+// outlast it or the wait would give up on a daemon that is merely waiting its
+// turn. Ceiling then backstops a key set that keeps churning without the stale
+// key ever going.
+var hookCleanupWait = harnesstest.ProgressWait{
+	Stall:   hookCleanupIntervalMirror + 15*time.Second,
+	Ceiling: 3 * (hookCleanupIntervalMirror + 15*time.Second),
+	Tick:    hookCleanupPollTick,
+}
 
 func TestDaemon_ThrottledHookCleanup_ReapsStaleRetainsLiveOnIdleServer(t *testing.T) {
 	tmuxtest.SkipIfNoTmux(t)
@@ -120,11 +139,12 @@ func TestDaemon_ThrottledHookCleanup_ReapsStaleRetainsLiveOnIdleServer(t *testin
 			err, portaltest.ReadPortalLogSafe(stateDir))
 	}
 
-	if !tmuxtest.PollUntil(t, daemonReadyBudget, daemonReadyPoll, func() bool {
-		return state.DaemonAlive(stateDir)
-	}) {
-		t.Fatalf("daemon did not become alive within %s of BootstrapPortalSaver return\n"+
-			"--- portal.log ---\n%s", daemonReadyBudget, portaltest.ReadPortalLogSafe(stateDir))
+	readyRes := harnesstest.AwaitProgress(t, daemonReadyWait,
+		func() portaltest.DaemonPIDObservation { return portaltest.ObserveDaemonPID(stateDir) },
+		func(o portaltest.DaemonPIDObservation) bool { return o.Alive })
+	if !readyRes.Reached {
+		t.Fatalf("daemon did not become alive after BootstrapPortalSaver returned (%s)\n"+
+			"--- portal.log ---\n%s", readyRes, portaltest.ReadPortalLogSafe(stateDir))
 	}
 
 	pidData, err := os.ReadFile(state.DaemonPID(stateDir))
@@ -177,18 +197,17 @@ func TestDaemon_ThrottledHookCleanup_ReapsStaleRetainsLiveOnIdleServer(t *testin
 
 	// The server must stay idle throughout: the cleanup gate lives on the
 	// daemon tick's idle branch, so anything making a tick dirty skips it.
-	reaped := tmuxtest.PollUntil(t, hookCleanupObservationBudget, hookCleanupPollTick, func() bool {
-		_, present := readHookKeys(t, env)[hookstest.ReapableSeedA]
-		return !present
-	})
-	if !reaped {
+	reapRes := harnesstest.AwaitProgress(t, hookCleanupWait,
+		func() hookKeysObservation { return observeHookKeys(t, env, hookstest.ReapableSeedA) },
+		func(o hookKeysObservation) bool { return !o.StalePresent })
+	if !reapRes.Reached {
 		finalKeys := readHookKeys(t, env)
-		t.Fatalf("stale key %q was NOT reaped within %s of daemon start on an idle server\n"+
+		t.Fatalf("stale key %q was NOT reaped after daemon start on an idle server (%s)\n"+
 			"  the daemon's throttled (~%s) idle-branch "+
 			"cleanup MUST reap entries whose paneKey is not in the live pane set\n"+
 			"  remaining hooks.json keys: %v\n"+
 			"--- hooks.json (%s) ---\n%s\n--- portal.log ---\n%s",
-			hookstest.ReapableSeedA, hookCleanupObservationBudget, hookCleanupIntervalMirror,
+			hookstest.ReapableSeedA, reapRes, hookCleanupIntervalMirror,
 			sortedKeys(finalKeys), hooksPath, string(hookstest.HooksJSONBytes(t, env)),
 			portaltest.ReadPortalLogSafe(stateDir))
 	}
@@ -226,6 +245,26 @@ func readHookKeys(t *testing.T, env []string) map[string]struct{} {
 		keys[k] = struct{}{}
 	}
 	return keys
+}
+
+// hookKeysObservation is comparable so the wait can tell a hooks.json that is
+// still being rewritten from one that has settled, and renders the whole key set
+// so a red run says what was left behind rather than only that the stale key
+// stayed.
+type hookKeysObservation struct {
+	Keys         string
+	StalePresent bool
+}
+
+func (o hookKeysObservation) String() string {
+	return fmt.Sprintf("keys=[%s] stale-present=%v", o.Keys, o.StalePresent)
+}
+
+func observeHookKeys(t *testing.T, env []string, staleKey string) hookKeysObservation {
+	t.Helper()
+	keys := readHookKeys(t, env)
+	_, present := keys[staleKey]
+	return hookKeysObservation{Keys: strings.Join(sortedKeys(keys), " "), StalePresent: present}
 }
 
 func sortedKeys(set map[string]struct{}) []string {

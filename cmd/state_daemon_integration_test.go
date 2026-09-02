@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/portal/internal/harnesstest"
 	"github.com/leeovery/portal/internal/portalbintest"
 	"github.com/leeovery/portal/internal/portaltest"
 	"github.com/leeovery/portal/internal/state"
@@ -22,7 +23,15 @@ import (
 
 const daemonAlivePollInterval = 50 * time.Millisecond
 
-const daemonAliveTimeout = 5 * time.Second
+// The daemon becomes alive through observable steps (daemon.pid appearing, then
+// naming a process that answers), so Stall bounds how long the reading may sit
+// unchanged rather than how long the whole start-up takes: a loaded host makes
+// a starting daemon slower without making it broken.
+var daemonAliveWait = harnesstest.ProgressWait{
+	Stall:   8 * time.Second,
+	Ceiling: 45 * time.Second,
+	Tick:    daemonAlivePollInterval,
+}
 
 // tickStartDelay pins SIGHUP inside the first tick's per-pane loop: long
 // enough for the daemon's 1s ticker to have fired, short enough that the tick
@@ -33,7 +42,7 @@ const tickStartDelay = 1200 * time.Millisecond
 // no lines rather than how long it may take to fill, and Ceiling only backstops
 // a pane that keeps gaining lines without ever reaching the target: on a loaded
 // host the seq writer is slower, not stuck.
-var panePopulationWait = tmuxtest.ProgressWait{
+var panePopulationWait = harnesstest.ProgressWait{
 	Stall:   10 * time.Second,
 	Ceiling: 120 * time.Second,
 	Tick:    panePopulationPollInterval,
@@ -133,7 +142,7 @@ func TestDaemon_MidTickSIGHUP_ExitsWithinBoundedWindow(t *testing.T) {
 		t.Errorf("daemon process leaked past test end and was SIGKILL'd; pid=%d", daemon.Process.Pid)
 	})
 
-	waitForDaemonAlive(t, stateDir, daemonAliveTimeout)
+	waitForDaemonAlive(t, stateDir)
 
 	if err := os.WriteFile(state.SaveRequested(stateDir), nil, 0o644); err != nil {
 		t.Fatalf("touch save.requested: %v", err)
@@ -234,7 +243,7 @@ func populatePanes(t *testing.T, sock *tmuxtest.Socket, lines int) {
 
 	for i := range paneCount {
 		target := fmt.Sprintf("perf:0.%d", i)
-		res := tmuxtest.AwaitProgress(t, panePopulationWait,
+		res := harnesstest.AwaitProgress(t, panePopulationWait,
 			func() int {
 				// The final line may lack a newline, so this count is a lower
 				// bound - which is what the readiness gate wants.
@@ -269,19 +278,20 @@ func anchorThreshold(singlePaneWallTime time.Duration) time.Duration {
 
 // waitForDaemonAlive polls for the pidfile. Process.Pid is not a usable
 // readiness signal: it exists before the daemon writes daemon.pid.
-func waitForDaemonAlive(t *testing.T, stateDir string, timeout time.Duration) {
+func waitForDaemonAlive(t *testing.T, stateDir string) {
 	t.Helper()
-	if tmuxtest.PollUntil(t, timeout, daemonAlivePollInterval, func() bool {
-		return state.DaemonAlive(stateDir)
-	}) {
+	res := harnesstest.AwaitProgress(t, daemonAliveWait,
+		func() portaltest.DaemonPIDObservation { return portaltest.ObserveDaemonPID(stateDir) },
+		func(o portaltest.DaemonPIDObservation) bool { return o.Alive })
+	if res.Reached {
 		return
 	}
 	var logBlob string
 	if data, err := os.ReadFile(state.PortalLog(stateDir)); err == nil {
 		logBlob = string(data)
 	}
-	t.Fatalf("daemon did not become alive within %s (stateDir=%s)\n--- portal.log ---\n%s",
-		timeout, stateDir, logBlob)
+	t.Fatalf("daemon did not become alive (%s) (stateDir=%s)\n--- portal.log ---\n%s",
+		res, stateDir, logBlob)
 }
 
 // bootstrapTmuxServer starts the server with an anchor session, then raises

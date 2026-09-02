@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/portal/internal/harnesstest"
 	"github.com/leeovery/portal/internal/portalbintest"
 	"github.com/leeovery/portal/internal/portaltest"
 	"github.com/leeovery/portal/internal/state"
@@ -21,9 +22,16 @@ import (
 	"github.com/leeovery/portal/internal/tmuxtest"
 )
 
-const endStateReadyTimeout = 2 * time.Second
-
 const endStatePollTick = 50 * time.Millisecond
+
+// The saver pane converges through observable steps (the pane appearing with the
+// placeholder command, the respawn swapping in the daemon), so Stall bounds how
+// long the reading may sit unchanged rather than how long the swap takes.
+var endStateReadyWait = harnesstest.ProgressWait{
+	Stall:   6 * time.Second,
+	Ceiling: 30 * time.Second,
+	Tick:    endStatePollTick,
+}
 
 const lockLoserCascadeWindow = 2500 * time.Millisecond
 
@@ -56,30 +64,13 @@ func TestBootstrapPortalSaver_CleanBootstrap_EndState(t *testing.T) {
 		t.Fatalf("show-options destroy-unattached = %q; want substring %q", opt, "off")
 	}
 
-	var lastArgs string
-	if !tmuxtest.PollUntil(t, endStateReadyTimeout, endStatePollTick, func() bool {
-		out, err := sock.TryRun("list-panes", "-t", tmux.PortalSaverName, "-F", "#{pane_pid}")
-		if err != nil {
-			return false
-		}
-		pidStr := strings.TrimSpace(out)
-		if pidStr == "" {
-			return false
-		}
-		pid, perr := strconv.Atoi(pidStr)
-		if perr != nil {
-			return false
-		}
-		args, perr := psArgsForPID(pid)
-		if perr != nil {
-			return false
-		}
-		lastArgs = args
-		return strings.Contains(args, "portal state daemon")
-	}) {
-		t.Fatalf("pane process did not converge on `portal state daemon` within %s; last ps args = %q",
-			endStateReadyTimeout, lastArgs)
+	paneRes := harnesstest.AwaitProgress(t, endStateReadyWait,
+		func() paneCommandObservation { return observeSaverPaneCommand(sock) },
+		func(o paneCommandObservation) bool { return strings.Contains(o.Args, "portal state daemon") })
+	if !paneRes.Reached {
+		t.Fatalf("pane process did not converge on `portal state daemon` (%s)", paneRes)
 	}
+	lastArgs := paneRes.Last.Args
 
 	// Deliberately not folded into the poll above: a substring match could pass
 	// on a transient state where both command lines are briefly visible.
@@ -123,19 +114,14 @@ func TestBootstrapPortalSaver_LockLoser_NoNoSuchSessionLogNoise(t *testing.T) {
 	}
 	portaltest.RegisterSubprocessCleanup(t, seeded)
 
-	if !tmuxtest.PollUntil(t, endStateReadyTimeout, endStatePollTick, func() bool {
-		pid, readErr := state.ReadPIDFile(stateDir)
-		if readErr != nil {
-			return false
-		}
-		result, idErr := state.IdentifyDaemon(pid)
-		if idErr != nil {
-			return false
-		}
-		return result == state.IdentifyIsPortalDaemon
-	}) {
-		t.Fatalf("seeded competing daemon did not become observable within %s "+
-			"(state dir=%s)", endStateReadyTimeout, stateDir)
+	seededRes := harnesstest.AwaitProgress(t, endStateReadyWait,
+		func() seededDaemonObservation { return observeSeededDaemon(stateDir) },
+		func(o seededDaemonObservation) bool {
+			return o.Err == "" && o.Result == state.IdentifyIsPortalDaemon
+		})
+	if !seededRes.Reached {
+		t.Fatalf("seeded competing daemon did not become observable (%s) (state dir=%s)",
+			seededRes, stateDir)
 	}
 
 	bootstrapErr := tmux.BootstrapPortalSaver(client, stateDir)
@@ -278,6 +264,66 @@ func dumpEnvMap(m map[string]envValue) string {
 		fmt.Fprintf(&b, "  %s: %s\n", k, v)
 	}
 	return b.String()
+}
+
+// paneCommandObservation is comparable so the wait can tell a saver pane still
+// being respawned from one that has settled on the wrong command, and carries
+// the read error rather than discarding it so a red run says why ps was silent.
+type paneCommandObservation struct {
+	PID  int
+	Args string
+	Err  string
+}
+
+func (o paneCommandObservation) String() string {
+	if o.Err != "" {
+		return fmt.Sprintf("pane-pid=%d args=%q err=%s", o.PID, o.Args, o.Err)
+	}
+	return fmt.Sprintf("pane-pid=%d args=%q", o.PID, o.Args)
+}
+
+func observeSaverPaneCommand(sock *tmuxtest.Socket) paneCommandObservation {
+	out, err := sock.TryRun("list-panes", "-t", tmux.PortalSaverName, "-F", "#{pane_pid}")
+	if err != nil {
+		return paneCommandObservation{Err: err.Error()}
+	}
+	pid, convErr := strconv.Atoi(strings.TrimSpace(out))
+	if convErr != nil {
+		return paneCommandObservation{Err: fmt.Sprintf("parse pane pid %q: %v", strings.TrimSpace(out), convErr)}
+	}
+	args, psErr := psArgsForPID(pid)
+	if psErr != nil {
+		return paneCommandObservation{PID: pid, Err: psErr.Error()}
+	}
+	return paneCommandObservation{PID: pid, Args: args}
+}
+
+// seededDaemonObservation is comparable so the wait can tell a competing daemon
+// still starting from one that never will, and carries the failing step rather
+// than discarding it so a red run says which read withheld the answer.
+type seededDaemonObservation struct {
+	PID    int
+	Result state.IdentifyResult
+	Err    string
+}
+
+func (o seededDaemonObservation) String() string {
+	if o.Err != "" {
+		return fmt.Sprintf("pid=%d result=%v err=%s", o.PID, o.Result, o.Err)
+	}
+	return fmt.Sprintf("pid=%d result=%v", o.PID, o.Result)
+}
+
+func observeSeededDaemon(stateDir string) seededDaemonObservation {
+	pid, readErr := state.ReadPIDFile(stateDir)
+	if readErr != nil {
+		return seededDaemonObservation{Err: readErr.Error()}
+	}
+	result, idErr := state.IdentifyDaemon(pid)
+	if idErr != nil {
+		return seededDaemonObservation{PID: pid, Err: idErr.Error()}
+	}
+	return seededDaemonObservation{PID: pid, Result: result}
 }
 
 // Deliberately not state.IdentifyDaemon: the assertion is on the byte-level
