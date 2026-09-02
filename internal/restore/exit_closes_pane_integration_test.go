@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -176,13 +177,12 @@ func awaitPaneGone(t *testing.T, ts *tmuxtest.Socket, sessionName string, window
 	var lastOut string
 	var lastErr error
 	for time.Now().Before(deadline) {
-		out, err := ts.TryRun("list-panes", "-s", "-t", sessionName,
-			"-F", "#{window_index}:#{pane_index}")
-		lastOut, lastErr = out, err
+		coords, err := restoretest.TryLivePaneCoords(ts, sessionName)
+		lastOut, lastErr = strings.Join(coords, " "), err
 		if err != nil {
 			return
 		}
-		if !strings.Contains(out, wantPane) {
+		if !slices.Contains(coords, wantPane) {
 			return
 		}
 		time.Sleep(50 * time.Millisecond)

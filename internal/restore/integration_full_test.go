@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -211,13 +212,12 @@ func verifyLiveStructure(t *testing.T, ts *tmuxtest.Socket, sessions ...fixtureS
 		if !strings.Contains(out, fx.name) {
 			t.Errorf("session %q missing post-restore; got %q", fx.name, out)
 		}
-		panesOut := ts.Run(t, "list-panes", "-s", "-t", fx.name,
-			"-F", "#{window_index}:#{pane_index}")
+		panes := restoretest.LivePaneCoords(t, ts, fx.name)
 		for w := range 2 {
 			for p := range 2 {
 				want := fmt.Sprintf("%d:%d", w, p)
-				if !strings.Contains(panesOut, want) {
-					t.Errorf("%s live pane %q missing; got %q", fx.name, want, panesOut)
+				if !slices.Contains(panes, want) {
+					t.Errorf("%s live pane %q missing; got %q", fx.name, want, panes)
 				}
 			}
 		}

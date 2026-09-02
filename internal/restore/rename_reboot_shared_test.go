@@ -4,7 +4,7 @@ package restore_test
 
 import (
 	"path/filepath"
-	"strings"
+	"slices"
 	"testing"
 	"time"
 
@@ -117,9 +117,8 @@ func (fx *renameRebootFixture) rebootAndHydrate(t *testing.T) error {
 		return err
 	}
 
-	restoredPanes := fx.ts.Run(t, "list-panes", "-s", "-t", renameNewName,
-		"-F", "#{window_index}:#{pane_index}")
-	if !strings.Contains(restoredPanes, "0:0") {
+	restoredPanes := restoretest.LivePaneCoords(t, fx.ts, renameNewName)
+	if !slices.Contains(restoredPanes, "0:0") {
 		t.Fatalf("restored session %q missing live pane 0:0; got %q", renameNewName, restoredPanes)
 	}
 

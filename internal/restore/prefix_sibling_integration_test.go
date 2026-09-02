@@ -10,7 +10,6 @@ import (
 	"github.com/leeovery/portal/internal/portaltest"
 	"github.com/leeovery/portal/internal/restoretest"
 	"github.com/leeovery/portal/internal/state"
-	"github.com/leeovery/portal/internal/tmux"
 	"github.com/leeovery/portal/internal/tmuxtest"
 )
 
@@ -66,7 +65,5 @@ func TestSessionRestorer_MultiWindowSessionWithAPrefixSiblingLive(t *testing.T) 
 
 func livePaneCoords(t *testing.T, ts *tmuxtest.Socket, session string) string {
 	t.Helper()
-	out := ts.Run(t, "list-panes", "-s", "-t", tmux.ExactCoordTarget(session),
-		"-F", "#{window_index}:#{pane_index}")
-	return strings.Join(strings.Fields(out), " ")
+	return strings.Join(restoretest.LivePaneCoords(t, ts, session), " ")
 }

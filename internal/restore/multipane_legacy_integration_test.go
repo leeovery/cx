@@ -109,8 +109,7 @@ func (fx *legacyFixture) assertLivePanes(t *testing.T, sessionName string) {
 	for i := range fx.panes {
 		want = append(want, "0:"+strconv.Itoa(i))
 	}
-	got := strings.Fields(fx.ts.Run(t, "list-panes", "-s", "-t", tmux.ExactCoordTarget(sessionName),
-		"-F", "#{window_index}:#{pane_index}"))
+	got := restoretest.LivePaneCoords(t, fx.ts, sessionName)
 	if strings.Join(got, " ") != strings.Join(want, " ") {
 		t.Fatalf("session %q live panes = %v; want %v", sessionName, got, want)
 	}

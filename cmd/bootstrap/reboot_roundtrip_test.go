@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -249,22 +250,20 @@ func verifyLiveStructure(t *testing.T, ts *tmuxtest.Socket, cfg roundTripCfg) {
 			t.Errorf("session %q missing post-restore; got %q", want, out)
 		}
 	}
-	alphaPanes := ts.Run(t, "list-panes", "-s", "-t", "alpha",
-		"-F", "#{window_index}:#{pane_index}")
+	alphaPanes := restoretest.LivePaneCoords(t, ts, "alpha")
 	wantAlphaPanes := []string{
 		fmt.Sprintf("%d:%d", cfg.restoreBase+0, cfg.restorePaneBase+0),
 		fmt.Sprintf("%d:%d", cfg.restoreBase+0, cfg.restorePaneBase+1),
 		fmt.Sprintf("%d:%d", cfg.restoreBase+1, cfg.restorePaneBase+0),
 	}
 	for _, want := range wantAlphaPanes {
-		if !strings.Contains(alphaPanes, want) {
+		if !slices.Contains(alphaPanes, want) {
 			t.Errorf("alpha live pane %q missing; got %q", want, alphaPanes)
 		}
 	}
-	betaPanes := ts.Run(t, "list-panes", "-s", "-t", "beta",
-		"-F", "#{window_index}:#{pane_index}")
+	betaPanes := restoretest.LivePaneCoords(t, ts, "beta")
 	wantBeta := fmt.Sprintf("%d:%d", cfg.restoreBase+0, cfg.restorePaneBase+0)
-	if !strings.Contains(betaPanes, wantBeta) {
+	if !slices.Contains(betaPanes, wantBeta) {
 		t.Errorf("beta live pane %q missing; got %q", wantBeta, betaPanes)
 	}
 }
@@ -544,9 +543,8 @@ func verifySwitchClientLiveStructure(t *testing.T, ts *tmuxtest.Socket) {
 		}
 	}
 	for _, sess := range []string{"alpha", "beta"} {
-		panes := ts.Run(t, "list-panes", "-s", "-t", sess,
-			"-F", "#{window_index}:#{pane_index}")
-		if !strings.Contains(panes, "0:0") {
+		panes := restoretest.LivePaneCoords(t, ts, sess)
+		if !slices.Contains(panes, "0:0") {
 			t.Errorf("%s live pane 0:0 missing; got %q", sess, panes)
 		}
 	}

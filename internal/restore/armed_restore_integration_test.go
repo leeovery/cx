@@ -137,8 +137,7 @@ func TestPhase3Integration_RestoreUsesLiveIndicesUnderBaseIndexDrift(t *testing.
 		t.Fatalf("expected alpha in list-sessions; got %q", out)
 	}
 
-	livePanesOut := ts.Run(t, "list-panes", "-s", "-t", "alpha", "-F", "#{window_index}:#{pane_index}")
-	livePanesOut = strings.TrimSpace(livePanesOut)
+	livePanesOut := strings.Join(restoretest.LivePaneCoords(t, ts, "alpha"), " ")
 	if livePanesOut != "1:1" {
 		t.Fatalf("alpha live panes = %q, want %q (base-index drift)", livePanesOut, "1:1")
 	}
