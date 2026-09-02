@@ -300,7 +300,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 8,
-          "current_task": "resume-hooks-silently-lost-8-15",
+          "current_task": "resume-hooks-silently-lost-8-25",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -434,7 +434,8 @@
             "resume-hooks-silently-lost-8-21",
             "resume-hooks-silently-lost-8-22",
             "resume-hooks-silently-lost-8-23",
-            "resume-hooks-silently-lost-8-24"
+            "resume-hooks-silently-lost-8-24",
+            "resume-hooks-silently-lost-8-15"
           ],
           "staging": {
             "p1": {
@@ -1337,6 +1338,59 @@
               "files": [
                 "internal/restoretest/waitfor_file_exists.go",
                 "internal/harnesstest/recorder.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-15",
+              "source": "executor",
+              "summary": "ROOT CAUSE FOUND — production saver readiness barrier is a fixed 2s wall-clock wait, and it is the actual cause of the composite e2e flake banked repeatedly across this whole phase.",
+              "detail": "internal/tmux/portal_saver.go:227 waitForSaverDaemonReady polls isSaverDaemonReady against saver.Readiness.Timeout (2s, set at portal_saver.go:108), WARNs on expiry and returns nil. Under host IO contention the respawned daemon misses that budget, no daemon: ready is emitted, and cmd/bootstrap composite e2e tests (composition_e2e_convergence_integration_test.go:43, composition_e2e_self_eject_integration_test.go:45, composition_e2e_f_observables_integration_test.go:32, composition_e2e_fresh_acquire_integration_test.go:29) fail with count=0 changes=0 from task 7-9 already-converted wait — the test-side wait is fine; the thing it waits on gave up. Evidence: a passing run shows respawn-daemon to_pid=X followed by daemon ready target_pid=X; every failing run shows the respawn with NO daemon ready line and all three daemons dead. Reproduced on pristine HEAD via read-only git archive export, where it failed WORSE (3 composite tests vs 1). This supersedes the earlier bank entries from 8-10, 8-13 and 8-18 that recorded the flake as a test-side budget problem — it is not. The fix reaches into production pacing plus its seam defaults.",
+              "files": [
+                "internal/tmux/portal_saver.go",
+                "cmd/bootstrap/composition_e2e_convergence_integration_test.go",
+                "cmd/bootstrap/composition_e2e_self_eject_integration_test.go",
+                "cmd/bootstrap/composition_e2e_f_observables_integration_test.go",
+                "cmd/bootstrap/composition_e2e_fresh_acquire_integration_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-15",
+              "source": "executor",
+              "summary": "tmuxtest.Socket.WaitForSession is still a fixed wall-clock wait sitting directly beside the converted sites.",
+              "detail": "internal/tmuxtest/socket.go WaitForSession(t, name, timeout) is called from the same daemon-lifecycle suites this task converted (internal/tmux/portal_saver_integration_test.go:45, :58, :99 — it is now passed singletonRecycleWait.Ceiling so the two budgets at least move together). Converting it changes tmuxtest exported signature and every caller across packages, which is broader than these fifteen sites.",
+              "files": [
+                "internal/tmuxtest/socket.go",
+                "internal/tmux/portal_saver_integration_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-15",
+              "source": "executor",
+              "summary": "Two fixed-budget PollUntil consumers survive outside the named fifteen and are the only remaining callers of it.",
+              "detail": "internal/state/capture_colon_session_realtmux_test.go:79 polls a real-tmux session listing against a bare 2s, and internal/portaltest/tmux_server_wait.go:30 polls server-unreachability against a 3s budget. Neither was in this task enumeration; deciding whether each has an observable worth progress-waiting on (the second is a deliberate best-effort teardown wait) is a judgement call spanning a test-only helper contract and its callers.",
+              "files": [
+                "internal/state/capture_colon_session_realtmux_test.go",
+                "internal/portaltest/tmux_server_wait.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-15",
+              "source": "reviewer",
+              "summary": "INDEPENDENTLY CONFIRMED root cause: the production saver-readiness barrier fails OPEN on a fixed 2s budget — and the consequence is not only test flake but a real cold boot silently proceeding with no daemon.",
+              "detail": "internal/tmux/portal_saver.go:226-241 (waitForSaverDaemonReady) polls isSaverDaemonReady against saver.Readiness.Timeout, set to 2*time.Second at portal_saver.go:107. On expiry it WARNs and RETURNS NIL, so BootstrapPortalSaver continues with no live daemon and every downstream step asserts against a saver that never came up. The daemon-ready INFO at :234 fires only on success, while respawn-daemon at :304 is emitted unconditionally before WaitForReady at :306 — exactly the log signature observed (respawn present, ready absent). Under the IO contention measured on this host (load 22-25 on 10 cores from fileproviderd/Dropbox/mediaanalysisd), fork+exec+flock+PID-file-write is not reliably a 2s operation. The seam is already injectable (SaverReadinessSeams, SaverOperationSeams.WaitForReady, exported at internal/tmux/export_test.go:38,63,67), so a progress-based or longer-with-hard-ceiling budget is a contained change. Verified independently of the executor evidence by reading the code path.",
+              "files": [
+                "internal/tmux/portal_saver.go",
+                "internal/tmux/export_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-15",
+              "source": "reviewer",
+              "summary": "tmuxtest.Socket.WaitForSession remains a fixed wall-clock presence poll, and three call sites now inherit an unrelated ProgressWait ceiling as its budget.",
+              "detail": "internal/tmuxtest/socket.go:114-127 polls has-session against a bare timeout and Fatalfs at the deadline. Deleting singletonRecycleTimeout left internal/tmux/portal_saver_integration_test.go:54,67,108 passing singletonRecycleWait.Ceiling (45s) where 5s stood — defensible as load tolerance, but it couples a session-appearance budget to a progress ceiling chosen for a different observable, and stretches a genuinely-red run 9x. Fixing it properly means either giving WaitForSession its own progress-based form or restoring a named saverSessionAppearTimeout. Supersedes the executor entry on the same subject with the coupling consequence stated.",
+              "files": [
+                "internal/tmuxtest/socket.go",
+                "internal/tmux/portal_saver_integration_test.go"
               ]
             }
           ]
