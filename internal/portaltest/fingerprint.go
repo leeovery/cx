@@ -240,7 +240,7 @@ func reportStateDirDelta(report errorReporter, root string, pre map[string]Finge
 	}
 }
 
-const deltaFmt = "portaltest backstop: developer state dir mutated at %s: %s"
+const deltaFmt = "portaltest backstop: state dir under the scrubbed HOME mutated at %s: %s"
 
 // Callers match on these exact strings, so the "-changed" suffix must be
 // preserved. created / deleted / became-symlink pass through verbatim.
@@ -276,9 +276,13 @@ func unionPaths(a, b map[string]Fingerprint) []string {
 	return out
 }
 
-// resolveDevStateDir reads the ambient env, so it must run before any override
-// is installed or it resolves the per-test temp dir instead of the developer's
-// install. The precedence mirrors internal/xdg, inlined to avoid the dependency.
+// resolveDevStateDir reads the ambient env, and deliberately runs after the HOME
+// scrub, so the path it returns is the per-test temp HOME's state dir rather than
+// the developer's install: resolving the install instead would let a live host
+// daemon's own tick writes false-trip the backstop mid-test. The backstop's reach
+// follows from that — it catches a process that took the scrub and still resolved
+// the default path, not one that escaped the scrub entirely. The precedence
+// mirrors internal/xdg, inlined to avoid the dependency.
 func resolveDevStateDir() string {
 	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
 		return filepath.Join(xdg, "portal", "state")

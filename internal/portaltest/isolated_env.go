@@ -17,7 +17,8 @@ import (
 // overrides it after the call: the process env via t.Setenv, the slice by
 // appending (exec.Cmd env dedupe is last-wins). It also mutates the calling
 // process's own env via t.Setenv and registers a cleanup that fails the test if
-// the developer's real state dir changed during the run.
+// the state dir under the scrubbed HOME changed during the run (see
+// resolveDevStateDir for why the backstop's reach stops there).
 func IsolateStateForTest(t *testing.T) (env []string, stateDir string) {
 	t.Helper()
 
@@ -90,7 +91,7 @@ func IsolateStateForTest(t *testing.T) (env []string, stateDir string) {
 	env = append(env, "TMUX="+PoisonedTmuxSocket+",0,0")
 
 	if devStateDir != "" {
-		installBackstopCleanup(t, devStateDir, preSnapshot)
+		installBackstop(t, devStateDir, preSnapshot)
 	}
 
 	return env, stateDir
@@ -101,6 +102,10 @@ type backstopT interface {
 	Cleanup(fn func())
 	Errorf(format string, args ...any)
 }
+
+// A var so the installer can be substituted and the directory it is handed —
+// the one resolved after the HOME scrub — observed.
+var installBackstop = installBackstopCleanup
 
 func installBackstopCleanup(t backstopT, devStateDir string, pre map[string]Fingerprint) {
 	t.Cleanup(func() {

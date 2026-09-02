@@ -30,7 +30,7 @@ func writeFile(t *testing.T, path, content string) {
 }
 
 func hasDelta(msgs []string, path, deltaType string) bool {
-	want := "portaltest backstop: developer state dir mutated at " + path + ": " + deltaType
+	want := fmt.Sprintf(deltaFmt, path, deltaType)
 	return slices.Contains(msgs, want)
 }
 
