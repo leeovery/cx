@@ -59,20 +59,11 @@ func setupConcurrentColdBootEnv(t *testing.T) (*tmuxtest.Socket, *tmux.Client, s
 }
 
 // reapTmuxServer kills the whole server, not just a session, so every pane
-// shell gets SIGHUP, then blocks until the server is unreachable — a lingering
-// shell flushing into the isolated HOME races the framework's RemoveAll.
-// Best-effort: a server still up at the budget surfaces as the RemoveAll error.
+// shell gets SIGHUP, then waits for the server to stop answering.
 func reapTmuxServer(t *testing.T, ts *tmuxtest.Socket) {
 	t.Helper()
 	ts.KillServer()
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) {
-		// An error from list-sessions means the server is gone.
-		if _, err := ts.TryRun("list-sessions"); err != nil {
-			return
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
+	portaltest.AwaitTmuxServerGone(t, ts.SocketPath())
 }
 
 // reapSaverDaemon additionally waits for the daemon process itself to exit: its

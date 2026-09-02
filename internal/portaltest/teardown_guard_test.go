@@ -73,3 +73,45 @@ func TestTeardownGuardReturnsOnceStateDirStopsChanging(t *testing.T) {
 			teardownGuardBudget, elapsed)
 	}
 }
+
+// captureHomeQuiescenceGuard swaps the HOME-quiescence registrar for one test
+// and hands back the directory IsolateStateForTest passed it.
+func captureHomeQuiescenceGuard(t *testing.T) *string {
+	t.Helper()
+
+	var gotDir string
+	prior := registerHomeQuiescenceGuard
+	registerHomeQuiescenceGuard = func(_ cleanupT, dir string) { gotDir = dir }
+	t.Cleanup(func() { registerHomeQuiescenceGuard = prior })
+
+	return &gotDir
+}
+
+func TestIsolateStateForTest_RegistersAQuiescenceWaitOverTheTempHome(t *testing.T) {
+	gotDir := captureHomeQuiescenceGuard(t)
+
+	IsolateStateForTest(t)
+
+	if want := os.Getenv("HOME"); *gotDir != want {
+		t.Errorf("quiescence wait registered over %q, want the temp HOME %q", *gotDir, want)
+	}
+}
+
+func TestDirQuiescenceGuardReturnsOnceTheDirStopsChanging(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, ".zsh_sessions"), []byte("x"), 0o600); err != nil {
+		t.Fatalf("seed shell session file: %v", err)
+	}
+
+	rec := &cleanupRecorder{}
+	registerDirQuiescenceGuard(rec, dir)
+
+	start := time.Now()
+	rec.runLIFO()
+	elapsed := time.Since(start)
+
+	if elapsed >= teardownGuardBudget {
+		t.Fatalf("guard burned its whole %s budget over a quiescent dir (took %s)",
+			teardownGuardBudget, elapsed)
+	}
+}

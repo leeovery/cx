@@ -271,3 +271,36 @@ func TestStateDirEnv(t *testing.T) {
 		}
 	})
 }
+
+func TestNeutralisesShellSessionDirectory(t *testing.T) {
+	t.Setenv("SHELL_SESSIONS_DISABLE", "")
+	t.Setenv("ZDOTDIR", "/decoy/should/not/leak")
+
+	env, _ := portaltest.IsolateStateForTest(t)
+
+	t.Run("it neutralises the shell session directory in the isolated env", func(t *testing.T) {
+		if got := os.Getenv("SHELL_SESSIONS_DISABLE"); got != "1" {
+			t.Errorf("process SHELL_SESSIONS_DISABLE = %q, want %q", got, "1")
+		}
+		home := os.Getenv("HOME")
+		if got := os.Getenv("ZDOTDIR"); got != home {
+			t.Errorf("process ZDOTDIR = %q, want the isolated HOME %q", got, home)
+		}
+	})
+
+	t.Run("it carries the shell-session env in the returned slice", func(t *testing.T) {
+		if got := envCount(env, "SHELL_SESSIONS_DISABLE"); got != 1 {
+			t.Fatalf("expected exactly 1 SHELL_SESSIONS_DISABLE entry in the returned env, got %d", got)
+		}
+		if got, _ := envValue(env, "SHELL_SESSIONS_DISABLE"); got != "1" {
+			t.Errorf("returned env SHELL_SESSIONS_DISABLE = %q, want %q", got, "1")
+		}
+		if got := envCount(env, "ZDOTDIR"); got != 1 {
+			t.Fatalf("expected exactly 1 ZDOTDIR entry in the returned env, got %d", got)
+		}
+		home := os.Getenv("HOME")
+		if got, _ := envValue(env, "ZDOTDIR"); got != home {
+			t.Errorf("returned env ZDOTDIR = %q, want the isolated HOME %q", got, home)
+		}
+	})
+}

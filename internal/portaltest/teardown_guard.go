@@ -61,18 +61,35 @@ func registerTeardownGuard(t cleanupT, stateDir string, saverPID SaverPIDSource)
 			}
 		}
 
-		// Two identical snapshots mean nothing landed for a full tick. On budget
-		// exhaustion just return and let RemoveAll take its chances.
-		prev := dirShapeSnapshot(stateDir)
-		for time.Now().Before(deadline) {
-			time.Sleep(teardownGuardPollTick)
-			cur := dirShapeSnapshot(stateDir)
-			if cur == prev {
-				return
-			}
-			prev = cur
-		}
+		awaitDirQuiescent(stateDir, deadline)
 	})
+}
+
+// A var so a test can observe the directory IsolateStateForTest registers over.
+var registerHomeQuiescenceGuard = registerDirQuiescenceGuard
+
+// registerDirQuiescenceGuard registers a bounded cleanup wait for dir's writers
+// to finish. A test's isolated HOME is one: pane shells outliving a killed tmux
+// server flush per-session files into it, and one landing mid-RemoveAll fails
+// the test with "directory not empty" after its assertions passed.
+func registerDirQuiescenceGuard(t cleanupT, dir string) {
+	t.Cleanup(func() {
+		awaitDirQuiescent(dir, time.Now().Add(teardownGuardBudget))
+	})
+}
+
+// Two identical snapshots mean nothing landed for a full tick. On deadline
+// exhaustion just return and let RemoveAll take its chances.
+func awaitDirQuiescent(dir string, deadline time.Time) {
+	prev := dirShapeSnapshot(dir)
+	for time.Now().Before(deadline) {
+		time.Sleep(teardownGuardPollTick)
+		cur := dirShapeSnapshot(dir)
+		if cur == prev {
+			return
+		}
+		prev = cur
+	}
 }
 
 // Errors are folded into the string, so two identical error states also count as

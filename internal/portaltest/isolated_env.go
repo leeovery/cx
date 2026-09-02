@@ -30,14 +30,23 @@ func IsolateStateForTest(t *testing.T) (env []string, stateDir string) {
 	// Scrub the host env before the snapshot below: with HOME re-pointed and
 	// XDG_CONFIG_HOME cleared, the snapshotted path is one no live host daemon
 	// writes to, so it cannot false-trip the backstop mid-test.
-	t.Setenv("HOME", t.TempDir())
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
 	t.Setenv("XDG_CONFIG_HOME", "")
 
-	// Shells hosted by a test's tmux server flush their history into HOME as
-	// they exit, racing the framework's RemoveAll of that temp dir. This reaches
-	// the returned env slice through the os.Environ() read below, so it must be
-	// set before it.
+	// Shells hosted by a test's tmux server flush per-session files into HOME as
+	// they exit — zsh's history among them — racing the framework's RemoveAll of
+	// that temp dir. These reach the returned env slice through the os.Environ()
+	// read below, so they must be set before it.
 	t.Setenv("HISTFILE", os.DevNull)
+	t.Setenv("SHELL_SESSIONS_DISABLE", "1")
+	t.Setenv("ZDOTDIR", homeDir)
+
+	// Registered after the test's first t.TempDir, whose lone cleanup removes the
+	// parent holding homeDir, so LIFO runs this wait before that RemoveAll; a
+	// fixture must isolate before starting its server, so kill-server runs earlier
+	// still. The writers the env pins above cannot reach get their window to finish.
+	registerHomeQuiescenceGuard(t, homeDir)
 
 	// A failed snapshot is fatal: a silently degraded backstop is worse than none.
 	devStateDir := resolveDevStateDir()
