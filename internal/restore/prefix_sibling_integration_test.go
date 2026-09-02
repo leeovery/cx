@@ -30,10 +30,7 @@ func TestSessionRestorer_MultiWindowSessionWithAPrefixSiblingLive(t *testing.T) 
 	)
 
 	binDir := restoretest.BuildPortalBinaryDir(t)
-	portaltest.IsolateStateForTest(t)
-
-	stateDir := t.TempDir()
-	t.Setenv("PORTAL_STATE_DIR", stateDir)
+	_, stateDir := portaltest.IsolateStateForTest(t)
 	if _, err := state.EnsureDir(); err != nil {
 		t.Fatalf("EnsureDir: %v", err)
 	}

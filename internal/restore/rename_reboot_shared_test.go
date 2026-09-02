@@ -49,10 +49,7 @@ func newRenameRebootFixture(t *testing.T, socketPrefix string) *renameRebootFixt
 
 	fx := &renameRebootFixture{binDir: restoretest.BuildPortalBinaryDir(t)}
 
-	portaltest.IsolateStateForTest(t)
-
-	fx.stateDir = t.TempDir()
-	t.Setenv("PORTAL_STATE_DIR", fx.stateDir)
+	_, fx.stateDir = portaltest.IsolateStateForTest(t)
 	if _, err := state.EnsureDir(); err != nil {
 		t.Fatalf("EnsureDir: %v", err)
 	}

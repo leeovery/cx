@@ -11,9 +11,13 @@ import (
 
 // IsolateStateForTest returns an env slice and a stateDir scoped to a per-test
 // t.TempDir(); assign env to exec.Cmd.Env, then append your own TMUX=<test
-// socket> (see PoisonedTmuxSocket). stateDir exists on return. It also mutates
-// the calling process's own env via t.Setenv and registers a cleanup that fails
-// the test if the developer's real state dir changed during the run.
+// socket> (see PoisonedTmuxSocket). stateDir exists on return, and both the
+// calling process's PORTAL_STATE_DIR and the returned slice's name it — the same
+// directory the sandbox registry is given. A fixture wanting a different one
+// overrides it after the call: the process env via t.Setenv, the slice by
+// appending (exec.Cmd env dedupe is last-wins). It also mutates the calling
+// process's own env via t.Setenv and registers a cleanup that fails the test if
+// the developer's real state dir changed during the run.
 func IsolateStateForTest(t *testing.T) (env []string, stateDir string) {
 	t.Helper()
 
@@ -56,6 +60,11 @@ func IsolateStateForTest(t *testing.T) (env []string, stateDir string) {
 		t.Fatalf("portaltest: mkdir stateDir: %v", err)
 	}
 
+	// Own the state dir in the process env as well as the registry, so a fixture
+	// cannot register one directory and write to another. Set before the
+	// os.Environ() read below, so the slice carries it too.
+	t.Setenv("PORTAL_STATE_DIR", stateDir)
+
 	state.RegisterSandboxStateDir(stateDir)
 
 	// Subprocesses run their own enumerations, where the in-process registration
@@ -70,6 +79,9 @@ func IsolateStateForTest(t *testing.T) (env []string, stateDir string) {
 
 	env = filterXDGConfigHome(os.Environ())
 	env = append(env, "XDG_CONFIG_HOME="+configDir)
+
+	env = filterEnvKeys(env, "PORTAL_STATE_DIR")
+	env = append(env, "PORTAL_STATE_DIR="+stateDir)
 
 	// Poison TMUX so a subprocess cannot silently attach to the developer's real
 	// server; one that needs a server appends its own TMUX after this slice

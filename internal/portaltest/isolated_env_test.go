@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/portaltest"
+	"github.com/leeovery/portal/internal/state"
 )
 
 // HOME and XDG_CONFIG_HOME are redirected for the whole binary so the backstop
@@ -206,4 +207,67 @@ func TestPointsHISTFILEAtNullDevice(t *testing.T) {
 	if got != os.DevNull {
 		t.Errorf("returned env HISTFILE = %q, want %q", got, os.DevNull)
 	}
+}
+
+func TestStateDirEnv(t *testing.T) {
+	t.Run("it sets PORTAL_STATE_DIR to the returned state dir", func(t *testing.T) {
+		_, stateDir := portaltest.IsolateStateForTest(t)
+
+		if got := os.Getenv("PORTAL_STATE_DIR"); got != stateDir {
+			t.Fatalf("process PORTAL_STATE_DIR = %q, want %q", got, stateDir)
+		}
+	})
+
+	t.Run("it carries PORTAL_STATE_DIR in the returned env slice", func(t *testing.T) {
+		t.Setenv("PORTAL_STATE_DIR", "/decoy/should/not/leak")
+
+		env, stateDir := portaltest.IsolateStateForTest(t)
+
+		if got := envCount(env, "PORTAL_STATE_DIR"); got != 1 {
+			t.Fatalf("expected exactly 1 PORTAL_STATE_DIR entry, got %d", got)
+		}
+		got, _ := envValue(env, "PORTAL_STATE_DIR")
+		if got != stateDir {
+			t.Fatalf("returned env PORTAL_STATE_DIR = %q, want %q", got, stateDir)
+		}
+	})
+
+	t.Run("it registers the same directory with the sandbox registry as the slice names", func(t *testing.T) {
+		env, _ := portaltest.IsolateStateForTest(t)
+
+		registryPath, ok := envValue(env, state.SandboxRegistryEnv)
+		if !ok {
+			t.Fatalf("%s absent from returned env", state.SandboxRegistryEnv)
+		}
+		body, err := os.ReadFile(registryPath)
+		if err != nil {
+			t.Fatalf("read sandbox registry: %v", err)
+		}
+		named, _ := envValue(env, "PORTAL_STATE_DIR")
+		if got := strings.TrimSpace(string(body)); got != named {
+			t.Fatalf("sandbox registry names %q, env slice names %q", got, named)
+		}
+	})
+
+	t.Run("it lets a caller override the state dir after the call", func(t *testing.T) {
+		env, _ := portaltest.IsolateStateForTest(t)
+
+		override := t.TempDir()
+		t.Setenv("PORTAL_STATE_DIR", override)
+		env = append(env, "PORTAL_STATE_DIR="+override)
+
+		if got := os.Getenv("PORTAL_STATE_DIR"); got != override {
+			t.Fatalf("process PORTAL_STATE_DIR = %q, want the override %q", got, override)
+		}
+
+		cmd := exec.Command("sh", "-c", "echo $PORTAL_STATE_DIR")
+		cmd.Env = env
+		out, err := cmd.Output()
+		if err != nil {
+			t.Fatalf("sh exec: %v", err)
+		}
+		if got := strings.TrimSpace(string(out)); got != override {
+			t.Fatalf("subprocess saw PORTAL_STATE_DIR=%q, want the override %q", got, override)
+		}
+	})
 }
