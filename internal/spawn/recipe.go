@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/leeovery/portal/internal/shellquote"
 )
 
 // RecipeKind's zero value is an explicit invalid sentinel, never a valid form.
@@ -62,16 +64,13 @@ func validRecipeForEntry(key string, e TerminalEntry) (Recipe, RecipeKind, bool)
 	return *e.Commands.Open, kind, true
 }
 
-// POSIX single quotes so an element survives as one word when a shell later
-// word-splits the rendered {command}; an embedded quote uses close-escape-reopen.
-func shellQuote(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
-}
-
+// renderCommandString renders command as one shell command line: every element
+// quoted so it survives word-splitting, joined by the separator a shell reads as
+// a word boundary.
 func renderCommandString(command []string) string {
 	quoted := make([]string, len(command))
 	for i, el := range command {
-		quoted[i] = shellQuote(el)
+		quoted[i] = shellquote.Single(el)
 	}
 	return strings.Join(quoted, " ")
 }

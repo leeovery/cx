@@ -14,10 +14,10 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/leeovery/portal/internal/log"
+	"github.com/leeovery/portal/internal/shellquote"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
 )
@@ -349,16 +349,10 @@ func (r *SessionRestorer) hydrateExe() string {
 func buildHydrateCommand(exe, fifo, file, hookKey string) string {
 	cmd := fmt.Sprintf(
 		"%s state hydrate --fifo %s --file %s",
-		shellQuoteSingle(exe), shellQuoteSingle(fifo), shellQuoteSingle(file),
+		shellquote.Single(exe), shellquote.Single(fifo), shellquote.Single(file),
 	)
 	if hookKey == "" {
 		return cmd
 	}
-	return cmd + " --hook-key " + shellQuoteSingle(hookKey)
-}
-
-// shellQuoteSingle wraps s as one shell token, escaping embedded single quotes
-// with the close-escape-reopen idiom.
-func shellQuoteSingle(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+	return cmd + " --hook-key " + shellquote.Single(hookKey)
 }

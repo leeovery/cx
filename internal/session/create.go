@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/leeovery/portal/internal/shellquote"
 )
 
 // PortalDirOption stamps a session with its resolved directory, so a live
@@ -25,9 +27,8 @@ func BuildShellCommand(command []string, shell string) string {
 	if len(command) == 0 {
 		return ""
 	}
-	joined := strings.Join(command, " ")
-	escaped := strings.ReplaceAll(joined, "'", "'\\''")
-	return fmt.Sprintf("%s -ic '%s; exec %s'", shell, escaped, shell)
+	script := strings.Join(command, " ") + "; exec " + shell
+	return fmt.Sprintf("%s -ic %s", shell, shellquote.Single(script))
 }
 
 type GitResolver interface {

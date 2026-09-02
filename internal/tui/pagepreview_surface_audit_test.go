@@ -202,6 +202,7 @@ func TestSurfaceAudit_NoNewPackageForPreview(t *testing.T) {
 		"restore":          {},
 		"restoretest":      {},
 		"session":          {},
+		"shellquote":       {},
 		"sourceguardtest":  {},
 		"spawn":            {},
 		"spawntest":        {},
