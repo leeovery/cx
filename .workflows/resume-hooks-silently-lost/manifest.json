@@ -300,7 +300,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 8,
-          "current_task": "resume-hooks-silently-lost-8-25",
+          "current_task": "resume-hooks-silently-lost-8-26",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -435,7 +435,8 @@
             "resume-hooks-silently-lost-8-22",
             "resume-hooks-silently-lost-8-23",
             "resume-hooks-silently-lost-8-24",
-            "resume-hooks-silently-lost-8-15"
+            "resume-hooks-silently-lost-8-15",
+            "resume-hooks-silently-lost-8-25"
           ],
           "staging": {
             "p1": {
@@ -1391,6 +1392,39 @@
               "files": [
                 "internal/tmuxtest/socket.go",
                 "internal/tmux/portal_saver_integration_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-25",
+              "source": "reviewer",
+              "summary": "The same failed-write tail is hand-rolled in two further suites outside the three this task names — but neither folds in as-is.",
+              "detail": "cmd/config_migrate_logging_test.go:168-173 and :208-213 each pair an inline error_class string check with HasAttr(error). AssertWriteFailure does not fit as-is: cmd/config.go migrate WARNs log the raw os error with a hardcoded error_class, wrapping no fileutil sentinel — so folding these in needs either a presence-only sibling assertion or a production wrap, which is a consolidation decision. Separately internal/storelog/clean_stale_test.go:58-65 spells the error_class check inline; its second half is an identity check (loggedErr != saveErr, pinning that the emitter passes the error through un-rewrapped), a stronger and different property that AssertWriteFailure would WEAKEN — only the error_class half is a candidate.",
+              "files": [
+                "cmd/config_migrate_logging_test.go",
+                "cmd/config.go",
+                "internal/storelog/clean_stale_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-25",
+              "source": "reviewer",
+              "summary": "internal/logtest states a dependency-shape invariant that no guard enforces.",
+              "detail": "internal/logtest/assert.go:44-47 documents that logtest takes no dependency on the package declaring the sentinel, and CLAUDE.md logtest row now repeats it — but unlike the sibling test-support leaf internal/harnesstest (internal/harnesstest/package_test.go:14, via sourceguardtest.AssertDepsWithin), internal/logtest has no deps guard, so the first internal/fileutil import would compile silently. Adding one touches the guard family task 8-22 consolidated.",
+              "files": [
+                "internal/logtest/assert.go",
+                "internal/harnesstest/package_test.go",
+                "internal/sourceguardtest"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-25",
+              "source": "reviewer",
+              "summary": "REFINED: the failed-write tail is hand-rolled twice more in cmd, in a WEAKER form than the new helper enforces — and the storelog site that looks like a third is deliberately different.",
+              "detail": "cmd/config_migrate_logging_test.go:168 and :208 already use logtest.AssertRecord for the five shared properties, then spell the tail inline — an error_class string check followed by rec.HasAttr(error). HasAttr is weaker than AssertWriteFailure: it never checks the carried error wraps the fileutil write-phase sentinel (ErrWriteRename at :168, ErrWriteTempCreate at :208), so a misclassified error would pass. Routing both through AssertWriteFailure removes the last two copies and strengthens them in the same edit. IMPORTANT COUNTERPOINT to the earlier entry on this: internal/storelog/clean_stale_test.go:59-66 is NOT a missed site — its error assertion is loggedErr != saveErr, identity, pinning that the emitter passes the caller error through verbatim rather than wrapping it. AssertWriteFailure errors.Is would be strictly WEAKER there. Do not fold it in by pattern-match.",
+              "files": [
+                "cmd/config_migrate_logging_test.go",
+                "internal/logtest/assert.go",
+                "internal/storelog/clean_stale_test.go"
               ]
             }
           ]
