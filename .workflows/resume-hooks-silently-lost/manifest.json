@@ -300,7 +300,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 8,
-          "current_task": "resume-hooks-silently-lost-8-29",
+          "current_task": "resume-hooks-silently-lost-8-30",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -439,7 +439,8 @@
             "resume-hooks-silently-lost-8-25",
             "resume-hooks-silently-lost-8-26",
             "resume-hooks-silently-lost-8-27",
-            "resume-hooks-silently-lost-8-28"
+            "resume-hooks-silently-lost-8-28",
+            "resume-hooks-silently-lost-8-29"
           ],
           "staging": {
             "p1": {
@@ -1507,6 +1508,25 @@
               "files": [
                 ".workflows/resume-hooks-silently-lost/specification/resume-hooks-silently-lost/specification.md",
                 "internal/shellquote/shellquote.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-29",
+              "source": "executor",
+              "summary": "checkStaleProjects authors its stand-down copy inline twice with no vocabulary at all — the same duplication class this task removed for hooks, on the projects surface.",
+              "detail": "cmd/doctor.go:344,348 both write the bare literal could-not-read-projects.json for the nil-store and failed-StaleEntries branches. There is no skipReason/phrase-map equivalent for the projects reaper, so re-wording it means finding both literals by grep, and the phrase guards (cmd/doctor_stand_down_phrase_guard_test.go) bind the hooks reason set only and cannot see it. Giving the projects reaper a reason vocabulary — or generalising the hooks one — reaches beyond this task surface and beyond this work unit.",
+              "files": [
+                "cmd/doctor.go",
+                "cmd/doctor_stand_down_phrase_guard_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-29",
+              "source": "reviewer",
+              "summary": "METHOD FINDING, repo-wide: go test -overlay cannot validate any source-reading guard — an overlay probe of one proves only the no-false-positive half, and the biting half passes vacuously.",
+              "detail": "Confirmed with a standalone module rather than by argument. A test that reads a map value at runtime AND parses its own source from disk, run under -overlay, logs RUNTIME value = OVERLAID alongside PARSED-FROM-DISK literal = original. -overlay substitutes the go command BUILD inputs; sourceguardtest.ParsePackageSources reaches disk directly (parser.ParseFile(fset, path, nil, ParseMode) with a nil src, internal/sourceguardtest/parsesources.go:50) and the test binary cwd is the real package directory. For a guard that reads parsed literals from disk AND sibling values from the compiled package it is worse than useless — an overlay makes the two halves disagree and the result is uninterpretable in either direction. CONSEQUENCE: any prior round in this phase that certified a source-reading guard by overlay should be treated as unverified. A scratch-copy edit is the sound method. This affects the ~20 sourceguardtest-driven guards and the verification habit, not any one task.",
+              "files": [
+                "internal/sourceguardtest/parsesources.go"
               ]
             }
           ]
