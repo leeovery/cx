@@ -27,12 +27,15 @@ func TestDoctorFixAlwaysReportsTheHookPrune(t *testing.T) {
 		}
 	})
 
+	// This case is about the path reaching a line at all rather than about its
+	// words, so it renders the line it expects through the same vocabulary the
+	// report does instead of restating it.
 	t.Run("it prints a skipped line when the sweep stands down", func(t *testing.T) {
 		deps, _, _, _, _ := seedStalePruneFixture(t, t.TempDir(), restoringHookLister())
 
 		outBuf, _, _ := runDoctorWith(t, deps, "--fix")
 
-		assertSkippedPruneLine(t, outBuf.String(), "Skipped stale hook prune: restore in progress")
+		assertSkippedPruneLine(t, outBuf.String(), renderSkippedPruneLine(skipReasonRestoring))
 	})
 
 	t.Run("it prints a skipped line when the stale-hook sweep fails", func(t *testing.T) {

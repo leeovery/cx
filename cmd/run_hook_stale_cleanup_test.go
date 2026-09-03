@@ -79,22 +79,18 @@ func TestRunHookStaleCleanup(t *testing.T) {
 
 	t.Run("ListAllPaneHookKeys error stands the cycle down and returns nil", func(t *testing.T) {
 		seed := fmt.Sprintf(`{%q: {"on-resume": "cmd-a"}}`, hookstest.ReapableSeedA)
-		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
-		before := readFileBytes(t, path)
+		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 
-		sentinel := errors.New("tmux dead")
 		logger, loggerSink := newCaptureLoggerForComponent(t, "bootstrap")
-		lister := &stubStaleSweepReader{rows: nil, err: sentinel}
+		lister := &stubStaleSweepReader{rows: nil, err: errors.New("tmux dead")}
 
 		outcome, err := runHookStaleCleanup(lister, store, logger)
 		if err != nil {
 			t.Fatalf("runHookStaleCleanup on ListAllPaneHookKeys error: want nil, got %v", err)
 		}
 		if outcome.DeclineReason != skipReasonPaneReadFailed {
-			t.Errorf("DeclineReason = %q, want %q", outcome.DeclineReason, skipReasonPaneReadFailed)
+			t.Fatalf("DeclineReason = %q, want %q", outcome.DeclineReason, skipReasonPaneReadFailed)
 		}
-
-		assertHooksFileUnchanged(t, path, before, "modified on ListAllPaneHookKeys-error path")
 
 		if got := len(loggerSink.RecordsAtExactLevelWith(slog.LevelDebug, "bootstrap", entryDebugFmt)); got != 0 {
 			t.Errorf("entry-point Debug count = %d, want 0 (must NOT fire on ListAllPaneHookKeys-error branch); entries=%+v", got, loggerSink.Records())
@@ -107,17 +103,13 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		logger, loggerSink := newCaptureLoggerForComponent(t, "bootstrap")
 		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA), err: nil}
 
-		sink := logtest.Install(t)
-
 		outcome, err := runHookStaleCleanup(lister, store, logger)
 		if err != nil {
 			t.Fatalf("runHookStaleCleanup on a Load error: want nil, got %v", err)
 		}
 		if outcome.DeclineReason != skipReasonStoreReadFailed {
-			t.Errorf("DeclineReason = %q, want %q", outcome.DeclineReason, skipReasonStoreReadFailed)
+			t.Fatalf("DeclineReason = %q, want %q", outcome.DeclineReason, skipReasonStoreReadFailed)
 		}
-
-		assertStandDown(t, sink, slog.LevelWarn, skipReasonStoreReadFailed)
 
 		if got := len(loggerSink.RecordsAtExactLevelWith(slog.LevelDebug, "bootstrap", entryDebugFmt)); got != 0 {
 			t.Errorf("entry-point Debug count = %d, want 0 on Load-error branch; entries=%+v", got, loggerSink.Records())
@@ -321,17 +313,14 @@ func TestUnjudgeableHookKeyRetention(t *testing.T) {
 // no token between skeleton construction and the re-stamp, so a sweep landing
 // there would reap every token-keyed entry on the machine.
 func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
-	t.Run("it deletes nothing while the restore marker is set", func(t *testing.T) {
-		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: hookstest.StaleHookSeed})
-		before := readFileBytes(t, path)
-
+	t.Run("it stands down before enumerating while the restore marker is set", func(t *testing.T) {
+		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hookstest.StaleHookSeed})
 		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA), restoring: true}
 
 		if err := sweepErr(lister, store, nil); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
-		assertHooksFileUnchanged(t, path, before, "rewritten during a restore")
 		if lister.calls != 0 {
 			t.Errorf("ListAllPaneHookKeys call count = %d, want 0 (the sweep must stand down before enumerating)", lister.calls)
 		}
@@ -340,67 +329,20 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 	// A read that failed proves nothing about the marker, so the cycle still
 	// stands down on it — the fail-safe posture is unchanged by the reason it
 	// is reported under.
-	t.Run("it stands the sweep down when the marker read fails", func(t *testing.T) {
-		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: hookstest.StaleHookSeed})
-		before := readFileBytes(t, path)
-
-		sentinel := errors.New("tmux dead")
-		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA), restoringErr: sentinel}
-
-		sink := logtest.Install(t)
-
-		if err := sweepErr(lister, store, nil); err != nil {
-			t.Fatalf("runHookStaleCleanup: %v", err)
-		}
-
-		assertHooksFileUnchanged(t, path, before, "rewritten on a failed marker read")
-		if lister.calls != 0 {
-			t.Errorf("ListAllPaneHookKeys call count = %d, want 0 on a failed marker read", lister.calls)
-		}
-
-		rec := assertStandDown(t, sink, slog.LevelDebug, skipReasonMarkerReadFailed)
-		if got := rec.AttrString(t, "error"); got != sentinel.Error() {
-			t.Errorf("error attr = %q, want %q", got, sentinel.Error())
-		}
-	})
-
-	// With the tmux server down the marker cannot be read at all, which is the
-	// routine state a user reaches for doctor in: neither surface may answer it
-	// with a restore that is not running.
-	t.Run("it reports a failed marker read as its own reason", func(t *testing.T) {
+	t.Run("it stands down before enumerating when the marker read fails", func(t *testing.T) {
 		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hookstest.StaleHookSeed})
-		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA), restoringErr: errors.New("no server running")}
+		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA), restoringErr: errors.New("tmux dead")}
 
 		outcome, err := runHookStaleCleanup(lister, store, nil)
 		if err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 		if outcome.DeclineReason != skipReasonMarkerReadFailed {
-			t.Errorf("DeclineReason = %q, want %q", outcome.DeclineReason, skipReasonMarkerReadFailed)
+			t.Fatalf("DeclineReason = %q, want %q", outcome.DeclineReason, skipReasonMarkerReadFailed)
 		}
-		for name, vocabulary := range map[string]map[string]string{
-			"skippedPrunePhrases": skippedPrunePhrases,
-			"notEvaluableDetails": notEvaluableDetails,
-		} {
-			if phrase := phraseFor(vocabulary, outcome.DeclineReason); strings.Contains(phrase, restoreStandDownPhrase) {
-				t.Errorf("%s renders %q for a failed marker read; want a phrase that asserts no restore", name, phrase)
-			}
-		}
-	})
 
-	t.Run("it reports an in-progress restore as a restore", func(t *testing.T) {
-		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hookstest.StaleHookSeed})
-		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA), restoring: true}
-
-		outcome, err := runHookStaleCleanup(lister, store, nil)
-		if err != nil {
-			t.Fatalf("runHookStaleCleanup: %v", err)
-		}
-		if outcome.DeclineReason != skipReasonRestoring {
-			t.Errorf("DeclineReason = %q, want %q", outcome.DeclineReason, skipReasonRestoring)
-		}
-		if phrase := phraseFor(skippedPrunePhrases, outcome.DeclineReason); phrase != restoreStandDownPhrase {
-			t.Errorf("skipped-prune phrase = %q, want %q", phrase, restoreStandDownPhrase)
+		if lister.calls != 0 {
+			t.Errorf("ListAllPaneHookKeys call count = %d, want 0 on a failed marker read", lister.calls)
 		}
 	})
 
@@ -424,22 +366,6 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 		}
 		if len(outcome.Removed) != 0 {
 			t.Errorf("Removed = %v, want none", outcome.Removed)
-		}
-	})
-
-	t.Run("it logs the stand-down at DEBUG and never WARN", func(t *testing.T) {
-		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hookstest.StaleHookSeed})
-		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA), restoring: true}
-
-		sink := logtest.Install(t)
-
-		if err := sweepErr(lister, store, nil); err != nil {
-			t.Fatalf("runHookStaleCleanup: %v", err)
-		}
-
-		rec := assertStandDown(t, sink, slog.LevelDebug, "restoring")
-		if rec.HasAttr("error") {
-			t.Errorf("stand-down record carries an error attr with no read failure: %+v", rec.Attrs)
 		}
 	})
 
@@ -554,53 +480,6 @@ func standDownWant(level slog.Level) hooksRecordWant {
 // A repair that silently did not run is indistinguishable from a repair that
 // found nothing to do, so every stand-down reports itself to its caller.
 func TestHookSweepReportsStandDown(t *testing.T) {
-	t.Run("it reports the restore stand-down to the caller", func(t *testing.T) {
-		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: hookstest.StaleHookSeed})
-		before := readFileBytes(t, path)
-		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA), restoring: true}
-
-		outcome, err := runHookStaleCleanup(lister, store, nil)
-		if err != nil {
-			t.Fatalf("runHookStaleCleanup: %v", err)
-		}
-
-		if outcome.DeclineReason != "restoring" {
-			t.Errorf("DeclineReason = %q, want %q", outcome.DeclineReason, "restoring")
-		}
-		if len(outcome.Removed) != 0 {
-			t.Errorf("Removed = %v, want none", outcome.Removed)
-		}
-		assertHooksFileUnchanged(t, path, before, "rewritten on the restore stand-down")
-	})
-
-	t.Run("it reports the empty-pane-read stand-down to the caller", func(t *testing.T) {
-		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: hookstest.StaleHookSeed})
-		before := readFileBytes(t, path)
-		lister := &stubStaleSweepReader{rows: tokenRows()}
-
-		sink := logtest.Install(t)
-
-		injected, _ := newCaptureLoggerForComponent(t, "bootstrap")
-		outcome, err := runHookStaleCleanup(lister, store, injected)
-		if err != nil {
-			t.Fatalf("runHookStaleCleanup: %v", err)
-		}
-
-		if outcome.DeclineReason != "empty-pane-read" {
-			t.Errorf("DeclineReason = %q, want %q", outcome.DeclineReason, "empty-pane-read")
-		}
-		if len(outcome.Removed) != 0 {
-			t.Errorf("Removed = %v, want none", outcome.Removed)
-		}
-		assertHooksFileUnchanged(t, path, before, "rewritten on the empty-pane-read stand-down")
-
-		rec := sink.Records().Only(t, "log record")
-		assertStandDownRecord(t, rec, slog.LevelWarn, "empty-pane-read")
-		if got := rec.IntAttr(t, "entries"); got != 2 {
-			t.Errorf("entries = %d, want 2", got)
-		}
-	})
-
 	t.Run("it reports nothing when the live set is empty and no entries are persisted", func(t *testing.T) {
 		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: ""})
 		lister := &stubStaleSweepReader{rows: tokenRows()}
@@ -623,8 +502,7 @@ func TestHookSweepReportsStandDown(t *testing.T) {
 
 	t.Run("it reports the failed enumeration as a stand-down on the hooks component", func(t *testing.T) {
 		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hookstest.StaleHookSeed})
-		sentinel := errors.New("tmux dead")
-		lister := &stubStaleSweepReader{err: sentinel}
+		lister := &stubStaleSweepReader{err: errors.New("tmux dead")}
 
 		sink := logtest.Install(t)
 
@@ -633,15 +511,11 @@ func TestHookSweepReportsStandDown(t *testing.T) {
 		if err != nil {
 			t.Fatalf("runHookStaleCleanup on an enumeration error: want nil, got %v", err)
 		}
-
 		if outcome.DeclineReason != skipReasonPaneReadFailed {
-			t.Errorf("DeclineReason = %q, want %q", outcome.DeclineReason, skipReasonPaneReadFailed)
+			t.Fatalf("DeclineReason = %q, want %q", outcome.DeclineReason, skipReasonPaneReadFailed)
 		}
-		rec := sink.Records().Only(t, "log record")
-		assertStandDownRecord(t, rec, slog.LevelWarn, skipReasonPaneReadFailed)
-		if got := rec.AttrString(t, "error"); got != sentinel.Error() {
-			t.Errorf("error attr = %q, want %q", got, sentinel.Error())
-		}
+
+		assertStandDown(t, sink, slog.LevelWarn, skipReasonPaneReadFailed)
 		for _, rec := range injectedSink.RecordsAtExactLevel(slog.LevelWarn) {
 			t.Errorf("stand-down emitted on the injected logger as well as the hooks component: %+v", rec)
 		}

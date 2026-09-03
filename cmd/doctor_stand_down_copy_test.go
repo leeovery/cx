@@ -1,31 +1,54 @@
-// The user-facing copy for a stood-down hook prune, pinned on both surfaces it
-// reaches: the repair line `portal doctor --fix` prints for a user who asked
-// for a repair, and the not-evaluable detail the read-only diagnosis reports
-// for the same window. They are pinned together because the two must name the
-// same condition in their own register, and because a branch that silently
-// borrows another's words is exactly the drift this suite exists to catch.
+// The one home for every reason the hook prune stands down under. A reason's
+// whole coverage lives in its row here: the level and attrs its log line
+// carries, the repair line `portal doctor --fix` prints for a user who asked
+// for a repair, the not-evaluable detail the read-only diagnosis reports for
+// the same window, and the hooks.json a stand-down must leave exactly as it
+// found it. They are pinned together because the two surfaces must name the
+// same condition in their own register, because a branch that silently borrows
+// another's words is exactly the drift this suite exists to catch, and because
+// a wording change must be one edit rather than a hunt through the corpus.
 package cmd
 
 import (
 	"bytes"
 	"errors"
+	"log/slog"
+	"os"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/hookstest"
+	"github.com/leeovery/portal/internal/logtest"
 )
 
-// standDownCopyCase is one stand-down reason and the exact line each surface
-// renders for it. skippedLine completes "Skipped stale hook prune: …";
-// notEvaluableLine is the whole rendered check line, glyph included.
+// standDownCopyCase is one stand-down reason and everything the two surfaces
+// and the log line say about it. skippedLine and notEvaluableLine are both
+// whole rendered lines, the repair's prefix and the check's glyph included.
 type standDownCopyCase struct {
-	name             string
-	reason           string
-	deps             func(t *testing.T) *DoctorDeps
+	name   string
+	reason string
+	// fixture stages an install whose only anomaly is this stand-down and
+	// returns the hooks.json path alongside it, so both arms can pin that the
+	// stand-down wrote nothing.
+	fixture func(t *testing.T) (*DoctorDeps, string)
+	// level is where the sweep reports this reason, and attrs is what its line
+	// carries beyond the reason itself — every case states one, naming the
+	// absence of an error attr where there is none.
+	level slog.Level
+	attrs func(t *testing.T, rec logtest.Record)
+	// sharedPhrase is the const both vocabularies compose this reason's words
+	// from — empty for a reason production names no such const for, whether
+	// because its surfaces say different things (the empty pane list) or
+	// because they repeat the same words unshared (the lock).
+	sharedPhrase     string
 	skippedLine      string
 	notEvaluableLine string
+	// postRepairNotEvaluable is whether the diagnosis that follows the repair
+	// still stands down: the lock is the one reason a repair declines under
+	// that a read degrades past, so its post-repair check is evaluable again.
+	postRepairNotEvaluable bool
 }
 
 // notStandDownReasons are declared reasons this table cannot hold. A failed
@@ -38,47 +61,111 @@ var notStandDownReasons = []string{skipReasonSweepFailed}
 func standDownCopyCases() []standDownCopyCase {
 	return []standDownCopyCase{
 		{
-			name:             "restore window",
-			reason:           skipReasonRestoring,
-			deps:             func(t *testing.T) *DoctorDeps { return restoringStandDownDeps(t) },
-			skippedLine:      "Skipped stale hook prune: restore in progress",
-			notEvaluableLine: "  · stale hooks: restore in progress (not evaluable)",
+			name:                   "restore window",
+			reason:                 skipReasonRestoring,
+			sharedPhrase:           restoreStandDownPhrase,
+			fixture:                restoringStandDownDeps,
+			level:                  slog.LevelDebug,
+			attrs:                  noStandDownErrorAttr,
+			skippedLine:            "Skipped stale hook prune: restore in progress",
+			notEvaluableLine:       "  · stale hooks: restore in progress (not evaluable)",
+			postRepairNotEvaluable: true,
 		},
 		{
-			name:             "restore marker unreadable",
-			reason:           skipReasonMarkerReadFailed,
-			deps:             func(t *testing.T) *DoctorDeps { return markerReadFailedStandDownDeps(t) },
-			skippedLine:      "Skipped stale hook prune: could not read the restore marker",
-			notEvaluableLine: "  · stale hooks: could not read the restore marker",
+			name:                   "restore marker unreadable",
+			reason:                 skipReasonMarkerReadFailed,
+			sharedPhrase:           markerReadStandDownPhrase,
+			fixture:                markerReadFailedStandDownDeps,
+			level:                  slog.LevelDebug,
+			attrs:                  standDownErrorAttrExactly("no server running"),
+			skippedLine:            "Skipped stale hook prune: could not read the restore marker",
+			notEvaluableLine:       "  · stale hooks: could not read the restore marker",
+			postRepairNotEvaluable: true,
 		},
 		{
-			name:             "hooks.json unreadable",
-			reason:           skipReasonStoreReadFailed,
-			deps:             func(t *testing.T) *DoctorDeps { return storeReadFailedStandDownDeps(t) },
-			skippedLine:      "Skipped stale hook prune: could not read hooks.json",
-			notEvaluableLine: "  · stale hooks: could not read hooks.json",
+			name:                   "hooks.json unreadable",
+			reason:                 skipReasonStoreReadFailed,
+			sharedPhrase:           storeReadStandDownPhrase,
+			fixture:                storeReadFailedStandDownDeps,
+			level:                  slog.LevelWarn,
+			attrs:                  standDownErrorAttrCarrying(hooks.ErrSnapshotRead.Error()),
+			skippedLine:            "Skipped stale hook prune: could not read hooks.json",
+			notEvaluableLine:       "  · stale hooks: could not read hooks.json",
+			postRepairNotEvaluable: true,
 		},
 		{
-			name:             "pane enumeration failed",
-			reason:           skipReasonPaneReadFailed,
-			deps:             func(t *testing.T) *DoctorDeps { return paneReadFailedStandDownDeps(t) },
-			skippedLine:      "Skipped stale hook prune: could not enumerate live panes",
-			notEvaluableLine: "  · stale hooks: could not enumerate live panes",
+			name:                   "pane enumeration failed",
+			reason:                 skipReasonPaneReadFailed,
+			sharedPhrase:           paneReadStandDownPhrase,
+			fixture:                paneReadFailedStandDownDeps,
+			level:                  slog.LevelWarn,
+			attrs:                  standDownErrorAttrExactly("tmux transient"),
+			skippedLine:            "Skipped stale hook prune: could not enumerate live panes",
+			notEvaluableLine:       "  · stale hooks: could not enumerate live panes",
+			postRepairNotEvaluable: true,
 		},
 		{
-			name:             "empty pane list",
-			reason:           skipReasonEmptyPaneRead,
-			deps:             func(t *testing.T) *DoctorDeps { return emptyPaneReadStandDownDeps(t) },
-			skippedLine:      "Skipped stale hook prune: live pane list came back empty",
-			notEvaluableLine: "  · stale hooks: zero live panes with hooks present (not evaluable)",
+			name:                   "empty pane list",
+			reason:                 skipReasonEmptyPaneRead,
+			fixture:                emptyPaneReadStandDownDeps,
+			level:                  slog.LevelWarn,
+			attrs:                  emptyPaneReadStandDownAttrs,
+			skippedLine:            "Skipped stale hook prune: live pane list came back empty",
+			notEvaluableLine:       "  · stale hooks: zero live panes with hooks present (not evaluable)",
+			postRepairNotEvaluable: true,
 		},
 		{
 			name:             "hooks.json locked",
 			reason:           skipReasonLockTimeout,
-			deps:             func(t *testing.T) *DoctorDeps { return lockTimeoutStandDownDeps(t) },
+			fixture:          lockTimeoutStandDownDeps,
+			level:            slog.LevelWarn,
+			attrs:            standDownErrorAttrCarrying(hooks.ErrLockHeld.Error()),
 			skippedLine:      "Skipped stale hook prune: hooks.json is locked",
 			notEvaluableLine: "  · stale hooks: hooks.json is locked (not evaluable)",
 		},
+	}
+}
+
+// noStandDownErrorAttr is the attr assertion for a reason no read failure
+// produced: the line names the condition and nothing else.
+func noStandDownErrorAttr(t *testing.T, rec logtest.Record) {
+	t.Helper()
+	if rec.HasAttr("error") {
+		t.Errorf("stand-down record carries an error attr with no read failure: %+v", rec.Attrs)
+	}
+}
+
+// standDownErrorAttrExactly and standDownErrorAttrCarrying are the two ways a
+// row pins that its line carries the failure that produced it, so the reason is
+// diagnosable from the log alone. Which one a row takes is decided by its attr,
+// not by taste: a reason whose error text is fixed pins the whole attr, so text
+// growing around it is caught; a reason whose error embeds something the
+// fixture chose — a temp path — can only be pinned by containment.
+func standDownErrorAttrExactly(want string) func(*testing.T, logtest.Record) {
+	return func(t *testing.T, rec logtest.Record) {
+		t.Helper()
+		if got := rec.AttrString(t, "error"); got != want {
+			t.Errorf("error attr = %q, want %q", got, want)
+		}
+	}
+}
+
+func standDownErrorAttrCarrying(want string) func(*testing.T, logtest.Record) {
+	return func(t *testing.T, rec logtest.Record) {
+		t.Helper()
+		if got := rec.AttrString(t, "error"); !strings.Contains(got, want) {
+			t.Errorf("error attr = %q, want it to carry %q", got, want)
+		}
+	}
+}
+
+// The empty-pane-read line reports how many entries the read left unjudged —
+// the whole reason the guard fired — and no error, because the read succeeded.
+func emptyPaneReadStandDownAttrs(t *testing.T, rec logtest.Record) {
+	t.Helper()
+	noStandDownErrorAttr(t, rec)
+	if got := rec.IntAttr(t, "entries"); got != 2 {
+		t.Errorf("entries = %d, want the two entries the fixture seeds", got)
 	}
 }
 
@@ -94,51 +181,52 @@ func healthyStandDownDeps(t *testing.T, lister *stubStaleSweepReader, store *hoo
 	return staleDeps(dir, lister, store, projectStore)
 }
 
-func restoringStandDownDeps(t *testing.T) *DoctorDeps {
+func restoringStandDownDeps(t *testing.T) (*DoctorDeps, string) {
 	t.Helper()
-	store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(hookstest.LiveSeedA)})
-	return healthyStandDownDeps(t, restoringHookLister(), store)
+	store, path := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(hookstest.LiveSeedA)})
+	return healthyStandDownDeps(t, restoringHookLister(), store), path
 }
 
 // The server is down, so the marker read fails outright — the state a user
 // reaches for doctor in after a reboot.
-func markerReadFailedStandDownDeps(t *testing.T) *DoctorDeps {
+func markerReadFailedStandDownDeps(t *testing.T) (*DoctorDeps, string) {
 	t.Helper()
-	store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(hookstest.LiveSeedA)})
+	store, path := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(hookstest.LiveSeedA)})
 	lister := staleHookLister()
 	lister.restoringErr = errors.New("no server running")
-	return healthyStandDownDeps(t, lister, store)
+	return healthyStandDownDeps(t, lister, store), path
 }
 
-func storeReadFailedStandDownDeps(t *testing.T) *DoctorDeps {
+func storeReadFailedStandDownDeps(t *testing.T) (*DoctorDeps, string) {
 	t.Helper()
-	store, _ := hookstest.StageStore(t, hookstest.Staging{Unreadable: true})
-	return healthyStandDownDeps(t, staleHookLister(), store)
+	store, path := hookstest.StageStore(t, hookstest.Staging{Unreadable: true})
+	return healthyStandDownDeps(t, staleHookLister(), store), path
 }
 
-func paneReadFailedStandDownDeps(t *testing.T) *DoctorDeps {
+func paneReadFailedStandDownDeps(t *testing.T) (*DoctorDeps, string) {
 	t.Helper()
-	store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(hookstest.LiveSeedA)})
-	return healthyStandDownDeps(t, &stubStaleSweepReader{err: errors.New("tmux transient")}, store)
+	store, path := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(hookstest.LiveSeedA)})
+	return healthyStandDownDeps(t, &stubStaleSweepReader{err: errors.New("tmux transient")}, store), path
 }
 
 // The guard fires on a completed read of no panes with entries to protect, so
-// the fixture seeds an entry alongside the empty enumeration.
-func emptyPaneReadStandDownDeps(t *testing.T) *DoctorDeps {
+// the fixture seeds entries alongside the empty enumeration — two of them, so
+// the count the line reports is not the same number as anything else on it.
+func emptyPaneReadStandDownDeps(t *testing.T) (*DoctorDeps, string) {
 	t.Helper()
-	store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(hookstest.LiveSeedA)})
-	return healthyStandDownDeps(t, &stubStaleSweepReader{rows: tokenRows()}, store)
+	store, path := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(hookstest.LiveSeedA, hookstest.LiveSeedB)})
+	return healthyStandDownDeps(t, &stubStaleSweepReader{rows: tokenRows()}, store), path
 }
 
 // The seeded entry is live, so the post-repair diagnosis reads the file (a read
 // degrades to unlocked) and finds nothing stale: the lock stands down the
 // prune and nothing else.
-func lockTimeoutStandDownDeps(t *testing.T) *DoctorDeps {
+func lockTimeoutStandDownDeps(t *testing.T) (*DoctorDeps, string) {
 	t.Helper()
 	hooks.SetLockTimeoutForTest(t, lockBound)
 	store, path := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(hookstest.LiveSeedA)})
 	hookstest.HoldHooksSidecar(t, path)
-	return healthyStandDownDeps(t, &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA)}, store)
+	return healthyStandDownDeps(t, &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA)}, store), path
 }
 
 // renderStaleHooksLine renders the not-evaluable check line exactly as the
@@ -158,17 +246,100 @@ func renderStaleHooksLine(reason string) string {
 	return ""
 }
 
+// renderSkippedPruneLine renders the repair line for a reason through the
+// vocabulary, so a suite whose subject is not the copy names the line it
+// expects without pinning a second copy of the words.
+func renderSkippedPruneLine(reason string) string {
+	return "Skipped stale hook prune: " + phraseFor(skippedPrunePhrases, reason)
+}
+
+// hooksPathState renders whatever stands at the hooks.json path — its bytes
+// where it is a file, its members where a fixture staged a directory the store
+// cannot read — so every reason's untouched check reads the same.
+func hooksPathState(t *testing.T, path string) string {
+	t.Helper()
+
+	info, err := os.Lstat(path)
+	switch {
+	case os.IsNotExist(err):
+		return "absent"
+	case err != nil:
+		t.Fatalf("stat %s: %v", path, err)
+	}
+	if !info.IsDir() {
+		return "file:" + string(readFileBytes(t, path))
+	}
+
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		t.Fatalf("read dir %s: %v", path, err)
+	}
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		names = append(names, entry.Name())
+	}
+	return "dir:" + strings.Join(names, ",")
+}
+
+func assertHooksPathUnchanged(t *testing.T, path, before, context string) {
+	t.Helper()
+	if after := hooksPathState(t, path); after != before {
+		t.Errorf("hooks.json %s\nbefore: %s\nafter:  %s", context, before, after)
+	}
+}
+
+// assertStandDownSweep drives the cycle itself: what it reported to its caller,
+// the line it logged, and the file it must have left alone.
+func assertStandDownSweep(t *testing.T, tc standDownCopyCase) {
+	t.Helper()
+
+	deps, hooksPath := tc.fixture(t)
+	before := hooksPathState(t, hooksPath)
+	sink := logtest.Install(t)
+
+	outcome, err := runHookStaleCleanup(deps.HookLister, deps.HookStore, nil)
+	if err != nil {
+		t.Fatalf("runHookStaleCleanup: %v", err)
+	}
+	if outcome.DeclineReason != tc.reason {
+		t.Fatalf("DeclineReason = %q, want %q", outcome.DeclineReason, tc.reason)
+	}
+	if len(outcome.Removed) != 0 {
+		t.Errorf("Removed = %v, want none on a declined cycle", outcome.Removed)
+	}
+
+	assertHooksPathUnchanged(t, hooksPath, before, "written on a stand-down")
+	tc.attrs(t, assertStandDown(t, sink, tc.level, tc.reason))
+}
+
+// assertStandDownRepair drives `portal doctor --fix`: the line the user reads,
+// the diagnosis that follows it, and the file the repair must not have touched.
+func assertStandDownRepair(t *testing.T, tc standDownCopyCase) {
+	t.Helper()
+
+	deps, hooksPath := tc.fixture(t)
+	before := hooksPathState(t, hooksPath)
+
+	outBuf, _, err := runDoctorWith(t, deps, "--fix")
+	if err != nil {
+		t.Errorf("doctor --fix err = %v; want nil over a healthy post-repair diagnosis\n%s", err, outBuf.String())
+	}
+	out := outBuf.String()
+
+	assertSkippedPruneLine(t, out, tc.skippedLine)
+	assertHooksPathUnchanged(t, hooksPath, before, "written by the repair on a stand-down")
+
+	// The repair and the diagnosis must tell one story: a prune that stood
+	// down cannot be followed by a count of what it deliberately did not judge.
+	if tc.postRepairNotEvaluable && !strings.Contains(out, tc.notEvaluableLine) {
+		t.Errorf("post-repair report missing %q:\n%s", tc.notEvaluableLine, out)
+	}
+	if strings.Contains(out, "stale hook entr") {
+		t.Errorf("post-repair diagnosis counted what the prune stood down on:\n%s", out)
+	}
+}
+
 func TestStandDownCopy(t *testing.T) {
-	t.Run("it names a failed pane enumeration in the skipped-prune line", func(t *testing.T) {
-		out := runDoctorFixWithLister(t, &stubStaleSweepReader{err: errors.New("tmux transient")})
-		assertSkippedPruneLine(t, out, "Skipped stale hook prune: could not enumerate live panes")
-	})
-
-	t.Run("it names an empty pane list in the skipped-prune line", func(t *testing.T) {
-		out := runDoctorFixWithLister(t, &stubStaleSweepReader{rows: tokenRows()})
-		assertSkippedPruneLine(t, out, "Skipped stale hook prune: live pane list came back empty")
-	})
-
 	t.Run("it names a phrase for every stand-down reason on both surfaces", func(t *testing.T) {
 		cases := standDownCopyCases()
 		if want := len(skipReasons) - len(notStandDownReasons); len(cases) != want {
@@ -180,38 +351,57 @@ func TestStandDownCopy(t *testing.T) {
 			}
 		}
 
+		// The uniqueness checks below read the *rendered* phrases, not the
+		// table's expectations: two reasons that agree on their words are the
+		// drift worth catching, and comparing the expectations would only catch
+		// an author who copied a row.
+		reasons := map[string]string{}
 		skipped := map[string]string{}
 		notEvaluable := map[string]string{}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
-				outBuf, _, _ := runDoctorWith(t, tc.deps(t), "--fix")
-				assertSkippedPruneLine(t, outBuf.String(), tc.skippedLine)
+				assertStandDownSweep(t, tc)
+				assertStandDownRepair(t, tc)
 
 				if got := renderStaleHooksLine(tc.reason); got != tc.notEvaluableLine {
 					t.Errorf("not-evaluable line = %q, want %q", got, tc.notEvaluableLine)
 				}
 			})
 
-			if prior, ok := skipped[tc.skippedLine]; ok {
-				t.Errorf("reason %q borrows the skipped-prune line already used by %q: %q", tc.reason, prior, tc.skippedLine)
+			if prior, ok := reasons[tc.reason]; ok {
+				t.Errorf("case %q reuses the reason %q already covered by %q; want one row per decline path", tc.name, tc.reason, prior)
 			}
-			if prior, ok := notEvaluable[tc.notEvaluableLine]; ok {
-				t.Errorf("reason %q borrows the not-evaluable line already used by %q: %q", tc.reason, prior, tc.notEvaluableLine)
+			renderedSkipped := renderSkippedPruneLine(tc.reason)
+			if prior, ok := skipped[renderedSkipped]; ok {
+				t.Errorf("reason %q borrows the skipped-prune line already used by %q: %q", tc.reason, prior, renderedSkipped)
 			}
-			skipped[tc.skippedLine] = tc.reason
-			notEvaluable[tc.notEvaluableLine] = tc.reason
+			renderedDetail := phraseFor(notEvaluableDetails, tc.reason)
+			if prior, ok := notEvaluable[renderedDetail]; ok {
+				t.Errorf("reason %q borrows the not-evaluable detail already used by %q: %q", tc.reason, prior, renderedDetail)
+			}
+			reasons[tc.reason] = tc.name
+			skipped[renderedSkipped] = tc.reason
+			notEvaluable[renderedDetail] = tc.reason
+		}
+		if len(reasons) != len(cases) {
+			t.Errorf("distinct reasons = %d, want %d", len(reasons), len(cases))
 		}
 	})
 
-	t.Run("it renders doctor's not-evaluable detail for a failed marker read", func(t *testing.T) {
-		if got := renderStaleHooksLine(skipReasonMarkerReadFailed); got != "  · stale hooks: could not read the restore marker" {
-			t.Errorf("not-evaluable line = %q, want the failed marker read named in the diagnosis", got)
-		}
-	})
-
-	t.Run("it renders a not-evaluable detail for a lock-timeout stand-down", func(t *testing.T) {
-		if got := renderStaleHooksLine(skipReasonLockTimeout); got != "  · stale hooks: hooks.json is locked (not evaluable)" {
-			t.Errorf("not-evaluable line = %q, want the lock named in the diagnosis", got)
+	// A phrase two surfaces share is written once and composed into each, so a
+	// re-wording moves both. The declaration-level guard cannot see a value
+	// re-authored inline with today's words; this reads the entry itself.
+	t.Run("it composes a shared phrase from the const both surfaces name", func(t *testing.T) {
+		for _, tc := range standDownCopyCases() {
+			if tc.sharedPhrase == "" {
+				continue
+			}
+			if got := phraseFor(skippedPrunePhrases, tc.reason); got != tc.sharedPhrase {
+				t.Errorf("skippedPrunePhrases[%q] = %q, want the shared const %q", tc.reason, got, tc.sharedPhrase)
+			}
+			if got := phraseFor(notEvaluableDetails, tc.reason); !strings.Contains(got, tc.sharedPhrase) {
+				t.Errorf("notEvaluableDetails[%q] = %q, want it composed from the shared const %q", tc.reason, got, tc.sharedPhrase)
+			}
 		}
 	})
 
@@ -259,29 +449,22 @@ func TestStandDownCopy(t *testing.T) {
 	t.Run("it leaves the exit code to the post-repair diagnosis for every stand-down", func(t *testing.T) {
 		for _, tc := range standDownCopyCases() {
 			t.Run(tc.name, func(t *testing.T) {
-				fixBuf, _, fixErr := runDoctorWith(t, tc.deps(t), "--fix")
-				if fixErr != nil {
-					t.Errorf("doctor --fix err = %v; want nil over a healthy post-repair diagnosis\n%s", fixErr, fixBuf.String())
-				}
-				if !strings.Contains(fixBuf.String(), tc.skippedLine) {
-					t.Fatalf("fixture did not stand the prune down:\n%s", fixBuf.String())
-				}
-
-				readBuf, _, readErr := runDoctorWith(t, tc.deps(t))
+				readDeps, _ := tc.fixture(t)
+				readBuf, _, readErr := runDoctorWith(t, readDeps)
 				if readErr != nil {
 					t.Errorf("doctor err = %v; want nil over a stand-down the diagnosis reports as not evaluable\n%s", readErr, readBuf.String())
 				}
 
 				// The diagnosis still owns both exit codes: one genuinely
 				// failing check under the same stand-down is non-zero again.
-				failFix := tc.deps(t)
+				failFix, _ := tc.fixture(t)
 				failFix.SaverPresent = func() (bool, error) { return false, nil }
 				fixFailBuf, _, fixFailErr := runDoctorWith(t, failFix, "--fix")
 				if !errors.Is(fixFailErr, ErrDoctorUnhealthy) {
 					t.Errorf("doctor --fix err = %v; want ErrDoctorUnhealthy with a failing check\n%s", fixFailErr, fixFailBuf.String())
 				}
 
-				failRead := tc.deps(t)
+				failRead, _ := tc.fixture(t)
 				failRead.SaverPresent = func() (bool, error) { return false, nil }
 				readFailBuf, _, readFailErr := runDoctorWith(t, failRead)
 				if !errors.Is(readFailErr, ErrDoctorUnhealthy) {

@@ -39,22 +39,6 @@ func TestHookSweepStandsDownOnLockTimeout(t *testing.T) {
 		assertHooksFileUnchanged(t, path, before, "rewritten under a held lock")
 	})
 
-	t.Run("it logs the stand-down at WARN with reason=lock-timeout", func(t *testing.T) {
-		store, _, _ := lockedSweepFixture(t, lockBound)
-		sink := logtest.Install(t)
-
-		if err := sweepErr(lister, store, nil); err != nil {
-			t.Fatalf("runHookStaleCleanup: %v", err)
-		}
-
-		rec := assertStandDown(t, sink, slog.LevelWarn, "lock-timeout")
-		if got := rec.AttrString(t, "error"); got == "" {
-			t.Errorf("error attr = %q, want the lock error", got)
-		} else if !strings.Contains(got, hooks.ErrLockHeld.Error()) {
-			t.Errorf("error attr = %q, want it to carry %q", got, hooks.ErrLockHeld.Error())
-		}
-	})
-
 	t.Run("it emits exactly one WARN per stood-down cycle", func(t *testing.T) {
 		store, _, _ := lockedSweepFixture(t, lockBound)
 		sink := logtest.Install(t)
@@ -67,22 +51,6 @@ func TestHookSweepStandsDownOnLockTimeout(t *testing.T) {
 		assertStandDown(t, sink, slog.LevelWarn, "lock-timeout")
 		for _, rec := range injectedSink.RecordsAtExactLevel(slog.LevelWarn) {
 			t.Errorf("unexpected WARN on the injected logger: %+v", rec)
-		}
-	})
-
-	t.Run("it reports the lock stand-down to the caller", func(t *testing.T) {
-		store, _, _ := lockedSweepFixture(t, lockBound)
-
-		outcome, err := runHookStaleCleanup(lister, store, nil)
-		if err != nil {
-			t.Fatalf("runHookStaleCleanup: %v", err)
-		}
-
-		if outcome.DeclineReason != "lock-timeout" {
-			t.Errorf("DeclineReason = %q, want %q", outcome.DeclineReason, "lock-timeout")
-		}
-		if len(outcome.Removed) != 0 {
-			t.Errorf("Removed = %v, want none", outcome.Removed)
 		}
 	})
 
@@ -132,27 +100,6 @@ func TestHookSweepStandsDownOnLockTimeout(t *testing.T) {
 		}
 		if _, ok := postRun[hookstest.LiveSeedA]; !ok {
 			t.Errorf("live key was reaped by the retry; got %v", keysOf(postRun))
-		}
-	})
-
-	// The daemon's call shape: its own logger, and no second WARN of its own
-	// over the one the sweep already emitted.
-	t.Run("it stands the daemon's throttled sweep down without a second WARN", func(t *testing.T) {
-		store, path, _ := lockedSweepFixture(t, lockBound)
-		before := readFileBytes(t, path)
-
-		sink := logtest.Install(t)
-		injected, injectedSink := newCaptureLoggerForComponent(t, "daemon")
-		fc := &daemonFakeCommander{panesOut: livePaneRowOut}
-		deps := hookCleanupDeps(fc, store, injected)
-		deps.lastCleanup = time.Now().Add(-2 * hookCleanupInterval)
-
-		maybeRunHookCleanup(deps)
-
-		assertHooksFileUnchanged(t, path, before, "rewritten by the daemon under a held lock")
-		assertStandDown(t, sink, slog.LevelWarn, "lock-timeout")
-		if got := len(injectedSink.RecordsAtExactLevelWith(slog.LevelWarn, "daemon", "hooks stale-cleanup failed")); got != 0 {
-			t.Errorf("daemon generic-failure WARN count = %d, want 0; entries=%+v", got, injectedSink.Records())
 		}
 	})
 }
@@ -220,18 +167,6 @@ func TestHookSweepDiscriminatesLockTimeoutFromFailure(t *testing.T) {
 }
 
 func TestDoctorFixReportsLockedHookPrune(t *testing.T) {
-	t.Run("it prints the skipped-prune line for a locked file in doctor --fix", func(t *testing.T) {
-		hooks.SetLockTimeoutForTest(t, lockBound)
-		deps, hooksPath, _, _, _ := seedStalePruneFixture(t, t.TempDir(), staleHookLister())
-		hookstest.HoldHooksSidecar(t, hooksPath)
-		before := readFileBytes(t, hooksPath)
-
-		outBuf, _, _ := runDoctorWith(t, deps, "--fix")
-
-		assertSkippedPruneLine(t, outBuf.String(), "Skipped stale hook prune: hooks.json is locked")
-		assertHooksFileUnchanged(t, hooksPath, before, "rewritten on a lock stand-down")
-	})
-
 	// The read side degrades where the write side stands down, so the un-pruned
 	// entry is reported as the stale hook it is rather than as a lock problem.
 	t.Run("it reports the un-pruned entry as stale in the same window", func(t *testing.T) {
@@ -245,41 +180,6 @@ func TestDoctorFixReportsLockedHookPrune(t *testing.T) {
 		}
 		if got.detail != "1 stale hook entry" {
 			t.Errorf("detail = %q, want %q", got.detail, "1 stale hook entry")
-		}
-	})
-
-	t.Run("it leaves the doctor --fix exit code to the post-repair diagnosis", func(t *testing.T) {
-		hooks.SetLockTimeoutForTest(t, lockBound)
-
-		// A healthy install whose only anomaly is the lock: the entry is live,
-		// so the post-repair diagnosis finds nothing stale.
-		dir := t.TempDir()
-		seedHealthyStateDir(t, dir)
-		hookStore, hooksPath := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(hookstest.LiveSeedA)})
-		hookstest.HoldHooksSidecar(t, hooksPath)
-		projectStore, _ := seedProjectsJSON(t, t.TempDir())
-		deps := staleDeps(dir, &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA)}, hookStore, projectStore)
-
-		outBuf, _, err := runDoctorWith(t, deps, "--fix")
-		if err != nil {
-			t.Fatalf("Execute err = %v; want nil over a healthy post-repair diagnosis\n%s", err, outBuf.String())
-		}
-		if !strings.Contains(outBuf.String(), "Skipped stale hook prune: hooks.json is locked") {
-			t.Fatalf("fixture did not stand the prune down:\n%s", outBuf.String())
-		}
-
-		// The same stand-down with a genuinely failing check still exits non-zero.
-		failingDir := t.TempDir()
-		seedHealthyStateDir(t, failingDir)
-		failingHooks, failingPath := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(hookstest.LiveSeedA)})
-		hookstest.HoldHooksSidecar(t, failingPath)
-		failingProjects, _ := seedProjectsJSON(t, t.TempDir())
-		failingDeps := staleDeps(failingDir, &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA)}, failingHooks, failingProjects)
-		failingDeps.SaverPresent = func() (bool, error) { return false, nil }
-
-		failBuf, _, failErr := runDoctorWith(t, failingDeps, "--fix")
-		if !errors.Is(failErr, ErrDoctorUnhealthy) {
-			t.Fatalf("Execute err = %v; want ErrDoctorUnhealthy with a failing check\n%s", failErr, failBuf.String())
 		}
 	})
 }

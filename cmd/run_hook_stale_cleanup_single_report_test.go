@@ -2,9 +2,7 @@ package cmd
 
 import (
 	"bytes"
-	"errors"
 	"log/slog"
-	"strings"
 	"testing"
 	"time"
 
@@ -43,54 +41,11 @@ func TestHookSweepReportsAStoreReadStandDownOnce(t *testing.T) {
 		assertStandDown(t, sink, slog.LevelWarn, skipReasonStoreReadFailed)
 	})
 
-	t.Run("it still prints the skipped-prune line for a store-read stand-down", func(t *testing.T) {
-		dir := t.TempDir()
-		seedHealthyStateDir(t, dir)
-		hookStore, _ := hookstest.StageStore(t, hookstest.Staging{Unreadable: true})
-		projectStore, _ := seedProjectsJSON(t, t.TempDir())
-		deps := staleDeps(dir, staleHookLister(), hookStore, projectStore)
-
-		outBuf, _, err := runDoctorWith(t, deps, "--fix")
-		if err != nil {
-			t.Fatalf("Execute err = %v\n%s", err, outBuf.String())
-		}
-
-		assertSkippedPruneLine(t, outBuf.String(), "Skipped stale hook prune: could not read hooks.json")
-	})
-
-	t.Run("it leaves the doctor exit code to the post-repair diagnosis", func(t *testing.T) {
-		// An unreadable hooks.json is not evaluable rather than failing, so an
-		// otherwise healthy install still exits zero over the stand-down.
-		dir := t.TempDir()
-		seedHealthyStateDir(t, dir)
-		hookStore, _ := hookstest.StageStore(t, hookstest.Staging{Unreadable: true})
-		projectStore, _ := seedProjectsJSON(t, t.TempDir())
-		deps := staleDeps(dir, staleHookLister(), hookStore, projectStore)
-
-		outBuf, _, err := runDoctorWith(t, deps, "--fix")
-		if err != nil {
-			t.Fatalf("Execute err = %v; want nil over a healthy post-repair diagnosis\n%s", err, outBuf.String())
-		}
-		if !strings.Contains(outBuf.String(), "Skipped stale hook prune: could not read hooks.json") {
-			t.Fatalf("fixture did not stand the prune down:\n%s", outBuf.String())
-		}
-
-		// The same stand-down with a genuinely failing check still exits non-zero.
-		failingDir := t.TempDir()
-		seedHealthyStateDir(t, failingDir)
-		failingHooks, _ := hookstest.StageStore(t, hookstest.Staging{Unreadable: true})
-		failingProjects, _ := seedProjectsJSON(t, t.TempDir())
-		failingDeps := staleDeps(failingDir, staleHookLister(), failingHooks, failingProjects)
-		failingDeps.SaverPresent = func() (bool, error) { return false, nil }
-
-		failBuf, _, failErr := runDoctorWith(t, failingDeps, "--fix")
-		if !errors.Is(failErr, ErrDoctorUnhealthy) {
-			t.Fatalf("Execute err = %v; want ErrDoctorUnhealthy with a failing check\n%s", failErr, failBuf.String())
-		}
-	})
-
+	// The daemon's throttled sweep under a held lock: one WARN for the cycle,
+	// none of the daemon's own over it, and the file left as it was.
 	t.Run("it still reports a lock-timeout stand-down exactly once", func(t *testing.T) {
-		store, _, _ := lockedSweepFixture(t, lockBound)
+		store, path, _ := lockedSweepFixture(t, lockBound)
+		before := readFileBytes(t, path)
 
 		sink := logtest.Install(t)
 		injected, injectedSink := newCaptureLoggerForComponent(t, "daemon")
@@ -99,6 +54,7 @@ func TestHookSweepReportsAStoreReadStandDownOnce(t *testing.T) {
 
 		maybeRunHookCleanup(deps)
 
+		assertHooksFileUnchanged(t, path, before, "rewritten by the daemon under a held lock")
 		assertStandDown(t, sink, slog.LevelWarn, skipReasonLockTimeout)
 		if got := len(injectedSink.RecordsAtExactLevel(slog.LevelWarn)); got != 0 {
 			t.Errorf("injected-logger WARN count = %d, want 0; entries=%+v", got, injectedSink.Records())

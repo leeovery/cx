@@ -850,6 +850,9 @@ func assertStalePrunesApplied(t *testing.T, hooksPath, projectsPath, liveDir, go
 	}
 
 	projectsAfter := readFileBytes(t, projectsPath)
+	if len(projectsAfter) == 0 {
+		t.Fatalf("projects.json is absent or empty after the prune — the prune removed the file rather than the stale record")
+	}
 	if strings.Contains(string(projectsAfter), goneDir) {
 		t.Errorf("stale project %q not pruned from projects.json:\n%s", goneDir, projectsAfter)
 	}
@@ -1575,78 +1578,11 @@ func TestDoctorStaleChecksAreReadOnly(t *testing.T) {
 	}
 }
 
-func TestDoctorFixReportsSkippedHookPrune(t *testing.T) {
-	t.Run("it prints the skipped-prune line for a restore window in doctor --fix", func(t *testing.T) {
-		out := runDoctorFixWithLister(t, restoringHookLister())
-		assertSkippedPruneLine(t, out, "Skipped stale hook prune: restore in progress")
-	})
-
-	t.Run("it prints the skipped-prune line for an empty live read in doctor --fix", func(t *testing.T) {
-		out := runDoctorFixWithLister(t, &stubStaleSweepReader{rows: tokenRows()})
-		assertSkippedPruneLine(t, out, "Skipped stale hook prune: live pane list came back empty")
-	})
-
-	// The repair and the diagnosis must tell one story: a prune that stood down
-	// cannot be followed by a count of what it deliberately did not judge.
-	t.Run("it reports not evaluable in the post-repair diagnosis after a stand-down", func(t *testing.T) {
-		out := runDoctorFixWithLister(t, restoringHookLister())
-		assertSkippedPruneLine(t, out, "Skipped stale hook prune: restore in progress")
-		if want := "· stale hooks: restore in progress (not evaluable)"; !strings.Contains(out, want) {
-			t.Errorf("post-repair report missing %q:\n%s", want, out)
-		}
-		if strings.Contains(out, "stale hook entr") {
-			t.Errorf("post-repair diagnosis counted what the prune stood down on:\n%s", out)
-		}
-	})
-
-	t.Run("it leaves the doctor --fix exit code to the post-repair diagnosis", func(t *testing.T) {
-		dir := t.TempDir()
-		seedHealthyStateDir(t, dir)
-		hookStore, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody()})
-		projectStore, _ := seedProjectsJSON(t, t.TempDir())
-		deps := staleDeps(dir, restoringHookLister(), hookStore, projectStore)
-
-		outBuf, _, err := runDoctorWith(t, deps, "--fix")
-		if err != nil {
-			t.Fatalf("Execute err = %v; want nil over a healthy post-repair diagnosis\n%s", err, outBuf.String())
-		}
-		if !strings.Contains(outBuf.String(), "Skipped stale hook prune:") {
-			t.Fatalf("fixture did not stand the prune down:\n%s", outBuf.String())
-		}
-
-		// The same stand-down with a genuinely failing check still exits non-zero.
-		failingDir := t.TempDir()
-		seedHealthyStateDir(t, failingDir)
-		failingHooks, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody()})
-		failingProjects, _ := seedProjectsJSON(t, t.TempDir())
-		failingDeps := staleDeps(failingDir, restoringHookLister(), failingHooks, failingProjects)
-		failingDeps.SaverPresent = func() (bool, error) { return false, nil }
-
-		failBuf, _, failErr := runDoctorWith(t, failingDeps, "--fix")
-		if !errors.Is(failErr, ErrDoctorUnhealthy) {
-			t.Fatalf("Execute err = %v; want ErrDoctorUnhealthy with a failing check\n%s", failErr, failBuf.String())
-		}
-	})
-}
-
-// runDoctorFixWithLister drives `doctor --fix` over an install whose hook prune
-// stands down for whatever reason the lister provokes, and pins that the
-// stand-down left hooks.json untouched.
-func runDoctorFixWithLister(t *testing.T, lister *stubStaleSweepReader) string {
-	t.Helper()
-
-	deps, hooksPath, _, _, _ := seedStalePruneFixture(t, t.TempDir(), lister)
-	before := readFileBytes(t, hooksPath)
-
-	outBuf, _, _ := runDoctorWith(t, deps, "--fix")
-
-	assertHooksFileUnchanged(t, hooksPath, before, "rewritten on a stand-down")
-	return outBuf.String()
-}
-
 // assertSkippedPruneLine pins the exact line and its placement in the repair
 // block: a stand-down and a removal cannot co-occur, so the line stands where
-// the `Pruned stale hook:` lines would have.
+// the `Pruned stale hook:` lines would have. It is the whole of the repair's
+// stand-down reporting, so a second skipped-prune line — one cycle described
+// twice, or described in another reason's words — fails here too.
 func assertSkippedPruneLine(t *testing.T, out, want string) {
 	t.Helper()
 
@@ -1663,6 +1599,8 @@ func assertSkippedPruneLine(t *testing.T, out, want string) {
 				t.Errorf("skipped-prune line printed twice:\n%s", out)
 			}
 			skippedAt = i
+		case strings.HasPrefix(line, "Skipped stale hook prune:"):
+			t.Errorf("skipped-prune line = %q, want %q", line, want)
 		case strings.HasPrefix(line, "Pruned stale project:"):
 			projectAt = i
 		}
