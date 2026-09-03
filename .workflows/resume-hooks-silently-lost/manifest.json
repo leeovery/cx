@@ -300,7 +300,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 8,
-          "current_task": "resume-hooks-silently-lost-8-35",
+          "current_task": "resume-hooks-silently-lost-8-36",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -446,7 +446,8 @@
             "resume-hooks-silently-lost-8-32",
             "resume-hooks-silently-lost-8-33",
             "resume-hooks-silently-lost-8-34",
-            "resume-hooks-silently-lost-8-35"
+            "resume-hooks-silently-lost-8-35",
+            "resume-hooks-silently-lost-8-36"
           ],
           "staging": {
             "p1": {
@@ -1746,6 +1747,74 @@
               "source": "reviewer",
               "summary": "The composite-bootstrap flake family is BROADER than the single named test, and was proven present on a pristine HEAD export.",
               "detail": "Beyond TestCompositeBootstrap_FObservables, the reviewer saw TestCompositeBootstrap_ConvergesPgrepToOneDaemon and TestCompositeBootstrap_FreshAcquireDaemonLockRefusesPostBootstrap fail with the identical pgrep count=0 / stalled signature. Confirmed NOT caused by any change in this task: a git archive export of pristine HEAD into a scratch dir failed twice in three runs of the same package. Fails when the package runs whole, passes in isolation, on both trees. This extends the existing banked entry whose root cause is internal/tmux/portal_saver.go waitForSaverDaemonReady polling a hardcoded 2s budget, WARNing on expiry and returning nil — the whole family should be verdicted together against that one production fix.",
+              "files": [
+                "internal/tmux/portal_saver.go",
+                "cmd/bootstrap"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-36",
+              "source": "executor",
+              "summary": "waitForPaneText is a cmd/bootstrap-local helper duplicating the poll-with-budget-and-tick shape restoretest.WaitForFileExists already owns.",
+              "detail": "cmd/bootstrap/eager_signal_hydrate_integration_test.go:256 declares its own deadline/tick/sleep loop over CapturePane. It is now the only budget/tick consumer in the family that is not a restoretest helper, so the two poll loops can drift in failure wording and early-return semantics independently. Consolidating means moving a tmux-reading wait into restoretest, which reaches beyond this tasks surface.",
+              "files": [
+                "cmd/bootstrap/eager_signal_hydrate_integration_test.go",
+                "internal/restoretest/waitfor_file_exists.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-36",
+              "source": "executor",
+              "summary": "ts.WaitForSession repeats a bare 2s literal at ~15 sites across three packages with no named declaration — a third wait shape.",
+              "detail": "internal/restore (6 sites incl. integration_full_test.go:143, reboot_fixture_test.go:85) and cmd/bootstrap (9 sites across scrollback_resumption_test.go, reboot_roundtrip_test.go, phase5_smoke_test.go) all wait for a tmux session to appear on the same undeclared budget. It is distinct from both pairs named by task 8-36, and naming it belongs with tmuxtest (whose subject is the socket) rather than restoretest — a cross-package decision this task had no mandate to make.",
+              "files": [
+                "internal/restore/integration_full_test.go",
+                "internal/restore/reboot_fixture_test.go",
+                "internal/restore/armed_restore_integration_test.go",
+                "internal/restore/prefix_sibling_integration_test.go",
+                "internal/restore/exit_closes_pane_integration_test.go",
+                "cmd/bootstrap/scrollback_resumption_test.go",
+                "cmd/bootstrap/reboot_roundtrip_test.go",
+                "cmd/bootstrap/phase5_smoke_test.go",
+                "internal/tmuxtest/socket.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-36",
+              "source": "reviewer",
+              "summary": "A raw HydrateBudget-valued hydrate wait survives in cmd/bootstrap, two lines from a site this task routed.",
+              "detail": "cmd/bootstrap/reboot_roundtrip_test.go:492 calls waitForSessionMarkerCleared(t, client, \"alpha\", 10*time.Second) — the same marker-clear observable, the same value, hand-written — while :506 in the same function reads restoretest.HydrateBudget/HydrateTick. The finding enumerated only the two internal/restore holdouts plus the five 2s sites, so routing this one (and deciding whether the per-session variant should take the pair as parameters) reaches past this tasks stated scope.",
+              "files": [
+                "cmd/bootstrap/reboot_roundtrip_test.go",
+                "internal/restoretest/marker_count.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-36",
+              "source": "reviewer",
+              "summary": "The declaring package still holds a second, local 10s/50ms hydrate pair.",
+              "detail": "internal/restoretest/restoretest.go:100-103 declares retryDelay = 50*time.Millisecond / budget = 10*time.Second inside DriveSignalHydrate for the FIFO-open retry. It is a different observable (open(O_RDONLY) retry, with its own documented rationale) so collapsing it is a judgement call, but it is the same two numbers restated in the file next door to the declaration task 8-36 created — worth deciding once, deliberately, rather than leaving as a near-miss.",
+              "files": [
+                "internal/restoretest/restoretest.go",
+                "internal/restoretest/marker_count.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-36",
+              "source": "reviewer",
+              "summary": "AssertMarkerCount hardcodes HydrateBudget, so a structurally identical post-marker-clear hook wait runs on the long budget in cmd/bootstrap while its twin in internal/restore now runs on the short one.",
+              "detail": "cmd/bootstrap/reboot_roundtrip_test.go:157 is the same shape as internal/restore/exit_closes_pane_integration_test.go:56 (a hook-landing wait taken after the skeleton marker has cleared, so only the exec is ahead), but it runs on HydrateBudget because AssertMarkerCount hardcodes the pair rather than taking it. Pre-existing and out of task 8-36 scope; worth knowing before anyone harmonises the two, since the right fix is probably to let AssertMarkerCount take a budget rather than to lengthen the restore-side wait.",
+              "files": [
+                "internal/restoretest/marker_count.go",
+                "cmd/bootstrap/reboot_roundtrip_test.go",
+                "internal/restore/exit_closes_pane_integration_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-36",
+              "source": "reviewer",
+              "summary": "The composite-bootstrap pgrep flake family is wider still: TestCompositeBootstrap_ExternalSaverKillTriggersSelfEject also fails, and does so in ISOLATION on pristine HEAD.",
+              "detail": "Beyond FObservables, ConvergesPgrepToOneDaemon and FreshAcquireDaemonLockRefusesPostBootstrap, the reviewer of task 8-36 hit TestCompositeBootstrap_ExternalSaverKillTriggersSelfEject with a byte-identical signature (pgrep -fx did not converge to 1 ... count=0 ... stalled=true). It was baselined on a pristine HEAD scratch copy where it fails IN ISOLATION — unlike the others, which pass in isolation and fail only on a whole-package run. Same root cause family (internal/tmux/portal_saver.go waitForSaverDaemonReady polling a hardcoded 2s budget, WARNing on expiry and returning nil), but the isolation behaviour differs, which may matter when verdicting the fix.",
               "files": [
                 "internal/tmux/portal_saver.go",
                 "cmd/bootstrap"
