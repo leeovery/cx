@@ -36,8 +36,21 @@ const snapshotLockFraction = 100
 // does, to drive a timeout without waiting out the production figure — lowers
 // this one with it instead of leaving a production figure behind. The pre-read
 // is advisory: it may degrade to an unlocked read at no cost to correctness,
-// paying one DEBUG breadcrumb, so it is bounded at the cheapest figure that
-// still grants an uncontended lock. The floor keeps that figure at one poll
+// paying one DEBUG breadcrumb. Shortening it costs an uncontended acquire
+// nothing, at any figure: acquireLock attempts the flock before it tests its
+// deadline, so a free lock is granted on that first attempt however short the
+// bound is, and the bound governs only how long a held lock is waited out — a
+// short one opens no spurious-degradation surface of its own. What the figure
+// does have to buy is headroom over a holder that is mid-write rather than
+// stuck, and a hundredth buys four poll intervals over the sub-millisecond
+// critical section at the production bound, where a thousandth would land on
+// the floor and buy one. Where lockTimeout is above one poll interval the
+// derived figure sits below the mutation bound, and above two poll intervals
+// below half of it, so a contended clean costs one bound rather than two; at or
+// under those the floor is in force: the pre-read holds at one poll interval,
+// so it is no longer below half the mutation bound, and under one poll interval
+// it exceeds that bound outright — a range only a lowered bound under test
+// reaches. The floor keeps that figure at one poll
 // interval, below which the figure named stops being the figure waited: the
 // acquire re-tests its deadline only after a poll sleep, so every shorter
 // bound costs that same one interval. The accepted price of a bound this
