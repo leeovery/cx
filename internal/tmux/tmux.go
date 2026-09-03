@@ -647,7 +647,10 @@ func parsePaneHookRows(output string) ([]PaneHookRow, error) {
 }
 
 // SendKeys delivers a command, followed by Enter, to the pane addressed by the
-// structural-key target.
+// structural-key target. It has no production caller and is exported anyway: it
+// is a sanctioned shared test driver, kept on the client so the real-tmux suites
+// that type into a live pane compose this invocation in one place rather than
+// each re-authoring it.
 func (c *Client) SendKeys(target string, command string) error {
 	_, err := c.cmd.Run("send-keys", "-t", target, command, "Enter")
 	if err != nil {
