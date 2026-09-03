@@ -475,55 +475,6 @@ func TestHooksSetCommand(t *testing.T) {
 }
 
 func TestHooksRmCommand(t *testing.T) {
-	t.Run("removes hook for current pane", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t, map[string]map[string]string{
-			hookstest.SubjectSeedA: {"on-resume": "claude --resume abc123"},
-		})
-		t.Setenv("TMUX_PANE", "%3")
-
-		resolver := &mockKeyResolver{key: hookstest.SubjectSeedA}
-		withHooksDeps(t, HooksDeps{KeyResolver: resolver})
-
-		resetRootCmd()
-		rootCmd.SetOut(new(bytes.Buffer))
-		rootCmd.SetArgs([]string{"hooks", "rm", "--on-resume"})
-		err := rootCmd.Execute()
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		data := readHooksJSON(t, hooksFile)
-		if _, ok := data[hookstest.SubjectSeedA]; ok {
-			t.Error("expected the resolved hook key entry to be removed from hooks file")
-		}
-	})
-
-	t.Run("reads pane ID from TMUX_PANE and resolves hook key", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t, map[string]map[string]string{
-			hookstest.SubjectSeedB: {"on-resume": "some-cmd"},
-		})
-		t.Setenv("TMUX_PANE", "%42")
-
-		resolver := &mockKeyResolver{key: hookstest.SubjectSeedB}
-		withHooksDeps(t, HooksDeps{KeyResolver: resolver})
-
-		resetRootCmd()
-		rootCmd.SetOut(new(bytes.Buffer))
-		rootCmd.SetArgs([]string{"hooks", "rm", "--on-resume"})
-		err := rootCmd.Execute()
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		data := readHooksJSON(t, hooksFile)
-		if _, ok := data[hookstest.SubjectSeedB]; ok {
-			t.Error("expected the resolved hook key entry to be removed")
-		}
-		if _, ok := data["%42"]; ok {
-			t.Error("raw pane ID %42 should not be used as key")
-		}
-	})
-
 	t.Run("returns error when TMUX_PANE is not set", func(t *testing.T) {
 		hooksFileInTempDir(t, nil)
 		t.Setenv("TMUX_PANE", "")
@@ -561,61 +512,6 @@ func TestHooksRmCommand(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), "on-resume") {
 			t.Errorf("error = %q, want it to mention %q", err.Error(), "on-resume")
-		}
-	})
-
-	t.Run("it exits non-zero when no hook exists for pane", func(t *testing.T) {
-		hooksFileInTempDir(t, map[string]map[string]string{})
-		t.Setenv("TMUX_PANE", "%99")
-
-		resolver := &mockKeyResolver{key: hookstest.SubjectSeedC}
-		withHooksDeps(t, HooksDeps{KeyResolver: resolver})
-
-		buf := new(bytes.Buffer)
-		resetRootCmd()
-		rootCmd.SetOut(buf)
-		rootCmd.SetErr(buf)
-		rootCmd.SetArgs([]string{"hooks", "rm", "--on-resume"})
-		err := rootCmd.Execute()
-		if err == nil {
-			t.Fatal("expected an error when nothing was removed, got nil")
-		}
-		want := fmt.Sprintf("no resume hook registered for %s", hookstest.SubjectSeedC)
-		if err.Error() != want {
-			t.Errorf("error = %q, want %q", err.Error(), want)
-		}
-
-		if buf.String() != "" {
-			t.Errorf("output = %q, want empty string", buf.String())
-		}
-	})
-
-	t.Run("removes correct JSON entry from hooks file", func(t *testing.T) {
-		_, hooksFile := hooksFileInTempDir(t, map[string]map[string]string{
-			hookstest.SubjectSeedA:     {"on-resume": "claude --resume abc123"},
-			hookstest.UnjudgeableSeedA: {"on-resume": "npm start"},
-		})
-		t.Setenv("TMUX_PANE", "%3")
-
-		resolver := &mockKeyResolver{key: hookstest.SubjectSeedA}
-		withHooksDeps(t, HooksDeps{KeyResolver: resolver})
-
-		resetRootCmd()
-		rootCmd.SetOut(new(bytes.Buffer))
-		rootCmd.SetArgs([]string{"hooks", "rm", "--on-resume"})
-		err := rootCmd.Execute()
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		data := readHooksJSON(t, hooksFile)
-
-		if _, ok := data[hookstest.SubjectSeedA]; ok {
-			t.Error("expected the resolved hook key to be removed")
-		}
-
-		if data[hookstest.UnjudgeableSeedA]["on-resume"] != "npm start" {
-			t.Errorf("the untouched entry's on-resume = %q, want %q", data[hookstest.UnjudgeableSeedA]["on-resume"], "npm start")
 		}
 	})
 

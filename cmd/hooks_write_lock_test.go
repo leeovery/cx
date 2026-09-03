@@ -181,47 +181,50 @@ func TestHookSetLockTimeout(t *testing.T) {
 }
 
 func TestHookRmLockTimeout(t *testing.T) {
+	// The seed every held-lock row is driven against: one entry a successful
+	// removal would take out, so a file left byte-identical says the mutation
+	// never ran.
+	oneEntry := map[string]map[string]string{
+		hookstest.SubjectSeedA: {"on-resume": "claude --resume abc"},
+	}
+
 	t.Run("it exits non-zero from hook rm on a lock timeout", func(t *testing.T) {
-		hooks.SetLockTimeoutForTest(t, lockBound)
-		_, hooksFile := hooksFileInTempDir(t, map[string]map[string]string{
-			hookstest.SubjectSeedA: {"on-resume": "claude --resume abc"},
-		})
-		t.Setenv("TMUX_PANE", "%3")
-		before := readFileBytes(t, hooksFile)
-		hookstest.HoldHooksSidecar(t, hooksFile)
-
-		withHooksDeps(t, HooksDeps{KeyResolver: &mockKeyResolver{key: hookstest.SubjectSeedA}})
-
 		sink := logtest.Install(t)
-		out, err := runHookRm(t)
-		assertLockFailureReachesStderr(t, out, err)
+
+		got := runRmCase(t, rmCase{
+			name:     "resolved-token path under a held lock",
+			paneID:   "%3",
+			resolver: &mockKeyResolver{key: hookstest.SubjectSeedA},
+			seeded:   oneEntry,
+			holdLock: true,
+			wantErr:  true,
+		})
+
+		assertLockFailureReachesStderr(t, got.out, got.err)
 		hookstest.AssertLockWarn(t, sink, "rm", hookstest.SubjectSeedA, "cli")
-		assertHooksFileUnchanged(t, hooksFile, before)
+		assertHooksFileUnchanged(t, got.hooksFile, got.before)
 	})
 
 	t.Run("it exits non-zero on the --pane-key path and still issues no tmux call", func(t *testing.T) {
-		hooks.SetLockTimeoutForTest(t, lockBound)
-		_, hooksFile := hooksFileInTempDir(t, map[string]map[string]string{
-			hookstest.SubjectSeedA: {"on-resume": "claude --resume abc"},
+		// runRmCase guards the poisoned pair for a --pane-key row itself, so the
+		// no-tmux-call assertion rides along with the drive.
+		got := runRmCase(t, rmCase{
+			name:        "--pane-key path under a held lock",
+			paneID:      "",
+			paneKeyPath: true,
+			seeded:      oneEntry,
+			extra:       []string{"--pane-key", hookstest.SubjectSeedA},
+			holdLock:    true,
+			wantErr:     true,
 		})
-		t.Setenv("TMUX_PANE", "")
-		before := readFileBytes(t, hooksFile)
-		hookstest.HoldHooksSidecar(t, hooksFile)
 
-		resolver, stamper := paneKeyPathSeams()
-		withHooksDeps(t, HooksDeps{KeyResolver: resolver, PaneStamper: stamper})
-
-		out, err := runHookRm(t, "--pane-key", hookstest.SubjectSeedA)
-		assertLockFailureReachesStderr(t, out, err)
-		assertNoPaneTmuxCalls(t, resolver, stamper)
-		assertHooksFileUnchanged(t, hooksFile, before)
+		assertLockFailureReachesStderr(t, got.out, got.err)
+		assertHooksFileUnchanged(t, got.hooksFile, got.before)
 	})
 
 	t.Run("it returns at the bound rather than hanging", func(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, lockBound)
-		_, hooksFile := hooksFileInTempDir(t, map[string]map[string]string{
-			hookstest.SubjectSeedA: {"on-resume": "claude --resume abc"},
-		})
+		_, hooksFile := hooksFileInTempDir(t, oneEntry)
 		t.Setenv("TMUX_PANE", "%3")
 		hookstest.HoldHooksSidecar(t, hooksFile)
 
