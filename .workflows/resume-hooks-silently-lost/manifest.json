@@ -300,7 +300,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 8,
-          "current_task": "resume-hooks-silently-lost-8-32",
+          "current_task": "resume-hooks-silently-lost-8-33",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -443,7 +443,8 @@
             "resume-hooks-silently-lost-8-29",
             "resume-hooks-silently-lost-8-30",
             "resume-hooks-silently-lost-8-31",
-            "resume-hooks-silently-lost-8-32"
+            "resume-hooks-silently-lost-8-32",
+            "resume-hooks-silently-lost-8-33"
           ],
           "staging": {
             "p1": {
@@ -1634,6 +1635,37 @@
                 "internal/state/capture_test.go",
                 "internal/state/capture_colon_session_test.go",
                 "internal/state/capture_colon_session_realtmux_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-33",
+              "source": "executor",
+              "summary": "~30 cmd test files still hand-roll runRootCmds body inline rather than calling it.",
+              "detail": "resetRootCmd has 201 call sites and 30 test files contain a rootCmd.SetArgs + rootCmd.Execute() inline driver. Many are literally runRootCmds body (e.g. cmd/state_test.go:155, cmd/state_signal_hydrate_test.go:373, cmd/state_hydrate_empty_hookkey_test.go:26, cmd/root_test.go, cmd/alias_test.go, cmd/init_test.go); others differ slightly (one shared buffer for both streams, or a SetOut before the reset). Re-pointing the identical ones and reconciling the near-misses is a package-wide sweep well beyond this tasks four named helpers — doing a partial subset would have been arbitrary.",
+              "files": [
+                "cmd/root_test.go",
+                "cmd/state_test.go",
+                "cmd/state_signal_hydrate_test.go",
+                "cmd/state_hydrate_empty_hookkey_test.go",
+                "cmd/alias_test.go",
+                "cmd/init_test.go",
+                "cmd/version_guard_test.go",
+                "cmd/bootstrap_orchestrator_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-33",
+              "source": "reviewer",
+              "summary": "cmd test package still hand-rolls the exact runRootCmd body at nine sites, six of which this diff edited.",
+              "detail": "After un-substitution these are literally runRootCmd(t, args...): cmd/bootstrap_orchestrator_test.go:164-166, cmd/root_test.go:498-500, cmd/version_guard_test.go:153-155, cmd/state_test.go:155-161, :171-176, :201-207, cmd/state_hydrate_empty_hookkey_test.go:26-30, cmd/state_signal_hydrate_test.go:374-380, :404-410. Six lost their resetStateCmdFlags() line in this diff, so the executors hands were on the adjacent lines. Beside them sit three more command drivers of a different shape (single merged buffer, one fatal-on-error) that are near-twins of runRootCmd: runHookSet/runHookRm/runHookList at cmd/testhelpers_test.go:176-213. Deliberately not an issue: the task named four helpers and they are gone, and the inline resetRootCmd(); SetArgs; Execute shape recurs at ~190 sites package-wide. Worth consolidating at the phase boundary now that a canonical driver exists.",
+              "files": [
+                "cmd/bootstrap_orchestrator_test.go",
+                "cmd/root_test.go",
+                "cmd/version_guard_test.go",
+                "cmd/state_test.go",
+                "cmd/state_hydrate_empty_hookkey_test.go",
+                "cmd/state_signal_hydrate_test.go",
+                "cmd/testhelpers_test.go"
               ]
             }
           ]
