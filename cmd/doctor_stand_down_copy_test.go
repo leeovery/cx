@@ -291,3 +291,41 @@ func TestStandDownCopy(t *testing.T) {
 		}
 	})
 }
+
+// rewordNotEvaluableDetail re-words one vocabulary entry for the test's
+// duration. Watching a branch follow the re-worded entry tells a branch that
+// renders through the vocabulary from one that authors the same words inline:
+// an assertion on today's literal cannot separate them.
+func rewordNotEvaluableDetail(t *testing.T, reason, detail string) {
+	t.Helper()
+	prior := notEvaluableDetails[reason]
+	notEvaluableDetails[reason] = detail
+	t.Cleanup(func() { notEvaluableDetails[reason] = prior })
+}
+
+func TestStaleHooksCheckStandDownCopy(t *testing.T) {
+	t.Run("it renders the nil-store and failed-load branches from the vocabulary", func(t *testing.T) {
+		const reworded = "hooks.json could not be read this run"
+		rewordNotEvaluableDetail(t, skipReasonStoreReadFailed, reworded)
+
+		unreadable, _ := hookstest.StageStore(t, hookstest.Staging{Unreadable: true})
+		cases := []struct {
+			name  string
+			store *hooks.Store
+		}{
+			{name: "no store to read", store: nil},
+			{name: "store read failed", store: unreadable},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				got := checkStaleHooks(staleHookLister(), tc.store)
+				if got.status != checkNotEvaluable {
+					t.Errorf("status = %v, want not evaluable", got.status)
+				}
+				if got.detail != reworded {
+					t.Errorf("detail = %q, want the re-worded vocabulary entry %q", got.detail, reworded)
+				}
+			})
+		}
+	})
+}

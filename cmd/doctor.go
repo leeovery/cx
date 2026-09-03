@@ -289,6 +289,12 @@ func checkHostTerminal(detector TerminalDetector, resolve spawn.AdapterResolver)
 	return checkResult{name: name, status: checkInfo, detail: fmt.Sprintf("%s (supported)", id.Name)}
 }
 
+// staleHooksNotEvaluable reports a stand-down in the diagnosis's register, so a
+// branch reporting one names its reason and the vocabulary words the copy.
+func staleHooksNotEvaluable(name, reason string) checkResult {
+	return checkResult{name: name, status: checkNotEvaluable, detail: phraseFor(notEvaluableDetails, reason)}
+}
+
 // The check reads its store first and hands the result to the shared ladder,
 // so an unreadable hooks.json is reported as itself rather than as whatever the
 // tmux reads make of it. Past the ladder every judgeable entry is counted: an
@@ -298,22 +304,25 @@ func checkHostTerminal(detector TerminalDetector, resolve spawn.AdapterResolver)
 // lazy stamping it is the ordinary one, and the count proceeds.
 func checkStaleHooks(reader staleSweepReader, store *hooks.Store) checkResult {
 	const name = "stale hooks"
+	// No store to read and a read that failed are one condition to a user: the
+	// file could not be read, so both render the vocabulary's words for it.
 	if store == nil {
-		return checkResult{name: name, status: checkNotEvaluable, detail: "could not read hooks.json"}
+		return staleHooksNotEvaluable(name, skipReasonStoreReadFailed)
 	}
 	persisted, err := store.Load(hooks.ViaDoctor)
 	if err != nil {
-		return checkResult{name: name, status: checkNotEvaluable, detail: "could not read hooks.json"}
+		return staleHooksNotEvaluable(name, skipReasonStoreReadFailed)
 	}
 
 	if decline := hookStalenessStandDown(reader); decline.declined() {
-		return checkResult{name: name, status: checkNotEvaluable, detail: phraseFor(notEvaluableDetails, decline.reason)}
+		return staleHooksNotEvaluable(name, decline.reason)
 	}
 
 	view := judgeAgainstLivePanes(reader, len(persisted))
 	if view.Decline.declined() {
-		return checkResult{name: name, status: checkNotEvaluable, detail: phraseFor(notEvaluableDetails, view.Decline.reason)}
+		return staleHooksNotEvaluable(name, view.Decline.reason)
 	}
+
 	if view.PaneRows == 0 && len(persisted) == 0 {
 		return checkResult{name: name, status: checkPass, detail: "no hooks"}
 	}

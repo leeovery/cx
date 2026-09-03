@@ -37,13 +37,18 @@ var skipReasons = []string{
 	skipReasonSweepFailed,
 }
 
-// A restore that is running and a marker that could not be read stand the cycle
-// down alike, but they are different conditions: the server is routinely down
-// when a user reaches for a diagnosis, and reporting that as a restore would
-// assert something that is not happening.
+// The phrases both surface vocabularies share are written once here, so
+// re-wording one moves every line that prints it. A restore that is running and
+// a marker that could not be read stand the cycle down alike, but they are
+// different conditions: the server is routinely down when a user reaches for a
+// diagnosis, and reporting that as a restore would assert something that is not
+// happening.
 const (
-	restoreStandDownPhrase    = "restore in progress"
-	markerReadStandDownPhrase = "could not read the restore marker"
+	restoreStandDownPhrase     = "restore in progress"
+	markerReadStandDownPhrase  = "could not read the restore marker"
+	storeReadStandDownPhrase   = "could not read hooks.json"
+	paneReadStandDownPhrase    = "could not enumerate live panes"
+	sweepFailedStandDownPhrase = "the sweep could not complete"
 )
 
 // skippedPrunePhrases completes "Skipped stale hook prune: …" for a user who
@@ -52,11 +57,11 @@ const (
 var skippedPrunePhrases = map[string]string{
 	skipReasonRestoring:        restoreStandDownPhrase,
 	skipReasonMarkerReadFailed: markerReadStandDownPhrase,
-	skipReasonStoreReadFailed:  "could not read hooks.json",
-	skipReasonPaneReadFailed:   "could not enumerate live panes",
+	skipReasonStoreReadFailed:  storeReadStandDownPhrase,
+	skipReasonPaneReadFailed:   paneReadStandDownPhrase,
 	skipReasonEmptyPaneRead:    "live pane list came back empty",
 	skipReasonLockTimeout:      "hooks.json is locked",
-	skipReasonSweepFailed:      "the sweep could not complete",
+	skipReasonSweepFailed:      sweepFailedStandDownPhrase,
 }
 
 // notEvaluableDetails renders a stand-down reason as the reason the count cannot
@@ -64,11 +69,11 @@ var skippedPrunePhrases = map[string]string{
 var notEvaluableDetails = map[string]string{
 	skipReasonRestoring:        restoreStandDownPhrase + " (not evaluable)",
 	skipReasonMarkerReadFailed: markerReadStandDownPhrase,
-	skipReasonStoreReadFailed:  "could not read hooks.json",
-	skipReasonPaneReadFailed:   "could not enumerate live panes",
+	skipReasonStoreReadFailed:  storeReadStandDownPhrase,
+	skipReasonPaneReadFailed:   paneReadStandDownPhrase,
 	skipReasonEmptyPaneRead:    "zero live panes with hooks present (not evaluable)",
 	skipReasonLockTimeout:      "hooks.json is locked (not evaluable)",
-	skipReasonSweepFailed:      "the sweep could not complete",
+	skipReasonSweepFailed:      sweepFailedStandDownPhrase,
 }
 
 // phraseFor renders a stand-down reason through one of the surface vocabularies

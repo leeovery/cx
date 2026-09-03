@@ -4,6 +4,7 @@ import (
 	"go/ast"
 	"go/token"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -154,4 +155,87 @@ func sliceElementNames(t *testing.T, fset *token.FileSet, expr ast.Expr) []strin
 		names = append(names, ident.Name)
 	}
 	return names
+}
+
+// A phrase both vocabularies use must be written once and composed into each,
+// because a guard that binds map keys cannot see a map value re-authored beside
+// it: re-wording one copy would leave the other surface printing the old words
+// for the same condition. The rule is over the declarations themselves — the
+// values agreeing at runtime is what a shared const produces, not evidence of
+// one.
+func TestStandDownVocabulariesShareNoInlineLiteral(t *testing.T) {
+	vocabularies := []string{"skippedPrunePhrases", "notEvaluableDetails"}
+	literals := map[string][]string{}
+	found := map[string]bool{}
+	for _, source := range sourceguardtest.ParsePackageSources(t, ".", false) {
+		for _, decl := range source.File.Decls {
+			gen, ok := decl.(*ast.GenDecl)
+			if !ok || gen.Tok != token.VAR {
+				continue
+			}
+			for _, spec := range gen.Specs {
+				value, ok := spec.(*ast.ValueSpec)
+				if !ok {
+					continue
+				}
+				for i, name := range value.Names {
+					if !slices.Contains(vocabularies, name.Name) {
+						continue
+					}
+					found[name.Name] = true
+					literals[name.Name] = mapValueLiterals(t, source.Fset, value.Values[i])
+				}
+			}
+		}
+	}
+
+	for _, name := range vocabularies {
+		if !found[name] {
+			t.Fatalf("no %s map literal found in the cmd package; the guard is scanning nothing", name)
+		}
+	}
+
+	runtime := map[string]map[string]string{
+		"skippedPrunePhrases": skippedPrunePhrases,
+		"notEvaluableDetails": notEvaluableDetails,
+	}
+	for i, name := range vocabularies {
+		sibling := vocabularies[1-i]
+		for _, phrase := range literals[name] {
+			for _, rendered := range runtime[sibling] {
+				if rendered == phrase {
+					t.Errorf("%s authors %q inline while %s renders the same phrase; lift it into a const both compose from",
+						name, phrase, sibling)
+				}
+			}
+		}
+	}
+}
+
+// mapValueLiterals returns the bare string literals a map composite literal
+// authors as values. Any other expression — an identifier, or a concatenation —
+// is skipped, so a phrase assembled from parts is outside the rule's reach.
+func mapValueLiterals(t *testing.T, fset *token.FileSet, expr ast.Expr) []string {
+	t.Helper()
+	lit, ok := expr.(*ast.CompositeLit)
+	if !ok {
+		t.Fatalf("%s: vocabulary is not a composite literal; the guard cannot read its values", fset.Position(expr.Pos()))
+	}
+	var values []string
+	for _, elt := range lit.Elts {
+		kv, ok := elt.(*ast.KeyValueExpr)
+		if !ok {
+			t.Fatalf("%s: vocabulary element is not a key/value pair", fset.Position(elt.Pos()))
+		}
+		basic, ok := kv.Value.(*ast.BasicLit)
+		if !ok || basic.Kind != token.STRING {
+			continue
+		}
+		phrase, err := strconv.Unquote(basic.Value)
+		if err != nil {
+			t.Fatalf("%s: vocabulary value %s is not a quoted string", fset.Position(basic.Pos()), basic.Value)
+		}
+		values = append(values, phrase)
+	}
+	return values
 }
