@@ -17,7 +17,8 @@ func TestRenameRebootHook_DurableAcrossRepeatedReboots(t *testing.T) {
 	}
 	tmuxtest.SkipIfNoTmux(t)
 
-	fx := newRenameRebootFixture(t, "ptl-3-6-dur-")
+	pane, hookFireFile := renameRebootPane(t)
+	fx := newRebootFixture(t, "ptl-3-6-dur-", renameOldName, []rebootPane{pane})
 
 	fx.ts.Run(t, "rename-session", "-t", renameOldName, renameNewName)
 	if _, err := fx.ts.TryRun("has-session", "-t", "="+renameNewName); err != nil {
@@ -26,10 +27,10 @@ func TestRenameRebootHook_DurableAcrossRepeatedReboots(t *testing.T) {
 
 	fx.captureAndPersist(t, renameNewName)
 
-	if err := fx.rebootAndHydrate(t); err != nil {
+	if err := fx.rebootAndHydrate(t, renameNewName); err != nil {
 		t.Fatalf("cycle 1 rebootAndHydrate: %v", err)
 	}
-	restoretest.AssertMarkerCount(t, fx.hookFireFile, hookFiredMarker, 1)
+	restoretest.AssertMarkerCount(t, hookFireFile, hookFiredMarker, 1)
 
 	nextIdx, err := state.CaptureStructure(fx.client, nil, nil, nil)
 	if err != nil {
@@ -51,7 +52,7 @@ func TestRenameRebootHook_DurableAcrossRepeatedReboots(t *testing.T) {
 	// snapshot: that is what makes it a round-trip rather than a replay.
 	fx.persist(t, nextIdx, renameNewName)
 
-	if err := fx.rebootAndHydrate(t); err != nil {
+	if err := fx.rebootAndHydrate(t, renameNewName); err != nil {
 		t.Fatalf("cycle 2 rebootAndHydrate: %v", err)
 	}
 
@@ -61,6 +62,6 @@ func TestRenameRebootHook_DurableAcrossRepeatedReboots(t *testing.T) {
 	}
 
 	t.Run("it fires the resume hook again on a second reboot cycle", func(t *testing.T) {
-		restoretest.AssertMarkerCount(t, fx.hookFireFile, hookFiredMarker, 2)
+		restoretest.AssertMarkerCount(t, hookFireFile, hookFiredMarker, 2)
 	})
 }

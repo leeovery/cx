@@ -67,7 +67,8 @@ func TestRenameRebootHook_PaneProcessKeptRunning(t *testing.T) {
 func runRenameRebootFire(t *testing.T, rename func(t *testing.T, ts *tmuxtest.Socket, client *tmux.Client)) {
 	t.Helper()
 
-	fx := newRenameRebootFixture(t, "ptl-3-5-")
+	pane, hookFireFile := renameRebootPane(t)
+	fx := newRebootFixture(t, "ptl-3-5-", renameOldName, []rebootPane{pane})
 
 	rename(t, fx.ts, fx.client)
 
@@ -81,9 +82,9 @@ func runRenameRebootFire(t *testing.T, rename func(t *testing.T, ts *tmuxtest.So
 	fx.captureAndPersist(t, renameNewName)
 	verifyHookKeyed(t, fx.hooksPath, renamePaneToken)
 
-	if err := fx.rebootAndHydrate(t); err != nil {
+	if err := fx.rebootAndHydrate(t, renameNewName); err != nil {
 		t.Fatalf("rebootAndHydrate: %v", err)
 	}
 
-	restoretest.AssertMarkerCount(t, fx.hookFireFile, hookFiredMarker, 1)
+	restoretest.AssertMarkerCount(t, hookFireFile, hookFiredMarker, 1)
 }
