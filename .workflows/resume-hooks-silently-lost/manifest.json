@@ -300,7 +300,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 8,
-          "current_task": "resume-hooks-silently-lost-8-34",
+          "current_task": "resume-hooks-silently-lost-8-35",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -445,7 +445,8 @@
             "resume-hooks-silently-lost-8-31",
             "resume-hooks-silently-lost-8-32",
             "resume-hooks-silently-lost-8-33",
-            "resume-hooks-silently-lost-8-34"
+            "resume-hooks-silently-lost-8-34",
+            "resume-hooks-silently-lost-8-35"
           ],
           "staging": {
             "p1": {
@@ -1688,6 +1689,66 @@
               "files": [
                 "cmd/hooks_write_lock_test.go",
                 "cmd/hooks_rm_exit_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-35",
+              "source": "executor",
+              "summary": "internal/portaltest restates the state-directory rule the shared identity now declares.",
+              "detail": "internal/portaltest/isolated_env.go:68 and internal/portaltest/fingerprint.go:288,291 compose <base>/portal/state by hand, and isolated_env.go:76,93-94 plus spawn_daemon.go:32 spell PORTAL_STATE_DIR literally — all now duplicating xdg.StateDir / xdg.ConfigDirPath. Out of this tasks Do-list (which named only hookstest and restoretest), and the fingerprint copy is a deliberate independent re-derivation used as a backstop, so consolidating it needs a judgement call rather than a mechanical edit.",
+              "files": [
+                "internal/portaltest/isolated_env.go",
+                "internal/portaltest/fingerprint.go",
+                "internal/portaltest/spawn_daemon.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-35",
+              "source": "executor",
+              "summary": "The legacy Application Support path keeps its own portal segment, deliberately unshared.",
+              "detail": "cmd/config.go:67 joins ~/Library/Application Support/portal/<filename> with a literal that is textually equal to xdgs portalDirName but semantically frozen — the migration source must not move if the config-base segment ever changes. Left un-shared deliberately; flagged so a future one-more-portal-literal sweep does not merge them.",
+              "files": [
+                "cmd/config.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-35",
+              "source": "reviewer",
+              "summary": "XDG_CONFIG_HOME is still named in two places — the same class of duplication this task closed for the per-file variables.",
+              "detail": "internal/xdg/xdg.go:26 hardcodes the literal inside ConfigBaseFrom, and internal/hookstest/hooks.go:37 declares its own const xdgConfigHome = \"XDG_CONFIG_HOME\" for the isolation-regression check. Consolidating means exporting the name from xdg and having the seeder read it, which touches a package this task edited plus one it did not audit for the same pattern (internal/portaltest).",
+              "files": [
+                "internal/xdg/xdg.go",
+                "internal/hookstest/hooks.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-35",
+              "source": "reviewer",
+              "summary": "Three ConfigFileID filenames are asserted by nothing, so a typo would ship silently and point a users aliases or projects at a nonexistent file.",
+              "detail": "AliasesFile.Filename, ProjectsFile.Filename and TerminalsFile.Filename are pinned by no test. Their env vars are covered behaviourally (cmd/alias_test.go, cmd/spawn_seams_test.go, cmd/version_guard_test.go set them and assert the resolved store is read), but cmd/testmain_isolation_test.go poisons those variables package-wide, so no test ever exercises those three files at the default config base. All three are correct today (verified by observing the migration land on the right name). Cheapest fix, following the pattern already established for HooksFile: extend the \"the identity declares the env var and filename together\" subtest in cmd/config_identity_test.go:49 into a table over all five ConfigFileIDs and both ConfigDirIDs.",
+              "files": [
+                "cmd/config_identity_test.go",
+                "internal/xdg/configfile.go",
+                "internal/xdg/configdir.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-35",
+              "source": "reviewer",
+              "summary": "internal/xdg has no leaf guard, and its stdlib-only property is now load-bearing for more packages than before.",
+              "detail": "nanoid, shellquote, prefs, hooks, theme and harnesstest all carry a leaf/package-deps guard; xdg does not. Pre-existing, but this task made xdg the shared home of every config file and directory identity, so more packages now depend on it staying stdlib-only. sourceguardtest.AssertDepsWithin makes it a five-line file.",
+              "files": [
+                "internal/xdg"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-35",
+              "source": "reviewer",
+              "summary": "The composite-bootstrap flake family is BROADER than the single named test, and was proven present on a pristine HEAD export.",
+              "detail": "Beyond TestCompositeBootstrap_FObservables, the reviewer saw TestCompositeBootstrap_ConvergesPgrepToOneDaemon and TestCompositeBootstrap_FreshAcquireDaemonLockRefusesPostBootstrap fail with the identical pgrep count=0 / stalled signature. Confirmed NOT caused by any change in this task: a git archive export of pristine HEAD into a scratch dir failed twice in three runs of the same package. Fails when the package runs whole, passes in isolation, on both trees. This extends the existing banked entry whose root cause is internal/tmux/portal_saver.go waitForSaverDaemonReady polling a hardcoded 2s budget, WARNing on expiry and returning nil — the whole family should be verdicted together against that one production fix.",
+              "files": [
+                "internal/tmux/portal_saver.go",
+                "cmd/bootstrap"
               ]
             }
           ]
