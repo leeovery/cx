@@ -300,7 +300,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 8,
-          "current_task": "resume-hooks-silently-lost-8-36",
+          "current_task": "resume-hooks-silently-lost-8-37",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -447,7 +447,8 @@
             "resume-hooks-silently-lost-8-33",
             "resume-hooks-silently-lost-8-34",
             "resume-hooks-silently-lost-8-35",
-            "resume-hooks-silently-lost-8-36"
+            "resume-hooks-silently-lost-8-36",
+            "resume-hooks-silently-lost-8-37"
           ],
           "staging": {
             "p1": {
@@ -1818,6 +1819,19 @@
               "files": [
                 "internal/tmux/portal_saver.go",
                 "cmd/bootstrap"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-37",
+              "source": "reviewer",
+              "summary": "Relocating the shared send-keys driver into test-only internal/tmuxtest would remove the exported-but-unproduction method from the production client and make its doc comment unnecessary.",
+              "detail": "internal/tmux/tmux.go:654 exports (*Client).SendKeys solely for test consumption. internal/tmuxtest already owns the per-test -L/-S socket and hands out ts.Client(), so a Socket.SendKeys(target, command) there could compose the same tmux send-keys -t <target> <cmd> Enter against its own socket without needing the clients unexported cmd field, and the production client would shed an export with no production caller. Out of task 8-37 scope by construction (its Do-item 3 says leave SendKeys and its drivers exactly as they are) and it would edit cmd/bootstrap/eager_signal_hydrate_integration_test.go:154,237, internal/restore/exit_closes_pane_integration_test.go:36,59 and internal/tmux/tmux_test.go. Note the standards tension this would also resolve: code-quality.md:52 forbids cardinality claims like \"nothing consumes this yet\", and the comment 8-37 was required to write is that exact class — if a production caller ever appears, that comment must be deleted in the same edit.",
+              "files": [
+                "internal/tmux/tmux.go",
+                "internal/tmuxtest/socket.go",
+                "cmd/bootstrap/eager_signal_hydrate_integration_test.go",
+                "internal/restore/exit_closes_pane_integration_test.go",
+                "internal/tmux/tmux_test.go"
               ]
             }
           ]
