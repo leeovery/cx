@@ -27,7 +27,7 @@ func TestSweepOrphanDaemons_EmitsCleanSummaryCountingSuccessfulKills(t *testing.
 		t.Fatalf("SweepOrphanDaemons returned error: %v", err)
 	}
 
-	rec := sink.RecordsWith("clean", "orphan-daemon sweep complete").Only(t, "clean orphan-daemon sweep complete record")
+	rec := sink.Records().Matching("clean", "orphan-daemon sweep complete").Only(t, "clean orphan-daemon sweep complete record")
 	if rec.Level != slog.LevelInfo {
 		t.Errorf("summary level = %v, want INFO", rec.Level)
 	}
@@ -61,7 +61,7 @@ func TestSweepOrphanDaemons_DemotesPerKillInfoToDebug(t *testing.T) {
 			t.Errorf("old per-kill INFO message must be gone: %+v", r)
 		}
 	}
-	dbg := sink.RecordsAtExactLevelWith(slog.LevelDebug, "clean", "orphan killed").Only(t, "DEBUG 'orphan killed' under clean")
+	dbg := sink.Records().Matching("clean", "orphan killed").AtExactLevel(slog.LevelDebug).Only(t, "DEBUG 'orphan killed' under clean")
 	if pid := dbg.IntAttr(t, "target_pid"); pid != 2001 {
 		t.Errorf("DEBUG 'orphan killed' target_pid = %d, want 2001", pid)
 	}
@@ -89,14 +89,14 @@ func TestSweepOrphanDaemons_ExcludesSkippedAndFailedFromKilled(t *testing.T) {
 		t.Fatalf("SweepOrphanDaemons returned error: %v", err)
 	}
 
-	rec := sink.RecordsWith("clean", "orphan-daemon sweep complete").Only(t, "clean orphan-daemon sweep complete record")
+	rec := sink.Records().Matching("clean", "orphan-daemon sweep complete").Only(t, "clean orphan-daemon sweep complete record")
 	if got := rec.IntAttr(t, "killed"); got != 1 {
 		t.Errorf("killed = %d, want 1 (excludes skip + failed kill)", got)
 	}
 
-	_ = sink.RecordsAtExactLevelWith(slog.LevelDebug, "bootstrap", "sweep: pid not identity-checked as portal daemon, skipping").
+	_ = sink.Records().Matching("bootstrap", "sweep: pid not identity-checked as portal daemon, skipping").AtExactLevel(slog.LevelDebug).
 		Only(t, "identity-skip DEBUG")
-	_ = sink.RecordsAtExactLevelWith(slog.LevelWarn, "bootstrap", "sweep: kill failed").Only(t, "kill-failure WARN")
+	_ = sink.Records().Matching("bootstrap", "sweep: kill failed").AtExactLevel(slog.LevelWarn).Only(t, "kill-failure WARN")
 }
 
 func TestSweepOrphanDaemons_NoSummaryWhenPgrepFails(t *testing.T) {
@@ -112,7 +112,7 @@ func TestSweepOrphanDaemons_NoSummaryWhenPgrepFails(t *testing.T) {
 		t.Fatalf("SweepOrphanDaemons returned error: %v", err)
 	}
 
-	if got := sink.RecordsWith("clean", "orphan-daemon sweep complete"); len(got) != 0 {
+	if got := sink.Records().Matching("clean", "orphan-daemon sweep complete"); len(got) != 0 {
 		t.Errorf("expected no summary on pgrep failure (returns before loop), got %d: %+v", len(got), got)
 	}
 }
@@ -133,7 +133,7 @@ func TestSweepOrphanDaemons_SummaryWithZeroKilledWhenSaverPanePIDErrors(t *testi
 		t.Fatalf("SweepOrphanDaemons returned error: %v", err)
 	}
 
-	rec := sink.RecordsWith("clean", "orphan-daemon sweep complete").Only(t, "clean orphan-daemon sweep complete record")
+	rec := sink.Records().Matching("clean", "orphan-daemon sweep complete").Only(t, "clean orphan-daemon sweep complete record")
 	if got := rec.IntAttr(t, "killed"); got != 0 {
 		t.Errorf("killed = %d, want 0", got)
 	}
@@ -160,7 +160,7 @@ func TestCleanStaleMarkers_EmitsCleanSummaryCountingSuccessfulUnsets(t *testing.
 		t.Fatalf("CleanStaleMarkers returned error: %v", err)
 	}
 
-	rec := sink.RecordsWith("clean", "marker sweep complete").Only(t, "clean marker sweep complete record")
+	rec := sink.Records().Matching("clean", "marker sweep complete").Only(t, "clean marker sweep complete record")
 	if rec.Level != slog.LevelInfo {
 		t.Errorf("summary level = %v, want INFO", rec.Level)
 	}
@@ -195,7 +195,7 @@ func TestCleanStaleMarkers_SummaryUnsetCountsOnlySuccessfulUnsets(t *testing.T) 
 		t.Errorf("expected returned error to wrap sentinel %v, got %v", sentinel, err)
 	}
 
-	rec := sink.RecordsWith("clean", "marker sweep complete").Only(t, "clean marker sweep complete record")
+	rec := sink.Records().Matching("clean", "marker sweep complete").Only(t, "clean marker sweep complete record")
 	if got := rec.IntAttr(t, "unset"); got != 2 {
 		t.Errorf("unset = %d, want 2 (counts successful unsets only)", got)
 	}
@@ -223,11 +223,11 @@ func TestCleanStaleMarkers_SummaryUnsetZeroOnMassUnsetHazardDeferral(t *testing.
 		t.Errorf("expected zero unset calls under deferral, got %v", unsetter.calls)
 	}
 
-	rec := sink.RecordsWith("clean", "marker sweep complete").Only(t, "clean marker sweep complete record")
+	rec := sink.Records().Matching("clean", "marker sweep complete").Only(t, "clean marker sweep complete record")
 	if got := rec.IntAttr(t, "unset"); got != 0 {
 		t.Errorf("unset = %d, want 0 (never a false unset on deferral)", got)
 	}
-	_ = sink.RecordsAtExactLevelWith(slog.LevelWarn, "bootstrap", massUnsetDeferralWarnMessage).
+	_ = sink.Records().Matching("bootstrap", massUnsetDeferralWarnMessage).AtExactLevel(slog.LevelWarn).
 		Only(t, "mass-unset-hazard deferral WARN")
 }
 
@@ -247,7 +247,7 @@ func TestCleanStaleMarkers_NoSummaryWhenListErrorReturns(t *testing.T) {
 		if err := c.CleanStaleMarkers(); err == nil {
 			t.Fatalf("expected non-nil error from ListSkeletonMarkers failure")
 		}
-		if got := sink.RecordsWith("clean", "marker sweep complete"); len(got) != 0 {
+		if got := sink.Records().Matching("clean", "marker sweep complete"); len(got) != 0 {
 			t.Errorf("expected no summary on ListSkeletonMarkers error, got %d: %+v", len(got), got)
 		}
 	})
@@ -267,7 +267,7 @@ func TestCleanStaleMarkers_NoSummaryWhenListErrorReturns(t *testing.T) {
 		if err := c.CleanStaleMarkers(); err == nil {
 			t.Fatalf("expected non-nil error from ListAllPanesWithFormat failure")
 		}
-		if got := sink.RecordsWith("clean", "marker sweep complete"); len(got) != 0 {
+		if got := sink.Records().Matching("clean", "marker sweep complete"); len(got) != 0 {
 			t.Errorf("expected no summary on ListAllPanesWithFormat error, got %d: %+v", len(got), got)
 		}
 	})
@@ -289,7 +289,7 @@ func TestCleanStaleMarkers_SummaryUnsetZeroOnEmptyMarkersNoOp(t *testing.T) {
 		t.Fatalf("CleanStaleMarkers returned error: %v", err)
 	}
 
-	rec := sink.RecordsWith("clean", "marker sweep complete").Only(t, "clean marker sweep complete record")
+	rec := sink.Records().Matching("clean", "marker sweep complete").Only(t, "clean marker sweep complete record")
 	if got := rec.IntAttr(t, "unset"); got != 0 {
 		t.Errorf("unset = %d, want 0 on empty-markers no-op", got)
 	}

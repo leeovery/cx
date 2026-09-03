@@ -484,7 +484,7 @@ func TestOpenCommand_SessionPin_EmitsNoResolveLine(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if recs := sink.RecordsWith("resolve", "resolved"); len(recs) != 0 {
+	if recs := sink.Records().Matching("resolve", "resolved"); len(recs) != 0 {
 		t.Fatalf("expected no resolve records for a -s pin, got %d", len(recs))
 	}
 }
@@ -672,7 +672,7 @@ func TestOpenCommand_PathPin_EmitsNoResolveLine(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if recs := sink.RecordsWith("resolve", "resolved"); len(recs) != 0 {
+	if recs := sink.Records().Matching("resolve", "resolved"); len(recs) != 0 {
 		t.Fatalf("expected no resolve records for a -p pin, got %d", len(recs))
 	}
 }
@@ -825,7 +825,7 @@ func TestOpenCommand_AliasPin_EmitsNoResolveLine(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if recs := sink.RecordsWith("resolve", "resolved"); len(recs) != 0 {
+	if recs := sink.Records().Matching("resolve", "resolved"); len(recs) != 0 {
 		t.Fatalf("expected no resolve records for a -a pin, got %d", len(recs))
 	}
 }
@@ -1018,7 +1018,7 @@ func TestOpenCommand_ZoxidePin_EmitsNoResolveLine(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if recs := sink.RecordsWith("resolve", "resolved"); len(recs) != 0 {
+	if recs := sink.Records().Matching("resolve", "resolved"); len(recs) != 0 {
 		t.Fatalf("expected no resolve records for a -z pin, got %d", len(recs))
 	}
 }
@@ -1898,7 +1898,7 @@ func TestOpenCommand_ResolveLog_SessionHit(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	r := sink.RecordsWith("resolve", "resolved").Only(t, "resolve resolved record")
+	r := sink.Records().Matching("resolve", "resolved").Only(t, "resolve resolved record")
 	if r.Level != slog.LevelInfo {
 		t.Errorf("resolve record level = %v, want INFO", r.Level)
 	}
@@ -1927,7 +1927,7 @@ func TestOpenCommand_ResolveLog_ZoxideMint(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	r := sink.RecordsWith("resolve", "resolved").Only(t, "resolve resolved record")
+	r := sink.Records().Matching("resolve", "resolved").Only(t, "resolve resolved record")
 	if r.Level != slog.LevelInfo {
 		t.Errorf("resolve record level = %v, want INFO", r.Level)
 	}
@@ -1959,7 +1959,7 @@ func TestOpenCommand_ResolveLog_Miss(t *testing.T) {
 		t.Errorf("error = %q, want %q", err.Error(), want)
 	}
 
-	r := sink.RecordsWith("resolve", "resolved").Only(t, "resolve resolved record")
+	r := sink.Records().Matching("resolve", "resolved").Only(t, "resolve resolved record")
 	if r.Level != slog.LevelInfo {
 		t.Errorf("resolve record level = %v, want INFO", r.Level)
 	}
@@ -1990,7 +1990,7 @@ func TestOpenCommand_ResolveLog_GlobEmitsNoLine(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if recs := sink.RecordsWith("resolve", "resolved"); len(recs) != 0 {
+	if recs := sink.Records().Matching("resolve", "resolved"); len(recs) != 0 {
 		t.Fatalf("expected no resolve records for a glob target, got %d", len(recs))
 	}
 }
@@ -2001,7 +2001,7 @@ func TestEmitResolveDecision_Helper(t *testing.T) {
 
 		emitResolveDecision("dev", &resolver.SessionResult{Name: "dev", Domain: "session"})
 
-		rec := sink.RecordsWith("resolve", "resolved").Only(t, "resolve resolved record")
+		rec := sink.Records().Matching("resolve", "resolved").Only(t, "resolve resolved record")
 		if rec.Level != slog.LevelInfo {
 			t.Errorf("resolve record level = %v, want INFO", rec.Level)
 		}
@@ -2015,7 +2015,7 @@ func TestEmitResolveDecision_Helper(t *testing.T) {
 
 		emitResolveDecision("dev*", &resolver.SessionResult{Name: "dev-1", Domain: "glob"})
 
-		if recs := sink.RecordsWith("resolve", "resolved"); len(recs) != 0 {
+		if recs := sink.Records().Matching("resolve", "resolved"); len(recs) != 0 {
 			t.Fatalf("expected no resolve records for a glob target, got %d", len(recs))
 		}
 	})
@@ -2027,7 +2027,7 @@ func TestLogExecHandoff_Helper(t *testing.T) {
 
 		logExecHandoff([]string{"tmux", "attach-session", "-t", "=foo"})
 
-		rec := sink.RecordsWith("process", "exec").Only(t, "process exec record")
+		rec := sink.Records().Matching("process", "exec").Only(t, "process exec record")
 		if rec.Level != slog.LevelInfo {
 			t.Errorf("exec marker level = %v, want INFO", rec.Level)
 		}
@@ -2044,7 +2044,7 @@ func TestLogExecHandoff_Helper(t *testing.T) {
 
 		logExecHandoff(nil)
 
-		rec := sink.RecordsWith("process", "exec").Only(t, "process exec record")
+		rec := sink.Records().Matching("process", "exec").Only(t, "process exec record")
 		if gotArgs := rec.AttrString(t, "args"); gotArgs != "" {
 			t.Errorf("args attr = %q, want empty", gotArgs)
 		}
@@ -2636,7 +2636,7 @@ type orderingExecer struct {
 func (e *orderingExecer) Exec(argv0 string, argv []string, _ []string) error {
 	e.argv0 = argv0
 	e.argv = argv
-	if len(e.sink.RecordsWith("process", "exec")) > 0 {
+	if len(e.sink.Records().Matching("process", "exec")) > 0 {
 		e.execMarkerSeen = true
 	}
 	return nil
@@ -2653,7 +2653,7 @@ func TestAttachConnector_EmitsExecMarkerBeforeExec(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		r := sink.RecordsWith("process", "exec").Only(t, "process exec record")
+		r := sink.Records().Matching("process", "exec").Only(t, "process exec record")
 
 		if r.Level != slog.LevelInfo {
 			t.Errorf("exec marker level = %v, want INFO", r.Level)
@@ -2708,7 +2708,7 @@ func TestPathOpener_EmitsExecMarkerBeforeExec_OutsideTmux(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		r := sink.RecordsWith("process", "exec").Only(t, "process exec record")
+		r := sink.Records().Matching("process", "exec").Only(t, "process exec record")
 
 		if r.Level != slog.LevelInfo {
 			t.Errorf("exec marker level = %v, want INFO", r.Level)
@@ -2774,7 +2774,7 @@ func TestExecMarker_ArgsLoggedVerbatim(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	rec := sink.RecordsWith("process", "exec").Only(t, "process exec record")
+	rec := sink.Records().Matching("process", "exec").Only(t, "process exec record")
 	gotArgs := rec.AttrString(t, "args")
 	wantArgs := "new-session -A -s myproject-abc123 -c /home/user/project " + shellCmd
 	if gotArgs != wantArgs {
@@ -2792,7 +2792,7 @@ func TestSwitchConnector_EmitsNoExecMarker(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if recs := sink.RecordsWith("process", "exec"); len(recs) != 0 {
+	if recs := sink.Records().Matching("process", "exec"); len(recs) != 0 {
 		t.Errorf("SwitchConnector must emit no process: exec marker, got %d", len(recs))
 	}
 }
@@ -2813,7 +2813,7 @@ func TestPathOpener_InsideTmux_EmitsNoExecMarker(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if recs := sink.RecordsWith("process", "exec"); len(recs) != 0 {
+	if recs := sink.Records().Matching("process", "exec"); len(recs) != 0 {
 		t.Errorf("PathOpener inside-tmux must emit no process: exec marker, got %d", len(recs))
 	}
 	if ex.argv0 != "" {
@@ -2904,7 +2904,7 @@ func TestExecMarker_VisibleAtWARN(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	r := sink.RecordsWith("process", "exec").Only(t, "process exec record")
+	r := sink.Records().Matching("process", "exec").Only(t, "process exec record")
 	if target := r.AttrString(t, "target"); target != "tmux" {
 		t.Errorf("target attr = %q, want %q", target, "tmux")
 	}

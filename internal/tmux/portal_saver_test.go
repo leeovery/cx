@@ -1143,7 +1143,7 @@ func (b *barrierLog) Logger() *slog.Logger { return slog.New(&b.sink) }
 
 func (b *barrierLog) warns() []string {
 	var out []string
-	for _, rec := range b.sink.RecordsAtExactLevel(slog.LevelWarn) {
+	for _, rec := range b.sink.Records().AtExactLevel(slog.LevelWarn) {
 		out = append(out, rec.AttrOrEmpty("component")+" | "+rec.Msg)
 	}
 	return out
@@ -2288,7 +2288,7 @@ func TestSetVersionWriterLogger_BootstrapWrapperEmitsDebugBreadcrumb(t *testing.
 		t.Fatalf("portalSaverWriteVersionFile: %v", err)
 	}
 
-	b := sink.RecordsWithMessage("daemon.version write").Only(t, "daemon.version write record")
+	b := sink.Records().WithMessage("daemon.version write").Only(t, "daemon.version write record")
 	if b.Level != slog.LevelDebug {
 		t.Errorf("breadcrumb level = %v, want DEBUG", b.Level)
 	}
@@ -3502,7 +3502,7 @@ func TestKillSaverAndWaitForDaemon_Escalation_NoPIDFile_EscalationNeverRuns(t *t
 const escalationBreadcrumbMessage = "kill-barrier escalating to SIGKILL"
 
 func escalationDebugRecords(sink *logtest.Sink) logtest.Records {
-	return sink.RecordsWithMessage(escalationBreadcrumbMessage)
+	return sink.Records().WithMessage(escalationBreadcrumbMessage)
 }
 
 func TestEscalateKillToSIGKILL_EmitsDebugBreadcrumbWithTargetPIDOnEscalationBranch(t *testing.T) {

@@ -105,7 +105,7 @@ func TestEagerSignalHydrate_PerFIFOWriteFailureLogsAndContinues(t *testing.T) {
 		t.Errorf("Signaler.SendSignal call count = %d; want 3 (loop must continue past the failing write); calls=%v", len(signaler.Calls), signaler.Calls)
 	}
 
-	rec := sink.RecordsAtExactLevelWith(slog.LevelWarn, "signal", "eager-signal write fifo failed").
+	rec := sink.Records().Matching("signal", "eager-signal write fifo failed").AtExactLevel(slog.LevelWarn).
 		Only(t, "WARN under component=signal for the failing FIFO")
 	if p := rec.AttrString(t, "path"); p != failPath {
 		t.Errorf("WARN path attr = %q; want %q", p, failPath)
@@ -191,7 +191,7 @@ func TestEagerSignalHydrate_SuccessEmitsSignalledDebugBreadcrumb(t *testing.T) {
 		t.Fatalf("EagerSignalHydrate returned error: %v", err)
 	}
 
-	dbg := sink.RecordsAtExactLevelWith(slog.LevelDebug, "signal", "fifo signalled")
+	dbg := sink.Records().Matching("signal", "fifo signalled").AtExactLevel(slog.LevelDebug)
 	if len(dbg) != 2 {
 		t.Fatalf("expected 2 DEBUG 'fifo signalled' under component=signal, got %d: %+v", len(dbg), sink.Records())
 	}
@@ -206,7 +206,7 @@ func TestEagerSignalHydrate_SuccessEmitsSignalledDebugBreadcrumb(t *testing.T) {
 		}
 	}
 
-	if got := sink.RecordsAtExactLevelWith(slog.LevelInfo, "signal", "fifo signalled"); len(got) != 0 {
+	if got := sink.Records().Matching("signal", "fifo signalled").AtExactLevel(slog.LevelInfo); len(got) != 0 {
 		t.Errorf("'fifo signalled' must be DEBUG, not INFO; got %d INFO entries: %+v", len(got), got)
 	}
 }

@@ -49,7 +49,7 @@ func TestHookSweepStandsDownOnLockTimeout(t *testing.T) {
 		}
 
 		assertStandDown(t, sink, slog.LevelWarn, "lock-timeout")
-		for _, rec := range injectedSink.RecordsAtExactLevel(slog.LevelWarn) {
+		for _, rec := range injectedSink.Records().AtExactLevel(slog.LevelWarn) {
 			t.Errorf("unexpected WARN on the injected logger: %+v", rec)
 		}
 	})

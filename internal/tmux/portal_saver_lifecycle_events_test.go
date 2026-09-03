@@ -78,7 +78,7 @@ func TestBootstrapPortalSaver_EmitsPlaceholderCreatedWithTmuxPane(t *testing.T) 
 		t.Fatalf("BootstrapPortalSaver returned error: %v", err)
 	}
 
-	rec := sink.RecordsWith("saver", "placeholder created").Only(t, "saver placeholder created record")
+	rec := sink.Records().Matching("saver", "placeholder created").Only(t, "saver placeholder created record")
 	if rec.Level != slog.LevelInfo {
 		t.Errorf("level = %v, want INFO", rec.Level)
 	}
@@ -114,7 +114,7 @@ func TestBootstrapPortalSaver_EmitsDestroyUnattachedOffOnCreateBranch(t *testing
 		t.Fatalf("BootstrapPortalSaver returned error: %v", err)
 	}
 
-	rec := sink.RecordsWith("saver", "destroy-unattached off").Only(t, "saver destroy-unattached off record")
+	rec := sink.Records().Matching("saver", "destroy-unattached off").Only(t, "saver destroy-unattached off record")
 	if rec.Level != slog.LevelInfo {
 		t.Errorf("level = %v, want INFO", rec.Level)
 	}
@@ -145,7 +145,7 @@ func TestBootstrapPortalSaver_EmitsDestroyUnattachedOffOnAliveHappyPath_AndNotRe
 		t.Fatalf("BootstrapPortalSaver returned error: %v", err)
 	}
 
-	rec := sink.RecordsWith("saver", "destroy-unattached off").Only(t, "saver destroy-unattached off record")
+	rec := sink.Records().Matching("saver", "destroy-unattached off").Only(t, "saver destroy-unattached off record")
 	if rec.Level != slog.LevelInfo {
 		t.Errorf("level = %v, want INFO", rec.Level)
 	}
@@ -153,13 +153,13 @@ func TestBootstrapPortalSaver_EmitsDestroyUnattachedOffOnAliveHappyPath_AndNotRe
 		t.Errorf("tmux_pane = %q, want %q", got, "%9")
 	}
 
-	if evs := sink.RecordsWith("saver", "respawn-daemon"); len(evs) != 0 {
+	if evs := sink.Records().Matching("saver", "respawn-daemon"); len(evs) != 0 {
 		t.Errorf("expected 0 respawn-daemon events on alive happy path, got %d: %+v", len(evs), evs)
 	}
-	if evs := sink.RecordsWith("saver", "daemon ready"); len(evs) != 0 {
+	if evs := sink.Records().Matching("saver", "daemon ready"); len(evs) != 0 {
 		t.Errorf("expected 0 daemon ready events on alive happy path, got %d: %+v", len(evs), evs)
 	}
-	if evs := sink.RecordsWith("saver", "placeholder created"); len(evs) != 0 {
+	if evs := sink.Records().Matching("saver", "placeholder created"); len(evs) != 0 {
 		t.Errorf("expected 0 placeholder created events on alive happy path, got %d: %+v", len(evs), evs)
 	}
 }
@@ -196,7 +196,7 @@ func TestBootstrapPortalSaver_EmitsRespawnDaemonWithFromToPidAndTmuxPane(t *test
 		t.Fatalf("BootstrapPortalSaver returned error: %v", err)
 	}
 
-	rec := sink.RecordsWith("saver", "respawn-daemon").Only(t, "saver respawn-daemon record")
+	rec := sink.Records().Matching("saver", "respawn-daemon").Only(t, "saver respawn-daemon record")
 	if rec.Level != slog.LevelInfo {
 		t.Errorf("level = %v, want INFO", rec.Level)
 	}
@@ -243,7 +243,7 @@ func TestBootstrapPortalSaver_StillEmitsRespawnDaemonBestEffortWhenPanePIDReadFa
 		t.Fatalf("BootstrapPortalSaver must not abort on a pid-read miss, got: %v", err)
 	}
 
-	rec := sink.RecordsWith("saver", "respawn-daemon").Only(t, "saver respawn-daemon record")
+	rec := sink.Records().Matching("saver", "respawn-daemon").Only(t, "saver respawn-daemon record")
 	if got := rec.IntAttr(t, "from_pid"); got != 0 {
 		t.Errorf("from_pid = %d, want 0 (read failed)", got)
 	}
@@ -251,7 +251,7 @@ func TestBootstrapPortalSaver_StillEmitsRespawnDaemonBestEffortWhenPanePIDReadFa
 		t.Errorf("to_pid = %d, want 2222", got)
 	}
 
-	failures := sink.RecordsWith("saver", "saver respawn: pane-pid read failed")
+	failures := sink.Records().Matching("saver", "saver respawn: pane-pid read failed")
 	if len(failures) == 0 {
 		t.Fatalf("expected a pane-pid read-failure log line, got none: %+v", sink.Records())
 	}
@@ -274,7 +274,7 @@ func TestWaitForSaverDaemonReady_EmitsDaemonReadyWithTargetPidOnSuccess(t *testi
 		t.Fatalf("WaitForSaverDaemonReady returned error: %v", err)
 	}
 
-	rec := sink.RecordsWith("saver", "daemon ready").Only(t, "saver daemon ready record")
+	rec := sink.Records().Matching("saver", "daemon ready").Only(t, "saver daemon ready record")
 	if rec.Level != slog.LevelInfo {
 		t.Errorf("level = %v, want INFO", rec.Level)
 	}
@@ -299,7 +299,7 @@ func TestWaitForSaverDaemonReady_EmitsNoDaemonReadyAndKeepsWarnOnTimeout(t *test
 		t.Fatalf("WaitForSaverDaemonReady returned error: %v", err)
 	}
 
-	if evs := sink.RecordsWith("saver", "daemon ready"); len(evs) != 0 {
+	if evs := sink.Records().Matching("saver", "daemon ready"); len(evs) != 0 {
 		t.Errorf("expected 0 daemon ready events on timeout, got %d: %+v", len(evs), evs)
 	}
 	if len(barrier.warns()) != 1 {
@@ -336,7 +336,7 @@ func TestKillSaverAndWaitForDaemon_EmitsKillBarrierStartedWhenPriorDaemonAlive(t
 	startedAtKillTime := -1
 	script := &portalSaverScript{
 		killSession: func(int) (string, error) {
-			startedAtKillTime = len(sink.RecordsWith("saver", "kill-barrier started"))
+			startedAtKillTime = len(sink.Records().Matching("saver", "kill-barrier started"))
 			return "", nil
 		},
 	}
@@ -347,7 +347,7 @@ func TestKillSaverAndWaitForDaemon_EmitsKillBarrierStartedWhenPriorDaemonAlive(t
 		t.Fatalf("KillSaverAndWaitForDaemon returned error: %v", err)
 	}
 
-	rec := sink.RecordsWith("saver", "kill-barrier started").Only(t, "saver kill-barrier started record")
+	rec := sink.Records().Matching("saver", "kill-barrier started").Only(t, "saver kill-barrier started record")
 	if rec.Level != slog.LevelInfo {
 		t.Errorf("level = %v, want INFO", rec.Level)
 	}
@@ -380,7 +380,7 @@ func TestKillSaverAndWaitForDaemon_NoKillBarrierStartedOnNoPriorPIDShortcut(t *t
 		t.Fatalf("KillSaverAndWaitForDaemon returned error: %v", err)
 	}
 
-	if evs := sink.RecordsWith("saver", "kill-barrier started"); len(evs) != 0 {
+	if evs := sink.Records().Matching("saver", "kill-barrier started"); len(evs) != 0 {
 		t.Errorf("expected 0 kill-barrier started events on no-prior-PID shortcut, got %d: %+v", len(evs), evs)
 	}
 	if len(barrier.warns()) != 0 {
@@ -405,7 +405,7 @@ func TestKillSaverAndWaitForDaemon_NoKillBarrierStartedWhenPriorDaemonAlreadyDea
 		t.Fatalf("KillSaverAndWaitForDaemon returned error: %v", err)
 	}
 
-	if evs := sink.RecordsWith("saver", "kill-barrier started"); len(evs) != 0 {
+	if evs := sink.Records().Matching("saver", "kill-barrier started"); len(evs) != 0 {
 		t.Errorf("expected 0 kill-barrier started events when prior daemon already dead, got %d: %+v", len(evs), evs)
 	}
 	if len(barrier.warns()) != 0 {
@@ -430,7 +430,7 @@ func TestKillSaverAndWaitForDaemon_EmitsKillBarrierEscalatedAboveDebugBreadcrumb
 	killCalls := 0
 	escalatedAtKillTime := -1
 	installBarrierSendSIGKILL(t, func(int) error {
-		escalatedAtKillTime = len(sink.RecordsWith("saver", "kill-barrier escalated"))
+		escalatedAtKillTime = len(sink.Records().Matching("saver", "kill-barrier escalated"))
 		killCalls++
 		return nil
 	})
@@ -446,7 +446,7 @@ func TestKillSaverAndWaitForDaemon_EmitsKillBarrierEscalatedAboveDebugBreadcrumb
 		t.Fatalf("KillSaverAndWaitForDaemon returned error: %v", err)
 	}
 
-	rec := sink.RecordsWith("saver", "kill-barrier escalated").Only(t, "saver kill-barrier escalated record")
+	rec := sink.Records().Matching("saver", "kill-barrier escalated").Only(t, "saver kill-barrier escalated record")
 	if rec.Level != slog.LevelInfo {
 		t.Errorf("level = %v, want INFO", rec.Level)
 	}
@@ -465,7 +465,7 @@ func TestKillSaverAndWaitForDaemon_EmitsKillBarrierEscalatedAboveDebugBreadcrumb
 	if breadcrumbIdx < 0 {
 		t.Fatalf("expected the existing DEBUG breadcrumb %q to still be present: %+v", "kill-barrier escalating to SIGKILL", sink.Records())
 	}
-	if breadcrumbs := sink.RecordsWith("saver", "kill-barrier escalating to SIGKILL"); len(breadcrumbs) != 1 {
+	if breadcrumbs := sink.Records().Matching("saver", "kill-barrier escalating to SIGKILL"); len(breadcrumbs) != 1 {
 		t.Errorf("expected exactly 1 DEBUG breadcrumb, got %d: %+v", len(breadcrumbs), breadcrumbs)
 	}
 	escalatedIdx := firstSaverIndex(sink, "kill-barrier escalated")
@@ -523,7 +523,7 @@ func TestKillSaverAndWaitForDaemon_NoKillBarrierEscalatedAndKeepsSingleWarnOnIde
 			if killCalls != 0 {
 				t.Errorf("expected 0 SIGKILL seam calls on identity-skip branch, got %d", killCalls)
 			}
-			if evs := sink.RecordsWith("saver", "kill-barrier escalated"); len(evs) != 0 {
+			if evs := sink.Records().Matching("saver", "kill-barrier escalated"); len(evs) != 0 {
 				t.Errorf("expected 0 kill-barrier escalated events on identity-skip branch, got %d: %+v", len(evs), evs)
 			}
 			if len(barrier.warns()) != 1 {
@@ -557,7 +557,7 @@ func TestKillSaverAndWaitForDaemon_EmitsPlaceholderDiedReasonSignalOnKillSession
 		t.Fatalf("KillSaverAndWaitForDaemon returned error: %v", err)
 	}
 
-	rec := sink.RecordsWith("saver", "placeholder died").Only(t, "saver placeholder died record")
+	rec := sink.Records().Matching("saver", "placeholder died").Only(t, "saver placeholder died record")
 	if rec.Level != slog.LevelInfo {
 		t.Errorf("level = %v, want INFO", rec.Level)
 	}
@@ -603,7 +603,7 @@ func TestKillSaverAndWaitForDaemon_EmitsPlaceholderDiedReasonSignalOnPostSIGKILL
 		t.Fatalf("KillSaverAndWaitForDaemon returned error: %v", err)
 	}
 
-	rec := sink.RecordsWith("saver", "placeholder died").Only(t, "saver placeholder died record")
+	rec := sink.Records().Matching("saver", "placeholder died").Only(t, "saver placeholder died record")
 	if rec.Level != slog.LevelInfo {
 		t.Errorf("level = %v, want INFO", rec.Level)
 	}
@@ -647,13 +647,13 @@ func TestKillSaverAndWaitForDaemon_PreservesAtMostOneWarnContractAcrossLifecycle
 		if len(barrier.warns()) != 1 {
 			t.Errorf("expected exactly 1 WARN on escalation-survive path, got %d: %v", len(barrier.warns()), barrier.warns())
 		}
-		if evs := sink.RecordsWith("saver", "kill-barrier started"); len(evs) != 1 {
+		if evs := sink.Records().Matching("saver", "kill-barrier started"); len(evs) != 1 {
 			t.Errorf("expected 1 kill-barrier started, got %d", len(evs))
 		}
-		if evs := sink.RecordsWith("saver", "kill-barrier escalated"); len(evs) != 1 {
+		if evs := sink.Records().Matching("saver", "kill-barrier escalated"); len(evs) != 1 {
 			t.Errorf("expected 1 kill-barrier escalated, got %d", len(evs))
 		}
-		if evs := sink.RecordsWith("saver", "placeholder died"); len(evs) != 0 {
+		if evs := sink.Records().Matching("saver", "placeholder died"); len(evs) != 0 {
 			t.Errorf("expected 0 placeholder died on never-exits path, got %d: %+v", len(evs), evs)
 		}
 	})

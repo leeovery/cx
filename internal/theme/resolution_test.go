@@ -944,10 +944,10 @@ func TestResolveNominationFrom_EmitsNoLoadedRecord(t *testing.T) {
 	if !got.Slots[0].FellBack {
 		t.Fatalf("slot = %+v, want the fallback applied — the assertions below need one", got.Slots[0])
 	}
-	if n := len(sink.RecordsWithMessage("loaded")); n != 0 {
+	if n := len(sink.Records().WithMessage("loaded")); n != 0 {
 		t.Errorf("a panel-open resolution emitted %d `theme: loaded` records, want 0 — the event's cadence is construction plus the commit-time load:\n%s", n, sink.Body())
 	}
-	if n := len(sink.RecordsWithMessage("fallback applied")); n != 1 {
+	if n := len(sink.Records().WithMessage("fallback applied")); n != 1 {
 		t.Errorf("emitted %d `theme: fallback applied` records, want exactly 1 — a panel open is a site that applies one:\n%s", n, sink.Body())
 	}
 }

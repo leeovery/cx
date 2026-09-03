@@ -49,7 +49,7 @@ func TestDirThemeSource_LoadSlotRecordsTheCollapsedSlug(t *testing.T) {
 		t.Fatalf("LoadSlot: %v", err)
 	}
 
-	loaded := sink.RecordsWithMessage("loaded").Only(t, "loaded record")
+	loaded := sink.Records().WithMessage("loaded").Only(t, "loaded record")
 	if got := loaded.AttrString(t, "slug"); got != theme.DefaultDarkSlug {
 		t.Errorf("`theme: loaded` carries slug=%q, want the unset slot's shipped default %q", got, theme.DefaultDarkSlug)
 	}
@@ -71,7 +71,7 @@ func TestDirThemeSource_ResolveRecordsNoLoad(t *testing.T) {
 		t.Fatalf("Resolve: %v", err)
 	}
 
-	if n := len(sink.RecordsWithMessage("loaded")); n != 0 {
+	if n := len(sink.Records().WithMessage("loaded")); n != 0 {
 		t.Errorf("Resolve emitted %d `theme: loaded` record(s), want none — recording the load is LoadSlot's job alone:\n%s", n, sink.Body())
 	}
 }

@@ -149,7 +149,7 @@ func TestHydrateTimeoutLog_EmptyHookKeyRendersEmpty(t *testing.T) {
 			t.Fatalf("runHydrate: %v", err)
 		}
 
-		rec := sink.RecordsWith("hydrate", "timeout waiting for hydrate signal").Only(t, "hydrate timeout waiting for hydrate signal record")
+		rec := sink.Records().Matching("hydrate", "timeout waiting for hydrate signal").Only(t, "hydrate timeout waiting for hydrate signal record")
 		if hookKey := rec.AttrString(t, "hook_key"); hookKey != "" {
 			t.Errorf("hook_key = %q, want empty", hookKey)
 		}

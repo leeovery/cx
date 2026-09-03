@@ -45,7 +45,7 @@ func TestDoctorFixAlwaysReportsTheHookPrune(t *testing.T) {
 		outBuf, _, _ := runDoctorWith(t, deps, "--fix")
 
 		assertSkippedPruneLine(t, outBuf.String(), "Skipped stale hook prune: the sweep could not complete")
-		if len(sink.RecordsAtExactLevelWith(slog.LevelWarn, "bootstrap", "doctor --fix: stale-hook prune failed")) != 1 {
+		if len(sink.Records().Matching("bootstrap", "doctor --fix: stale-hook prune failed").AtExactLevel(slog.LevelWarn)) != 1 {
 			t.Errorf("want one WARN naming the failed prune; records=%+v", sink.Records())
 		}
 
@@ -70,11 +70,11 @@ func TestHookStaleCleanupCountsDefaultComponent(t *testing.T) {
 		}
 
 		for _, msg := range []string{"stale-hook cleanup counts", "stale-hook cleanup removed"} {
-			if len(sink.RecordsAtExactLevelWith(slog.LevelDebug, "hooks", msg)) != 1 {
+			if len(sink.Records().Matching("hooks", msg).AtExactLevel(slog.LevelDebug)) != 1 {
 				t.Errorf("records matching debug/hooks/%q = %d, want 1; records=%+v",
-					msg, len(sink.RecordsAtExactLevelWith(slog.LevelDebug, "hooks", msg)), sink.Records())
+					msg, len(sink.Records().Matching("hooks", msg).AtExactLevel(slog.LevelDebug)), sink.Records())
 			}
-			if len(sink.RecordsAtExactLevelWith(slog.LevelDebug, "bootstrap", msg)) != 0 {
+			if len(sink.Records().Matching("bootstrap", msg).AtExactLevel(slog.LevelDebug)) != 0 {
 				t.Errorf("%q was attributed to the bootstrap component; records=%+v", msg, sink.Records())
 			}
 		}

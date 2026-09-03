@@ -157,7 +157,7 @@ func TestOrchestratorRun_propagatesEnsureServerError(t *testing.T) {
 	if !strings.Contains(fatal.UserMessage, "server boom") {
 		t.Errorf("UserMessage = %q, want to contain underlying %q", fatal.UserMessage, "server boom")
 	}
-	if sink.RecordsAtExactLevel(slog.LevelError) == nil {
+	if sink.Records().AtExactLevel(slog.LevelError) == nil {
 		t.Error("expected an ERROR record before the fatal return")
 	}
 	want := []string{"EnsureServer"}
@@ -190,7 +190,7 @@ func TestOrchestratorRun_propagatesRegisterHooksError(t *testing.T) {
 	if !strings.Contains(fatal.UserMessage, "register boom") {
 		t.Errorf("UserMessage = %q, want to contain underlying %q", fatal.UserMessage, "register boom")
 	}
-	if sink.RecordsAtExactLevel(slog.LevelError) == nil {
+	if sink.Records().AtExactLevel(slog.LevelError) == nil {
 		t.Error("expected an ERROR record before the fatal return")
 	}
 	want := []string{"EnsureServer", "RegisterPortalHooks"}
@@ -223,7 +223,7 @@ func TestOrchestratorRun_propagatesSetRestoringErrorAndSkipsLaterSteps(t *testin
 	if !strings.Contains(fatal.UserMessage, "set marker boom") {
 		t.Errorf("UserMessage = %q, want to contain underlying %q", fatal.UserMessage, "set marker boom")
 	}
-	if sink.RecordsAtExactLevel(slog.LevelError) == nil {
+	if sink.Records().AtExactLevel(slog.LevelError) == nil {
 		t.Error("expected an ERROR record before the fatal return")
 	}
 	for _, c := range r.calls {
@@ -277,7 +277,7 @@ func TestOrchestratorRun_continuesPastEnsureSaverFailureAndAppendsWarning(t *tes
 	if !equalCalls(r.calls, want) {
 		t.Errorf("calls = %v, want %v", r.calls, want)
 	}
-	if sink.RecordsAtExactLevel(slog.LevelWarn) == nil {
+	if sink.Records().AtExactLevel(slog.LevelWarn) == nil {
 		t.Error("expected at least one WARN record")
 	}
 }
@@ -296,7 +296,7 @@ func TestOrchestratorRun_continuesPastEagerSignalHydrateFailure(t *testing.T) {
 	if _, ok := errors.AsType[*FatalError](err); ok {
 		t.Errorf("Run unexpectedly returned *FatalError on soft EagerSignalHydrate failure: %v", err)
 	}
-	warn := sink.RecordsAtExactLevelWithMessage(slog.LevelWarn, "step failed").Only(t, "step-failure WARN")
+	warn := sink.Records().WithMessage("step failed").AtExactLevel(slog.LevelWarn).Only(t, "step-failure WARN")
 	if step := warn.AttrString(t, "step"); step != stepEagerSignalHydrate {
 		t.Errorf("step-failure WARN step = %q, want %q", step, stepEagerSignalHydrate)
 	}
@@ -375,7 +375,7 @@ func TestOrchestratorRun_reportsClearRestoringFailureAsFatal(t *testing.T) {
 	if !strings.Contains(fatal.UserMessage, "clear boom") {
 		t.Errorf("UserMessage = %q, want to contain underlying %q", fatal.UserMessage, "clear boom")
 	}
-	if sink.RecordsAtExactLevel(slog.LevelError) == nil {
+	if sink.Records().AtExactLevel(slog.LevelError) == nil {
 		t.Error("expected an ERROR record before the fatal return")
 	}
 }
@@ -483,10 +483,10 @@ func TestOrchestratorRun_ensureSaverFailureDoesNotProduceFatalError(t *testing.T
 	if warnings[0].Lines[0] != SaverDownWarning().Lines[0] {
 		t.Errorf("warnings[0] = %q, want SaverDownWarning", warnings[0].Lines[0])
 	}
-	if errs := sink.RecordsAtExactLevel(slog.LevelError); errs != nil {
+	if errs := sink.Records().AtExactLevel(slog.LevelError); errs != nil {
 		t.Errorf("no ERROR record may be emitted for a soft saver failure; got %+v", errs)
 	}
-	if sink.RecordsAtExactLevel(slog.LevelWarn) == nil {
+	if sink.Records().AtExactLevel(slog.LevelWarn) == nil {
 		t.Error("expected a WARN record for the soft saver failure")
 	}
 }
@@ -579,10 +579,10 @@ func TestOrchestratorRun_doesNotEscalateNonCorruptRestoreError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Run must NOT escalate a non-corrupt soft restore error; got %v", err)
 	}
-	if sink.RecordsAtExactLevel(slog.LevelWarn) == nil {
+	if sink.Records().AtExactLevel(slog.LevelWarn) == nil {
 		t.Error("expected a WARN record for the contract-violating soft failure")
 	}
-	if errs := sink.RecordsAtExactLevel(slog.LevelError); errs != nil {
+	if errs := sink.Records().AtExactLevel(slog.LevelError); errs != nil {
 		t.Errorf("no ERROR record may be emitted for a soft restore failure; got %+v", errs)
 	}
 }
@@ -660,7 +660,7 @@ func TestOrchestratorRun_continuesPastSweepFailure(t *testing.T) {
 	if _, ok := errors.AsType[*FatalError](err); ok {
 		t.Errorf("Run unexpectedly returned *FatalError on soft sweep failure: %v", err)
 	}
-	warn := sink.RecordsAtExactLevelWithMessage(slog.LevelWarn, "step failed").Only(t, "step-failure WARN")
+	warn := sink.Records().WithMessage("step failed").AtExactLevel(slog.LevelWarn).Only(t, "step-failure WARN")
 	if step := warn.AttrString(t, "step"); step != stepSweepOrphanFIFOs {
 		t.Errorf("step-failure WARN step = %q, want %q", step, stepSweepOrphanFIFOs)
 	}
@@ -715,7 +715,7 @@ func TestOrchestratorRun_continuesPastCleanStaleMarkersFailure(t *testing.T) {
 	if _, ok := errors.AsType[*FatalError](err); ok {
 		t.Errorf("Run unexpectedly returned *FatalError on soft CleanStaleMarkers failure: %v", err)
 	}
-	warn := sink.RecordsAtExactLevelWithMessage(slog.LevelWarn, "step failed").Only(t, "step-failure WARN")
+	warn := sink.Records().WithMessage("step failed").AtExactLevel(slog.LevelWarn).Only(t, "step-failure WARN")
 	if step := warn.AttrString(t, "step"); step != stepCleanStaleMarkers {
 		t.Errorf("step-failure WARN step = %q, want %q", step, stepCleanStaleMarkers)
 	}
@@ -757,7 +757,7 @@ func TestOrchestratorRun_emitsDebugLinePerExecutedStep(t *testing.T) {
 		"CleanStaleMarkers",
 		"Sweep",
 	}
-	debugs := sink.RecordsAtExactLevel(slog.LevelDebug)
+	debugs := sink.Records().AtExactLevel(slog.LevelDebug)
 	for _, step := range steps {
 		matches := 0
 		for _, rec := range debugs {
@@ -780,14 +780,14 @@ func TestOrchestratorRun_stepEntryLinesEmitUnderBootstrapComponent(t *testing.T)
 		t.Fatalf("Run errored: %v", err)
 	}
 
-	entries := sink.RecordsAtExactLevelWithMessage(slog.LevelDebug, "step entering")
+	entries := sink.Records().WithMessage("step entering").AtExactLevel(slog.LevelDebug)
 	for i, rec := range entries {
 		if comp := rec.AttrString(t, "component"); comp != "bootstrap" {
 			t.Errorf("step-entry DEBUG[%d] component = %q, want %q (record=%+v)", i, comp, "bootstrap", rec)
 		}
 	}
 	if len(entries) == 0 {
-		t.Errorf("expected ≥1 'step entering' DEBUG record; got debugs=%+v", sink.RecordsAtExactLevel(slog.LevelDebug))
+		t.Errorf("expected ≥1 'step entering' DEBUG record; got debugs=%+v", sink.Records().AtExactLevel(slog.LevelDebug))
 	}
 }
 
@@ -816,11 +816,11 @@ func stepCompleteNames(t *testing.T, sink *logtest.Sink) []string {
 }
 
 func stepCompleteRecords(sink *logtest.Sink) logtest.Records {
-	return sink.RecordsAtExactLevelWithMessage(slog.LevelInfo, "step complete")
+	return sink.Records().WithMessage("step complete").AtExactLevel(slog.LevelInfo)
 }
 
 func orchestrationCompleteRecords(sink *logtest.Sink) logtest.Records {
-	return sink.RecordsAtExactLevelWithMessage(slog.LevelInfo, "orchestration complete")
+	return sink.Records().WithMessage("orchestration complete").AtExactLevel(slog.LevelInfo)
 }
 
 func TestOrchestratorRun_emitsStepCompletePerStepInOrder(t *testing.T) {
@@ -919,7 +919,7 @@ func TestOrchestratorRun_fatalStep1ShortCircuitsBeforeSummaries(t *testing.T) {
 	if summaries := orchestrationCompleteRecords(sink); summaries != nil {
 		t.Errorf("orchestration summary must not fire on a fatal step-1 abort; got %+v", summaries)
 	}
-	if sink.RecordsAtExactLevel(slog.LevelError) == nil {
+	if sink.Records().AtExactLevel(slog.LevelError) == nil {
 		t.Error("expected the fatal ERROR line as the terminal record")
 	}
 }
@@ -956,7 +956,7 @@ func TestOrchestratorRun_fatalStep8ShortCircuitsBeforeSummary(t *testing.T) {
 	if !equalCalls(got, wantBefore) {
 		t.Errorf("step complete names before step-8 abort = %v, want %v", got, wantBefore)
 	}
-	if sink.RecordsAtExactLevel(slog.LevelError) == nil {
+	if sink.Records().AtExactLevel(slog.LevelError) == nil {
 		t.Error("expected the fatal ERROR line as the terminal record")
 	}
 }
@@ -971,7 +971,7 @@ func TestOrchestratorRun_retainsEnteringDebugWithNormalizedNames(t *testing.T) {
 	}
 
 	var enteringNames []string
-	for _, rec := range sink.RecordsAtExactLevelWithMessage(slog.LevelDebug, "step entering") {
+	for _, rec := range sink.Records().WithMessage("step entering").AtExactLevel(slog.LevelDebug) {
 		enteringNames = append(enteringNames, rec.AttrString(t, "step"))
 	}
 	if !equalCalls(enteringNames, closedStepNames) {
@@ -1050,7 +1050,7 @@ func TestOrchestratorRun_continuesPastSweepOrphanDaemonsFailure(t *testing.T) {
 	if _, ok := errors.AsType[*FatalError](err); ok {
 		t.Errorf("Run unexpectedly returned *FatalError on soft SweepOrphanDaemons failure: %v", err)
 	}
-	warn := sink.RecordsAtExactLevelWithMessage(slog.LevelWarn, "step failed").Only(t, "step-failure WARN")
+	warn := sink.Records().WithMessage("step failed").AtExactLevel(slog.LevelWarn).Only(t, "step-failure WARN")
 	if step := warn.AttrString(t, "step"); step != stepSweepOrphanDaemons {
 		t.Errorf("step-failure WARN step = %q, want %q", step, stepSweepOrphanDaemons)
 	}
@@ -1084,7 +1084,7 @@ func TestOrchestratorRun_sweepOrphanDaemonsHappyPathEmitsNoWarn(t *testing.T) {
 		t.Fatalf("Run errored: %v", err)
 	}
 
-	for _, rec := range sink.RecordsAtExactLevel(slog.LevelWarn) {
+	for _, rec := range sink.Records().AtExactLevel(slog.LevelWarn) {
 		if rec.AttrOrEmpty("step") == stepSweepOrphanDaemons {
 			t.Errorf("nil-returning SweepOrphanDaemons must not emit a Warn entry; got %+v", rec)
 		}

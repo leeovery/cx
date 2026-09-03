@@ -88,7 +88,7 @@ func TestApplyWindowGeometry_SummaryHasOnlyPanesTookAnomalousAttrs(t *testing.T)
 
 	r.ApplyWindowGeometry(sess, liveCoordsFromSaved(sess, 0, 0))
 
-	rec := sink.RecordsWithMessage("geometry complete").Only(t, "geometry complete record")
+	rec := sink.Records().WithMessage("geometry complete").Only(t, "geometry complete record")
 	got := append([]string(nil), rec.Keys...)
 	sort.Strings(got)
 	want := []string{"anomalous", "panes", "took"}
@@ -111,7 +111,7 @@ func TestApplyWindowGeometry_EmitsExactlyOneSummaryPerCall(t *testing.T) {
 
 	r.ApplyWindowGeometry(sess, liveCoordsFromSaved(sess, 0, 0))
 
-	_ = sink.RecordsWithMessage("geometry complete").Only(t, "geometry complete record")
+	_ = sink.Records().WithMessage("geometry complete").Only(t, "geometry complete record")
 }
 
 func TestApplyWindowGeometry_SelectLayoutFailureIncrementsAnomalousAndRetainsWarn(t *testing.T) {

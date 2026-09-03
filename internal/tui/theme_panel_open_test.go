@@ -94,7 +94,7 @@ func themeOpenTestLoader(t *testing.T) (theme.Loader, *logtest.Sink) {
 }
 
 func countThemeEvents(sink *logtest.Sink, msg string) int {
-	return len(sink.RecordsWithMessage(msg))
+	return len(sink.Records().WithMessage(msg))
 }
 
 func themePanelRowFor(t *testing.T, m Model, label string) themeRowItem {

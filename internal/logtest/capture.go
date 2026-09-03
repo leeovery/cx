@@ -107,7 +107,7 @@ func (r Record) HasAttr(key string) bool {
 }
 
 // Matches reports whether the record was emitted under component carrying
-// message msg. It is the single home of that predicate: the Sink queries are
+// message msg. It is the single home of that predicate: Records.Matching is
 // built on it, and a caller walking records in capture order (to assert one
 // event preceded another) uses it rather than restating the rule.
 func (r Record) Matches(component, msg string) bool {
@@ -119,30 +119,34 @@ func (r Record) Matches(component, msg string) bool {
 }
 
 // Records is a captured slice of records. Every query returns a new slice and
-// leaves the receiver untouched; nil when none match. The filters themselves are
-// unexported: Sink exposes exactly one method per query, so a caller never has
-// two ways to ask the same question.
+// leaves the receiver untouched; nil when none match. The filters below are the
+// orthogonal dimensions a set is narrowed on, and they compose: a caller chains
+// the ones its question needs off Sink.Records. No combination of them is itself
+// a method, so a caller never has two ways to ask the same question.
 type Records []Record
 
-// atExactLevel keeps only the records logged at exactly level — a record one
-// level higher does not match. atOrAboveLevel is the threshold filter.
-func (rs Records) atExactLevel(level slog.Level) Records {
+// AtExactLevel keeps only the records logged at exactly level — a record one
+// level higher does not match. AtOrAboveLevel is the threshold filter.
+func (rs Records) AtExactLevel(level slog.Level) Records {
 	return rs.filter(func(r Record) bool { return r.Level == level })
 }
 
-// atOrAboveLevel keeps the records logged at minLevel or any higher level.
-func (rs Records) atOrAboveLevel(minLevel slog.Level) Records {
+// AtOrAboveLevel keeps the records logged at minLevel or any higher level.
+func (rs Records) AtOrAboveLevel(minLevel slog.Level) Records {
 	return rs.filter(func(r Record) bool { return r.Level >= minLevel })
 }
 
-// withMessage keeps the records carrying message msg, whatever component
+// WithMessage keeps the records carrying message msg, whatever component
 // emitted them.
-func (rs Records) withMessage(msg string) Records {
+func (rs Records) WithMessage(msg string) Records {
 	return rs.filter(func(r Record) bool { return r.Msg == msg })
 }
 
-// matching keeps the records emitted under component carrying message msg.
-func (rs Records) matching(component, msg string) Records {
+// Matching keeps the records emitted under component carrying message msg. The
+// pair names one event in the log taxonomy rather than two dimensions to narrow
+// on independently, so it lifts Record.Matches rather than restating either half
+// of it here.
+func (rs Records) Matching(component, msg string) Records {
 	return rs.filter(func(r Record) bool { return r.Matches(component, msg) })
 }
 
@@ -241,46 +245,13 @@ func (s *Sink) Lines() []string {
 	return append([]string(nil), owner.lines...)
 }
 
-// Records returns a snapshot: later writes do not mutate it.
+// Records returns a snapshot of every captured record — the base query every
+// filter chain starts from. Later writes do not mutate it.
 func (s *Sink) Records() Records {
 	owner := s.owner()
 	owner.mu.Lock()
 	defer owner.mu.Unlock()
 	return append(Records(nil), owner.records...)
-}
-
-// RecordsAtExactLevel returns the records captured at exactly level.
-func (s *Sink) RecordsAtExactLevel(level slog.Level) Records {
-	return s.Records().atExactLevel(level)
-}
-
-// RecordsAtOrAboveLevel returns the records captured at minLevel or above.
-func (s *Sink) RecordsAtOrAboveLevel(minLevel slog.Level) Records {
-	return s.Records().atOrAboveLevel(minLevel)
-}
-
-// RecordsWith returns the records emitted under component carrying message msg.
-func (s *Sink) RecordsWith(component, msg string) Records {
-	return s.Records().matching(component, msg)
-}
-
-// RecordsWithMessage returns the records carrying message msg under any
-// component.
-func (s *Sink) RecordsWithMessage(msg string) Records {
-	return s.Records().withMessage(msg)
-}
-
-// RecordsAtExactLevelWith returns the records emitted under component carrying
-// message msg at exactly level.
-func (s *Sink) RecordsAtExactLevelWith(level slog.Level, component, msg string) Records {
-	return s.RecordsWith(component, msg).atExactLevel(level)
-}
-
-// RecordsAtExactLevelWithMessage returns the records carrying message msg at
-// exactly level, whatever component emitted them — so a caller can assert the
-// component separately rather than filtering it away.
-func (s *Sink) RecordsAtExactLevelWithMessage(level slog.Level, msg string) Records {
-	return s.RecordsWithMessage(msg).atExactLevel(level)
 }
 
 func NewCaptureLogger(t *testing.T) (*slog.Logger, *Sink) {

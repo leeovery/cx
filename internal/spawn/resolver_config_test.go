@@ -76,7 +76,7 @@ func TestResolverResolve(t *testing.T) {
 		if _, ok := adapter.(*ghosttyAdapter); !ok {
 			t.Errorf("adapter = %T, want *ghosttyAdapter", adapter)
 		}
-		if got := sink.RecordsAtExactLevel(slog.LevelWarn); len(got) != 1 {
+		if got := sink.Records().AtExactLevel(slog.LevelWarn); len(got) != 1 {
 			t.Errorf("emitted %d WARN records, want exactly 1 rejecting the invalid entry: %+v", len(got), got)
 		}
 	})
@@ -94,7 +94,7 @@ func TestResolverResolve(t *testing.T) {
 		if adapter != nil {
 			t.Errorf("adapter = %T, want nil", adapter)
 		}
-		if got := sink.RecordsAtExactLevel(slog.LevelWarn); len(got) != 1 {
+		if got := sink.Records().AtExactLevel(slog.LevelWarn); len(got) != 1 {
 			t.Errorf("emitted %d WARN records, want exactly 1 rejecting the invalid entry: %+v", len(got), got)
 		}
 	})

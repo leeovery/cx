@@ -366,7 +366,7 @@ func TestResolveOpenSurfaces_ResolveLog_BareNonGlobOnly(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	recs := sink.RecordsWith("resolve", "resolved")
+	recs := sink.Records().Matching("resolve", "resolved")
 	if len(recs) != 3 {
 		t.Fatalf("expected exactly 3 resolve records (one per bare non-glob target), got %d", len(recs))
 	}

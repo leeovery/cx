@@ -45,7 +45,7 @@ func TestDaemonTick_CapturePaneFailureErrorAttrIsWrappedError(t *testing.T) {
 
 	tick(t.Context(), deps)
 
-	warn := sink.RecordsAtExactLevelWithMessage(slog.LevelWarn, "capture pane failed").Only(t, "'capture pane failed' WARN")
+	warn := sink.Records().WithMessage("capture pane failed").AtExactLevel(slog.LevelWarn).Only(t, "'capture pane failed' WARN")
 	if got := warn.ErrorAttr(t, "error"); !errors.Is(got, sentinel) {
 		t.Errorf("error attr does not wrap the sentinel via errors.Is; got %v", got)
 	}

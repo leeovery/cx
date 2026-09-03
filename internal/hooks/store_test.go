@@ -1057,7 +1057,7 @@ func TestCleanStaleLogging(t *testing.T) {
 			t.Errorf("returned error not classified as temp-create: %v", err)
 		}
 
-		warn := sink.RecordsAtExactLevelWithMessage(slog.LevelWarn, "clean-stale").Only(t, "WARN clean-stale record")
+		warn := sink.Records().WithMessage("clean-stale").AtExactLevel(slog.LevelWarn).Only(t, "WARN clean-stale record")
 		logtest.AssertRecord(t, warn, logtest.RecordWant{
 			Level:     slog.LevelWarn,
 			Msg:       "clean-stale",

@@ -716,7 +716,7 @@ func (m *migrationLog) warns() []string { return migrationLines(&m.sink, slog.Le
 
 func (m *migrationLog) infoReaped() []int64 {
 	var out []int64
-	for _, rec := range m.sink.RecordsAtExactLevel(slog.LevelInfo) {
+	for _, rec := range m.sink.Records().AtExactLevel(slog.LevelInfo) {
 		out = append(out, migrationReaped(rec))
 	}
 	return out
@@ -724,7 +724,7 @@ func (m *migrationLog) infoReaped() []int64 {
 
 func migrationLines(sink *logtest.Sink, level slog.Level) []string {
 	var out []string
-	for _, rec := range sink.RecordsAtExactLevel(level) {
+	for _, rec := range sink.Records().AtExactLevel(level) {
 		out = append(out, migrationLine(rec))
 	}
 	return out

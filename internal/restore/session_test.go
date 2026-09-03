@@ -934,7 +934,7 @@ func TestSessionRestorer_ReStampsSavedPaneToken(t *testing.T) {
 			t.Errorf("respawn-pane calls = %d, want 1 (the pane is still armed)", got)
 		}
 
-		warn := sink.RecordsWithMessage("set pane token failed").Only(t, "set pane token failed record")
+		warn := sink.Records().WithMessage("set pane token failed").Only(t, "set pane token failed record")
 		if warn.Level != slog.LevelWarn {
 			t.Errorf("level = %v, want WARN", warn.Level)
 		}

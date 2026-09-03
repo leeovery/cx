@@ -94,7 +94,7 @@ func TestValidRecipeForEntry(t *testing.T) {
 		if recipe.Argv != nil || recipe.Script != "" {
 			t.Errorf("recipe = %+v, want the zero Recipe for a rejected entry", recipe)
 		}
-		rec := sink.RecordsAtExactLevel(slog.LevelWarn).Only(t, "invalid-recipe WARN")
+		rec := sink.Records().AtExactLevel(slog.LevelWarn).Only(t, "invalid-recipe WARN")
 		if v := rec.AttrString(t, "component"); v != "spawn" {
 			t.Errorf("WARN component = %q, want %q", v, "spawn")
 		}
@@ -122,7 +122,7 @@ func TestValidRecipeForEntry(t *testing.T) {
 		if recipe.Argv != nil || recipe.Script != "" {
 			t.Errorf("recipe = %+v, want the zero Recipe for a no-open entry", recipe)
 		}
-		if warns := sink.RecordsAtExactLevel(slog.LevelWarn); len(warns) != 0 {
+		if warns := sink.Records().AtExactLevel(slog.LevelWarn); len(warns) != 0 {
 			t.Errorf("emitted %d WARN records for a no-open entry, want 0 (forward-compat): %+v", len(warns), warns)
 		}
 	})
@@ -156,7 +156,7 @@ func TestValidRecipeForEntry(t *testing.T) {
 			t.Errorf("recipe.Script = %q, want %q", recipe.Script, "/opt/myterm/open.sh")
 		}
 
-		if warns := sink.RecordsAtExactLevel(slog.LevelWarn); len(warns) != 0 {
+		if warns := sink.Records().AtExactLevel(slog.LevelWarn); len(warns) != 0 {
 			t.Errorf("emitted %d WARN records for valid recipes, want 0: %+v", len(warns), warns)
 		}
 	})

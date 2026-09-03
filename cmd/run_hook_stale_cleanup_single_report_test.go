@@ -25,7 +25,7 @@ func TestHookSweepReportsAStoreReadStandDownOnce(t *testing.T) {
 		maybeRunHookCleanup(deps)
 
 		assertStandDown(t, sink, slog.LevelWarn, skipReasonStoreReadFailed)
-		if got := len(injectedSink.RecordsAtExactLevelWith(slog.LevelWarn, "daemon", "hooks stale-cleanup failed")); got != 0 {
+		if got := len(injectedSink.Records().Matching("daemon", "hooks stale-cleanup failed").AtExactLevel(slog.LevelWarn)); got != 0 {
 			t.Errorf("daemon generic-failure WARN count = %d, want 0; entries=%+v", got, injectedSink.Records())
 		}
 	})
@@ -56,7 +56,7 @@ func TestHookSweepReportsAStoreReadStandDownOnce(t *testing.T) {
 
 		assertHooksFileUnchanged(t, path, before, "rewritten by the daemon under a held lock")
 		assertStandDown(t, sink, slog.LevelWarn, skipReasonLockTimeout)
-		if got := len(injectedSink.RecordsAtExactLevel(slog.LevelWarn)); got != 0 {
+		if got := len(injectedSink.Records().AtExactLevel(slog.LevelWarn)); got != 0 {
 			t.Errorf("injected-logger WARN count = %d, want 0; entries=%+v", got, injectedSink.Records())
 		}
 	})
@@ -80,7 +80,7 @@ func TestHookSweepCountsLogger(t *testing.T) {
 		}
 
 		for _, msg := range []string{"stale-hook cleanup counts", "stale-hook cleanup removed"} {
-			if got := len(injectedSink.RecordsAtExactLevelWith(slog.LevelDebug, "daemon", msg)); got != 1 {
+			if got := len(injectedSink.Records().Matching("daemon", msg).AtExactLevel(slog.LevelDebug)); got != 1 {
 				t.Errorf("records matching debug/daemon/%q = %d, want 1; records=%+v", msg, got, injectedSink.Records())
 			}
 		}

@@ -198,14 +198,14 @@ func TestRecords_Only(t *testing.T) {
 	logger.With("component", "bootstrap").Info("sweep complete")
 
 	t.Run("it returns the sole record of a component-filtered set", func(t *testing.T) {
-		rec := sink.RecordsWith("clean", "sweep complete").Only(t, "clean sweep-complete record")
+		rec := sink.Records().Matching("clean", "sweep complete").Only(t, "clean sweep-complete record")
 		if got := rec.AttrString(t, "component"); got != "clean" {
 			t.Errorf("component = %q, want %q", got, "clean")
 		}
 	})
 
 	t.Run("it returns the sole record of a level-filtered set", func(t *testing.T) {
-		rec := sink.RecordsAtExactLevel(slog.LevelWarn).Only(t, "clean orphan-killed WARN")
+		rec := sink.Records().AtExactLevel(slog.LevelWarn).Only(t, "clean orphan-killed WARN")
 		if rec.Level != slog.LevelWarn {
 			t.Errorf("Level = %v, want WARN", rec.Level)
 		}
@@ -213,12 +213,12 @@ func TestRecords_Only(t *testing.T) {
 
 	t.Run("it fatals unless exactly one record matched", func(t *testing.T) {
 		if !expectFail(func(sub harnesstest.TestingT) {
-			_ = sink.RecordsWithMessage("orphan killed").Only(sub, "orphan-killed record")
+			_ = sink.Records().WithMessage("orphan killed").Only(sub, "orphan-killed record")
 		}) {
 			t.Errorf("Only must fail when more than one record matched")
 		}
 		if !expectFail(func(sub harnesstest.TestingT) {
-			_ = sink.RecordsWithMessage("never emitted").Only(sub, "never-emitted record")
+			_ = sink.Records().WithMessage("never emitted").Only(sub, "never-emitted record")
 		}) {
 			t.Errorf("Only must fail when no record matched")
 		}
@@ -226,7 +226,7 @@ func TestRecords_Only(t *testing.T) {
 
 	t.Run("it names the described set in its failure message", func(t *testing.T) {
 		failed, msg := captureFailure(func(sub harnesstest.TestingT) {
-			_ = sink.RecordsWithMessage("never emitted").Only(sub, "never-emitted record")
+			_ = sink.Records().WithMessage("never emitted").Only(sub, "never-emitted record")
 		})
 		if !failed {
 			t.Fatalf("Only did not fail on an empty set")
@@ -312,45 +312,47 @@ func TestRecord_HasAttr(t *testing.T) {
 	}
 }
 
-func TestSink_RecordsAtOrAboveLevel(t *testing.T) {
+func TestRecords_AtOrAboveLevel(t *testing.T) {
 	logger, sink := logtest.NewCaptureLogger(t)
 	logger.Debug("below")
 	logger.Warn("at")
 	logger.Error("above")
 
-	got := sink.RecordsAtOrAboveLevel(slog.LevelWarn)
+	got := sink.Records().AtOrAboveLevel(slog.LevelWarn)
 	if len(got) != 2 {
-		t.Fatalf("RecordsAtOrAboveLevel(WARN) returned %d records, want 2: %+v", len(got), got)
+		t.Fatalf("AtOrAboveLevel(WARN) returned %d records, want 2: %+v", len(got), got)
 	}
 	if got[0].Msg != "at" || got[1].Msg != "above" {
-		t.Errorf("RecordsAtOrAboveLevel(WARN) messages = [%q %q], want [\"at\" \"above\"]", got[0].Msg, got[1].Msg)
+		t.Errorf("AtOrAboveLevel(WARN) messages = [%q %q], want [\"at\" \"above\"]", got[0].Msg, got[1].Msg)
 	}
 
-	if none := sink.RecordsAtOrAboveLevel(slog.LevelError + 1); none != nil {
-		t.Errorf("RecordsAtOrAboveLevel above every captured level = %+v, want nil", none)
-	}
-}
-
-func TestSink_RecordsAtExactLevelExcludesHigherLevels(t *testing.T) {
-	logger, sink := logtest.NewCaptureLogger(t)
-	logger.Debug("below")
-	logger.Warn("at")
-	logger.Error("above")
-
-	got := sink.RecordsAtExactLevel(slog.LevelWarn)
-	if len(got) != 1 {
-		t.Fatalf("RecordsAtExactLevel(WARN) returned %d records, want 1: %+v", len(got), got)
-	}
-	if got[0].Msg != "at" {
-		t.Errorf("RecordsAtExactLevel(WARN) message = %q, want %q", got[0].Msg, "at")
-	}
-
-	if none := sink.RecordsAtExactLevel(slog.LevelInfo); none != nil {
-		t.Errorf("RecordsAtExactLevel(INFO) = %+v, want nil", none)
+	if none := sink.Records().AtOrAboveLevel(slog.LevelError + 1); none != nil {
+		t.Errorf("AtOrAboveLevel above every captured level = %+v, want nil", none)
 	}
 }
 
-func TestSink_RecordsWithFiltersOnComponentAndMessage(t *testing.T) {
+func TestRecords_AtExactLevel(t *testing.T) {
+	t.Run("it filters at exactly the given level", func(t *testing.T) {
+		logger, sink := logtest.NewCaptureLogger(t)
+		logger.Debug("below")
+		logger.Warn("at")
+		logger.Error("above")
+
+		got := sink.Records().AtExactLevel(slog.LevelWarn)
+		if len(got) != 1 {
+			t.Fatalf("AtExactLevel(WARN) returned %d records, want 1: %+v", len(got), got)
+		}
+		if got[0].Msg != "at" {
+			t.Errorf("AtExactLevel(WARN) message = %q, want %q", got[0].Msg, "at")
+		}
+
+		if none := sink.Records().AtExactLevel(slog.LevelInfo); none != nil {
+			t.Errorf("AtExactLevel(INFO) = %+v, want nil", none)
+		}
+	})
+}
+
+func TestRecords_Matching(t *testing.T) {
 	logger, sink := logtest.NewCaptureLogger(t)
 	hooks := logger.With("component", "hooks")
 	hooks.Info("clean-stale")
@@ -359,29 +361,31 @@ func TestSink_RecordsWithFiltersOnComponentAndMessage(t *testing.T) {
 	logger.With("component", "projects").Info("clean-stale")
 	logger.Info("clean-stale")
 
-	got := sink.RecordsWith("hooks", "clean-stale")
+	got := sink.Records().Matching("hooks", "clean-stale")
 	if len(got) != 2 {
-		t.Fatalf("RecordsWith(hooks, clean-stale) returned %d records, want 2: %+v", len(got), got)
+		t.Fatalf("Matching(hooks, clean-stale) returned %d records, want 2: %+v", len(got), got)
 	}
 
-	if none := sink.RecordsWith("hooks", "nothing"); none != nil {
-		t.Errorf("RecordsWith on an unemitted message = %+v, want nil", none)
+	if none := sink.Records().Matching("hooks", "nothing"); none != nil {
+		t.Errorf("Matching on an unemitted message = %+v, want nil", none)
 	}
 }
 
-func TestRecords_FilterChainCombinesLevelAndComponent(t *testing.T) {
-	logger, sink := logtest.NewCaptureLogger(t)
-	logger.With("component", "clean").Warn("orphan killed")
-	logger.With("component", "clean").Error("orphan killed")
-	logger.With("component", "bootstrap").Warn("orphan killed")
+func TestRecords_FilterComposition(t *testing.T) {
+	t.Run("it composes a level filter with a component filter", func(t *testing.T) {
+		logger, sink := logtest.NewCaptureLogger(t)
+		logger.With("component", "clean").Warn("orphan killed")
+		logger.With("component", "clean").Error("orphan killed")
+		logger.With("component", "bootstrap").Warn("orphan killed")
 
-	got := sink.RecordsAtExactLevelWith(slog.LevelWarn, "clean", "orphan killed")
-	if len(got) != 1 {
-		t.Fatalf("RecordsAtExactLevelWith returned %d records, want 1: %+v", len(got), got)
-	}
-	if got[0].Level != slog.LevelWarn {
-		t.Errorf("Level = %v, want WARN", got[0].Level)
-	}
+		got := sink.Records().Matching("clean", "orphan killed").AtExactLevel(slog.LevelWarn)
+		if len(got) != 1 {
+			t.Fatalf("Matching then AtExactLevel returned %d records, want 1: %+v", len(got), got)
+		}
+		if got[0].Level != slog.LevelWarn {
+			t.Errorf("Level = %v, want WARN", got[0].Level)
+		}
+	})
 }
 
 func expectFail(fn func(harnesstest.TestingT)) bool {
@@ -400,29 +404,29 @@ func captureFailure(fn func(harnesstest.TestingT)) (failed bool, msg string) {
 	return true, rec.Fatals[0]
 }
 
-func TestRecords_MsgFiltersOnMessageAloneAcrossComponents(t *testing.T) {
-	logger, sink := logtest.NewCaptureLogger(t)
-	logger.With("component", "bootstrap").Warn("show-hooks failed")
-	logger.With("component", "saver").Warn("show-hooks failed")
-	logger.With("component", "bootstrap").Warn("something else")
-	logger.Info("show-hooks failed")
+func TestRecords_WithMessage(t *testing.T) {
+	t.Run("it filters on message alone across components", func(t *testing.T) {
+		logger, sink := logtest.NewCaptureLogger(t)
+		logger.With("component", "bootstrap").Warn("show-hooks failed")
+		logger.With("component", "saver").Warn("show-hooks failed")
+		logger.With("component", "bootstrap").Warn("something else")
+		logger.Info("show-hooks failed")
 
-	got := sink.RecordsWithMessage("show-hooks failed")
-	if len(got) != 3 {
-		t.Fatalf("RecordsWithMessage(show-hooks failed) returned %d records, want 3: %+v", len(got), got)
-	}
+		got := sink.Records().WithMessage("show-hooks failed")
+		if len(got) != 3 {
+			t.Fatalf("WithMessage(show-hooks failed) returned %d records, want 3: %+v", len(got), got)
+		}
 
-	warns := sink.RecordsAtExactLevelWithMessage(slog.LevelWarn, "show-hooks failed")
-	if len(warns) != 2 {
-		t.Fatalf("RecordsAtExactLevelWithMessage returned %d records, want 2: %+v", len(warns), warns)
-	}
+		warns := sink.Records().WithMessage("show-hooks failed").AtExactLevel(slog.LevelWarn)
+		if len(warns) != 2 {
+			t.Fatalf("WithMessage then AtExactLevel returned %d records, want 2: %+v", len(warns), warns)
+		}
 
-	if none := sink.RecordsWithMessage("never emitted"); none != nil {
-		t.Errorf("RecordsWithMessage on an unemitted message = %+v, want nil", none)
-	}
-}
+		if none := sink.Records().WithMessage("never emitted"); none != nil {
+			t.Errorf("WithMessage on an unemitted message = %+v, want nil", none)
+		}
+	})
 
-func TestSink_RecordsWithMessage(t *testing.T) {
 	t.Run("it returns every record carrying the message regardless of component", func(t *testing.T) {
 		logger, sink := logtest.NewCaptureLogger(t)
 		logger.With("component", "hooks").Info("clean-stale")
@@ -430,9 +434,9 @@ func TestSink_RecordsWithMessage(t *testing.T) {
 		logger.Debug("clean-stale")
 		logger.With("component", "hooks").Info("set")
 
-		got := sink.RecordsWithMessage("clean-stale")
+		got := sink.Records().WithMessage("clean-stale")
 		if len(got) != 3 {
-			t.Fatalf("RecordsWithMessage(clean-stale) returned %d records, want 3: %+v", len(got), got)
+			t.Fatalf("WithMessage(clean-stale) returned %d records, want 3: %+v", len(got), got)
 		}
 		for i, rec := range got {
 			if rec.Msg != "clean-stale" {
@@ -448,14 +452,14 @@ func TestSink_RecordsWithMessage(t *testing.T) {
 		logger, sink := logtest.NewCaptureLogger(t)
 		logger.With("component", "hooks").Info("clean-stale")
 
-		if none := sink.RecordsWithMessage("never emitted"); none != nil {
-			t.Errorf("RecordsWithMessage on an unemitted message = %+v, want nil", none)
+		if none := sink.Records().WithMessage("never emitted"); none != nil {
+			t.Errorf("WithMessage on an unemitted message = %+v, want nil", none)
 		}
 	})
 }
 
-func TestSink_ForwardersCoverEveryQuery(t *testing.T) {
-	t.Run("it keeps the Sink forwarders behaving identically after the filters are unexported", func(t *testing.T) {
+func TestRecords_ComposedRoutesCoverEveryQuery(t *testing.T) {
+	t.Run("it answers each question the filters compose to over one capture", func(t *testing.T) {
 		logger, sink := logtest.NewCaptureLogger(t)
 		clean := logger.With("component", "clean")
 		clean.Debug("orphan killed")
@@ -469,13 +473,13 @@ func TestSink_ForwardersCoverEveryQuery(t *testing.T) {
 			got  logtest.Records
 			want int
 		}{
-			{"Records", sink.Records(), 5},
-			{"RecordsAtExactLevel", sink.RecordsAtExactLevel(slog.LevelWarn), 3},
-			{"RecordsAtOrAboveLevel", sink.RecordsAtOrAboveLevel(slog.LevelWarn), 4},
-			{"RecordsWith", sink.RecordsWith("clean", "orphan killed"), 3},
-			{"RecordsWithMessage", sink.RecordsWithMessage("orphan killed"), 4},
-			{"RecordsAtExactLevelWith", sink.RecordsAtExactLevelWith(slog.LevelWarn, "clean", "orphan killed"), 1},
-			{"RecordsAtExactLevelWithMessage", sink.RecordsAtExactLevelWithMessage(slog.LevelWarn, "orphan killed"), 2},
+			{"Records()", sink.Records(), 5},
+			{"Records().AtExactLevel", sink.Records().AtExactLevel(slog.LevelWarn), 3},
+			{"Records().AtOrAboveLevel", sink.Records().AtOrAboveLevel(slog.LevelWarn), 4},
+			{"Records().Matching", sink.Records().Matching("clean", "orphan killed"), 3},
+			{"Records().WithMessage", sink.Records().WithMessage("orphan killed"), 4},
+			{"Records().Matching().AtExactLevel", sink.Records().Matching("clean", "orphan killed").AtExactLevel(slog.LevelWarn), 1},
+			{"Records().WithMessage().AtExactLevel", sink.Records().WithMessage("orphan killed").AtExactLevel(slog.LevelWarn), 2},
 		}
 		for _, tc := range cases {
 			if len(tc.got) != tc.want {

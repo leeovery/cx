@@ -32,7 +32,7 @@ var closedSpawnAttrKeys = map[string]bool{
 
 func onlyInfoRecord(t *testing.T, sink *logtest.Sink) logtest.Record {
 	t.Helper()
-	return sink.RecordsAtExactLevel(slog.LevelInfo).Only(t, "INFO spawn record")
+	return sink.Records().AtExactLevel(slog.LevelInfo).Only(t, "INFO spawn record")
 }
 
 func assertClosedSpawnKeys(t *testing.T, sink *logtest.Sink) {
@@ -147,7 +147,7 @@ func TestBurstObservability_PerExternalWindowSplitByOutcome(t *testing.T) {
 	}
 	injectComplete(t, m, msg)
 
-	debug := sink.RecordsAtExactLevel(slog.LevelDebug).Only(t, "DEBUG spawn record")
+	debug := sink.Records().AtExactLevel(slog.LevelDebug).Only(t, "DEBUG spawn record")
 	if debug.Msg != "external window" {
 		t.Errorf("DEBUG msg = %q, want %q", debug.Msg, "external window")
 	}
@@ -161,7 +161,7 @@ func TestBurstObservability_PerExternalWindowSplitByOutcome(t *testing.T) {
 		t.Errorf("DEBUG detail = %q, want the opaque driver detail", got)
 	}
 
-	warn := sink.RecordsAtExactLevel(slog.LevelWarn).Only(t, "WARN spawn record")
+	warn := sink.Records().AtExactLevel(slog.LevelWarn).Only(t, "WARN spawn record")
 	if warn.Msg != "external window failed" {
 		t.Errorf("WARN msg = %q, want %q", warn.Msg, "external window failed")
 	}
@@ -207,7 +207,7 @@ func TestBurstObservability_UnsupportedNoopNoPerWindow(t *testing.T) {
 	if info.HasAttr("opened") || info.HasAttr("total") {
 		t.Errorf("unsupported no-op must carry no opened/total counts: keys=%v", info.Keys)
 	}
-	if debugs := sink.RecordsAtExactLevel(slog.LevelDebug); len(debugs) != 0 {
+	if debugs := sink.Records().AtExactLevel(slog.LevelDebug); len(debugs) != 0 {
 		t.Errorf("unsupported no-op must emit NO per-window records, got %d DEBUG records", len(debugs))
 	}
 	assertClosedSpawnKeys(t, sink)
@@ -225,7 +225,7 @@ func TestBurstObservability_PreflightAbortNamesGone(t *testing.T) {
 	if info.Msg != "'bravo' is gone — nothing opened" {
 		t.Errorf("INFO msg = %q, want %q (names the gone session)", info.Msg, "'bravo' is gone — nothing opened")
 	}
-	if debugs := sink.RecordsAtExactLevel(slog.LevelDebug); len(debugs) != 0 {
+	if debugs := sink.Records().AtExactLevel(slog.LevelDebug); len(debugs) != 0 {
 		t.Errorf("pre-flight abort must emit NO per-window records, got %d DEBUG records", len(debugs))
 	}
 	assertClosedSpawnKeys(t, sink)

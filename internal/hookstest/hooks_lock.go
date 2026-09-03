@@ -97,7 +97,7 @@ func openSidecar(t *testing.T, hooksPath string) *os.File {
 // test can assert a read did not degrade as well as that it did.
 func UnlockedRecords(t *testing.T, sink *logtest.Sink) logtest.Records {
 	t.Helper()
-	return sink.RecordsWithMessage("load-unlocked")
+	return sink.Records().WithMessage("load-unlocked")
 }
 
 // AssertLockWarn pins the whole of the single line a mutation that could not
@@ -107,7 +107,7 @@ func UnlockedRecords(t *testing.T, sink *logtest.Sink) logtest.Records {
 // whose absence is what says no write was ever attempted.
 func AssertLockWarn(t harnesstest.TestingT, sink *logtest.Sink, op, key, via string) {
 	t.Helper()
-	rec := sink.RecordsAtOrAboveLevel(slog.LevelWarn).Only(t, "record at or above WARN")
+	rec := sink.Records().AtOrAboveLevel(slog.LevelWarn).Only(t, "record at or above WARN")
 	logtest.AssertRecord(t, rec, logtest.RecordWant{
 		Level:     slog.LevelWarn,
 		Msg:       op,

@@ -362,7 +362,7 @@ func TestStaleMarkerCleanup_MassUnsetHazardGuard(t *testing.T) {
 			t.Errorf("expected zero unset calls under zero-panes guard, got %d (%v)", len(unsetter.calls), unsetter.calls)
 		}
 
-		deferral := sink.RecordsAtExactLevelWithMessage(slog.LevelWarn, massUnsetDeferralWarnMessage).
+		deferral := sink.Records().WithMessage(massUnsetDeferralWarnMessage).AtExactLevel(slog.LevelWarn).
 			Only(t, "stale-marker cleanup mass-unset-hazard deferral WARN")
 		if comp := deferral.AttrString(t, "component"); comp != "bootstrap" {
 			t.Errorf("deferral Warn component = %q, want %q", comp, "bootstrap")
@@ -658,7 +658,7 @@ func TestStaleMarkerCleanup_SoftWarningPosture(t *testing.T) {
 			t.Errorf("expected zero unset calls under all-malformed + zero-panes guard, got %d (%v)", len(unsetter.calls), unsetter.calls)
 		}
 
-		deferral := sink.RecordsAtExactLevelWithMessage(slog.LevelWarn, massUnsetDeferralWarnMessage).
+		deferral := sink.Records().WithMessage(massUnsetDeferralWarnMessage).AtExactLevel(slog.LevelWarn).
 			Only(t, "all-malformed + zero-panes mass-unset-hazard deferral WARN")
 		if comp := deferral.AttrString(t, "component"); comp != "bootstrap" {
 			t.Errorf("deferral Warn component = %q, want %q", comp, "bootstrap")

@@ -65,7 +65,7 @@ func TestHydrateReplayedLog_BytesEqualsCopyCountForPopulatedFile(t *testing.T) {
 
 	// Read as a structured int attr: the rendered bytes=N is indistinguishable
 	// from a stringified count.
-	rec := sink.RecordsWith("hydrate", "scrollback replayed").Only(t, "hydrate scrollback replayed record")
+	rec := sink.Records().Matching("hydrate", "scrollback replayed").Only(t, "hydrate scrollback replayed record")
 	if got := rec.IntAttr(t, "bytes"); got != int64(len(payload)) {
 		t.Errorf("bytes attr = %d, want %d", got, len(payload))
 	}
@@ -139,7 +139,7 @@ func TestHydrateReplayedLog_TookIsDurationAcrossReplayNotSettleSleep(t *testing.
 		t.Fatalf("runHydrate: %v", err)
 	}
 
-	rec := sink.RecordsWith("hydrate", "scrollback replayed").Only(t, "hydrate scrollback replayed record")
+	rec := sink.Records().Matching("hydrate", "scrollback replayed").Only(t, "hydrate scrollback replayed record")
 	took := rec.DurationAttr(t, "took")
 	// took spans the io.Copy only, never the 100ms settle sleep.
 	if took >= hydrateSettleSleep {

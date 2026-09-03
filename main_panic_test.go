@@ -23,7 +23,7 @@ func TestRunPanicEmission(t *testing.T) {
 			t.Error("panicked = false, want true")
 		}
 
-		r := rec.RecordsWithMessage("panic").Only(t, "process: panic record")
+		r := rec.Records().WithMessage("panic").Only(t, "process: panic record")
 		if r.Level != slog.LevelError {
 			t.Errorf("process: panic level = %v, want ERROR", r.Level)
 		}
@@ -43,7 +43,7 @@ func TestRunPanicEmission(t *testing.T) {
 		}
 		mainEmitClose(2, panicked)
 
-		if exits := rec.RecordsWithMessage("exit"); len(exits) != 0 {
+		if exits := rec.Records().WithMessage("exit"); len(exits) != 0 {
 			t.Errorf("expected no process: exit on the panic path, got %d", len(exits))
 		}
 	})
@@ -61,10 +61,10 @@ func TestRunPanicEmission(t *testing.T) {
 		}
 		mainEmitClose(code, panicked)
 
-		if panics := rec.RecordsWithMessage("panic"); len(panics) != 0 {
+		if panics := rec.Records().WithMessage("panic"); len(panics) != 0 {
 			t.Errorf("expected no process: panic on a clean run, got %d", len(panics))
 		}
-		exit := rec.RecordsWithMessage("exit").Only(t, "exit record")
+		exit := rec.Records().WithMessage("exit").Only(t, "exit record")
 		if got := exit.IntAttr(t, "code"); got != 0 {
 			t.Errorf("exit code attr = %d, want 0", got)
 		}
@@ -83,10 +83,10 @@ func TestRunPanicEmission(t *testing.T) {
 		}
 		mainEmitClose(code, panicked)
 
-		if panics := rec.RecordsWithMessage("panic"); len(panics) != 0 {
+		if panics := rec.Records().WithMessage("panic"); len(panics) != 0 {
 			t.Errorf("expected no process: panic on an error run, got %d", len(panics))
 		}
-		exit := rec.RecordsWithMessage("exit").Only(t, "exit record")
+		exit := rec.Records().WithMessage("exit").Only(t, "exit record")
 		if got := exit.IntAttr(t, "code"); got != 1 {
 			t.Errorf("exit code attr = %d, want 1", got)
 		}
@@ -110,8 +110,8 @@ func TestRunPanicEmission(t *testing.T) {
 				code, panicked := run()
 				mainEmitClose(code, panicked)
 
-				panics := len(rec.RecordsWithMessage("panic"))
-				exits := len(rec.RecordsWithMessage("exit"))
+				panics := len(rec.Records().WithMessage("panic"))
+				exits := len(rec.Records().WithMessage("exit"))
 				if panicked != tc.wantPanic {
 					t.Fatalf("panicked = %v, want %v", panicked, tc.wantPanic)
 				}

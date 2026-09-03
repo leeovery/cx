@@ -475,7 +475,7 @@ func TestEvents_LoadedNamesTheFallbackSlug(t *testing.T) {
 		t.Fatalf("light slot = %+v, want the fallback applied — the fixture resolves the nomination", resolution.Slots[0])
 	}
 
-	loaded := sink.RecordsWithMessage("loaded")
+	loaded := sink.Records().WithMessage("loaded")
 	if len(loaded) != 2 {
 		t.Fatalf("emitted %d `loaded` records, want one per slot (2):\n%s", len(loaded), sink.Body())
 	}
@@ -505,7 +505,7 @@ func TestEvents_FallbackAppliedNamesTheFailedSlug(t *testing.T) {
 		t.Fatalf("light slot = %+v, want the fallback applied — the fixture resolves the nomination", resolution.Slots[0])
 	}
 
-	applied := sink.RecordsWithMessage("fallback applied").Only(t, "fallback applied record")
+	applied := sink.Records().WithMessage("fallback applied").Only(t, "fallback applied record")
 	if got, want := applied.AttrString(t, "slug"), "broken-light"; got != want {
 		t.Errorf("slug = %q, want the nomination that failed, %q", got, want)
 	}
@@ -516,7 +516,7 @@ func TestEvents_FallbackAppliedNamesTheFailedSlug(t *testing.T) {
 		t.Errorf("reason = %q, want %q", got, want)
 	}
 
-	loaded := sink.RecordsWithMessage("loaded")
+	loaded := sink.Records().WithMessage("loaded")
 	if len(loaded) != 2 {
 		t.Fatalf("emitted %d `loaded` records, want one per slot (2):\n%s", len(loaded), sink.Body())
 	}
@@ -540,10 +540,10 @@ func TestEvents_FallbackAppliedDedupsOnSlugAndReason(t *testing.T) {
 		}
 	}
 
-	if applied := sink.RecordsWithMessage("fallback applied"); len(applied) != 1 {
+	if applied := sink.Records().WithMessage("fallback applied"); len(applied) != 1 {
 		t.Errorf("five resolutions emitted %d `fallback applied` records, want one per slug+reason (1):\n%s", len(applied), sink.Body())
 	}
-	if loaded := sink.RecordsWithMessage("loaded"); len(loaded) != 5 {
+	if loaded := sink.Records().WithMessage("loaded"); len(loaded) != 5 {
 		t.Errorf("five resolutions emitted %d `loaded` records, want one per load (5):\n%s", len(loaded), sink.Body())
 	}
 }
@@ -562,7 +562,7 @@ func TestEvents_FallbackDifferentReasonEmitsTwice(t *testing.T) {
 		t.Fatalf("ResolveNomination(%+v) after the file appeared = %v, want the fallback applied", setting, err)
 	}
 
-	applied := sink.RecordsWithMessage("fallback applied")
+	applied := sink.Records().WithMessage("fallback applied")
 	if len(applied) != 2 {
 		t.Fatalf("emitted %d `fallback applied` records, want one per reason (2):\n%s", len(applied), sink.Body())
 	}
@@ -718,7 +718,7 @@ func TestEvents_FreshInstanceHasFreshDedupState(t *testing.T) {
 		}
 	}
 
-	if applied := sink.RecordsWithMessage("fallback applied"); len(applied) != 2 {
+	if applied := sink.Records().WithMessage("fallback applied"); len(applied) != 2 {
 		t.Errorf("two separately constructed event loggers emitted %d `fallback applied` records, want one each (2):\n%s", len(applied), sink.Body())
 	}
 }

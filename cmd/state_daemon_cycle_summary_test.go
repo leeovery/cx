@@ -76,7 +76,7 @@ func TestCaptureAndCommit_EmitsOneTickCompleteSummaryOnSuccess(t *testing.T) {
 		t.Fatalf("captureAndCommit: %v", err)
 	}
 
-	rec := sink.RecordsWith("capture", "tick complete").Only(t, "capture tick complete record")
+	rec := sink.Records().Matching("capture", "tick complete").Only(t, "capture tick complete record")
 	if rec.Level != slog.LevelInfo {
 		t.Errorf("summary level = %v, want INFO", rec.Level)
 	}
@@ -110,7 +110,7 @@ func TestCaptureAndCommit_NoSummaryWhenCtxCancelledAtObsPoint1(t *testing.T) {
 	if err := captureAndCommit(ctx, deps); err != nil {
 		t.Fatalf("captureAndCommit on cancelled ctx = %v, want nil", err)
 	}
-	if got := sink.RecordsWith("capture", "tick complete"); len(got) != 0 {
+	if got := sink.Records().Matching("capture", "tick complete"); len(got) != 0 {
 		t.Errorf("expected no summary on obs-point-1 cancel, got %d: %+v", len(got), got)
 	}
 	if got := fc.callsContaining("list-sessions"); len(got) != 0 {
@@ -141,7 +141,7 @@ func TestCaptureAndCommit_NoSummaryWhenCtxCancelledAtObsPoint2(t *testing.T) {
 	if err := captureAndCommit(ctx, deps); err != nil {
 		t.Fatalf("captureAndCommit = %v, want nil", err)
 	}
-	if got := sink.RecordsWith("capture", "tick complete"); len(got) != 0 {
+	if got := sink.Records().Matching("capture", "tick complete"); len(got) != 0 {
 		t.Errorf("expected no summary on obs-point-2 cancel, got %d: %+v", len(got), got)
 	}
 	if got := fc.callsContaining("capture-pane"); len(got) != 0 {
@@ -172,7 +172,7 @@ func TestCaptureAndCommit_NoSummaryWhenCtxCancelledAtObsPoint3(t *testing.T) {
 	if err := captureAndCommit(ctx, deps); err != nil {
 		t.Fatalf("captureAndCommit = %v, want nil", err)
 	}
-	if got := sink.RecordsWith("capture", "tick complete"); len(got) != 0 {
+	if got := sink.Records().Matching("capture", "tick complete"); len(got) != 0 {
 		t.Errorf("expected no summary on obs-point-3 cancel, got %d: %+v", len(got), got)
 	}
 }
@@ -197,7 +197,7 @@ func TestCaptureAndCommit_AnomalousCapturePaneFailureIncrementsAnomalousAndWarns
 		t.Fatalf("captureAndCommit: %v", err)
 	}
 
-	rec := sink.RecordsWith("capture", "tick complete").Only(t, "capture tick complete record")
+	rec := sink.Records().Matching("capture", "tick complete").Only(t, "capture tick complete record")
 	if got := rec.IntAttr(t, "anomalous"); got != 1 {
 		t.Errorf("anomalous = %d, want 1", got)
 	}
@@ -208,7 +208,7 @@ func TestCaptureAndCommit_AnomalousCapturePaneFailureIncrementsAnomalousAndWarns
 		t.Errorf("panes = %d, want 2 (loop continued past failure)", got)
 	}
 
-	warn := sink.RecordsAtExactLevelWithMessage(slog.LevelWarn, "capture pane failed").Only(t, "'capture pane failed' WARN")
+	warn := sink.Records().WithMessage("capture pane failed").AtExactLevel(slog.LevelWarn).Only(t, "'capture pane failed' WARN")
 	if comp := warn.AttrString(t, "component"); comp != "daemon" {
 		t.Errorf("WARN component = %q, want daemon (per-pane WARN stays on daemon)", comp)
 	}
@@ -232,7 +232,7 @@ func TestCaptureAndCommit_AnomalousWriteScrollbackFailureIncrementsAnomalousAndW
 		t.Fatalf("captureAndCommit: %v", err)
 	}
 
-	rec := sink.RecordsWith("capture", "tick complete").Only(t, "capture tick complete record")
+	rec := sink.Records().Matching("capture", "tick complete").Only(t, "capture tick complete record")
 	if got := rec.IntAttr(t, "anomalous"); got != 1 {
 		t.Errorf("anomalous = %d, want 1", got)
 	}
@@ -240,7 +240,7 @@ func TestCaptureAndCommit_AnomalousWriteScrollbackFailureIncrementsAnomalousAndW
 		t.Errorf("natural_churn = %d, want 0", got)
 	}
 
-	warn := sink.RecordsAtExactLevelWithMessage(slog.LevelWarn, "write scrollback failed").Only(t, "'write scrollback failed' WARN")
+	warn := sink.Records().WithMessage("write scrollback failed").AtExactLevel(slog.LevelWarn).Only(t, "'write scrollback failed' WARN")
 	if comp := warn.AttrString(t, "component"); comp != "daemon" {
 		t.Errorf("WARN component = %q, want daemon", comp)
 	}
@@ -261,7 +261,7 @@ func TestCaptureAndCommit_NoSummaryOnCommitPhaseError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected a commit phase-boundary error, got nil")
 	}
-	if got := sink.RecordsWith("capture", "tick complete"); len(got) != 0 {
+	if got := sink.Records().Matching("capture", "tick complete"); len(got) != 0 {
 		t.Errorf("expected no summary on commit phase error, got %d: %+v", len(got), got)
 	}
 }
@@ -286,7 +286,7 @@ func TestCaptureAndCommit_CountsUserClosedPaneAsNaturalChurnNotAnomalous(t *test
 		t.Fatalf("captureAndCommit: %v", err)
 	}
 
-	rec := sink.RecordsWith("capture", "tick complete").Only(t, "capture tick complete record")
+	rec := sink.Records().Matching("capture", "tick complete").Only(t, "capture tick complete record")
 	if got := rec.IntAttr(t, "natural_churn"); got != 1 {
 		t.Errorf("natural_churn = %d, want 1 (option a: user-closed pane is natural churn)", got)
 	}
@@ -294,10 +294,10 @@ func TestCaptureAndCommit_CountsUserClosedPaneAsNaturalChurnNotAnomalous(t *test
 		t.Errorf("anomalous = %d, want 0 (a vanished pane is not anomalous)", got)
 	}
 
-	if warns := sink.RecordsAtExactLevelWithMessage(slog.LevelWarn, "capture pane failed"); warns != nil {
+	if warns := sink.Records().WithMessage("capture pane failed").AtExactLevel(slog.LevelWarn); warns != nil {
 		t.Errorf("vanished pane must not emit a WARN: %+v", warns)
 	}
-	vanished := sink.RecordsAtExactLevelWithMessage(slog.LevelDebug, "pane vanished").Only(t, "DEBUG 'pane vanished'")
+	vanished := sink.Records().WithMessage("pane vanished").AtExactLevel(slog.LevelDebug).Only(t, "DEBUG 'pane vanished'")
 	if comp := vanished.AttrString(t, "component"); comp != "capture" {
 		t.Errorf("'pane vanished' component = %q, want capture", comp)
 	}
@@ -319,7 +319,7 @@ func TestCaptureAndCommit_EmitsPerPaneDebugBreadcrumbUnderCapture(t *testing.T) 
 		t.Fatalf("captureAndCommit: %v", err)
 	}
 
-	dbg := sink.RecordsAtExactLevelWithMessage(slog.LevelDebug, "pane captured").Only(t, "DEBUG 'pane captured' breadcrumb")
+	dbg := sink.Records().WithMessage("pane captured").AtExactLevel(slog.LevelDebug).Only(t, "DEBUG 'pane captured' breadcrumb")
 	if comp := dbg.AttrString(t, "component"); comp != "capture" {
 		t.Errorf("breadcrumb component = %q, want capture", comp)
 	}

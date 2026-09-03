@@ -23,7 +23,7 @@ func TestTerminalsStoreLoad(t *testing.T) {
 		if len(cfg) != 0 {
 			t.Errorf("config len = %d, want 0 for a missing file", len(cfg))
 		}
-		if got := sink.RecordsAtExactLevel(slog.LevelWarn); len(got) != 0 {
+		if got := sink.Records().AtExactLevel(slog.LevelWarn); len(got) != 0 {
 			t.Errorf("emitted %d WARN records for a missing file, want 0: %+v", len(got), got)
 		}
 		if _, err := os.Stat(path); !os.IsNotExist(err) {
@@ -48,7 +48,7 @@ func TestTerminalsStoreLoad(t *testing.T) {
 		if cfg == nil || len(cfg) != 0 {
 			t.Errorf("config = %+v, want an empty non-nil config for an unreadable file", cfg)
 		}
-		rec := sink.RecordsAtExactLevel(slog.LevelWarn).Only(t, "WARN record for an unreadable file")
+		rec := sink.Records().AtExactLevel(slog.LevelWarn).Only(t, "WARN record for an unreadable file")
 		if v := rec.AttrString(t, "component"); v != "spawn" {
 			t.Errorf("WARN component = %q, want %q", v, "spawn")
 		}
@@ -67,7 +67,7 @@ func TestTerminalsStoreLoad(t *testing.T) {
 		if cfg == nil || len(cfg) != 0 {
 			t.Errorf("config = %+v, want an empty non-nil config for malformed JSON", cfg)
 		}
-		rec := sink.RecordsAtExactLevel(slog.LevelWarn).Only(t, "WARN record for malformed JSON")
+		rec := sink.Records().AtExactLevel(slog.LevelWarn).Only(t, "WARN record for malformed JSON")
 		if v := rec.AttrString(t, "component"); v != "spawn" {
 			t.Errorf("WARN component = %q, want %q", v, "spawn")
 		}
@@ -94,7 +94,7 @@ func TestTerminalsStoreLoad(t *testing.T) {
 		if got := entry.Commands.Open.Argv; !slices.Equal(got, wantArgv) {
 			t.Errorf("open argv = %v, want %v", got, wantArgv)
 		}
-		if got := sink.RecordsAtExactLevel(slog.LevelWarn); len(got) != 0 {
+		if got := sink.Records().AtExactLevel(slog.LevelWarn); len(got) != 0 {
 			t.Errorf("emitted %d WARN records for a valid entry, want 0: %+v", len(got), got)
 		}
 	})

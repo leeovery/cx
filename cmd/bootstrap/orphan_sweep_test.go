@@ -119,7 +119,7 @@ func TestSweepOrphanDaemons_pgrepErrorLogsWarnReturnsNil(t *testing.T) {
 	if len(kill.calls) != 0 {
 		t.Errorf("expected zero kill calls on pgrep error; got %v", kill.calls)
 	}
-	warn := sink.RecordsAtExactLevelWithMessage(slog.LevelWarn, "sweep: pgrep failed").Only(t, "pgrep-failure WARN")
+	warn := sink.Records().WithMessage("sweep: pgrep failed").AtExactLevel(slog.LevelWarn).Only(t, "pgrep-failure WARN")
 	if comp := warn.AttrString(t, "component"); comp != "bootstrap" {
 		t.Errorf("pgrep Warn component = %q, want %q", comp, "bootstrap")
 	}
@@ -147,7 +147,7 @@ func TestSweepOrphanDaemons_listPanesErrorTreatsLegitimateEmpty(t *testing.T) {
 	if len(kill.calls) != 2 {
 		t.Fatalf("expected 2 kill calls (legitimate empty), got %d (%v)", len(kill.calls), kill.calls)
 	}
-	warn := sink.RecordsAtExactLevelWithMessage(slog.LevelWarn, listPanesWarnMessage).Only(t, "list-panes-failure WARN")
+	warn := sink.Records().WithMessage(listPanesWarnMessage).AtExactLevel(slog.LevelWarn).Only(t, "list-panes-failure WARN")
 	if comp := warn.AttrString(t, "component"); comp != "bootstrap" {
 		t.Errorf("list-panes Warn component = %q, want %q", comp, "bootstrap")
 	}
@@ -211,7 +211,7 @@ func TestSweepOrphanDaemons_identifyTransientErrorSkipped(t *testing.T) {
 	if len(kill.calls) != 0 {
 		t.Errorf("Identify transient error must skip kill; got %v", kill.calls)
 	}
-	warn := sink.RecordsAtExactLevelWithMessage(slog.LevelWarn, "sweep: identity-check failed, skipping").
+	warn := sink.Records().WithMessage("sweep: identity-check failed, skipping").AtExactLevel(slog.LevelWarn).
 		Only(t, "identity-check-failure WARN")
 	if pid := warn.IntAttr(t, "target_pid"); pid != 7001 {
 		t.Errorf("identity-check Warn target_pid = %d, want 7001", pid)
@@ -237,7 +237,7 @@ func TestSweepOrphanDaemons_killErrorLogsWarnContinues(t *testing.T) {
 	if len(kill.calls) != 2 {
 		t.Errorf("expected both PIDs attempted despite first kill error; got %v", kill.calls)
 	}
-	warn := sink.RecordsAtExactLevelWithMessage(slog.LevelWarn, "sweep: kill failed").Only(t, "kill-failure WARN")
+	warn := sink.Records().WithMessage("sweep: kill failed").AtExactLevel(slog.LevelWarn).Only(t, "kill-failure WARN")
 	if pid := warn.IntAttr(t, "target_pid"); pid != 8001 {
 		t.Errorf("kill Warn target_pid = %d, want 8001", pid)
 	}
@@ -262,7 +262,7 @@ func TestSweepOrphanDaemons_cleanStateZeroInfo(t *testing.T) {
 	if len(kill.calls) != 0 {
 		t.Errorf("clean state must send zero signals; got %v", kill.calls)
 	}
-	for _, rec := range sink.RecordsAtExactLevel(slog.LevelInfo) {
+	for _, rec := range sink.Records().AtExactLevel(slog.LevelInfo) {
 		if strings.Contains(rec.Msg, "killed orphan daemon") {
 			t.Errorf("clean state must emit zero killed-orphan INFO entries; got %+v", rec)
 		}
@@ -335,10 +335,10 @@ func TestSweepOrphanDaemons_pgrepEmptyListNoOp(t *testing.T) {
 	if len(kill.calls) != 0 {
 		t.Errorf("empty pgrep must produce zero kill calls; got %v", kill.calls)
 	}
-	if warns := sink.RecordsAtExactLevel(slog.LevelWarn); warns != nil {
+	if warns := sink.Records().AtExactLevel(slog.LevelWarn); warns != nil {
 		t.Errorf("empty pgrep must produce zero warnings; got %+v", warns)
 	}
-	if infos := sink.RecordsAtExactLevel(slog.LevelInfo); infos != nil {
+	if infos := sink.Records().AtExactLevel(slog.LevelInfo); infos != nil {
 		t.Errorf("empty pgrep must produce zero INFO entries; got %+v", infos)
 	}
 }
@@ -361,7 +361,7 @@ func TestSweepOrphanDaemons_perKillNotEmittedAtInfoOnBootstrapLogger(t *testing.
 	if len(kill.calls) != 1 || kill.calls[0] != 11001 {
 		t.Fatalf("expected pid 11001 killed; got %v", kill.calls)
 	}
-	for _, rec := range sink.RecordsAtExactLevel(slog.LevelInfo) {
+	for _, rec := range sink.Records().AtExactLevel(slog.LevelInfo) {
 		if strings.Contains(rec.Msg, "killed orphan daemon") {
 			t.Errorf("per-kill INFO must be demoted off the bootstrap logger; got %q (component %q)", rec.Msg, rec.AttrOrEmpty("component"))
 		}
@@ -401,7 +401,7 @@ func TestSweepOrphanDaemons_presentVsAbsentTriState(t *testing.T) {
 		if len(kill.calls) != 1 || kill.calls[0] != 20001 {
 			t.Errorf("absent: expected pid 20001 killed (empty legit set); got %v", kill.calls)
 		}
-		if warns := sink.RecordsAtExactLevelWithMessage(slog.LevelWarn, listPanesWarnMessage); warns != nil {
+		if warns := sink.Records().WithMessage(listPanesWarnMessage).AtExactLevel(slog.LevelWarn); warns != nil {
 			t.Errorf("absent path must NOT emit list-panes Warn; got %+v", warns)
 		}
 	})
@@ -420,7 +420,7 @@ func TestSweepOrphanDaemons_presentVsAbsentTriState(t *testing.T) {
 		if err := c.SweepOrphanDaemons(); err != nil {
 			t.Fatalf("SweepOrphanDaemons returned error: %v", err)
 		}
-		if warns := sink.RecordsAtExactLevelWithMessage(slog.LevelWarn, listPanesWarnMessage); warns != nil {
+		if warns := sink.Records().WithMessage(listPanesWarnMessage).AtExactLevel(slog.LevelWarn); warns != nil {
 			t.Errorf("present=true path must NOT emit list-panes Warn; got %+v", warns)
 		}
 		if len(kill.calls) != 1 || kill.calls[0] != 20002 {
@@ -446,7 +446,7 @@ func TestSweepOrphanDaemons_presentVsAbsentTriState(t *testing.T) {
 		if len(kill.calls) != 1 || kill.calls[0] != 20003 {
 			t.Errorf("error: expected pid 20003 killed (legit empty); got %v", kill.calls)
 		}
-		warn := sink.RecordsAtExactLevelWithMessage(slog.LevelWarn, listPanesWarnMessage).Only(t, "list-panes-failure WARN")
+		warn := sink.Records().WithMessage(listPanesWarnMessage).AtExactLevel(slog.LevelWarn).Only(t, "list-panes-failure WARN")
 		if got := warn.ErrorAttr(t, "error"); !errors.Is(got, sentinel) {
 			t.Errorf("list-panes Warn error = %v, want %v", got, sentinel)
 		}

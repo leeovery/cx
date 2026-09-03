@@ -172,11 +172,11 @@ func TestUnion_EnumeratedFiresPerOpenUndeduped(t *testing.T) {
 		}
 	}
 
-	enumerated := sink.RecordsWithMessage("enumerated")
+	enumerated := sink.Records().WithMessage("enumerated")
 	if len(enumerated) != opens {
 		t.Fatalf("%d opens emitted %d `enumerated` records, want one each:\n%s", opens, len(enumerated), sink.Body())
 	}
-	if rejected := sink.RecordsWithMessage("rejected"); len(rejected) != 2 {
+	if rejected := sink.Records().WithMessage("rejected"); len(rejected) != 2 {
 		t.Errorf("%d opens emitted %d `rejected` records, want one per distinct slug+reason (2):\n%s", opens, len(rejected), sink.Body())
 	}
 
@@ -443,7 +443,7 @@ func TestUnion_CountAndRejectedAttrs(t *testing.T) {
 		t.Errorf("the fixture produced %d unselectable rows, want 4 (two broken files, two dead slots)", wantRejected)
 	}
 
-	record := sink.RecordsWithMessage("enumerated").Only(t, "`theme: enumerated` record")
+	record := sink.Records().WithMessage("enumerated").Only(t, "`theme: enumerated` record")
 	if got := record.IntAttr(t, "count"); got != int64(union.Count) {
 		t.Errorf("record count = %d, want the union's %d", got, union.Count)
 	}

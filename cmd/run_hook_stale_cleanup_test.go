@@ -36,17 +36,17 @@ func TestRunHookStaleCleanup(t *testing.T) {
 
 		assertHooksFileUnchanged(t, path, before, "modified by hazard-guard branch")
 
-		if got := len(loggerSink.RecordsAtExactLevelWith(slog.LevelDebug, "bootstrap", entryDebugFmt)); got != 1 {
+		if got := len(loggerSink.Records().Matching("bootstrap", entryDebugFmt).AtExactLevel(slog.LevelDebug)); got != 1 {
 			t.Errorf("entry-point Debug count = %d, want 1; entries=%+v", got, loggerSink.Records())
 		}
 
 		// The guard's own WARN rides the hooks component, not the injected
 		// bootstrap/daemon logger.
-		for _, rec := range loggerSink.RecordsAtExactLevel(slog.LevelWarn) {
+		for _, rec := range loggerSink.Records().AtExactLevel(slog.LevelWarn) {
 			t.Errorf("unexpected Warn on the injected logger under the hazard guard: %+v", rec)
 		}
 
-		if got := len(loggerSink.RecordsAtExactLevelWith(slog.LevelDebug, "bootstrap", completionDebugFmt)); got != 0 {
+		if got := len(loggerSink.Records().Matching("bootstrap", completionDebugFmt).AtExactLevel(slog.LevelDebug)); got != 0 {
 			t.Errorf("completion Debug count = %d, want 0 (must NOT fire on hazard branch); entries=%+v", got, loggerSink.Records())
 		}
 	})
@@ -64,15 +64,15 @@ func TestRunHookStaleCleanup(t *testing.T) {
 
 		assertHooksFileUnchanged(t, path, before, "materialised under both-sides-empty path")
 
-		if got := len(loggerSink.RecordsAtExactLevelWith(slog.LevelDebug, "bootstrap", entryDebugFmt)); got != 1 {
+		if got := len(loggerSink.Records().Matching("bootstrap", entryDebugFmt).AtExactLevel(slog.LevelDebug)); got != 1 {
 			t.Errorf("entry-point Debug count = %d, want 1; entries=%+v", got, loggerSink.Records())
 		}
 
-		for _, rec := range loggerSink.RecordsAtExactLevel(slog.LevelWarn) {
+		for _, rec := range loggerSink.Records().AtExactLevel(slog.LevelWarn) {
 			t.Errorf("unexpected Warn under both-sides-empty: %+v", rec)
 		}
 
-		if got := len(loggerSink.RecordsAtExactLevelWith(slog.LevelDebug, "bootstrap", completionDebugFmt)); got != 0 {
+		if got := len(loggerSink.Records().Matching("bootstrap", completionDebugFmt).AtExactLevel(slog.LevelDebug)); got != 0 {
 			t.Errorf("completion Debug count = %d, want 0; entries=%+v", got, loggerSink.Records())
 		}
 	})
@@ -92,7 +92,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 			t.Fatalf("DeclineReason = %q, want %q", outcome.DeclineReason, skipReasonPaneReadFailed)
 		}
 
-		if got := len(loggerSink.RecordsAtExactLevelWith(slog.LevelDebug, "bootstrap", entryDebugFmt)); got != 0 {
+		if got := len(loggerSink.Records().Matching("bootstrap", entryDebugFmt).AtExactLevel(slog.LevelDebug)); got != 0 {
 			t.Errorf("entry-point Debug count = %d, want 0 (must NOT fire on ListAllPaneHookKeys-error branch); entries=%+v", got, loggerSink.Records())
 		}
 	})
@@ -111,7 +111,7 @@ func TestRunHookStaleCleanup(t *testing.T) {
 			t.Fatalf("DeclineReason = %q, want %q", outcome.DeclineReason, skipReasonStoreReadFailed)
 		}
 
-		if got := len(loggerSink.RecordsAtExactLevelWith(slog.LevelDebug, "bootstrap", entryDebugFmt)); got != 0 {
+		if got := len(loggerSink.Records().Matching("bootstrap", entryDebugFmt).AtExactLevel(slog.LevelDebug)); got != 0 {
 			t.Errorf("entry-point Debug count = %d, want 0 on Load-error branch; entries=%+v", got, loggerSink.Records())
 		}
 	})
@@ -174,15 +174,15 @@ func TestRunHookStaleCleanup(t *testing.T) {
 			t.Errorf("post-run hooks still contains stale key %s; got %v", hookstest.ReapableSeedD, keysOf(postRun))
 		}
 
-		if got := len(loggerSink.RecordsAtExactLevelWith(slog.LevelDebug, "bootstrap", entryDebugFmt)); got != 1 {
+		if got := len(loggerSink.Records().Matching("bootstrap", entryDebugFmt).AtExactLevel(slog.LevelDebug)); got != 1 {
 			t.Errorf("entry-point Debug count = %d, want 1; entries=%+v", got, loggerSink.Records())
 		}
 
-		if got := len(loggerSink.RecordsAtExactLevelWith(slog.LevelDebug, "bootstrap", completionDebugFmt)); got != 1 {
+		if got := len(loggerSink.Records().Matching("bootstrap", completionDebugFmt).AtExactLevel(slog.LevelDebug)); got != 1 {
 			t.Errorf("completion Debug count = %d, want 1; entries=%+v", got, loggerSink.Records())
 		}
 
-		for _, rec := range loggerSink.RecordsAtExactLevel(slog.LevelWarn) {
+		for _, rec := range loggerSink.Records().AtExactLevel(slog.LevelWarn) {
 			t.Errorf("unexpected Warn on normal-removal path: %+v", rec)
 		}
 	})
@@ -448,12 +448,12 @@ func assertStandDown(t *testing.T, sink *logtest.Sink, level slog.Level, reason 
 
 	var rec logtest.Record
 	if level < slog.LevelWarn {
-		for _, r := range sink.RecordsAtOrAboveLevel(slog.LevelWarn) {
+		for _, r := range sink.Records().AtOrAboveLevel(slog.LevelWarn) {
 			t.Errorf("stand-down emitted at %v: %+v", r.Level, r)
 		}
 		rec = sink.Records().Only(t, "log record")
 	} else {
-		rec = sink.RecordsAtOrAboveLevel(level).Only(t, "record at or above level")
+		rec = sink.Records().AtOrAboveLevel(level).Only(t, "record at or above level")
 	}
 
 	assertStandDownRecord(t, rec, level, reason)
@@ -516,7 +516,7 @@ func TestHookSweepReportsStandDown(t *testing.T) {
 		}
 
 		assertStandDown(t, sink, slog.LevelWarn, skipReasonPaneReadFailed)
-		for _, rec := range injectedSink.RecordsAtExactLevel(slog.LevelWarn) {
+		for _, rec := range injectedSink.Records().AtExactLevel(slog.LevelWarn) {
 			t.Errorf("stand-down emitted on the injected logger as well as the hooks component: %+v", rec)
 		}
 	})
@@ -549,7 +549,7 @@ func TestHookSweepGuardCountsPaneRowsNotTokens(t *testing.T) {
 		if recs := sink.Records(); len(recs) != 0 {
 			t.Errorf("hooks-component records = %+v, want none (no hazard exists at zero stamped panes)", recs)
 		}
-		for _, rec := range injectedSink.RecordsAtExactLevel(slog.LevelWarn) {
+		for _, rec := range injectedSink.Records().AtExactLevel(slog.LevelWarn) {
 			t.Errorf("unexpected Warn with rows present and no token: %+v", rec)
 		}
 		assertHooksFileUnchanged(t, path, before, "rewritten with only unjudgeable entries present")
@@ -603,7 +603,7 @@ func TestHookSweepGuardCountsPaneRowsNotTokens(t *testing.T) {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
-		rec := loggerSink.RecordsAtExactLevelWith(slog.LevelDebug, "bootstrap", "stale-hook cleanup counts").Only(t, "DEBUG bootstrap stale-hook cleanup counts record")
+		rec := loggerSink.Records().Matching("bootstrap", "stale-hook cleanup counts").AtExactLevel(slog.LevelDebug).Only(t, "DEBUG bootstrap stale-hook cleanup counts record")
 		if got := rec.IntAttr(t, "panes"); got != 4 {
 			t.Errorf("panes = %d, want 4 (the count is of live panes; none of these carries a token)", got)
 		}
