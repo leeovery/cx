@@ -944,13 +944,13 @@ sources: duplication, architecture
 severity: dead-code
 sources: bank
 
-**Problem**: `internal/tmux/tmux.go:573` is reachable only from tests (`tmux_test.go:1295-1401`, plus `exact_session_target_test.go:81` and `exact_session_target_realtmux_test.go:126,234`) and satisfies no seam interface. It is the third exported client method in that family with zero production callers — the other two were deleted, leaving the task's outcome statement ("the tmux client exports no method with zero production callers") only two-thirds true. It is not costless: this work unit corrected its doc, pinned its wire form and gave it two real-tmux subtests, all maintained for an unused export.
+**Problem**: `internal/tmux/tmux.go:573` is reachable only from tests (`tmux_test.go:1295-1401`, plus `exact_session_target_test.go:81` and `exact_session_target_realtmux_test.go:126,234`) and satisfies no seam interface. It is the third exported client method in that family with zero production callers — the other two were deleted, leaving the task's outcome statement ("the tmux client exports no pane-listing method with zero production callers") only two-thirds true. It is not costless: this work unit corrected its doc, pinned its wire form and gave it two real-tmux subtests, all maintained for an unused export.
 
 **Solution**: Settle it rather than leaving it half-cleaned.
 
-**Delete it.** `Client.ListPanes` has no production caller, satisfies no seam interface, and is the third of its family — the other two were already deleted, which is what makes the outcome statement "the tmux client exports no method with zero production callers" currently two-thirds true. This work unit paid maintenance on it: a corrected doc, a pinned wire form and two real-tmux subtests, all for an unused export. Re-point the two `exactCoordTarget` routing proofs at a method with a production caller; the coverage they give is about the target vocabulary, not about `ListPanes`, so it survives the move.
+**Delete it.** `Client.ListPanes` has no production caller, satisfies no seam interface, and is the third of its family — the other two were already deleted, which is what makes the outcome statement "the tmux client exports no pane-listing method with zero production callers" currently two-thirds true. This work unit paid maintenance on it: a corrected doc, a pinned wire form and two real-tmux subtests, all for an unused export. Re-point the two `exactCoordTarget` routing proofs at a method with a production caller; the coverage they give is about the target vocabulary, not about `ListPanes`, so it survives the move.
 
-**Outcome**: The tmux client exports no method with zero production callers, and the exact-coordinate-target routing proofs survive on a method that is actually used.
+**Outcome**: The tmux client exports no pane-listing method with zero production callers, and the exact-coordinate-target routing proofs survive on a method that is actually used.
 
 **Do**:
 1. Confirm the emptiness before deleting: grep the tree for `ListPanes(` and verify every hit is a test or the declaration itself, and that no seam interface in `cmd`, `internal/state`, `internal/restore` or `internal/tui` declares the method.

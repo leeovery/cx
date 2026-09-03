@@ -222,7 +222,7 @@ sources: bank
 
 **Solution**: Delete both methods and their tests; correct the CLAUDE.md sentence.
 
-**Outcome**: The tmux client exports no method with zero production callers, and the architecture doc's description of the structural-key surface is true.
+**Outcome**: The tmux client exports no pane-listing method with zero production callers, and the architecture doc's description of the structural-key surface is true.
 
 **Do**:
 1. Delete `Client.ResolveStructuralKey` and `Client.ListAllPanes` from `internal/tmux/tmux.go`.
