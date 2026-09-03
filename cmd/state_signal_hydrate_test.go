@@ -363,14 +363,12 @@ func TestStateSignalHydrate_AcceptsLeadingDashSessionViaCobraExecute(t *testing.
 		stubSignaler := &statetest.RecordingFIFOSignaler{}
 
 		var captured string
-		prev := signalHydrateRunFunc
-		signalHydrateRunFunc = func(cfg signalHydrateConfig) error {
+		withFuncSeam(t, &signalHydrateRunFunc, func(cfg signalHydrateConfig) error {
 			captured = cfg.Session
 			cfg.Client = stubClient
 			cfg.Signaler = stubSignaler
 			return runSignalHydrate(cfg)
-		}
-		t.Cleanup(func() { signalHydrateRunFunc = prev })
+		})
 
 		outBuf := new(bytes.Buffer)
 		errBuf := new(bytes.Buffer)
@@ -397,12 +395,10 @@ func TestStateSignalHydrate_AcceptsLeadingDashSessionViaCobraExecute(t *testing.
 	t.Run("without -- separator, leading-dash session is misparsed as short-flag cluster", func(t *testing.T) {
 		// The seam stays installed so an accidental successful parse surfaces here.
 		var captured string
-		prev := signalHydrateRunFunc
-		signalHydrateRunFunc = func(cfg signalHydrateConfig) error {
+		withFuncSeam(t, &signalHydrateRunFunc, func(cfg signalHydrateConfig) error {
 			captured = cfg.Session
 			return nil
-		}
-		t.Cleanup(func() { signalHydrateRunFunc = prev })
+		})
 		t.Setenv("PORTAL_STATE_DIR", t.TempDir())
 
 		outBuf := new(bytes.Buffer)

@@ -556,11 +556,9 @@ func TestPersistentPreRunE_WrapsVersionCheckErrorAsFatal(t *testing.T) {
 	resetVersionCheckForTest()
 	t.Cleanup(resetVersionCheckForTest)
 
-	original := versionChecker
-	versionChecker = func(tmux.Commander) error {
+	withFuncSeam(t, &versionChecker, func(tmux.Commander) error {
 		return errors.New("Portal requires tmux \u2265 3.0 (found 2.9). Please upgrade.")
-	}
-	t.Cleanup(func() { versionChecker = original })
+	})
 
 	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 

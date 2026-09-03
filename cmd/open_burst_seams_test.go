@@ -38,13 +38,11 @@ func TestBuildOpenBurstDeps_PartialInjectionKeepsInjectedFillsRest(t *testing.T)
 
 		// Records rather than executing the real openPath side effect, so an
 		// overwritten LocalMint surfaces as a recorded call instead of a real open.
-		origOpenPath := openPathFunc
 		openPathRouted := false
-		openPathFunc = func(*cobra.Command, string, []string) error {
+		withFuncSeam(t, &openPathFunc, func(*cobra.Command, string, []string) error {
 			openPathRouted = true
 			return nil
-		}
-		t.Cleanup(func() { openPathFunc = origOpenPath })
+		})
 
 		deps := buildOpenBurstDeps(cmd)
 
@@ -100,15 +98,13 @@ func TestBuildOpenBurstDeps_PartialInjectionKeepsInjectedFillsRest(t *testing.T)
 			Logger: log.Discard(),
 		})
 
-		origOpenPath := openPathFunc
 		openPathRouted := false
 		var recordedDir string
-		openPathFunc = func(_ *cobra.Command, dir string, _ []string) error {
+		withFuncSeam(t, &openPathFunc, func(_ *cobra.Command, dir string, _ []string) error {
 			openPathRouted = true
 			recordedDir = dir
 			return nil
-		}
-		t.Cleanup(func() { openPathFunc = origOpenPath })
+		})
 
 		deps := buildOpenBurstDeps(cmd)
 

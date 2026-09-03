@@ -149,9 +149,7 @@ func TestReattachIntegration_SteadyStateReattachZeroStructuralRewrites(t *testin
 	connector := &mockSessionConnector{}
 	withOpenDeps(t, OpenDeps{SessionLister: client})
 
-	origSession := openSessionFunc
-	openSessionFunc = func(_ *cobra.Command, name string) error { return connector.Connect(name) }
-	t.Cleanup(func() { openSessionFunc = origSession })
+	withFuncSeam(t, &openSessionFunc, func(_ *cobra.Command, name string) error { return connector.Connect(name) })
 
 	withBootstrapDeps(t, BootstrapDeps{
 		Orchestrator: buildReattachOrchestrator(t, client, stateDir),
@@ -218,9 +216,7 @@ func TestReattachIntegration_HasSessionPostBootstrapForSavedNames(t *testing.T) 
 	connector := &mockSessionConnector{}
 	withOpenDeps(t, OpenDeps{SessionLister: client})
 
-	origSession := openSessionFunc
-	openSessionFunc = func(_ *cobra.Command, name string) error { return connector.Connect(name) }
-	t.Cleanup(func() { openSessionFunc = origSession })
+	withFuncSeam(t, &openSessionFunc, func(_ *cobra.Command, name string) error { return connector.Connect(name) })
 
 	withBootstrapDeps(t, BootstrapDeps{
 		Orchestrator: buildReattachOrchestrator(t, client, stateDir),
@@ -267,9 +263,7 @@ func TestReattachIntegration_AttachInsideTmuxSwitchClientPath(t *testing.T) {
 
 	withOpenDeps(t, OpenDeps{SessionLister: client})
 
-	origSession := openSessionFunc
-	openSessionFunc = func(_ *cobra.Command, name string) error { return connector.Connect(name) }
-	t.Cleanup(func() { openSessionFunc = origSession })
+	withFuncSeam(t, &openSessionFunc, func(_ *cobra.Command, name string) error { return connector.Connect(name) })
 
 	withBootstrapDeps(t, BootstrapDeps{
 		Orchestrator: buildReattachOrchestrator(t, client, stateDir),
@@ -308,9 +302,7 @@ func TestReattachIntegration_AttachOutsideTmuxAttachSessionPath(t *testing.T) {
 	connector := &mockSessionConnector{}
 	withOpenDeps(t, OpenDeps{SessionLister: client})
 
-	origSession := openSessionFunc
-	openSessionFunc = func(_ *cobra.Command, name string) error { return connector.Connect(name) }
-	t.Cleanup(func() { openSessionFunc = origSession })
+	withFuncSeam(t, &openSessionFunc, func(_ *cobra.Command, name string) error { return connector.Connect(name) })
 
 	withBootstrapDeps(t, BootstrapDeps{
 		Orchestrator: buildReattachOrchestrator(t, client, stateDir),
@@ -345,9 +337,7 @@ func TestReattachIntegration_UnknownNameNotFoundError(t *testing.T) {
 	connector := &mockSessionConnector{}
 	withOpenDeps(t, OpenDeps{SessionLister: client})
 
-	origSession := openSessionFunc
-	openSessionFunc = func(_ *cobra.Command, name string) error { return connector.Connect(name) }
-	t.Cleanup(func() { openSessionFunc = origSession })
+	withFuncSeam(t, &openSessionFunc, func(_ *cobra.Command, name string) error { return connector.Connect(name) })
 
 	withBootstrapDeps(t, BootstrapDeps{
 		Orchestrator: buildReattachOrchestrator(t, client, stateDir),
@@ -391,8 +381,7 @@ func TestReattachIntegration_OpenLaunchesTUIAfterRestoredSkeleton(t *testing.T) 
 	// Synchronously is fine here — only completion before the stub returns
 	// matters.
 	var tuiCalled bool
-	origFunc := openTUIFunc
-	openTUIFunc = func(cmd *cobra.Command, _ string, _ []string, _ bool) error {
+	withFuncSeam(t, &openTUIFunc, func(cmd *cobra.Command, _ string, _ []string, _ bool) error {
 		tuiCalled = true
 		if d := deferredBootstrapFromContext(cmd); d != nil {
 			if _, _, err := d.runner.Run(cmd.Context()); err != nil {
@@ -400,8 +389,7 @@ func TestReattachIntegration_OpenLaunchesTUIAfterRestoredSkeleton(t *testing.T) 
 			}
 		}
 		return nil
-	}
-	t.Cleanup(func() { openTUIFunc = origFunc })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open"})
@@ -460,22 +448,18 @@ func TestReattachIntegration_OpenPathResolvesSavedOnlySession(t *testing.T) {
 		pathOpenerCalled bool
 		capturedPath     string
 	)
-	origOpenPath := openPathFunc
-	openPathFunc = func(_ *cobra.Command, resolvedPath string, _ []string) error {
+	withFuncSeam(t, &openPathFunc, func(_ *cobra.Command, resolvedPath string, _ []string) error {
 		pathOpenerCalled = true
 		capturedPath = resolvedPath
 		return nil
-	}
-	t.Cleanup(func() { openPathFunc = origOpenPath })
+	})
 
 	// Reaching the TUI would mean alias resolution produced no PathResult,
 	// masking a regression in the path-arg branch under test.
-	origOpenTUI := openTUIFunc
-	openTUIFunc = func(_ *cobra.Command, query string, _ []string, _ bool) error {
+	withFuncSeam(t, &openTUIFunc, func(_ *cobra.Command, query string, _ []string, _ bool) error {
 		t.Errorf("openTUIFunc unexpectedly called (query=%q); resolver should have produced PathResult", query)
 		return nil
-	}
-	t.Cleanup(func() { openTUIFunc = origOpenTUI })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "mysaved"})

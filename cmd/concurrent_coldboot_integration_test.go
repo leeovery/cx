@@ -392,15 +392,13 @@ func TestConcurrentColdBoot_WarmUnlatchedOpen_TakesConcurrentDeferredRoute(t *te
 	withBootstrapDeps(t, BootstrapDeps{Orchestrator: runner, Client: client})
 
 	var deferredSeen bool
-	origFunc := openTUIFunc
-	openTUIFunc = func(cmd *cobra.Command, _ string, _ []string, _ bool) error {
+	withFuncSeam(t, &openTUIFunc, func(cmd *cobra.Command, _ string, _ []string, _ bool) error {
 		if runner.calls != 0 {
 			t.Errorf("orchestrator ran synchronously (%d calls) on the warm-unlatched TUI path; want deferred", runner.calls)
 		}
 		deferredSeen = deferredBootstrapFromContext(cmd) != nil
 		return nil
-	}
-	t.Cleanup(func() { openTUIFunc = origFunc })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open"})

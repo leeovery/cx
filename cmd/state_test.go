@@ -151,18 +151,14 @@ func TestStateInternalSubcommandsAcceptValidArgv(t *testing.T) {
 			// never touch the developer's real state.
 			t.Setenv("PORTAL_STATE_DIR", t.TempDir())
 			if len(tt.args) >= 2 && tt.args[0] == "state" && tt.args[1] == "daemon" {
-				prev := daemonRunFunc
-				daemonRunFunc = func(_ context.Context, _ *daemonDeps) error { return nil }
-				t.Cleanup(func() { daemonRunFunc = prev })
+				withFuncSeam(t, &daemonRunFunc, func(_ context.Context, _ *daemonDeps) error { return nil })
 				withDaemonLockFileReset(t)
 			}
 
 			// state hydrate's RunE blocks on a real FIFO; stub it out for the
 			// argv-only assertions.
 			if len(tt.args) >= 2 && tt.args[0] == "state" && tt.args[1] == "hydrate" {
-				prev := hydrateRunFunc
-				hydrateRunFunc = func(_ hydrateConfig) error { return nil }
-				t.Cleanup(func() { hydrateRunFunc = prev })
+				withFuncSeam(t, &hydrateRunFunc, func(_ hydrateConfig) error { return nil })
 			}
 
 			outBuf := new(bytes.Buffer)

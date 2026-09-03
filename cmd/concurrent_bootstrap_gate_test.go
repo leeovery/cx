@@ -219,13 +219,11 @@ func TestPersistentPreRunE_LatchedTUI_ReadsLatchExactlyOnce(t *testing.T) {
 
 	var capturedServerStarted bool
 	var openTUIReached bool
-	origFunc := openTUIFunc
-	openTUIFunc = func(_ *cobra.Command, _ string, _ []string, serverStarted bool) error {
+	withFuncSeam(t, &openTUIFunc, func(_ *cobra.Command, _ string, _ []string, serverStarted bool) error {
 		capturedServerStarted = serverStarted
 		openTUIReached = true
 		return nil
-	}
-	t.Cleanup(func() { openTUIFunc = origFunc })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open"})

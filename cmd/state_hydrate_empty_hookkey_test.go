@@ -18,12 +18,10 @@ func parseHydrateHookKey(t *testing.T, args []string) string {
 	t.Setenv("PORTAL_STATE_DIR", t.TempDir())
 
 	var got string
-	prev := hydrateRunFunc
-	hydrateRunFunc = func(cfg hydrateConfig) error {
+	withFuncSeam(t, &hydrateRunFunc, func(cfg hydrateConfig) error {
 		got = cfg.HookKey
 		return nil
-	}
-	t.Cleanup(func() { hydrateRunFunc = prev })
+	})
 
 	resetRootCmd()
 	resetStateCmdFlags()

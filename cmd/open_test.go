@@ -201,28 +201,22 @@ func TestOpenCommand_SessionNameHit_RoutesToSessionConnector(t *testing.T) {
 	})
 
 	var connectedTo string
-	origSession := openSessionFunc
-	openSessionFunc = func(_ *cobra.Command, name string) error {
+	withFuncSeam(t, &openSessionFunc, func(_ *cobra.Command, name string) error {
 		connectedTo = name
 		return nil
-	}
-	t.Cleanup(func() { openSessionFunc = origSession })
+	})
 
 	pathCalled := false
-	origPath := openPathFunc
-	openPathFunc = func(_ *cobra.Command, _ string, _ []string) error {
+	withFuncSeam(t, &openPathFunc, func(_ *cobra.Command, _ string, _ []string) error {
 		pathCalled = true
 		return nil
-	}
-	t.Cleanup(func() { openPathFunc = origPath })
+	})
 
 	tuiCalled := false
-	origTUI := openTUIFunc
-	openTUIFunc = func(_ *cobra.Command, _ string, _ []string, _ bool) error {
+	withFuncSeam(t, &openTUIFunc, func(_ *cobra.Command, _ string, _ []string, _ bool) error {
 		tuiCalled = true
 		return nil
-	}
-	t.Cleanup(func() { openTUIFunc = origTUI })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "api-x7Kd9a"})
@@ -252,28 +246,22 @@ func TestOpenCommand_SessionPin_ExactHit_RoutesToConnector(t *testing.T) {
 	})
 
 	var connectedTo string
-	origSession := openSessionFunc
-	openSessionFunc = func(_ *cobra.Command, name string) error {
+	withFuncSeam(t, &openSessionFunc, func(_ *cobra.Command, name string) error {
 		connectedTo = name
 		return nil
-	}
-	t.Cleanup(func() { openSessionFunc = origSession })
+	})
 
 	pathCalled := false
-	origPath := openPathFunc
-	openPathFunc = func(_ *cobra.Command, _ string, _ []string) error {
+	withFuncSeam(t, &openPathFunc, func(_ *cobra.Command, _ string, _ []string) error {
 		pathCalled = true
 		return nil
-	}
-	t.Cleanup(func() { openPathFunc = origPath })
+	})
 
 	tuiCalled := false
-	origTUI := openTUIFunc
-	openTUIFunc = func(_ *cobra.Command, _ string, _ []string, _ bool) error {
+	withFuncSeam(t, &openTUIFunc, func(_ *cobra.Command, _ string, _ []string, _ bool) error {
 		tuiCalled = true
 		return nil
-	}
-	t.Cleanup(func() { openTUIFunc = origTUI })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "-s", "api-x7Kd9a"})
@@ -303,12 +291,10 @@ func TestOpenCommand_BareSessionAttach_WithCommand_UsageError(t *testing.T) {
 	})
 
 	sessionCalled := false
-	origSession := openSessionFunc
-	openSessionFunc = func(_ *cobra.Command, _ string) error {
+	withFuncSeam(t, &openSessionFunc, func(_ *cobra.Command, _ string) error {
 		sessionCalled = true
 		return nil
-	}
-	t.Cleanup(func() { openSessionFunc = origSession })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "dev", "-e", "claude"})
@@ -340,12 +326,10 @@ func TestOpenCommand_BareSessionAttach_WithDashDashCommand_UsageError(t *testing
 	})
 
 	sessionCalled := false
-	origSession := openSessionFunc
-	openSessionFunc = func(_ *cobra.Command, _ string) error {
+	withFuncSeam(t, &openSessionFunc, func(_ *cobra.Command, _ string) error {
 		sessionCalled = true
 		return nil
-	}
-	t.Cleanup(func() { openSessionFunc = origSession })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "dev", "--", "claude"})
@@ -377,12 +361,10 @@ func TestOpenCommand_SessionPin_WithCommand_UsageError(t *testing.T) {
 	})
 
 	sessionCalled := false
-	origSession := openSessionFunc
-	openSessionFunc = func(_ *cobra.Command, _ string) error {
+	withFuncSeam(t, &openSessionFunc, func(_ *cobra.Command, _ string) error {
 		sessionCalled = true
 		return nil
-	}
-	t.Cleanup(func() { openSessionFunc = origSession })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "-s", "dev", "-e", "claude"})
@@ -418,12 +400,10 @@ func TestOpenCommand_SessionPin_Glob_HardFailsNoFirstMatch(t *testing.T) {
 	})
 
 	attached := false
-	origSession := openSessionFunc
-	openSessionFunc = func(_ *cobra.Command, _ string) error {
+	withFuncSeam(t, &openSessionFunc, func(_ *cobra.Command, _ string) error {
 		attached = true
 		return nil
-	}
-	t.Cleanup(func() { openSessionFunc = origSession })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "-s", "api-*"})
@@ -451,20 +431,16 @@ func TestOpenCommand_SessionPin_Miss_HardFailsNoPicker(t *testing.T) {
 	})
 
 	tuiCalled := false
-	origTUI := openTUIFunc
-	openTUIFunc = func(_ *cobra.Command, _ string, _ []string, _ bool) error {
+	withFuncSeam(t, &openTUIFunc, func(_ *cobra.Command, _ string, _ []string, _ bool) error {
 		tuiCalled = true
 		return nil
-	}
-	t.Cleanup(func() { openTUIFunc = origTUI })
+	})
 
 	pathCalled := false
-	origPath := openPathFunc
-	openPathFunc = func(_ *cobra.Command, _ string, _ []string) error {
+	withFuncSeam(t, &openPathFunc, func(_ *cobra.Command, _ string, _ []string) error {
 		pathCalled = true
 		return nil
-	}
-	t.Cleanup(func() { openPathFunc = origPath })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "-s", "api"})
@@ -498,9 +474,7 @@ func TestOpenCommand_SessionPin_EmitsNoResolveLine(t *testing.T) {
 		DirValidator:  &testDirValidator{existing: map[string]bool{}},
 	})
 
-	origSession := openSessionFunc
-	openSessionFunc = func(_ *cobra.Command, _ string) error { return nil }
-	t.Cleanup(func() { openSessionFunc = origSession })
+	withFuncSeam(t, &openSessionFunc, func(_ *cobra.Command, _ string) error { return nil })
 
 	sink := logtest.Install(t)
 
@@ -528,28 +502,22 @@ func TestOpenCommand_PathPin_Mints_NoPicker(t *testing.T) {
 	dir := t.TempDir()
 
 	var mintedPath string
-	origPath := openPathFunc
-	openPathFunc = func(_ *cobra.Command, path string, _ []string) error {
+	withFuncSeam(t, &openPathFunc, func(_ *cobra.Command, path string, _ []string) error {
 		mintedPath = path
 		return nil
-	}
-	t.Cleanup(func() { openPathFunc = origPath })
+	})
 
 	sessionCalled := false
-	origSession := openSessionFunc
-	openSessionFunc = func(_ *cobra.Command, _ string) error {
+	withFuncSeam(t, &openSessionFunc, func(_ *cobra.Command, _ string) error {
 		sessionCalled = true
 		return nil
-	}
-	t.Cleanup(func() { openSessionFunc = origSession })
+	})
 
 	tuiCalled := false
-	origTUI := openTUIFunc
-	openTUIFunc = func(_ *cobra.Command, _ string, _ []string, _ bool) error {
+	withFuncSeam(t, &openTUIFunc, func(_ *cobra.Command, _ string, _ []string, _ bool) error {
 		tuiCalled = true
 		return nil
-	}
-	t.Cleanup(func() { openTUIFunc = origTUI })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "-p", dir})
@@ -585,12 +553,10 @@ func TestOpenCommand_PathPin_GlobNamedDir_Mints(t *testing.T) {
 	}
 
 	var mintedPath string
-	origPath := openPathFunc
-	openPathFunc = func(_ *cobra.Command, path string, _ []string) error {
+	withFuncSeam(t, &openPathFunc, func(_ *cobra.Command, path string, _ []string) error {
 		mintedPath = path
 		return nil
-	}
-	t.Cleanup(func() { openPathFunc = origPath })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "-p", globDir})
@@ -616,20 +582,16 @@ func TestOpenCommand_PathPin_Miss_HardFailsNoPicker(t *testing.T) {
 	missDir := filepath.Join(t.TempDir(), "does-not-exist")
 
 	tuiCalled := false
-	origTUI := openTUIFunc
-	openTUIFunc = func(_ *cobra.Command, _ string, _ []string, _ bool) error {
+	withFuncSeam(t, &openTUIFunc, func(_ *cobra.Command, _ string, _ []string, _ bool) error {
 		tuiCalled = true
 		return nil
-	}
-	t.Cleanup(func() { openTUIFunc = origTUI })
+	})
 
 	pathCalled := false
-	origPath := openPathFunc
-	openPathFunc = func(_ *cobra.Command, _ string, _ []string) error {
+	withFuncSeam(t, &openPathFunc, func(_ *cobra.Command, _ string, _ []string) error {
 		pathCalled = true
 		return nil
-	}
-	t.Cleanup(func() { openPathFunc = origPath })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "-p", missDir})
@@ -667,13 +629,11 @@ func TestOpenCommand_PathPin_ThreadsCommandIntoMint(t *testing.T) {
 
 	var gotPath string
 	var gotCommand []string
-	origPath := openPathFunc
-	openPathFunc = func(_ *cobra.Command, path string, command []string) error {
+	withFuncSeam(t, &openPathFunc, func(_ *cobra.Command, path string, command []string) error {
 		gotPath = path
 		gotCommand = command
 		return nil
-	}
-	t.Cleanup(func() { openPathFunc = origPath })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "-p", dir, "-e", "claude"})
@@ -702,9 +662,7 @@ func TestOpenCommand_PathPin_EmitsNoResolveLine(t *testing.T) {
 
 	dir := t.TempDir()
 
-	origPath := openPathFunc
-	openPathFunc = func(_ *cobra.Command, _ string, _ []string) error { return nil }
-	t.Cleanup(func() { openPathFunc = origPath })
+	withFuncSeam(t, &openPathFunc, func(_ *cobra.Command, _ string, _ []string) error { return nil })
 
 	sink := logtest.Install(t)
 
@@ -732,28 +690,22 @@ func TestOpenCommand_AliasPin_Mints_NoPicker(t *testing.T) {
 	})
 
 	var mintedPath string
-	origPath := openPathFunc
-	openPathFunc = func(_ *cobra.Command, path string, _ []string) error {
+	withFuncSeam(t, &openPathFunc, func(_ *cobra.Command, path string, _ []string) error {
 		mintedPath = path
 		return nil
-	}
-	t.Cleanup(func() { openPathFunc = origPath })
+	})
 
 	sessionCalled := false
-	origSession := openSessionFunc
-	openSessionFunc = func(_ *cobra.Command, _ string) error {
+	withFuncSeam(t, &openSessionFunc, func(_ *cobra.Command, _ string) error {
 		sessionCalled = true
 		return nil
-	}
-	t.Cleanup(func() { openSessionFunc = origSession })
+	})
 
 	tuiCalled := false
-	origTUI := openTUIFunc
-	openTUIFunc = func(_ *cobra.Command, _ string, _ []string, _ bool) error {
+	withFuncSeam(t, &openTUIFunc, func(_ *cobra.Command, _ string, _ []string, _ bool) error {
 		tuiCalled = true
 		return nil
-	}
-	t.Cleanup(func() { openTUIFunc = origTUI })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "-a", "myapp"})
@@ -783,20 +735,16 @@ func TestOpenCommand_AliasPin_UnknownKey_HardFailsNoPicker(t *testing.T) {
 	})
 
 	tuiCalled := false
-	origTUI := openTUIFunc
-	openTUIFunc = func(_ *cobra.Command, _ string, _ []string, _ bool) error {
+	withFuncSeam(t, &openTUIFunc, func(_ *cobra.Command, _ string, _ []string, _ bool) error {
 		tuiCalled = true
 		return nil
-	}
-	t.Cleanup(func() { openTUIFunc = origTUI })
+	})
 
 	pathCalled := false
-	origPath := openPathFunc
-	openPathFunc = func(_ *cobra.Command, _ string, _ []string) error {
+	withFuncSeam(t, &openPathFunc, func(_ *cobra.Command, _ string, _ []string) error {
 		pathCalled = true
 		return nil
-	}
-	t.Cleanup(func() { openPathFunc = origPath })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "-a", "nope"})
@@ -834,13 +782,11 @@ func TestOpenCommand_AliasPin_ThreadsCommandIntoMint(t *testing.T) {
 
 	var gotPath string
 	var gotCommand []string
-	origPath := openPathFunc
-	openPathFunc = func(_ *cobra.Command, path string, command []string) error {
+	withFuncSeam(t, &openPathFunc, func(_ *cobra.Command, path string, command []string) error {
 		gotPath = path
 		gotCommand = command
 		return nil
-	}
-	t.Cleanup(func() { openPathFunc = origPath })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "-a", "myapp", "-e", "claude"})
@@ -869,9 +815,7 @@ func TestOpenCommand_AliasPin_EmitsNoResolveLine(t *testing.T) {
 		DirValidator:  &testDirValidator{existing: map[string]bool{dir: true}},
 	})
 
-	origPath := openPathFunc
-	openPathFunc = func(_ *cobra.Command, _ string, _ []string) error { return nil }
-	t.Cleanup(func() { openPathFunc = origPath })
+	withFuncSeam(t, &openPathFunc, func(_ *cobra.Command, _ string, _ []string) error { return nil })
 
 	sink := logtest.Install(t)
 
@@ -899,28 +843,22 @@ func TestOpenCommand_ZoxidePin_Mints_NoPicker(t *testing.T) {
 	})
 
 	var mintedPath string
-	origPath := openPathFunc
-	openPathFunc = func(_ *cobra.Command, path string, _ []string) error {
+	withFuncSeam(t, &openPathFunc, func(_ *cobra.Command, path string, _ []string) error {
 		mintedPath = path
 		return nil
-	}
-	t.Cleanup(func() { openPathFunc = origPath })
+	})
 
 	sessionCalled := false
-	origSession := openSessionFunc
-	openSessionFunc = func(_ *cobra.Command, _ string) error {
+	withFuncSeam(t, &openSessionFunc, func(_ *cobra.Command, _ string) error {
 		sessionCalled = true
 		return nil
-	}
-	t.Cleanup(func() { openSessionFunc = origSession })
+	})
 
 	tuiCalled := false
-	origTUI := openTUIFunc
-	openTUIFunc = func(_ *cobra.Command, _ string, _ []string, _ bool) error {
+	withFuncSeam(t, &openTUIFunc, func(_ *cobra.Command, _ string, _ []string, _ bool) error {
 		tuiCalled = true
 		return nil
-	}
-	t.Cleanup(func() { openTUIFunc = origTUI })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "-z", "proj"})
@@ -950,20 +888,16 @@ func TestOpenCommand_ZoxidePin_NotInstalled_ErrorsNoPicker(t *testing.T) {
 	})
 
 	tuiCalled := false
-	origTUI := openTUIFunc
-	openTUIFunc = func(_ *cobra.Command, _ string, _ []string, _ bool) error {
+	withFuncSeam(t, &openTUIFunc, func(_ *cobra.Command, _ string, _ []string, _ bool) error {
 		tuiCalled = true
 		return nil
-	}
-	t.Cleanup(func() { openTUIFunc = origTUI })
+	})
 
 	pathCalled := false
-	origPath := openPathFunc
-	openPathFunc = func(_ *cobra.Command, _ string, _ []string) error {
+	withFuncSeam(t, &openPathFunc, func(_ *cobra.Command, _ string, _ []string) error {
 		pathCalled = true
 		return nil
-	}
-	t.Cleanup(func() { openPathFunc = origPath })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "-z", "proj"})
@@ -994,20 +928,16 @@ func TestOpenCommand_ZoxidePin_NoMatch_HardFailsNoPicker(t *testing.T) {
 	})
 
 	tuiCalled := false
-	origTUI := openTUIFunc
-	openTUIFunc = func(_ *cobra.Command, _ string, _ []string, _ bool) error {
+	withFuncSeam(t, &openTUIFunc, func(_ *cobra.Command, _ string, _ []string, _ bool) error {
 		tuiCalled = true
 		return nil
-	}
-	t.Cleanup(func() { openTUIFunc = origTUI })
+	})
 
 	pathCalled := false
-	origPath := openPathFunc
-	openPathFunc = func(_ *cobra.Command, _ string, _ []string) error {
+	withFuncSeam(t, &openPathFunc, func(_ *cobra.Command, _ string, _ []string) error {
 		pathCalled = true
 		return nil
-	}
-	t.Cleanup(func() { openPathFunc = origPath })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "-z", "nope"})
@@ -1045,13 +975,11 @@ func TestOpenCommand_ZoxidePin_ThreadsCommandIntoMint(t *testing.T) {
 
 	var gotPath string
 	var gotCommand []string
-	origPath := openPathFunc
-	openPathFunc = func(_ *cobra.Command, path string, command []string) error {
+	withFuncSeam(t, &openPathFunc, func(_ *cobra.Command, path string, command []string) error {
 		gotPath = path
 		gotCommand = command
 		return nil
-	}
-	t.Cleanup(func() { openPathFunc = origPath })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "-z", "proj", "-e", "claude"})
@@ -1080,9 +1008,7 @@ func TestOpenCommand_ZoxidePin_EmitsNoResolveLine(t *testing.T) {
 		DirValidator:  &testDirValidator{existing: map[string]bool{dir: true}},
 	})
 
-	origPath := openPathFunc
-	openPathFunc = func(_ *cobra.Command, _ string, _ []string) error { return nil }
-	t.Cleanup(func() { openPathFunc = origPath })
+	withFuncSeam(t, &openPathFunc, func(_ *cobra.Command, _ string, _ []string) error { return nil })
 
 	sink := logtest.Install(t)
 
@@ -1928,12 +1854,10 @@ func TestOpenCommand_TotalMiss_HardFails(t *testing.T) {
 	})
 
 	tuiCalled := false
-	origFunc := openTUIFunc
-	openTUIFunc = func(_ *cobra.Command, _ string, _ []string, _ bool) error {
+	withFuncSeam(t, &openTUIFunc, func(_ *cobra.Command, _ string, _ []string, _ bool) error {
 		tuiCalled = true
 		return nil
-	}
-	t.Cleanup(func() { openTUIFunc = origFunc })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "blog"})
@@ -1964,9 +1888,7 @@ func TestOpenCommand_ResolveLog_SessionHit(t *testing.T) {
 		DirValidator:  &testDirValidator{existing: map[string]bool{}},
 	})
 
-	origSession := openSessionFunc
-	openSessionFunc = func(_ *cobra.Command, _ string) error { return nil }
-	t.Cleanup(func() { openSessionFunc = origSession })
+	withFuncSeam(t, &openSessionFunc, func(_ *cobra.Command, _ string) error { return nil })
 
 	sink := logtest.Install(t)
 
@@ -1995,9 +1917,7 @@ func TestOpenCommand_ResolveLog_ZoxideMint(t *testing.T) {
 		DirValidator:  &testDirValidator{existing: map[string]bool{"/Users/lee/Code/blog": true}},
 	})
 
-	origPath := openPathFunc
-	openPathFunc = func(_ *cobra.Command, _ string, _ []string) error { return nil }
-	t.Cleanup(func() { openPathFunc = origPath })
+	withFuncSeam(t, &openPathFunc, func(_ *cobra.Command, _ string, _ []string) error { return nil })
 
 	sink := logtest.Install(t)
 
@@ -2058,13 +1978,9 @@ func TestOpenCommand_ResolveLog_GlobEmitsNoLine(t *testing.T) {
 		DirValidator:  &testDirValidator{existing: map[string]bool{}},
 	})
 
-	origBurst := runOpenBurstFunc
-	runOpenBurstFunc = func(_ *cobra.Command, _ []spawn.Surface, _ []string) error { return nil }
-	t.Cleanup(func() { runOpenBurstFunc = origBurst })
+	withFuncSeam(t, &runOpenBurstFunc, func(_ *cobra.Command, _ []spawn.Surface, _ []string) error { return nil })
 
-	origRaw := openRawArgs
-	openRawArgs = func() []string { return []string{"portal", "open", "dev*"} }
-	t.Cleanup(func() { openRawArgs = origRaw })
+	withFuncSeam(t, &openRawArgs, func() []string { return []string{"portal", "open", "dev*"} })
 
 	sink := logtest.Install(t)
 
@@ -2146,20 +2062,16 @@ func TestOpenCommand_BareProjectName_MintsNeverAttaches(t *testing.T) {
 	})
 
 	var mintedPath string
-	origPath := openPathFunc
-	openPathFunc = func(_ *cobra.Command, path string, _ []string) error {
+	withFuncSeam(t, &openPathFunc, func(_ *cobra.Command, path string, _ []string) error {
 		mintedPath = path
 		return nil
-	}
-	t.Cleanup(func() { openPathFunc = origPath })
+	})
 
 	sessionCalled := false
-	origSession := openSessionFunc
-	openSessionFunc = func(_ *cobra.Command, _ string) error {
+	withFuncSeam(t, &openSessionFunc, func(_ *cobra.Command, _ string) error {
 		sessionCalled = true
 		return nil
-	}
-	t.Cleanup(func() { openSessionFunc = origSession })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "api"})
@@ -2187,13 +2099,11 @@ func TestOpenCommand_CommandThreadsIntoMintedTarget(t *testing.T) {
 
 	var gotPath string
 	var gotCommand []string
-	origPath := openPathFunc
-	openPathFunc = func(_ *cobra.Command, path string, command []string) error {
+	withFuncSeam(t, &openPathFunc, func(_ *cobra.Command, path string, command []string) error {
 		gotPath = path
 		gotCommand = command
 		return nil
-	}
-	t.Cleanup(func() { openPathFunc = origPath })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "api", "--", "vim", "."})
@@ -2215,12 +2125,10 @@ func TestOpenCommand_DirectTUI_PassesServerStarted(t *testing.T) {
 	withBootstrapDeps(t, BootstrapDeps{Orchestrator: runner})
 
 	var capturedServerStarted bool
-	origFunc := openTUIFunc
-	openTUIFunc = func(_ *cobra.Command, initialFilter string, command []string, serverStarted bool) error {
+	withFuncSeam(t, &openTUIFunc, func(_ *cobra.Command, initialFilter string, command []string, serverStarted bool) error {
 		capturedServerStarted = serverStarted
 		return nil
-	}
-	t.Cleanup(func() { openTUIFunc = origFunc })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open"})
@@ -2258,14 +2166,12 @@ func TestOpenCommand_Filter_OpensPickerPrefilteredAndSkipsResolution(t *testing.
 	var gotFilter string
 	var gotCommand []string
 	tuiCalled := false
-	origFunc := openTUIFunc
-	openTUIFunc = func(_ *cobra.Command, initialFilter string, command []string, _ bool) error {
+	withFuncSeam(t, &openTUIFunc, func(_ *cobra.Command, initialFilter string, command []string, _ bool) error {
 		tuiCalled = true
 		gotFilter = initialFilter
 		gotCommand = command
 		return nil
-	}
-	t.Cleanup(func() { openTUIFunc = origFunc })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "-f", "blog"})
@@ -2299,12 +2205,10 @@ func TestOpenCommand_Filter_WithPositionalTarget_UsageError(t *testing.T) {
 	})
 
 	tuiCalled := false
-	origFunc := openTUIFunc
-	openTUIFunc = func(_ *cobra.Command, _ string, _ []string, _ bool) error {
+	withFuncSeam(t, &openTUIFunc, func(_ *cobra.Command, _ string, _ []string, _ bool) error {
 		tuiCalled = true
 		return nil
-	}
-	t.Cleanup(func() { openTUIFunc = origFunc })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "-f", "blog", "api"})
@@ -2352,28 +2256,22 @@ func TestOpenCommand_Filter_WithPin_UsageError(t *testing.T) {
 			})
 
 			tuiCalled := false
-			origTUI := openTUIFunc
-			openTUIFunc = func(_ *cobra.Command, _ string, _ []string, _ bool) error {
+			withFuncSeam(t, &openTUIFunc, func(_ *cobra.Command, _ string, _ []string, _ bool) error {
 				tuiCalled = true
 				return nil
-			}
-			t.Cleanup(func() { openTUIFunc = origTUI })
+			})
 
 			sessionCalled := false
-			origSession := openSessionFunc
-			openSessionFunc = func(_ *cobra.Command, _ string) error {
+			withFuncSeam(t, &openSessionFunc, func(_ *cobra.Command, _ string) error {
 				sessionCalled = true
 				return nil
-			}
-			t.Cleanup(func() { openSessionFunc = origSession })
+			})
 
 			pathCalled := false
-			origPath := openPathFunc
-			openPathFunc = func(_ *cobra.Command, _ string, _ []string) error {
+			withFuncSeam(t, &openPathFunc, func(_ *cobra.Command, _ string, _ []string) error {
 				pathCalled = true
 				return nil
-			}
-			t.Cleanup(func() { openPathFunc = origPath })
+			})
 
 			resetRootCmd()
 			rootCmd.SetArgs([]string{"open", "-f", "blog", tc.flag, tc.val})
@@ -2414,12 +2312,10 @@ func TestOpenCommand_Filter_WithMultiplePins_UsageError(t *testing.T) {
 	})
 
 	tuiCalled := false
-	origTUI := openTUIFunc
-	openTUIFunc = func(_ *cobra.Command, _ string, _ []string, _ bool) error {
+	withFuncSeam(t, &openTUIFunc, func(_ *cobra.Command, _ string, _ []string, _ bool) error {
 		tuiCalled = true
 		return nil
-	}
-	t.Cleanup(func() { openTUIFunc = origTUI })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "-f", "blog", "-s", "api", "-p", "~/Code/new"})
@@ -2447,12 +2343,10 @@ func TestOpenCommand_Filter_EmptyValue_UsageError(t *testing.T) {
 	withBootstrapDeps(t, BootstrapDeps{Orchestrator: &nopRunner{}})
 
 	tuiCalled := false
-	origFunc := openTUIFunc
-	openTUIFunc = func(_ *cobra.Command, _ string, _ []string, _ bool) error {
+	withFuncSeam(t, &openTUIFunc, func(_ *cobra.Command, _ string, _ []string, _ bool) error {
 		tuiCalled = true
 		return nil
-	}
-	t.Cleanup(func() { openTUIFunc = origFunc })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "-f", ""})
@@ -2478,13 +2372,11 @@ func TestOpenCommand_NoArgs_NoFilter_LaunchesPicker(t *testing.T) {
 
 	var gotFilter string
 	tuiCalled := false
-	origFunc := openTUIFunc
-	openTUIFunc = func(_ *cobra.Command, initialFilter string, _ []string, _ bool) error {
+	withFuncSeam(t, &openTUIFunc, func(_ *cobra.Command, initialFilter string, _ []string, _ bool) error {
 		tuiCalled = true
 		gotFilter = initialFilter
 		return nil
-	}
-	t.Cleanup(func() { openTUIFunc = origFunc })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open"})
@@ -2514,30 +2406,24 @@ func TestOpenCommand_CommandNoTarget_ExecFlag_OpensProjectsPicker(t *testing.T) 
 	var gotFilter string
 	var gotCommand []string
 	tuiCalled := false
-	origTUI := openTUIFunc
-	openTUIFunc = func(_ *cobra.Command, initialFilter string, command []string, _ bool) error {
+	withFuncSeam(t, &openTUIFunc, func(_ *cobra.Command, initialFilter string, command []string, _ bool) error {
 		tuiCalled = true
 		gotFilter = initialFilter
 		gotCommand = command
 		return nil
-	}
-	t.Cleanup(func() { openTUIFunc = origTUI })
+	})
 
 	sessionCalled := false
-	origSession := openSessionFunc
-	openSessionFunc = func(_ *cobra.Command, _ string) error {
+	withFuncSeam(t, &openSessionFunc, func(_ *cobra.Command, _ string) error {
 		sessionCalled = true
 		return nil
-	}
-	t.Cleanup(func() { openSessionFunc = origSession })
+	})
 
 	pathCalled := false
-	origPath := openPathFunc
-	openPathFunc = func(_ *cobra.Command, _ string, _ []string) error {
+	withFuncSeam(t, &openPathFunc, func(_ *cobra.Command, _ string, _ []string) error {
 		pathCalled = true
 		return nil
-	}
-	t.Cleanup(func() { openPathFunc = origPath })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "-e", "claude"})
@@ -2577,30 +2463,24 @@ func TestOpenCommand_CommandNoTarget_DashDash_OpensProjectsPicker(t *testing.T) 
 	var gotFilter string
 	var gotCommand []string
 	tuiCalled := false
-	origTUI := openTUIFunc
-	openTUIFunc = func(_ *cobra.Command, initialFilter string, command []string, _ bool) error {
+	withFuncSeam(t, &openTUIFunc, func(_ *cobra.Command, initialFilter string, command []string, _ bool) error {
 		tuiCalled = true
 		gotFilter = initialFilter
 		gotCommand = command
 		return nil
-	}
-	t.Cleanup(func() { openTUIFunc = origTUI })
+	})
 
 	sessionCalled := false
-	origSession := openSessionFunc
-	openSessionFunc = func(_ *cobra.Command, _ string) error {
+	withFuncSeam(t, &openSessionFunc, func(_ *cobra.Command, _ string) error {
 		sessionCalled = true
 		return nil
-	}
-	t.Cleanup(func() { openSessionFunc = origSession })
+	})
 
 	pathCalled := false
-	origPath := openPathFunc
-	openPathFunc = func(_ *cobra.Command, _ string, _ []string) error {
+	withFuncSeam(t, &openPathFunc, func(_ *cobra.Command, _ string, _ []string) error {
 		pathCalled = true
 		return nil
-	}
-	t.Cleanup(func() { openPathFunc = origPath })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "--", "claude"})
@@ -2631,13 +2511,11 @@ func TestOpenCommand_Filter_ThreadsCommandToPicker(t *testing.T) {
 
 	var gotFilter string
 	var gotCommand []string
-	origFunc := openTUIFunc
-	openTUIFunc = func(_ *cobra.Command, initialFilter string, command []string, _ bool) error {
+	withFuncSeam(t, &openTUIFunc, func(_ *cobra.Command, initialFilter string, command []string, _ bool) error {
 		gotFilter = initialFilter
 		gotCommand = command
 		return nil
-	}
-	t.Cleanup(func() { openTUIFunc = origFunc })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "-f", "web", "-e", "claude"})
@@ -2659,13 +2537,11 @@ func TestOpenCommand_Filter_ThreadsDashDashCommandToPicker(t *testing.T) {
 
 	var gotFilter string
 	var gotCommand []string
-	origFunc := openTUIFunc
-	openTUIFunc = func(_ *cobra.Command, initialFilter string, command []string, _ bool) error {
+	withFuncSeam(t, &openTUIFunc, func(_ *cobra.Command, initialFilter string, command []string, _ bool) error {
 		gotFilter = initialFilter
 		gotCommand = command
 		return nil
-	}
-	t.Cleanup(func() { openTUIFunc = origFunc })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "-f", "web", "--", "claude"})
@@ -3059,20 +2935,16 @@ func TestOpenCommand_Ack_MalformedValue_UsageErrorBeforeTmux(t *testing.T) {
 	})
 
 	sessionCalled := false
-	origSession := openSessionFunc
-	openSessionFunc = func(_ *cobra.Command, _ string) error {
+	withFuncSeam(t, &openSessionFunc, func(_ *cobra.Command, _ string) error {
 		sessionCalled = true
 		return nil
-	}
-	t.Cleanup(func() { openSessionFunc = origSession })
+	})
 
 	pathCalled := false
-	origPath := openPathFunc
-	openPathFunc = func(_ *cobra.Command, _ string, _ []string) error {
+	withFuncSeam(t, &openPathFunc, func(_ *cobra.Command, _ string, _ []string) error {
 		pathCalled = true
 		return nil
-	}
-	t.Cleanup(func() { openPathFunc = origPath })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "dev", "--ack", "notcolon"})
@@ -3113,13 +2985,11 @@ func TestOpenCommand_Ack_MarkerWrittenBeforeSessionAttach(t *testing.T) {
 	})
 
 	var connectedTo string
-	origSession := openSessionFunc
-	openSessionFunc = func(_ *cobra.Command, name string) error {
+	withFuncSeam(t, &openSessionFunc, func(_ *cobra.Command, name string) error {
 		connectedTo = name
 		order = append(order, "session")
 		return nil
-	}
-	t.Cleanup(func() { openSessionFunc = origSession })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "-s", "dev", "--ack", "b:t"})
@@ -3158,13 +3028,11 @@ func TestOpenCommand_Ack_MarkerWrittenBeforePathMint(t *testing.T) {
 	dir := t.TempDir()
 
 	var mintedPath string
-	origPath := openPathFunc
-	openPathFunc = func(_ *cobra.Command, path string, _ []string) error {
+	withFuncSeam(t, &openPathFunc, func(_ *cobra.Command, path string, _ []string) error {
 		mintedPath = path
 		order = append(order, "path")
 		return nil
-	}
-	t.Cleanup(func() { openPathFunc = origPath })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "-p", dir, "--ack", "b:t"})
@@ -3201,12 +3069,10 @@ func TestOpenCommand_Ack_WriteFailureStillConnects(t *testing.T) {
 		})
 
 		var connectedTo string
-		origSession := openSessionFunc
-		openSessionFunc = func(_ *cobra.Command, name string) error {
+		withFuncSeam(t, &openSessionFunc, func(_ *cobra.Command, name string) error {
 			connectedTo = name
 			return nil
-		}
-		t.Cleanup(func() { openSessionFunc = origSession })
+		})
 
 		resetRootCmd()
 		rootCmd.SetArgs([]string{"open", "-s", "dev", "--ack", "b:t"})
@@ -3235,12 +3101,10 @@ func TestOpenCommand_Ack_WriteFailureStillConnects(t *testing.T) {
 		dir := t.TempDir()
 
 		var mintedPath string
-		origPath := openPathFunc
-		openPathFunc = func(_ *cobra.Command, path string, _ []string) error {
+		withFuncSeam(t, &openPathFunc, func(_ *cobra.Command, path string, _ []string) error {
 			mintedPath = path
 			return nil
-		}
-		t.Cleanup(func() { openPathFunc = origPath })
+		})
 
 		resetRootCmd()
 		rootCmd.SetArgs([]string{"open", "-p", dir, "--ack", "b:t"})
@@ -3269,12 +3133,10 @@ func TestOpenCommand_Ack_CommandAttachGuardFiresBeforeWrite(t *testing.T) {
 		AckWriter:     ackWriter,
 	})
 
-	origSession := openSessionFunc
-	openSessionFunc = func(_ *cobra.Command, _ string) error {
+	withFuncSeam(t, &openSessionFunc, func(_ *cobra.Command, _ string) error {
 		t.Error("openSessionFunc must not be called: a command targeting an existing session is a usage error")
 		return nil
-	}
-	t.Cleanup(func() { openSessionFunc = origSession })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "-s", "dev", "-e", "claude", "--ack", "b:t"})

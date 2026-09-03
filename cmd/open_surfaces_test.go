@@ -307,19 +307,15 @@ func TestResolveOpenSurfaces_CollectedMisses(t *testing.T) {
 }
 
 func TestResolveOpenSurfaces_ReadOnly_NoMintOrAttach(t *testing.T) {
-	origPath := openPathFunc
-	openPathFunc = func(_ *cobra.Command, _ string, _ []string) error {
+	withFuncSeam(t, &openPathFunc, func(_ *cobra.Command, _ string, _ []string) error {
 		t.Fatal("openPathFunc must not be called during a read-only resolve")
 		return nil
-	}
-	t.Cleanup(func() { openPathFunc = origPath })
+	})
 
-	origSession := openSessionFunc
-	openSessionFunc = func(_ *cobra.Command, _ string) error {
+	withFuncSeam(t, &openSessionFunc, func(_ *cobra.Command, _ string) error {
 		t.Fatal("openSessionFunc must not be called during a read-only resolve")
 		return nil
-	}
-	t.Cleanup(func() { openSessionFunc = origSession })
+	})
 
 	dir := t.TempDir()
 	qr := newSurfaceResolver(

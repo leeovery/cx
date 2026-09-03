@@ -1215,9 +1215,7 @@ func TestDefaultDaemonRun_WritesVersionFileFromDepsVersion(t *testing.T) {
 		t.Fatalf("EnsureDir: %v", err)
 	}
 
-	prevLoop := daemonTickLoopFunc
-	daemonTickLoopFunc = func(_ context.Context, _ *daemonDeps) error { return nil }
-	t.Cleanup(func() { daemonTickLoopFunc = prevLoop })
+	withFuncSeam(t, &daemonTickLoopFunc, func(_ context.Context, _ *daemonDeps) error { return nil })
 
 	prevLock := daemonLockFile
 	daemonLockFile = nil

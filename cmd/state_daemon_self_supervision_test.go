@@ -15,9 +15,7 @@ import (
 
 func withSaverMembershipProbeFake(t *testing.T, fake func(*tmux.Client, int) bool) {
 	t.Helper()
-	prev := saverMembershipProbe
-	saverMembershipProbe = fake
-	t.Cleanup(func() { saverMembershipProbe = prev })
+	withFuncSeam(t, &saverMembershipProbe, fake)
 }
 
 // withOsExitFake swaps the osExit seam. The replacement is expected to panic
@@ -25,16 +23,12 @@ func withSaverMembershipProbeFake(t *testing.T, fake func(*tmux.Client, int) boo
 // the real os.Exit would never allow.
 func withOsExitFake(t *testing.T, fake func(int)) {
 	t.Helper()
-	prev := osExit
-	osExit = fake
-	t.Cleanup(func() { osExit = prev })
+	withFuncSeam(t, &osExit, fake)
 }
 
 func withDaemonShutdownFuncFake(t *testing.T, fake func(*daemonDeps) error) {
 	t.Helper()
-	prev := daemonShutdownFunc
-	daemonShutdownFunc = fake
-	t.Cleanup(func() { daemonShutdownFunc = prev })
+	withFuncSeam(t, &daemonShutdownFunc, fake)
 }
 
 // runDaemonLoopUntilEject runs defaultDaemonRun in a goroutine, returning a

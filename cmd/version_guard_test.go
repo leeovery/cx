@@ -25,10 +25,8 @@ func (s *stubVersionChecker) check(_ tmux.Commander) error {
 // test in the same binary may already have consumed it, and again on cleanup.
 func installStubVersionChecker(t *testing.T, stub *stubVersionChecker) {
 	t.Helper()
-	prev := versionChecker
-	versionChecker = stub.check
+	withFuncSeam(t, &versionChecker, stub.check)
 	resetVersionCheckForTest()
-	t.Cleanup(func() { versionChecker = prev })
 	t.Cleanup(resetVersionCheckForTest)
 }
 
@@ -74,9 +72,7 @@ func TestVersionGuard_InvokedForOtherNonExemptCommands(t *testing.T) {
 				withOpenDeps(t, OpenDeps{SessionLister: &testSessionLister{names: []string{"my-session"}}})
 
 				// A no-op so no real connector fires.
-				origSession := openSessionFunc
-				openSessionFunc = func(_ *cobra.Command, _ string) error { return nil }
-				t.Cleanup(func() { openSessionFunc = origSession })
+				withFuncSeam(t, &openSessionFunc, func(_ *cobra.Command, _ string) error { return nil })
 			},
 		},
 		{
@@ -150,9 +146,7 @@ func TestVersionGuard_NotInvokedForExemptCommands(t *testing.T) {
 			// The daemon's RunE blocks on a signal, so stub the run-func.
 			if len(tt.args) >= 2 && tt.args[0] == "state" && tt.args[1] == "daemon" {
 				t.Setenv("PORTAL_STATE_DIR", t.TempDir())
-				prev := daemonRunFunc
-				daemonRunFunc = func(_ context.Context, _ *daemonDeps) error { return nil }
-				t.Cleanup(func() { daemonRunFunc = prev })
+				withFuncSeam(t, &daemonRunFunc, func(_ context.Context, _ *daemonDeps) error { return nil })
 				withDaemonLockFileReset(t)
 			}
 

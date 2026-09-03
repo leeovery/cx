@@ -108,6 +108,21 @@ func withUninstallDeps(t *testing.T, deps UninstallDeps) {
 	t.Cleanup(func() { uninstallDeps = nil })
 }
 
+// withFuncSeam installs replacement as the package-level function seam at seam
+// for the rest of the test and registers the restore in the same breath. The
+// family it serves is staged through one helper rather than one per seam because
+// the type parameter already carries what a per-seam helper would spell out.
+//
+// A function seam's production default is a real value, not nil, so the restore
+// puts back what the install captured; restoring the zero value would leave a
+// nil func for every later test in the package to call.
+func withFuncSeam[F any](t *testing.T, seam *F, replacement F) {
+	t.Helper()
+	original := *seam
+	*seam = replacement
+	t.Cleanup(func() { *seam = original })
+}
+
 // readFileBytes returns nil on ENOENT, so callers can distinguish "file absent"
 // from "file empty". The rule itself lives in hookstest, which is already this
 // package's home for the hooks.json assertions the read feeds; it is

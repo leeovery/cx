@@ -37,12 +37,10 @@ func runStateDaemon(t *testing.T) (*bytes.Buffer, *bytes.Buffer, error) {
 func withImmediateRun(t *testing.T) **daemonDeps {
 	t.Helper()
 	holder := new(*daemonDeps)
-	prev := daemonTickLoopFunc
-	daemonTickLoopFunc = func(_ context.Context, deps *daemonDeps) error {
+	withFuncSeam(t, &daemonTickLoopFunc, func(_ context.Context, deps *daemonDeps) error {
 		*holder = deps
 		return nil
-	}
-	t.Cleanup(func() { daemonTickLoopFunc = prev })
+	})
 	return holder
 }
 
@@ -261,12 +259,10 @@ func TestStateDaemon_ShutdownFlushSkippedWhenRestoringSet(t *testing.T) {
 	fc := commandertest.New(t, commandertest.Returns("1", "show-option")).AllowingUnmatched("", nil)
 	client := tmux.NewClient(fc)
 
-	prev := daemonRunFunc
-	daemonRunFunc = func(_ context.Context, deps *daemonDeps) error {
+	withFuncSeam(t, &daemonRunFunc, func(_ context.Context, deps *daemonDeps) error {
 		deps.Client = client
 		return defaultShutdownFlush(deps)
-	}
-	t.Cleanup(func() { daemonRunFunc = prev })
+	})
 
 	if _, _, err := runStateDaemon(t); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -294,12 +290,10 @@ func TestStateDaemon_ShutdownFlushRunsWhenRestoringUnset(t *testing.T) {
 	fc := commandertest.New(t, commandertest.Fails(tmux.ErrOptionNotFound, "show-option")).AllowingUnmatched("", nil)
 	client := tmux.NewClient(fc)
 
-	prev := daemonRunFunc
-	daemonRunFunc = func(_ context.Context, deps *daemonDeps) error {
+	withFuncSeam(t, &daemonRunFunc, func(_ context.Context, deps *daemonDeps) error {
 		deps.Client = client
 		return defaultShutdownFlush(deps)
-	}
-	t.Cleanup(func() { daemonRunFunc = prev })
+	})
 
 	if _, _, err := runStateDaemon(t); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -324,9 +318,7 @@ func TestStateDaemon_DefaultRunReturnsOnContextCancel(t *testing.T) {
 
 	// Stubbed to keep this exercising the run loop's ctx.Done() response rather
 	// than flush behaviour.
-	prevFlush := daemonShutdownFunc
-	daemonShutdownFunc = func(_ *daemonDeps) error { return nil }
-	t.Cleanup(func() { daemonShutdownFunc = prevFlush })
+	withFuncSeam(t, &daemonShutdownFunc, func(_ *daemonDeps) error { return nil })
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -396,9 +388,7 @@ func TestStateDaemon_RunFuncErrorPropagates(t *testing.T) {
 	withDaemonLockFileReset(t)
 
 	sentinel := errors.New("boom")
-	prev := daemonRunFunc
-	daemonRunFunc = func(_ context.Context, _ *daemonDeps) error { return sentinel }
-	t.Cleanup(func() { daemonRunFunc = prev })
+	withFuncSeam(t, &daemonRunFunc, func(_ context.Context, _ *daemonDeps) error { return sentinel })
 
 	_, _, err := runStateDaemon(t)
 	if !errors.Is(err, sentinel) {
@@ -408,9 +398,7 @@ func TestStateDaemon_RunFuncErrorPropagates(t *testing.T) {
 
 func withAcquireDaemonLockFake(t *testing.T, fake func(string) (*os.File, error)) {
 	t.Helper()
-	prev := acquireDaemonLock
-	acquireDaemonLock = fake
-	t.Cleanup(func() { acquireDaemonLock = prev })
+	withFuncSeam(t, &acquireDaemonLock, fake)
 }
 
 // Cleared around the test so a prior successful acquisition does not bleed
@@ -484,12 +472,10 @@ func TestStateDaemon_ExitsCleanlyWhenLockHeld(t *testing.T) {
 	})
 
 	called := false
-	prev := daemonTickLoopFunc
-	daemonTickLoopFunc = func(_ context.Context, _ *daemonDeps) error {
+	withFuncSeam(t, &daemonTickLoopFunc, func(_ context.Context, _ *daemonDeps) error {
 		called = true
 		return nil
-	}
-	t.Cleanup(func() { daemonTickLoopFunc = prev })
+	})
 
 	if _, _, err := runStateDaemon(t); err != nil {
 		t.Fatalf("expected nil error on lock-held; got: %v", err)
@@ -508,12 +494,10 @@ func TestStateDaemon_DoesNotWritePIDFileWhenLockHeld(t *testing.T) {
 		return nil, state.ErrDaemonLockHeld
 	})
 
-	prev := daemonTickLoopFunc
-	daemonTickLoopFunc = func(_ context.Context, _ *daemonDeps) error {
+	withFuncSeam(t, &daemonTickLoopFunc, func(_ context.Context, _ *daemonDeps) error {
 		t.Fatal("daemonTickLoopFunc must not be reached on lock-held path")
 		return nil
-	}
-	t.Cleanup(func() { daemonTickLoopFunc = prev })
+	})
 
 	if _, _, err := runStateDaemon(t); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -543,12 +527,10 @@ func TestStateDaemon_DoesNotOverwritePIDFileWhenLockHeld(t *testing.T) {
 		return nil, state.ErrDaemonLockHeld
 	})
 
-	prev := daemonTickLoopFunc
-	daemonTickLoopFunc = func(_ context.Context, _ *daemonDeps) error {
+	withFuncSeam(t, &daemonTickLoopFunc, func(_ context.Context, _ *daemonDeps) error {
 		t.Fatal("daemonTickLoopFunc must not be reached on lock-held path")
 		return nil
-	}
-	t.Cleanup(func() { daemonTickLoopFunc = prev })
+	})
 
 	if _, _, err := runStateDaemon(t); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -576,12 +558,10 @@ func TestStateDaemon_ReturnsErrorAndLogsWarnOnNonContentionLockFailure(t *testin
 		return nil, sentinel
 	})
 
-	prev := daemonTickLoopFunc
-	daemonTickLoopFunc = func(_ context.Context, _ *daemonDeps) error {
+	withFuncSeam(t, &daemonTickLoopFunc, func(_ context.Context, _ *daemonDeps) error {
 		t.Fatal("daemonTickLoopFunc must not be reached when lock acquire fails")
 		return nil
-	}
-	t.Cleanup(func() { daemonTickLoopFunc = prev })
+	})
 
 	_, _, err := runStateDaemon(t)
 	if err == nil {
@@ -649,12 +629,10 @@ func TestStateDaemon_EmitsWarnOnLockContention(t *testing.T) {
 		return nil, state.ErrDaemonLockHeld
 	})
 
-	prev := daemonTickLoopFunc
-	daemonTickLoopFunc = func(_ context.Context, _ *daemonDeps) error {
+	withFuncSeam(t, &daemonTickLoopFunc, func(_ context.Context, _ *daemonDeps) error {
 		t.Fatal("daemonTickLoopFunc must not be reached on lock-held path")
 		return nil
-	}
-	t.Cleanup(func() { daemonTickLoopFunc = prev })
+	})
 
 	if _, _, err := runStateDaemon(t); err != nil {
 		t.Fatalf("unexpected error: %v", err)

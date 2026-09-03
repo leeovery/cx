@@ -27,39 +27,29 @@ func installOpenMultiTargetSeams(t *testing.T, deps *OpenDeps, rawArgs []string)
 
 	bc := &burstCapture{}
 
-	origBurst := runOpenBurstFunc
-	runOpenBurstFunc = func(_ *cobra.Command, surfaces []spawn.Surface, _ []string) error {
+	withFuncSeam(t, &runOpenBurstFunc, func(_ *cobra.Command, surfaces []spawn.Surface, _ []string) error {
 		bc.burstCalled = true
 		bc.burstSurfaces = surfaces
 		return nil
-	}
-	t.Cleanup(func() { runOpenBurstFunc = origBurst })
+	})
 
-	origSession := openSessionFunc
-	openSessionFunc = func(_ *cobra.Command, name string) error {
+	withFuncSeam(t, &openSessionFunc, func(_ *cobra.Command, name string) error {
 		bc.sessionCalled = true
 		bc.sessionName = name
 		return nil
-	}
-	t.Cleanup(func() { openSessionFunc = origSession })
+	})
 
-	origPath := openPathFunc
-	openPathFunc = func(_ *cobra.Command, _ string, _ []string) error {
+	withFuncSeam(t, &openPathFunc, func(_ *cobra.Command, _ string, _ []string) error {
 		bc.pathCalled = true
 		return nil
-	}
-	t.Cleanup(func() { openPathFunc = origPath })
+	})
 
-	origTUI := openTUIFunc
-	openTUIFunc = func(_ *cobra.Command, _ string, _ []string, _ bool) error {
+	withFuncSeam(t, &openTUIFunc, func(_ *cobra.Command, _ string, _ []string, _ bool) error {
 		bc.tuiCalled = true
 		return nil
-	}
-	t.Cleanup(func() { openTUIFunc = origTUI })
+	})
 
-	origRaw := openRawArgs
-	openRawArgs = func() []string { return rawArgs }
-	t.Cleanup(func() { openRawArgs = origRaw })
+	withFuncSeam(t, &openRawArgs, func() []string { return rawArgs })
 
 	return bc
 }

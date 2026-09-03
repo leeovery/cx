@@ -86,12 +86,10 @@ func execOpenSession(t *testing.T, name string) string {
 	})
 
 	var attached string
-	previous := openSessionFunc
-	openSessionFunc = func(_ *cobra.Command, target string) error {
+	withFuncSeam(t, &openSessionFunc, func(_ *cobra.Command, target string) error {
 		attached = target
 		return nil
-	}
-	t.Cleanup(func() { openSessionFunc = previous })
+	})
 
 	resetRootCmd()
 	rootCmd.SetOut(io.Discard)

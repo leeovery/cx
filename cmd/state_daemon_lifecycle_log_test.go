@@ -40,9 +40,7 @@ func TestDefaultDaemonRun_EmitsLockAcquiredWithTmuxPane(t *testing.T) {
 
 	// Short-circuits the tick loop so the run returns right after its startup
 	// write sequence.
-	prevLoop := daemonTickLoopFunc
-	daemonTickLoopFunc = func(_ context.Context, _ *daemonDeps) error { return nil }
-	t.Cleanup(func() { daemonTickLoopFunc = prevLoop })
+	withFuncSeam(t, &daemonTickLoopFunc, func(_ context.Context, _ *daemonDeps) error { return nil })
 
 	logger, sink := newCaptureLoggerForComponent(t, "daemon")
 	fc := &daemonFakeCommander{}
@@ -69,12 +67,10 @@ func TestDefaultDaemonRun_NoLockAcquiredAndKeepsWarnWhenLockHeld(t *testing.T) {
 		return nil, state.ErrDaemonLockHeld
 	})
 
-	prevLoop := daemonTickLoopFunc
-	daemonTickLoopFunc = func(_ context.Context, _ *daemonDeps) error {
+	withFuncSeam(t, &daemonTickLoopFunc, func(_ context.Context, _ *daemonDeps) error {
 		t.Fatal("tick loop must not be reached on the lock-held path")
 		return nil
-	}
-	t.Cleanup(func() { daemonTickLoopFunc = prevLoop })
+	})
 
 	logger, sink := newCaptureLoggerForComponent(t, "daemon")
 	fc := &daemonFakeCommander{}
@@ -104,12 +100,10 @@ func TestDefaultDaemonRun_NoLockAcquiredAndKeepsWarnOnLockError(t *testing.T) {
 		return nil, wantErr
 	})
 
-	prevLoop := daemonTickLoopFunc
-	daemonTickLoopFunc = func(_ context.Context, _ *daemonDeps) error {
+	withFuncSeam(t, &daemonTickLoopFunc, func(_ context.Context, _ *daemonDeps) error {
 		t.Fatal("tick loop must not be reached on the lock-error path")
 		return nil
-	}
-	t.Cleanup(func() { daemonTickLoopFunc = prevLoop })
+	})
 
 	logger, sink := newCaptureLoggerForComponent(t, "daemon")
 	fc := &daemonFakeCommander{}

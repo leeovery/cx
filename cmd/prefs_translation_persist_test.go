@@ -28,9 +28,7 @@ func migratedEvent(slug string) string {
 // dropping the goroutine is what makes the assertions deterministic.
 func syncPersistTranslation(t *testing.T) {
 	t.Helper()
-	previous := persistTranslation
-	persistTranslation = runTranslationPersist
-	t.Cleanup(func() { persistTranslation = previous })
+	withFuncSeam(t, &persistTranslation, runTranslationPersist)
 }
 
 type prefsOnDisk struct {
@@ -430,11 +428,9 @@ type translationDispatch struct {
 func recordPersistTranslation(t *testing.T) *translationDispatch {
 	t.Helper()
 	dispatched := &translationDispatch{}
-	previous := persistTranslation
-	persistTranslation = func(store *prefs.Store, slug string) {
+	withFuncSeam(t, &persistTranslation, func(store *prefs.Store, slug string) {
 		dispatched.calls = append(dispatched.calls, translationCall{store: store, slug: slug})
-	}
-	t.Cleanup(func() { persistTranslation = previous })
+	})
 	return dispatched
 }
 

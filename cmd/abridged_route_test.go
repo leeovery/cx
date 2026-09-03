@@ -161,12 +161,10 @@ func TestPersistentPreRunE_Abridged_LeavesWarningsForOpenTUIOnTUIPath(t *testing
 	withBootstrapDeps(t, BootstrapDeps{Orchestrator: runner, Client: client})
 
 	var pendingAtOpenTUI []bootstrap.Warning
-	origFunc := openTUIFunc
-	openTUIFunc = func(_ *cobra.Command, _ string, _ []string, _ bool) error {
+	withFuncSeam(t, &openTUIFunc, func(_ *cobra.Command, _ string, _ []string, _ bool) error {
 		pendingAtOpenTUI = bootstrapWarnings.Drain()
 		return nil
-	}
-	t.Cleanup(func() { openTUIFunc = origFunc })
+	})
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open"})
@@ -196,9 +194,7 @@ func TestPersistentPreRunE_Abridged_OpenSessionTakesAbridgedPath(t *testing.T) {
 	connector := &mockSessionConnector{}
 	withOpenDeps(t, OpenDeps{SessionLister: &testSessionLister{names: []string{"proj-abc123"}}})
 
-	origSession := openSessionFunc
-	openSessionFunc = func(_ *cobra.Command, name string) error { return connector.Connect(name) }
-	t.Cleanup(func() { openSessionFunc = origSession })
+	withFuncSeam(t, &openSessionFunc, func(_ *cobra.Command, name string) error { return connector.Connect(name) })
 
 	resetRootCmd()
 	rootCmd.SetArgs([]string{"open", "--session", "proj-abc123"})

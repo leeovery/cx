@@ -14,9 +14,7 @@ import (
 
 func withCompletionSessionNames(t *testing.T, fn func() []string) {
 	t.Helper()
-	prev := completionSessionNames
-	completionSessionNames = fn
-	t.Cleanup(func() { completionSessionNames = prev })
+	withFuncSeam(t, &completionSessionNames, fn)
 }
 
 func TestCompleteSessionNames(t *testing.T) {
@@ -62,9 +60,7 @@ func TestCompleteSessionNames(t *testing.T) {
 
 func withCompletionAliasKeys(t *testing.T, fn func() []string) {
 	t.Helper()
-	prev := completionAliasKeys
-	completionAliasKeys = fn
-	t.Cleanup(func() { completionAliasKeys = prev })
+	withFuncSeam(t, &completionAliasKeys, fn)
 }
 
 func TestCompleteAliasKeys(t *testing.T) {

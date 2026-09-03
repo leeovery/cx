@@ -1,12 +1,18 @@
 package cmd
 
-import "testing"
+import (
+	"reflect"
+	"testing"
 
-// seamStagingCase names one package-level seam alongside the helper that stages
-// it and a read of whether it is currently installed. The table ties each seam
-// to its helper: the coverage guard compares these names against the seams the
-// production sources actually declare, so a seam added without a helper fails
-// rather than passing unnoticed.
+	"github.com/spf13/cobra"
+)
+
+// seamStagingCase names one package-level *Deps seam alongside the helper that
+// stages it and a read of whether it is currently installed. The table ties each
+// seam to its own named helper: the coverage guard compares these names against
+// the *Deps seams the production sources actually declare, so a seam added
+// without a helper fails rather than passing unnoticed. The function-var family
+// needs no such table — one generic helper serves every member of it.
 type seamStagingCase struct {
 	name    string
 	install func(t *testing.T)
@@ -69,4 +75,34 @@ func TestWithoutHooksDeps(t *testing.T) {
 			t.Error("hooksDeps outlived the test that asked for the production default")
 		}
 	})
+}
+
+// TestWithFuncSeam pins the function-var family's staging rule. A function seam
+// differs from the *Deps pointers above in the one way that matters here: its
+// production default is a real value rather than nil, so the restore has to put
+// back what the install captured.
+func TestWithFuncSeam(t *testing.T) {
+	t.Run("it restores the captured production default after the test", func(t *testing.T) {
+		production := funcPointer(openTUIFunc)
+
+		t.Run("installs a replacement", func(t *testing.T) {
+			withFuncSeam(t, &openTUIFunc, func(*cobra.Command, string, []string, bool) error { return nil })
+			if funcPointer(openTUIFunc) == production {
+				t.Fatal("openTUIFunc is still the production default inside the test that installed a replacement")
+			}
+		})
+		// The inner test's cleanups have run by the time t.Run returns.
+
+		if openTUIFunc == nil {
+			t.Fatal("openTUIFunc was restored to nil; the helper restored the zero value rather than the captured default")
+		}
+		if funcPointer(openTUIFunc) != production {
+			t.Error("openTUIFunc was not restored to the production default the install captured")
+		}
+	})
+}
+
+// funcPointer identifies a func value, which is not comparable by ==.
+func funcPointer(fn any) uintptr {
+	return reflect.ValueOf(fn).Pointer()
 }
