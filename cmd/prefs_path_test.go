@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/logtest"
+	"github.com/leeovery/portal/internal/xdg"
 )
 
 func TestPrefsFilePath(t *testing.T) {
@@ -181,8 +182,8 @@ func TestPrefsFilePathMigration(t *testing.T) {
 
 func TestPrefsMigrateSuppressesLog(t *testing.T) {
 	t.Run("prefs.json is mapped to an empty component so migrate does not emit", func(t *testing.T) {
-		if got, ok := configFileComponents["prefs.json"]; !ok || got != "" {
-			t.Errorf("configFileComponents[\"prefs.json\"] = %q, ok=%v; want \"\" with explicit entry", got, ok)
+		if got := xdg.PrefsFile.LogComponent; got != "" {
+			t.Errorf("PrefsFile.LogComponent = %q, want the empty component", got)
 		}
 
 		tmpDir := t.TempDir()

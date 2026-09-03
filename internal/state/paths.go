@@ -24,15 +24,7 @@ const (
 // Dir resolves the absolute path to Portal's state directory: $PORTAL_STATE_DIR
 // verbatim when set, otherwise <XDG config base>/portal/state.
 func Dir() (string, error) {
-	if envPath := os.Getenv("PORTAL_STATE_DIR"); envPath != "" {
-		return envPath, nil
-	}
-
-	base, err := xdg.ConfigBase()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(base, "portal", "state"), nil
+	return xdg.ConfigDirPath(xdg.OSEnv, xdg.StateDir)
 }
 
 // EnsureDir creates the state directory and its scrollback subdirectory with

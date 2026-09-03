@@ -5,6 +5,7 @@ import (
 
 	"github.com/leeovery/portal/internal/alias"
 	"github.com/leeovery/portal/internal/resolver"
+	"github.com/leeovery/portal/internal/xdg"
 	"github.com/spf13/cobra"
 )
 
@@ -93,7 +94,7 @@ func loadAliasStore() (*alias.Store, error) {
 }
 
 func aliasFilePath() (string, error) {
-	return configFilePath("PORTAL_ALIASES_FILE", "aliases")
+	return configFilePath(xdg.AliasesFile)
 }
 
 func init() {

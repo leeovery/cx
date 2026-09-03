@@ -8,6 +8,7 @@ import (
 	"github.com/leeovery/portal/internal/nanoid"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
+	"github.com/leeovery/portal/internal/xdg"
 	"github.com/spf13/cobra"
 )
 
@@ -253,7 +254,7 @@ func loadHookStore() (*hooks.Store, error) {
 }
 
 func hooksFilePath() (string, error) {
-	return configFilePath("PORTAL_HOOKS_FILE", "hooks.json")
+	return configFilePath(xdg.HooksFile)
 }
 
 var hooksRmCmd = &cobra.Command{

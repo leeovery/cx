@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/logtest"
+	"github.com/leeovery/portal/internal/xdg"
 )
 
 func seedOldFile(t *testing.T, tmpDir, filename, content string) (oldPath, newPath string) {
@@ -231,9 +232,10 @@ func TestMigrateConfigFileLogging(t *testing.T) {
 }
 
 func TestConfigFilePathThreadsComponent(t *testing.T) {
-	t.Run("threads the hooks component through the filename->component mapping", func(t *testing.T) {
+	t.Run("threads the hooks component through the file identity", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		t.Setenv("HOME", tmpDir)
+		t.Setenv("PORTAL_HOOKS_FILE", "")
 		xdgDir := filepath.Join(tmpDir, "custom-xdg")
 		t.Setenv("XDG_CONFIG_HOME", xdgDir)
 
@@ -248,7 +250,7 @@ func TestConfigFilePathThreadsComponent(t *testing.T) {
 
 		sink := logtest.Install(t)
 
-		if _, err := configFilePath("TEST_THREADS_UNSET", "hooks.json"); err != nil {
+		if _, err := configFilePath(xdg.HooksFile); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 

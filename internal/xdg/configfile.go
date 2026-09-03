@@ -27,6 +27,30 @@ func EnvSlice(env []string) Lookup {
 	}
 }
 
+// ConfigFileID identifies one of Portal's config files: the environment
+// variable that overrides its location, the filename it takes under the config
+// base, and the log component that speaks for it. The three are declared
+// together so that renaming any of them is one edit for every reader — the
+// production route and the test seeders that must resolve the same file the
+// binary under test reads.
+type ConfigFileID struct {
+	EnvVar   string
+	Filename string
+	// LogComponent is empty for a file outside the closed log-component
+	// vocabulary. Its one-shot migration still runs; every emission about it is
+	// suppressed.
+	LogComponent string
+}
+
+// Portal's config files. Each is named here and nowhere else.
+var (
+	ProjectsFile  = ConfigFileID{EnvVar: "PORTAL_PROJECTS_FILE", Filename: "projects.json", LogComponent: "projects"}
+	AliasesFile   = ConfigFileID{EnvVar: "PORTAL_ALIASES_FILE", Filename: "aliases", LogComponent: "aliases"}
+	HooksFile     = ConfigFileID{EnvVar: "PORTAL_HOOKS_FILE", Filename: "hooks.json", LogComponent: "hooks"}
+	PrefsFile     = ConfigFileID{EnvVar: "PORTAL_PREFS_FILE", Filename: "prefs.json"}
+	TerminalsFile = ConfigFileID{EnvVar: "PORTAL_TERMINALS_FILE", Filename: "terminals.json"}
+)
+
 // ConfigFile is a resolved config-file location.
 type ConfigFile struct {
 	// Path is where the file lives under the resolved precedence.
@@ -39,7 +63,7 @@ type ConfigFile struct {
 }
 
 // ConfigFilePath declares Portal's config-file precedence, once and for every
-// reader of it: the per-file environment variable, else
+// reader of it: the file's own environment variable, else
 // <config base>/portal/<filename>, where the config base is $XDG_CONFIG_HOME
 // and then $HOME/.config. The lookup supplies every environment layer, so a
 // caller resolving against a subprocess's env slice resolves by the same rule
@@ -48,8 +72,8 @@ type ConfigFile struct {
 // It resolves a path and nothing more: it creates nothing, stats nothing and
 // migrates nothing. Only the home fallback reads outside the lookup, through
 // os.UserHomeDir.
-func ConfigFilePath(lookup Lookup, envVar, filename string) (ConfigFile, error) {
-	if path := lookup(envVar); path != "" {
+func ConfigFilePath(lookup Lookup, id ConfigFileID) (ConfigFile, error) {
+	if path := lookup(id.EnvVar); path != "" {
 		return ConfigFile{Path: path, Overridden: true}, nil
 	}
 
@@ -58,5 +82,5 @@ func ConfigFilePath(lookup Lookup, envVar, filename string) (ConfigFile, error) 
 		return ConfigFile{}, err
 	}
 
-	return ConfigFile{Path: filepath.Join(base, "portal", filename)}, nil
+	return ConfigFile{Path: filepath.Join(base, portalDirName, id.Filename)}, nil
 }

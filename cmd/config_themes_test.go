@@ -1,12 +1,12 @@
 package cmd
 
 import (
-	"maps"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/leeovery/portal/internal/logtest"
+	"github.com/leeovery/portal/internal/xdg"
 )
 
 func TestThemesDirPath_EnvVarWins(t *testing.T) {
@@ -124,28 +124,14 @@ func assertAbsent(t *testing.T, path string) {
 	}
 }
 
-func TestThemesDirPath_IsNotAConfigFilePathMember(t *testing.T) {
-	t.Run("configFileComponents is unchanged", func(t *testing.T) {
-		want := map[string]string{
-			"hooks.json":     "hooks",
-			"aliases":        "aliases",
-			"projects.json":  "projects",
-			"prefs.json":     "",
-			"terminals.json": "",
-		}
-		if !maps.Equal(configFileComponents, want) {
-			t.Errorf("configFileComponents = %v, want %v — the themes directory takes no entry", configFileComponents, want)
-		}
-	})
-
-	t.Run("emits no migrate breadcrumb and moves nothing", func(t *testing.T) {
+func TestThemesDirPath_IsNotAConfigFileMember(t *testing.T) {
+	t.Run("it resolves the themes dir with no migration", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		t.Setenv("PORTAL_THEMES_DIR", "")
 		t.Setenv("XDG_CONFIG_HOME", filepath.Join(tmpDir, "xdg"))
 		t.Setenv("HOME", tmpDir)
 
-		// Seed the old macOS path so a configFilePath-shaped implementation
-		// would visibly migrate it.
+		// Seeded so a config-file-shaped implementation would visibly migrate it.
 		oldThemes := filepath.Join(tmpDir, "Library", "Application Support", "portal", "themes")
 		if err := os.MkdirAll(oldThemes, 0o755); err != nil {
 			t.Fatalf("failed to seed old macOS themes dir: %v", err)
@@ -158,6 +144,14 @@ func TestThemesDirPath_IsNotAConfigFilePathMember(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
+		shared, err := xdg.ConfigDirPath(xdg.OSEnv, xdg.ThemesDir)
+		if err != nil {
+			t.Fatalf("shared rule: %v", err)
+		}
+		if got != shared {
+			t.Errorf("themesDirPath() = %q, want %q — the directory rule has one declaration", got, shared)
+		}
+
 		if recs := sink.Records(); len(recs) != 0 {
 			t.Errorf("expected no log records from themesDirPath, got %d: %+v", len(recs), recs)
 		}
@@ -165,5 +159,14 @@ func TestThemesDirPath_IsNotAConfigFilePathMember(t *testing.T) {
 			t.Errorf("old macOS themes dir must be left untouched: %v", err)
 		}
 		assertAbsent(t, got)
+	})
+
+	t.Run("the themes directory is named as a directory, not a config file", func(t *testing.T) {
+		if got, want := xdg.ThemesDir.EnvVar, "PORTAL_THEMES_DIR"; got != want {
+			t.Errorf("ThemesDir.EnvVar = %q, want %q", got, want)
+		}
+		if got, want := xdg.ThemesDir.Dirname, "themes"; got != want {
+			t.Errorf("ThemesDir.Dirname = %q, want %q", got, want)
+		}
 	})
 }

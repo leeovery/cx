@@ -7,6 +7,7 @@ import (
 	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/spawn"
 	"github.com/leeovery/portal/internal/tmux"
+	"github.com/leeovery/portal/internal/xdg"
 	"github.com/spf13/cobra"
 )
 
@@ -49,7 +50,7 @@ func spawnDetector(cmd *cobra.Command) TerminalDetector {
 // native-only resolution — rather than disabling the feature outright.
 func buildResolver() *spawn.Resolver {
 	cfg := spawn.TerminalsConfig{}
-	if path, err := configFilePath("PORTAL_TERMINALS_FILE", "terminals.json"); err == nil {
+	if path, err := configFilePath(xdg.TerminalsFile); err == nil {
 		cfg = spawn.NewTerminalsStore(path).Load()
 	}
 	return spawn.NewResolver(cfg)

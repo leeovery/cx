@@ -12,16 +12,6 @@ import (
 	"github.com/leeovery/portal/internal/xdg"
 )
 
-// The empty component is deliberate for files outside the closed log-component
-// vocabulary: the one-shot move still runs, but every emission is suppressed.
-var configFileComponents = map[string]string{
-	"hooks.json":     "hooks",
-	"aliases":        "aliases",
-	"projects.json":  "projects",
-	"prefs.json":     "",
-	"terminals.json": "",
-}
-
 func migrateConfigFile(oldPath, newPath, component string) {
 	if _, err := os.Stat(oldPath); err != nil {
 		return
@@ -60,8 +50,8 @@ func migrateConfigFile(oldPath, newPath, component string) {
 // production reading its default location, never part of resolving a path, so a
 // caller resolving the same rule against some other environment — a test seeder
 // asking where the binary under test will look — can never move a real file.
-func configFilePath(envVar, filename string) (string, error) {
-	resolved, err := xdg.ConfigFilePath(xdg.OSEnv, envVar, filename)
+func configFilePath(id xdg.ConfigFileID) (string, error) {
+	resolved, err := xdg.ConfigFilePath(xdg.OSEnv, id)
 	if err != nil {
 		return "", err
 	}
@@ -74,8 +64,8 @@ func configFilePath(envVar, filename string) (string, error) {
 		return "", fmt.Errorf("failed to determine home directory: %w", err)
 	}
 
-	oldPath := filepath.Join(homeDir, "Library", "Application Support", "portal", filename)
-	migrateConfigFile(oldPath, resolved.Path, configFileComponents[filename])
+	oldPath := filepath.Join(homeDir, "Library", "Application Support", "portal", id.Filename)
+	migrateConfigFile(oldPath, resolved.Path, id.LogComponent)
 
 	return resolved.Path, nil
 }
@@ -89,7 +79,7 @@ func loadProjectStore() (*project.Store, error) {
 }
 
 func projectsFilePath() (string, error) {
-	return configFilePath("PORTAL_PROJECTS_FILE", "projects.json")
+	return configFilePath(xdg.ProjectsFile)
 }
 
 // Must stay inert: this is the read `portal doctor` uses, so anything added
@@ -191,7 +181,7 @@ func translateAppearance(raw string) string {
 }
 
 func prefsFilePath() (string, error) {
-	return configFilePath("PORTAL_PREFS_FILE", "prefs.json")
+	return configFilePath(xdg.PrefsFile)
 }
 
 // themeRawKeys is the one place prefs' theme keys map onto the theme package's.
@@ -205,14 +195,5 @@ func themeRawKeys(k prefs.ThemeKeys) theme.RawKeys {
 // macOS path to migrate from. It returns a path and nothing more — never
 // creating, seeding or stat-ing the directory, whose absence is the common case.
 func themesDirPath() (string, error) {
-	if envDir := os.Getenv("PORTAL_THEMES_DIR"); envDir != "" {
-		return envDir, nil
-	}
-
-	configDir, err := xdg.ConfigBase()
-	if err != nil {
-		return "", err
-	}
-
-	return filepath.Join(configDir, "portal", "themes"), nil
+	return xdg.ConfigDirPath(xdg.OSEnv, xdg.ThemesDir)
 }

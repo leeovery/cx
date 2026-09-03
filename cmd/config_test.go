@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/leeovery/portal/internal/xdg"
 )
 
 func TestConfigFilePath(t *testing.T) {
@@ -15,7 +17,7 @@ func TestConfigFilePath(t *testing.T) {
 		t.Setenv("HOME", homeDir)
 		t.Setenv("XDG_CONFIG_HOME", "")
 
-		got, err := configFilePath("TEST_CONFIG_UNSET", "projects.json")
+		got, err := configFilePath(xdg.ConfigFileID{EnvVar: "TEST_CONFIG_UNSET", Filename: "projects.json"})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -29,7 +31,7 @@ func TestConfigFilePath(t *testing.T) {
 	t.Run("returns env var value when per-file env var is set", func(t *testing.T) {
 		t.Setenv("TEST_CONFIG_PATH", "/custom/path/file.json")
 
-		got, err := configFilePath("TEST_CONFIG_PATH", "file.json")
+		got, err := configFilePath(xdg.ConfigFileID{EnvVar: "TEST_CONFIG_PATH", Filename: "file.json"})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -44,7 +46,7 @@ func TestConfigFilePath(t *testing.T) {
 		t.Setenv("HOME", t.TempDir())
 		t.Setenv("XDG_CONFIG_HOME", "/tmp/xdg-config")
 
-		got, err := configFilePath("TEST_CONFIG_UNSET", "projects.json")
+		got, err := configFilePath(xdg.ConfigFileID{EnvVar: "TEST_CONFIG_UNSET", Filename: "projects.json"})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -60,7 +62,7 @@ func TestConfigFilePath(t *testing.T) {
 		t.Setenv("HOME", homeDir)
 		t.Setenv("XDG_CONFIG_HOME", "")
 
-		got, err := configFilePath("TEST_CONFIG_UNSET", "projects.json")
+		got, err := configFilePath(xdg.ConfigFileID{EnvVar: "TEST_CONFIG_UNSET", Filename: "projects.json"})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -75,7 +77,7 @@ func TestConfigFilePath(t *testing.T) {
 		t.Setenv("XDG_CONFIG_HOME", "/tmp/xdg-config")
 		t.Setenv("TEST_OVERRIDE", "/explicit/override/file.json")
 
-		got, err := configFilePath("TEST_OVERRIDE", "file.json")
+		got, err := configFilePath(xdg.ConfigFileID{EnvVar: "TEST_OVERRIDE", Filename: "file.json"})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -90,7 +92,7 @@ func TestConfigFilePath(t *testing.T) {
 		t.Setenv("HOME", t.TempDir())
 		t.Setenv("XDG_CONFIG_HOME", "/tmp/xdg-config/")
 
-		got, err := configFilePath("TEST_CONFIG_UNSET", "hooks.json")
+		got, err := configFilePath(xdg.ConfigFileID{EnvVar: "TEST_CONFIG_UNSET", Filename: "hooks.json"})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -366,7 +368,7 @@ func TestConfigFilePathMigration(t *testing.T) {
 		overridePath := filepath.Join(tmpDir, "custom", "projects.json")
 		t.Setenv("TEST_MIGRATE_ENVVAR", overridePath)
 
-		got, err := configFilePath("TEST_MIGRATE_ENVVAR", "projects.json")
+		got, err := configFilePath(xdg.ConfigFileID{EnvVar: "TEST_MIGRATE_ENVVAR", Filename: "projects.json"})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -394,7 +396,7 @@ func TestConfigFilePathMigration(t *testing.T) {
 			t.Fatalf("failed to write old file: %v", err)
 		}
 
-		got, err := configFilePath("TEST_MIGRATE_HOME_UNSET", "projects.json")
+		got, err := configFilePath(xdg.ConfigFileID{EnvVar: "TEST_MIGRATE_HOME_UNSET", Filename: "projects.json"})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -433,7 +435,7 @@ func TestConfigFilePathMigration(t *testing.T) {
 			t.Fatalf("failed to write old file: %v", err)
 		}
 
-		got, err := configFilePath("TEST_MIGRATE_XDG_UNSET", "aliases")
+		got, err := configFilePath(xdg.ConfigFileID{EnvVar: "TEST_MIGRATE_XDG_UNSET", Filename: "aliases"})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}

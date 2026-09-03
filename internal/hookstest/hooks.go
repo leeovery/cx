@@ -34,20 +34,15 @@ var paneTokenWidth = sync.OnceValue(func() int {
 	return len(token)
 })
 
-// hooksFileEnvVar and hooksFileName are the pair cmd/hooks.go hands the shared
-// precedence for hooks.json.
-const (
-	hooksFileEnvVar = "PORTAL_HOOKS_FILE"
-	hooksFileName   = "hooks.json"
-	xdgConfigHome   = "XDG_CONFIG_HOME"
-)
+const xdgConfigHome = "XDG_CONFIG_HOME"
 
 // ResolveHooksFilePathFromEnv answers where a binary run with this env slice
-// will look for hooks.json, by the same rule that binary resolves it with:
-// xdg.ConfigFilePath, read against the slice rather than the process
-// environment. Delegating rather than restating the precedence is what keeps a
-// seeded file and a read file the same file — a seeder resolving by its own
-// rule seeds where nothing reads and passes on it.
+// will look for hooks.json, by the same rule and the same file identity that
+// binary resolves it with: xdg.ConfigFilePath over xdg.HooksFile, read against
+// the slice rather than the process environment. Delegating rather than
+// restating either of them is what keeps a seeded file and a read file the same
+// file — a seeder resolving by its own rule seeds where nothing reads and
+// passes on it.
 //
 // The rule's home fallback is deliberately out of reach here: a slice carrying
 // neither variable means the test's isolation has regressed, which is a fatal
@@ -58,12 +53,12 @@ const (
 func ResolveHooksFilePathFromEnv(t *testing.T, env []string) string {
 	t.Helper()
 	lookup := xdg.EnvSlice(env)
-	if lookup(hooksFileEnvVar) == "" && lookup(xdgConfigHome) == "" {
-		t.Fatalf("hookstest.ResolveHooksFilePathFromEnv: env slice contains neither %s nor %s — IsolateStateForTest isolation regression", hooksFileEnvVar, xdgConfigHome)
+	if lookup(xdg.HooksFile.EnvVar) == "" && lookup(xdgConfigHome) == "" {
+		t.Fatalf("hookstest.ResolveHooksFilePathFromEnv: env slice contains neither %s nor %s — IsolateStateForTest isolation regression", xdg.HooksFile.EnvVar, xdgConfigHome)
 	}
-	resolved, err := xdg.ConfigFilePath(lookup, hooksFileEnvVar, hooksFileName)
+	resolved, err := xdg.ConfigFilePath(lookup, xdg.HooksFile)
 	if err != nil {
-		t.Fatalf("hookstest.ResolveHooksFilePathFromEnv: resolve %s: %v", hooksFileName, err)
+		t.Fatalf("hookstest.ResolveHooksFilePathFromEnv: resolve %s: %v", xdg.HooksFile.Filename, err)
 	}
 	return resolved.Path
 }

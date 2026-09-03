@@ -18,6 +18,7 @@ import (
 	"github.com/leeovery/portal/internal/restore"
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
+	"github.com/leeovery/portal/internal/xdg"
 )
 
 // BuildPortalBinaryDir compiles `portal` into a fresh t.TempDir. A restored pane
@@ -143,8 +144,8 @@ func DriveSignalHydrateBinary(t *testing.T, portalBinaryDir, socketPath, stateDi
 			// TMUX is the only way a tmux CLI invocation without -S/-L can target
 			// a non-default socket. Only the socket-path component is consulted.
 			fmt.Sprintf("TMUX=%s,1,0", socketPath),
-			"PORTAL_STATE_DIR="+stateDir,
-			"PORTAL_HOOKS_FILE="+hooksFile,
+			xdg.StateDir.EnvVar+"="+stateDir,
+			xdg.HooksFile.EnvVar+"="+hooksFile,
 			"PATH="+portalBinaryDir+string(os.PathListSeparator)+pathFromEnv(env),
 		)
 		out, err := cmd.CombinedOutput()

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/leeovery/portal/internal/state"
+	"github.com/leeovery/portal/internal/xdg"
 )
 
 func TestDir(t *testing.T) {
@@ -56,6 +57,62 @@ func TestDir(t *testing.T) {
 		want := filepath.Join(home, ".config", "portal", "state")
 		if got != want {
 			t.Errorf("Dir() = %q; want %q", got, want)
+		}
+	})
+}
+
+// The state directory is not config content, but it takes its location by the
+// same rule: the per-directory variable, else <config base>/portal/<name>. This
+// pins that it reads that rule rather than re-authoring it, so a config-base
+// layer added in one place reaches the state directory too.
+func TestDirResolvesThroughTheSharedRule(t *testing.T) {
+	t.Run("it resolves the state dir through the shared config base", func(t *testing.T) {
+		cases := []struct {
+			name     string
+			stateEnv string
+			xdgHome  string
+		}{
+			{name: "the per-directory variable", stateEnv: t.TempDir(), xdgHome: t.TempDir()},
+			{name: "the config base", stateEnv: "", xdgHome: t.TempDir()},
+			{name: "the home fallback", stateEnv: "", xdgHome: ""},
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				home := t.TempDir()
+				t.Setenv("HOME", home)
+				t.Setenv("PORTAL_STATE_DIR", tc.stateEnv)
+				t.Setenv("XDG_CONFIG_HOME", tc.xdgHome)
+
+				got, err := state.Dir()
+				if err != nil {
+					t.Fatalf("state.Dir(): %v", err)
+				}
+
+				want, err := xdg.ConfigDirPath(xdg.OSEnv, xdg.StateDir)
+				if err != nil {
+					t.Fatalf("shared rule: %v", err)
+				}
+				if got != want {
+					t.Errorf("state.Dir() = %q, want %q", got, want)
+				}
+			})
+		}
+	})
+
+	t.Run("it resolves a path and creates nothing", func(t *testing.T) {
+		base := t.TempDir()
+		t.Setenv("HOME", t.TempDir())
+		t.Setenv("PORTAL_STATE_DIR", "")
+		t.Setenv("XDG_CONFIG_HOME", base)
+
+		got, err := state.Dir()
+		if err != nil {
+			t.Fatalf("state.Dir(): %v", err)
+		}
+
+		if _, err := os.Stat(got); !os.IsNotExist(err) {
+			t.Errorf("resolving created %q (stat err = %v)", got, err)
 		}
 	})
 }

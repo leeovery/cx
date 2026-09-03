@@ -46,7 +46,7 @@ func TestConfigFilePath(t *testing.T) {
 	t.Run("the per-file variable wins ahead of XDG_CONFIG_HOME", func(t *testing.T) {
 		lookup := xdg.EnvSlice([]string{"XDG_CONFIG_HOME=/cfg", "PORTAL_HOOKS_FILE=/explicit/hooks.json"})
 
-		got, err := xdg.ConfigFilePath(lookup, "PORTAL_HOOKS_FILE", "hooks.json")
+		got, err := xdg.ConfigFilePath(lookup, xdg.HooksFile)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -62,7 +62,7 @@ func TestConfigFilePath(t *testing.T) {
 	t.Run("it resolves under XDG_CONFIG_HOME when no file variable is set", func(t *testing.T) {
 		lookup := xdg.EnvSlice([]string{"XDG_CONFIG_HOME=/cfg"})
 
-		got, err := xdg.ConfigFilePath(lookup, "PORTAL_HOOKS_FILE", "hooks.json")
+		got, err := xdg.ConfigFilePath(lookup, xdg.HooksFile)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -79,7 +79,7 @@ func TestConfigFilePath(t *testing.T) {
 	t.Run("an empty per-file variable is treated as unset", func(t *testing.T) {
 		lookup := xdg.EnvSlice([]string{"XDG_CONFIG_HOME=/cfg", "PORTAL_HOOKS_FILE="})
 
-		got, err := xdg.ConfigFilePath(lookup, "PORTAL_HOOKS_FILE", "hooks.json")
+		got, err := xdg.ConfigFilePath(lookup, xdg.HooksFile)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -93,7 +93,7 @@ func TestConfigFilePath(t *testing.T) {
 		home := t.TempDir()
 		t.Setenv("HOME", home)
 
-		got, err := xdg.ConfigFilePath(xdg.EnvSlice(nil), "PORTAL_HOOKS_FILE", "hooks.json")
+		got, err := xdg.ConfigFilePath(xdg.EnvSlice(nil), xdg.HooksFile)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -106,7 +106,7 @@ func TestConfigFilePath(t *testing.T) {
 	t.Run("it resolves against the process environment through OSEnv", func(t *testing.T) {
 		t.Setenv("XDG_CONFIG_HOME", "/cfg-from-process")
 
-		got, err := xdg.ConfigFilePath(xdg.OSEnv, "PORTAL_HOOKS_FILE_UNSET", "hooks.json")
+		got, err := xdg.ConfigFilePath(xdg.OSEnv, xdg.ConfigFileID{EnvVar: "PORTAL_HOOKS_FILE_UNSET", Filename: "hooks.json"})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -120,7 +120,7 @@ func TestConfigFilePath(t *testing.T) {
 		base := t.TempDir()
 		lookup := xdg.EnvSlice([]string{"XDG_CONFIG_HOME=" + base})
 
-		got, err := xdg.ConfigFilePath(lookup, "PORTAL_HOOKS_FILE", "hooks.json")
+		got, err := xdg.ConfigFilePath(lookup, xdg.HooksFile)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}

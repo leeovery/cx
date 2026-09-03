@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/hooks"
+	"github.com/leeovery/portal/internal/xdg"
 )
 
 // Staging describes how StageStore stages a hooks.json.
@@ -100,7 +101,7 @@ func StageStore(t *testing.T, staging Staging) (*hooks.Store, string) {
 // absence of one or the other, or their creation by the code under test.
 func HooksPath(t *testing.T, dir string) string {
 	t.Helper()
-	return filepath.Join(dir, hooksFileName)
+	return filepath.Join(dir, xdg.HooksFile.Filename)
 }
 
 // seedWays counts the mutually exclusive ways a staging describes its seed.

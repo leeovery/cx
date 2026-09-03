@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/hookstest"
+	"github.com/leeovery/portal/internal/xdg"
 )
 
 // TestSeederResolvesTheProductionRule pins the delegation that makes a seeded
@@ -43,7 +44,7 @@ func TestSeederResolvesTheProductionRule(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				env := applyEnvCase(t, tc.env)
 
-				production, err := configFilePath("PORTAL_HOOKS_FILE", "hooks.json")
+				production, err := configFilePath(xdg.HooksFile)
 				if err != nil {
 					t.Fatalf("production route: %v", err)
 				}
@@ -68,7 +69,7 @@ func TestSeederResolvesTheProductionRule(t *testing.T) {
 			t.Errorf("the seeder route moved the legacy file (stat: %v) — the migration must stay on the production path", err)
 		}
 
-		if _, err := configFilePath("PORTAL_HOOKS_FILE", "hooks.json"); err != nil {
+		if _, err := configFilePath(xdg.HooksFile); err != nil {
 			t.Fatalf("production route: %v", err)
 		}
 
