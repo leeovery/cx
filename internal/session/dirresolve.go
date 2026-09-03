@@ -1,7 +1,6 @@
 package session
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
@@ -25,20 +24,16 @@ var _ PaneCurrentPathReader = (*tmux.Client)(nil)
 //
 // ok==false with a nil error means the session is unresolvable this pass —
 // killed mid-resolve, or no readable current_path — which must never abort the
-// grouped render. Both arrive the same way: tmux answers an unmatched
-// display-message target with an empty expansion at exit 0, so a session that
-// is gone reaches here as an empty path rather than as an error, and the empty
-// check below is what catches it. A non-nil error is an unexpected pane-read
-// failure, never routine session churn.
+// grouped render. Both arrive the same way, and an empty path is the whole
+// signal: the production shape is a reader answering an unmatched target with
+// an empty expansion at exit 0, so a session that is gone reaches here as an
+// empty path rather than as an error, and the empty check below is what
+// catches it. A non-nil error from the reader is therefore an unexpected
+// pane-read failure — no server to connect to, say — and is reported as one,
+// never absorbed as routine session churn.
 func ResolveSessionDir(session string, reader PaneCurrentPathReader, runner resolver.CommandRunner) (string, bool, error) {
 	paneCwd, err := reader.ActivePaneCurrentPath(session)
 	if err != nil {
-		// Defensive, and seam-wide rather than tmux-specific: *tmux.Client
-		// reports an absent session as an empty path, so it never lands here.
-		// Classify via typed sentinels, never by substring-matching tmux stderr.
-		if errors.Is(err, tmux.ErrNoSuchSession) || errors.Is(err, tmux.ErrEmptyPaneList) {
-			return "", false, nil
-		}
 		return "", false, fmt.Errorf("failed to read active pane path for session %q: %w", session, err)
 	}
 

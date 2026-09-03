@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/leeovery/portal/internal/project"
@@ -85,23 +86,27 @@ func TestResolveSessionDir(t *testing.T) {
 		}
 	})
 
-	// Seam-level, not tmux-level: *tmux.Client reports an absent session as an
-	// empty path with a nil error, never as this sentinel. The branch stays
-	// because the reader is an interface and the classification is the seam's
-	// contract.
-	t.Run("returns unresolvable for a reader reporting the no-such-session sentinel", func(t *testing.T) {
-		killed := errors.New("display-message failed: " + tmux.ErrNoSuchSession.Error())
-		wrapped := errors.Join(tmux.ErrNoSuchSession, killed)
-		reader := &fakePaneReader{err: wrapped}
+	// A reader error is not routine session churn — an absent session arrives as
+	// an empty path, below. So every reader error is reported as an error, with
+	// no class of them absorbed into the not-ok-but-nil result.
+	t.Run("reports a reader failure as an error naming the session", func(t *testing.T) {
+		readFailed := errors.New("no server running on /private/tmp/tmux-501/default")
+		reader := &fakePaneReader{err: readFailed}
 		runner := &fakeRunner{gitRoot: "/should/not/be/used"}
 
 		dir, ok, err := session.ResolveSessionDir("gone", reader, runner)
 
-		if err != nil {
-			t.Fatalf("a killed session must not abort the render, got error: %v", err)
+		if err == nil {
+			t.Fatal("expected an error for a failed pane read, got nil")
+		}
+		if !errors.Is(err, readFailed) {
+			t.Errorf("error %v does not preserve the underlying read failure", err)
+		}
+		if !strings.Contains(err.Error(), "gone") {
+			t.Errorf("error %q does not name the session", err.Error())
 		}
 		if ok {
-			t.Error("expected ok=false for a killed session")
+			t.Error("expected ok=false for a failed pane read")
 		}
 		if dir != "" {
 			t.Errorf("expected empty dir, got %q", dir)
