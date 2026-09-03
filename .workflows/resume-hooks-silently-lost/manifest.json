@@ -440,7 +440,8 @@
             "resume-hooks-silently-lost-8-26",
             "resume-hooks-silently-lost-8-27",
             "resume-hooks-silently-lost-8-28",
-            "resume-hooks-silently-lost-8-29"
+            "resume-hooks-silently-lost-8-29",
+            "resume-hooks-silently-lost-8-30"
           ],
           "staging": {
             "p1": {
@@ -1527,6 +1528,49 @@
               "detail": "Confirmed with a standalone module rather than by argument. A test that reads a map value at runtime AND parses its own source from disk, run under -overlay, logs RUNTIME value = OVERLAID alongside PARSED-FROM-DISK literal = original. -overlay substitutes the go command BUILD inputs; sourceguardtest.ParsePackageSources reaches disk directly (parser.ParseFile(fset, path, nil, ParseMode) with a nil src, internal/sourceguardtest/parsesources.go:50) and the test binary cwd is the real package directory. For a guard that reads parsed literals from disk AND sibling values from the compiled package it is worse than useless — an overlay makes the two halves disagree and the result is uninterpretable in either direction. CONSEQUENCE: any prior round in this phase that certified a source-reading guard by overlay should be treated as unverified. A scratch-copy edit is the sound method. This affects the ~20 sourceguardtest-driven guards and the verification habit, not any one task.",
               "files": [
                 "internal/sourceguardtest/parsesources.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-30",
+              "source": "executor",
+              "summary": "The same package-level function-var seam pattern exists outside cmd with no guard and no staging helper at all.",
+              "detail": "internal/state/daemon_identity.go:35 (identifyPS), internal/state/pgrep.go:13 (pgrepCommand), internal/portaltest/isolated_env.go:117 (installBackstop), internal/portaltest/teardown_guard.go:69 (registerHomeQuiescenceGuard) are installed by hand across 8 sites in internal/state/daemon_identity_test.go and internal/state/pgrep_test.go. withFuncSeam is generic and package-local to cmd; hoisting it into a shared test helper package and pointing a guard at those packages would close the same leak vector there. Cross-package by definition. Note internal/harnesstest now exists as the neutral test leaf that could host it.",
+              "files": [
+                "internal/state/daemon_identity.go",
+                "internal/state/pgrep.go",
+                "internal/state/daemon_identity_test.go",
+                "internal/state/pgrep_test.go",
+                "internal/portaltest/isolated_env.go",
+                "internal/portaltest/teardown_guard.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-30",
+              "source": "executor",
+              "summary": "Six per-seam wrappers in cmd are now one-line pass-throughs to withFuncSeam and could be dropped or consolidated.",
+              "detail": "withCompletionSessionNames/withCompletionAliasKeys (cmd/completion_test.go:15,61), withSaverMembershipProbeFake/withOsExitFake/withDaemonShutdownFuncFake (cmd/state_daemon_self_supervision_test.go:16,26,33), syncPersistTranslation (cmd/prefs_translation_persist_test.go:29), plus the pre-existing installUninstallDeps (cmd/uninstall_test.go:51) wrapping withUninstallDeps. Each still earns its keep as named vocabulary at its call sites, so removing them is a judgement call spanning four suites rather than one task surface.",
+              "files": [
+                "cmd/completion_test.go",
+                "cmd/state_daemon_self_supervision_test.go",
+                "cmd/prefs_translation_persist_test.go",
+                "cmd/uninstall_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-30",
+              "source": "reviewer",
+              "summary": "The same hand-rolled capture-and-restore leak vector survives in cmd for package-level state that is NOT a function, and withFuncSeam is already type-agnostic enough to serve it.",
+              "detail": "withFuncSeam[F any] constrains nothing — only its name says func — so the identical install/restore pattern is still written by hand for fatalErrorStderr (cmd/root_test.go:618,:651), hydrateLogger (cmd/state_hydrate_exec_failure_test.go:26), version (cmd/abridged_integration_test.go:158, cmd/abridged_route_test.go:97), daemonLockFile (cmd/state_daemon_run_test.go:1221, cmd/state_daemon_test.go:409) and the bootstrapOnce/bootstrapStarted/bootstrapWarningsSlice/bootstrapErr/bootstrapWarnings block in cmd/bootstrap_reset_test.go:14-24. Consolidating would mean renaming the helper to something family-neutral and giving the guard a third recogniser arm for non-function package state — a different rule with a real false-positive surface (every log.For binding and every cobra command var is a package-level var), so it spans several suites and a design call.",
+              "files": [
+                "cmd/testhelpers_test.go",
+                "cmd/seam_guard_test.go",
+                "cmd/root_test.go",
+                "cmd/state_hydrate_exec_failure_test.go",
+                "cmd/abridged_integration_test.go",
+                "cmd/abridged_route_test.go",
+                "cmd/state_daemon_run_test.go",
+                "cmd/state_daemon_test.go",
+                "cmd/bootstrap_reset_test.go"
               ]
             }
           ]
