@@ -3,17 +3,31 @@ package restoretest
 import (
 	"os"
 	"strings"
-	"testing"
 	"time"
 
 	"github.com/leeovery/portal/internal/harnesstest"
 )
 
+// The budgets are declared together because what separates them is how much of
+// the chain is still ahead of the wait when it starts, and that is only legible
+// side by side.
 const (
 	// HydrateBudget bounds a wait for a restored pane's helper to clear its
-	// skeleton marker, and for the hook it then fires to land.
+	// skeleton marker, and for the hook it then fires to land. It begins before
+	// the helper does: on a server that has just been rebooted and restored, the
+	// pane has still to be spawned, respawned into the hydrate exe and
+	// scheduled, so the wait spans a whole cold chain.
 	HydrateBudget = 10 * time.Second
 	HydrateTick   = 50 * time.Millisecond
+
+	// PaneReactionBudget bounds a wait for a live pane to act on input already
+	// delivered to it — a hydrate signal written before the call that wrote it
+	// returned, keys already sent, or a helper that has already cleared its
+	// skeleton marker. Nothing but the pane's own shell is left to run, so this
+	// is a shorter wait on a shorter chain rather than a tighter guess at
+	// HydrateBudget's.
+	PaneReactionBudget = 2 * time.Second
+	PaneReactionTick   = 50 * time.Millisecond
 )
 
 // AssertMarkerCount polls a hook's side-effect file until it holds exactly want
@@ -26,7 +40,7 @@ const (
 // A want of 0 waits out the whole budget before passing — 0 is also what a hook
 // that has simply not fired yet reads as, so returning early on 0 would assert
 // nothing.
-func AssertMarkerCount(t *testing.T, path, marker string, want int) {
+func AssertMarkerCount(t harnesstest.TestingT, path, marker string, want int) {
 	t.Helper()
 	markerAssertion{
 		path:   path,

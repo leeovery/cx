@@ -397,8 +397,11 @@ func (fx *divergentRebootFixture) hydrate(t *testing.T) {
 	t.Helper()
 	restoretest.DriveSignalHydrate(t, fx.client, fx.stateDir, []string{divergentSessionName})
 	restoretest.WaitForSkeletonMarkersCleared(t, fx.client, restoretest.HydrateBudget, restoretest.HydrateTick)
+	// A count, not a presence: the helper unsets its skeleton marker before it
+	// execs the hook, so the marker-clear above says nothing about how many
+	// times the hook then ran.
 	for _, p := range fx.stamped {
-		restoretest.WaitForFileExists(t, p.markerFile, restoretest.HydrateBudget, restoretest.HydrateTick)
+		restoretest.AssertMarkerCount(t, p.markerFile, p.markerText, 1)
 	}
 }
 

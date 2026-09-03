@@ -126,7 +126,7 @@ func TestPhase3Integration_FullRoundTrip(t *testing.T) {
 
 	restoretest.DriveSignalHydrate(t, client, stateDir, []string{alpha.name, beta.name})
 
-	restoretest.WaitForSkeletonMarkersCleared(t, client, 10*time.Second, 50*time.Millisecond)
+	restoretest.WaitForSkeletonMarkersCleared(t, client, restoretest.HydrateBudget, restoretest.HydrateTick)
 
 	for _, fx := range []fixtureSession{alpha, beta} {
 		for w := range 2 {

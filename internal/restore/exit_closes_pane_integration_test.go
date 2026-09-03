@@ -53,7 +53,7 @@ func TestExitClosesRestoredPane_WithHook(t *testing.T) {
 
 	driveAndAwaitMarkerClear(t, ts.Client(), stateDir, sessionName)
 
-	restoretest.WaitForFileExists(t, sentinel, exitClosesPaneBudget, 50*time.Millisecond)
+	restoretest.WaitForFileExists(t, sentinel, restoretest.PaneReactionBudget, restoretest.PaneReactionTick)
 
 	target := tmux.PaneTarget(sessionName, 0, 0)
 	if err := ts.Client().SendKeys(target, "exit"); err != nil {
@@ -167,7 +167,7 @@ func setupExitClosesPane(t *testing.T, hookCmd string) (string, *tmuxtest.Socket
 func driveAndAwaitMarkerClear(t *testing.T, client *tmux.Client, stateDir, sessionName string) {
 	t.Helper()
 	restoretest.DriveSignalHydrate(t, client, stateDir, []string{sessionName})
-	restoretest.WaitForSkeletonMarkersCleared(t, client, 10*time.Second, 50*time.Millisecond)
+	restoretest.WaitForSkeletonMarkersCleared(t, client, restoretest.HydrateBudget, restoretest.HydrateTick)
 }
 
 func awaitPaneGone(t *testing.T, ts *tmuxtest.Socket, sessionName string, window, pane int, budget time.Duration) {

@@ -84,7 +84,7 @@ func runEagerSignalMultiSessionAC1(t *testing.T, binDir string, sessions []strin
 	}
 
 	defer dumpPortalLogOnFailure(t, stateDir)
-	restoretest.WaitForSkeletonMarkersCleared(t, client, 2*time.Second, 50*time.Millisecond)
+	restoretest.WaitForSkeletonMarkersCleared(t, client, restoretest.PaneReactionBudget, restoretest.PaneReactionTick)
 }
 
 func dumpPortalLogOnFailure(t *testing.T, stateDir string) {
@@ -144,7 +144,7 @@ func TestPhase1Integration_DaemonResumesCaptureAfterEagerSignal_AC4(t *testing.T
 	}
 
 	defer dumpPortalLogOnFailure(t, stateDir)
-	restoretest.WaitForSkeletonMarkersCleared(t, client, 2*time.Second, 50*time.Millisecond)
+	restoretest.WaitForSkeletonMarkersCleared(t, client, restoretest.PaneReactionBudget, restoretest.PaneReactionTick)
 
 	// Force a newline-terminated record into the pane: a freshly-exec'd shell
 	// can leave only a partial prompt line, and TailScrollback then returns
@@ -154,7 +154,7 @@ func TestPhase1Integration_DaemonResumesCaptureAfterEagerSignal_AC4(t *testing.T
 	if err := client.SendKeys(betaTarget, "echo ac4-marker"); err != nil {
 		t.Fatalf("SendKeys to %s: %v", betaTarget, err)
 	}
-	waitForPaneText(t, client, betaTarget, "ac4-marker", 2*time.Second, 50*time.Millisecond)
+	waitForPaneText(t, client, betaTarget, "ac4-marker", restoretest.PaneReactionBudget, restoretest.PaneReactionTick)
 
 	runDaemonTick(t, client, stateDir)
 
@@ -237,7 +237,7 @@ func TestPhase1Integration_DaemonSkipsCaptureWithoutEagerSignal_AC4NegativeContr
 	if err := client.SendKeys(betaTarget, "echo ac4-negctrl"); err != nil {
 		t.Fatalf("SendKeys to %s: %v", betaTarget, err)
 	}
-	waitForPaneText(t, client, betaTarget, "ac4-negctrl", 2*time.Second, 50*time.Millisecond)
+	waitForPaneText(t, client, betaTarget, "ac4-negctrl", restoretest.PaneReactionBudget, restoretest.PaneReactionTick)
 
 	runDaemonTick(t, client, stateDir)
 

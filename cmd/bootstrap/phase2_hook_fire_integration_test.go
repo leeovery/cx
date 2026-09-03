@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/restoretest"
@@ -81,5 +80,5 @@ func TestPhase2_HookFiresOnNonAttachedSession_AC2(t *testing.T) {
 	}
 
 	defer dumpPortalLogOnFailure(t, stateDir)
-	restoretest.WaitForFileExists(t, sentinelFile, 2*time.Second, 50*time.Millisecond)
+	restoretest.WaitForFileExists(t, sentinelFile, restoretest.PaneReactionBudget, restoretest.PaneReactionTick)
 }
