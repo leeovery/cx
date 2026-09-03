@@ -300,7 +300,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 8,
-          "current_task": "resume-hooks-silently-lost-8-30",
+          "current_task": "resume-hooks-silently-lost-8-31",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -441,7 +441,8 @@
             "resume-hooks-silently-lost-8-27",
             "resume-hooks-silently-lost-8-28",
             "resume-hooks-silently-lost-8-29",
-            "resume-hooks-silently-lost-8-30"
+            "resume-hooks-silently-lost-8-30",
+            "resume-hooks-silently-lost-8-31"
           ],
           "staging": {
             "p1": {
@@ -1571,6 +1572,55 @@
                 "cmd/state_daemon_run_test.go",
                 "cmd/state_daemon_test.go",
                 "cmd/bootstrap_reset_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-31",
+              "source": "executor",
+              "summary": "cmd/run_hook_stale_cleanup_outcome_test.go now holds only TestStaleHookVerdictParity, so its filename names a subject it no longer covers.",
+              "detail": "After this consolidation the file is one suite about the diagnosis-vs-sweep verdict agreement; a rename to run_hook_stale_cleanup_verdict_parity_test.go is the honest name, but a file rename is a git-visible move and sits across this task surface. cmd/run_hook_stale_cleanup_outcome_test.go:1-48.",
+              "files": [
+                "cmd/run_hook_stale_cleanup_outcome_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-31",
+              "source": "executor",
+              "summary": "The --fix exit-code contract is asserted twice per reason, from two directions, in the same file.",
+              "detail": "assertStandDownRepair asserts err == nil over a healthy post-repair diagnosis for every row, and TestStandDownCopy/it leaves the exit code to the post-repair diagnosis for every stand-down re-runs --fix and the read-only path per row for the failing-check half. Collapsing the healthy half into one arm would drop 6 doctor invocations, but it spans the tables two subtests rather than one. cmd/doctor_stand_down_copy_test.go:300-311 and :398-425.",
+              "files": [
+                "cmd/doctor_stand_down_copy_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-31",
+              "source": "reviewer",
+              "summary": "The not-evaluable stand-down copy is still literal-pinned outside its declared home, so the one-edit property does not hold for the diagnosis surface.",
+              "detail": "cmd/doctor_test.go:968-969 and :1237 pin \"zero live panes with hooks present (not evaluable)\", :1022-1023 and :1236 pin \"could not enumerate live panes\", :1144 and :1166-1167 pin \"restore in progress (not evaluable)\", :1178-1179 pins \"could not read the restore marker\" — all written by sibling tasks 8-5 (88c028cf) and 7-16 (e5fbf673), all now second homes for words cmd/doctor_stand_down_copy_test.go:60-126 owns. Each has its own distinct subject (status, lister.calls == 0, ServerRunning false), so the fix is to render through phraseFor(notEvaluableDetails, <reason>) rather than to delete the cases — the same move already made at doctor_fix_hook_prune_report_test.go:38.",
+              "files": [
+                "cmd/doctor_test.go",
+                "cmd/doctor_stand_down_copy_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-31",
+              "source": "reviewer",
+              "summary": "Two vocabularies for hooks.json unchanged now coexist in cmd.",
+              "detail": "cmd/testhelpers_test.go:230 assertHooksFileUnchanged (bytes, via hookstest.AssertHooksFileUnchanged) is used by run_hook_stale_cleanup_lock_timeout_test.go:39 and run_hook_stale_cleanup_single_report_test.go:57, while cmd/doctor_stand_down_copy_test.go:245-275 adds hooksPathState/assertHooksPathUnchanged (state string). The new pair exists only because hookstest.HooksFileBytes (internal/hookstest/hooks.go:102) fatals on EISDIR and the Unreadable staging axis puts a directory at the path. The single-home fix is to teach hookstest to describe a directory at the hooks.json path and retire the local pair — which reaches internal/hookstest, shared across both lanes and consolidated by task 7-16.",
+              "files": [
+                "cmd/doctor_stand_down_copy_test.go",
+                "cmd/testhelpers_test.go",
+                "internal/hookstest/hooks.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-31",
+              "source": "reviewer",
+              "summary": "The lock stand-downs words are written twice in production with no shared const, so re-wording it is two production edits plus two test edits.",
+              "detail": "cmd/run_hook_stale_cleanup.go:63 and :75 both spell \"hooks.json is locked\" inline, where every other shared reason composes from a const (restoreStandDownPhrase at :47 is the same shape: phrase + \" (not evaluable)\"). This is why cmd/doctor_stand_down_copy_test.go lock row carries an empty sharedPhrase and is skipped by the shared-const subtest. Pre-existing at HEAD and a production-copy change rather than a test consolidation, so out of this task Do list; the fix is a lockStandDownPhrase const plus a non-empty sharedPhrase on that row.",
+              "files": [
+                "cmd/run_hook_stale_cleanup.go",
+                "cmd/doctor_stand_down_copy_test.go"
               ]
             }
           ]
