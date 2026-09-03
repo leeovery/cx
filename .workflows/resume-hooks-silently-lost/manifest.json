@@ -300,7 +300,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 8,
-          "current_task": "resume-hooks-silently-lost-8-41",
+          "current_task": "resume-hooks-silently-lost-8-42",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -452,7 +452,8 @@
             "resume-hooks-silently-lost-8-38",
             "resume-hooks-silently-lost-8-39",
             "resume-hooks-silently-lost-8-40",
-            "resume-hooks-silently-lost-8-41"
+            "resume-hooks-silently-lost-8-41",
+            "resume-hooks-silently-lost-8-42"
           ],
           "staging": {
             "p1": {
@@ -1871,6 +1872,43 @@
                 "internal/prefs/leaf_guard_test.go",
                 "internal/hooks/leaf_guard_test.go",
                 "internal/theme/leaf_guard_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-42",
+              "source": "executor",
+              "summary": "Consumer suites hand-roll level+message record filtering in walk loops that the now-exported filters express directly.",
+              "detail": "Twelve sites walk sink.Records() with an inline r.Level == slog.LevelX && r.Msg == \"...\" or r.Msg == \"...\" predicate rather than composing a route — e.g. cmd/bootstrap/clean_sweep_summary_test.go:57,60, internal/hooks/store_test.go:1035, internal/state/fifo_sweep_summary_test.go:192, internal/hooks/store_shape_test.go:97, cmd/bootstrap/latch_test.go:122. They predate task 8-42 (never Records* callers, so its fold proof covers them unchanged) and each re-derives a filter the surface now exports. A few are genuinely inexpressible and must stay — cmd/open_burst_run_test.go:692-835 and internal/tui/burst_observability_test.go:314 classify by strings.HasPrefix and by attr presence, and cmd/bootstrap/latch_test.go appends into a sequence shared with non-log events — so this needs a per-site judgement pass, not a sweep.",
+              "files": [
+                "cmd/bootstrap/clean_sweep_summary_test.go",
+                "cmd/bootstrap/latch_test.go",
+                "cmd/bootstrap/eager_signal_hydrate_test.go",
+                "internal/hooks/store_test.go",
+                "internal/hooks/store_shape_test.go",
+                "internal/state/fifo_sweep_summary_test.go",
+                "cmd/prefs_translation_persist_test.go",
+                "cmd/hooks_test.go",
+                "cmd/theme_source_test.go",
+                "cmd/run_hook_stale_cleanup_lock_timeout_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-42",
+              "source": "reviewer",
+              "summary": "A component-alone query already exists in the tree, which is the stated trip-wire for splitting Matching.",
+              "detail": "cmd/open_theme_construction_test.go:521 themeEvents walks sink.Records() filtering on HasAttr(\"component\") && AttrString(t,\"component\") == \"theme\" with no message constraint — the one query shape the exported surface cannot express. The executor kept Matching(component, msg) as one filter on the premise that the pair jointly names one event and nothing queries component alone; that premise is already false here. Weigh at the phase boundary against the Matching-stays argument; if it justifies a WithComponent, Matching MUST be deleted in the same pass (it would then be a composition, i.e. a second route) and Record.Matches kept for the capture-order walkers.",
+              "files": [
+                "cmd/open_theme_construction_test.go",
+                "internal/logtest/capture.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-42",
+              "source": "reviewer",
+              "summary": "Record.Matches is hand-restated rather than called, falsifying its own single-home wording.",
+              "detail": "cmd/theme_source_test.go:219 spells out rec.Msg == msg && rec.HasAttr(\"component\") && rec.AttrString(t, \"component\") == \"theme\", which is len(sink.Records().Matching(\"theme\", msg)). It is a second declaration of the predicate Record.Matches documents itself as the single home of. Overlaps the hand-rolled-filter family banked by the executor for this task; this specific site is the one that falsifies the single-home wording.",
+              "files": [
+                "cmd/theme_source_test.go"
               ]
             }
           ]
