@@ -300,7 +300,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 8,
-          "current_task": "resume-hooks-silently-lost-8-39",
+          "current_task": "resume-hooks-silently-lost-8-40",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -450,7 +450,8 @@
             "resume-hooks-silently-lost-8-36",
             "resume-hooks-silently-lost-8-37",
             "resume-hooks-silently-lost-8-38",
-            "resume-hooks-silently-lost-8-39"
+            "resume-hooks-silently-lost-8-39",
+            "resume-hooks-silently-lost-8-40"
           ],
           "staging": {
             "p1": {
@@ -1843,6 +1844,15 @@
               "detail": "(1) \"The two slog.Handlers still declared under cmd\" — true today (exactly warnBypassHandler at cmd/open_test.go:2839 and orchestrationSeqHandler at cmd/bootstrap/latch_test.go:35), but a third handler anywhere under the cmd tree silently falsifies it with nothing to catch it. (2) \"the five properties every audit-trail line shares\" — true (RecordWant has exactly Level/Msg/Component/Op/Via), but the prose count sits beside the enumeration, so a sixth field falsifies the number while the list still reads fine. Both are the \"the last one left\" failure mode the consolidation existed to remove; the remedy is a re-voicing that names without counting. ALSO: the rows universal \"Sink is the capture handler for every suite outside internal/log ... internal/logs own in-package tests are the exception\" is slightly overstated — internal/hooks/store_test.go:1239 is a second suite outside internal/log capturing through a stdlib slog.NewJSONHandler, deliberately and with an in-source rationale (it asserts the JSON rendering, which a Sink does not produce). The operative rule survives since that test declares no handler type of its own, but a rewrite should account for it.",
               "files": [
                 "CLAUDE.md"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-40",
+              "source": "reviewer",
+              "summary": "The pin test still carries the vacuous claim the comment just dropped, and its half-relation assertion is integer-division-fragile at the crossover.",
+              "detail": "internal/hooks/read_lock_test.go:369-371 fails preRead <= 0 with \"it must still grant an uncontended lock\" — an empirical probe shows an uncontended acquire is granted at bound 0 AND at negative bounds, so a positive figure is not what grants it; the assertion actually pins the floor, and its message should say so. Separately, read_lock_test.go:373 asserts preRead >= mutation/2 using Go integer division, which would trip at a lockTimeout of exactly 10ms or 10.000001ms (10000001ns/2 == 5000000ns == bound) even though the comments claim is true there in real arithmetic; the three sampled values (2s/300ms/60ms) are all far from that edge. Task 8-40 forbade touching code or tests, so both reach beyond its scope.",
+              "files": [
+                "internal/hooks/read_lock_test.go"
               ]
             }
           ]
