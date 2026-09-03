@@ -240,7 +240,7 @@ func TestPersistentPreRunE_LatchedTUI_ReadsLatchExactlyOnce(t *testing.T) {
 	if runner.calls != 0 {
 		t.Errorf("abridged path: orchestrator calls = %d, want 0 (never runs the full bootstrap)", runner.calls)
 	}
-	if got := countOp(rec.Calls(), "show-option"); got != 1 {
+	if got := len(rec.CallsMatching("show-option")); got != 1 {
 		t.Errorf("latch read count (show-option) = %d, want exactly 1 (single-read invariant): %v", got, rec.Calls())
 	}
 }

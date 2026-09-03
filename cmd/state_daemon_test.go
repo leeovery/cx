@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -17,19 +16,6 @@ import (
 	"github.com/leeovery/portal/internal/state"
 	"github.com/leeovery/portal/internal/tmux"
 )
-
-func runStateDaemon(t *testing.T) (*bytes.Buffer, *bytes.Buffer, error) {
-	t.Helper()
-	outBuf := new(bytes.Buffer)
-	errBuf := new(bytes.Buffer)
-	resetRootCmd()
-	resetStateCmdFlags()
-	rootCmd.SetOut(outBuf)
-	rootCmd.SetErr(errBuf)
-	rootCmd.SetArgs([]string{"state", "daemon"})
-	err := rootCmd.Execute()
-	return outBuf, errBuf, err
-}
 
 // Swaps the tick-loop sub-seam rather than the top-level daemonRunFunc, so
 // the production lock-acquire + WritePIDFile head still runs and its side
@@ -50,7 +36,7 @@ func TestStateDaemon_WritesPIDFileOnStartup(t *testing.T) {
 	_ = withImmediateRun(t)
 	withDaemonLockFileReset(t)
 
-	if _, _, err := runStateDaemon(t); err != nil {
+	if _, _, err := runRootCmd(t, "state", "daemon"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -74,7 +60,7 @@ func TestStateDaemon_WritesVersionFileOnStartup(t *testing.T) {
 	_ = withImmediateRun(t)
 	withDaemonLockFileReset(t)
 
-	if _, _, err := runStateDaemon(t); err != nil {
+	if _, _, err := runRootCmd(t, "state", "daemon"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -102,7 +88,7 @@ func TestStateDaemon_ClearsStaleSaveRequestedOnStartup(t *testing.T) {
 	_ = withImmediateRun(t)
 	withDaemonLockFileReset(t)
 
-	if _, _, err := runStateDaemon(t); err != nil {
+	if _, _, err := runRootCmd(t, "state", "daemon"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -129,7 +115,7 @@ func TestStateDaemon_OverwritesPIDAndVersionAcrossInvocations(t *testing.T) {
 	_ = withImmediateRun(t)
 	withDaemonLockFileReset(t)
 
-	if _, _, err := runStateDaemon(t); err != nil {
+	if _, _, err := runRootCmd(t, "state", "daemon"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -158,7 +144,7 @@ func TestStateDaemon_CreatesStateDirectoryIfMissing(t *testing.T) {
 	_ = withImmediateRun(t)
 	withDaemonLockFileReset(t)
 
-	if _, _, err := runStateDaemon(t); err != nil {
+	if _, _, err := runRootCmd(t, "state", "daemon"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -184,7 +170,7 @@ func TestStateDaemon_OpensLogFileInStateDir(t *testing.T) {
 	_ = withImmediateRun(t)
 	withDaemonLockFileReset(t)
 
-	if _, _, err := runStateDaemon(t); err != nil {
+	if _, _, err := runRootCmd(t, "state", "daemon"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -207,7 +193,7 @@ func TestStateDaemon_DoesNotEmitStartingINFO(t *testing.T) {
 	_ = withImmediateRun(t)
 	withDaemonLockFileReset(t)
 
-	if _, _, err := runStateDaemon(t); err != nil {
+	if _, _, err := runRootCmd(t, "state", "daemon"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -230,7 +216,7 @@ func TestStateDaemon_PassesPreparedDepsToRunFunc(t *testing.T) {
 
 	holder := withImmediateRun(t)
 
-	if _, _, err := runStateDaemon(t); err != nil {
+	if _, _, err := runRootCmd(t, "state", "daemon"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -264,7 +250,7 @@ func TestStateDaemon_ShutdownFlushSkippedWhenRestoringSet(t *testing.T) {
 		return defaultShutdownFlush(deps)
 	})
 
-	if _, _, err := runStateDaemon(t); err != nil {
+	if _, _, err := runRootCmd(t, "state", "daemon"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -295,7 +281,7 @@ func TestStateDaemon_ShutdownFlushRunsWhenRestoringUnset(t *testing.T) {
 		return defaultShutdownFlush(deps)
 	})
 
-	if _, _, err := runStateDaemon(t); err != nil {
+	if _, _, err := runRootCmd(t, "state", "daemon"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -342,7 +328,7 @@ func TestStateDaemon_ReturnsErrorWhenStateDirNotWritable(t *testing.T) {
 	t.Setenv("PORTAL_STATE_DIR", dir)
 	_ = withImmediateRun(t)
 
-	_, _, err := runStateDaemon(t)
+	_, _, err := runRootCmd(t, "state", "daemon")
 	if err == nil {
 		t.Fatal("expected error when state dir cannot be created, got nil")
 	}
@@ -362,7 +348,7 @@ func TestStateDaemon_StartupLogIncludesVersionAndPID(t *testing.T) {
 	_ = withImmediateRun(t)
 	withDaemonLockFileReset(t)
 
-	if _, _, err := runStateDaemon(t); err != nil {
+	if _, _, err := runRootCmd(t, "state", "daemon"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -390,7 +376,7 @@ func TestStateDaemon_RunFuncErrorPropagates(t *testing.T) {
 	sentinel := errors.New("boom")
 	withFuncSeam(t, &daemonRunFunc, func(_ context.Context, _ *daemonDeps) error { return sentinel })
 
-	_, _, err := runStateDaemon(t)
+	_, _, err := runRootCmd(t, "state", "daemon")
 	if !errors.Is(err, sentinel) {
 		t.Errorf("expected sentinel error, got %v", err)
 	}
@@ -426,7 +412,7 @@ func TestStateDaemon_AcquiresLockBeforeWritePIDFile(t *testing.T) {
 		return state.AcquireDaemonLock(d)
 	})
 
-	if _, _, err := runStateDaemon(t); err != nil {
+	if _, _, err := runRootCmd(t, "state", "daemon"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -453,7 +439,7 @@ func TestStateDaemon_AcquireLockCalledAfterEnsureDir(t *testing.T) {
 		return state.AcquireDaemonLock(d)
 	})
 
-	if _, _, err := runStateDaemon(t); err != nil {
+	if _, _, err := runRootCmd(t, "state", "daemon"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -477,7 +463,7 @@ func TestStateDaemon_ExitsCleanlyWhenLockHeld(t *testing.T) {
 		return nil
 	})
 
-	if _, _, err := runStateDaemon(t); err != nil {
+	if _, _, err := runRootCmd(t, "state", "daemon"); err != nil {
 		t.Fatalf("expected nil error on lock-held; got: %v", err)
 	}
 	if called {
@@ -499,7 +485,7 @@ func TestStateDaemon_DoesNotWritePIDFileWhenLockHeld(t *testing.T) {
 		return nil
 	})
 
-	if _, _, err := runStateDaemon(t); err != nil {
+	if _, _, err := runRootCmd(t, "state", "daemon"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -532,7 +518,7 @@ func TestStateDaemon_DoesNotOverwritePIDFileWhenLockHeld(t *testing.T) {
 		return nil
 	})
 
-	if _, _, err := runStateDaemon(t); err != nil {
+	if _, _, err := runRootCmd(t, "state", "daemon"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -563,7 +549,7 @@ func TestStateDaemon_ReturnsErrorAndLogsWarnOnNonContentionLockFailure(t *testin
 		return nil
 	})
 
-	_, _, err := runStateDaemon(t)
+	_, _, err := runRootCmd(t, "state", "daemon")
 	if err == nil {
 		t.Fatal("expected error on non-EWOULDBLOCK lock failure, got nil")
 	}
@@ -604,7 +590,7 @@ func TestStateDaemon_RetainsLockFdAcrossDaemonLifetime(t *testing.T) {
 	_ = withImmediateRun(t)
 	withDaemonLockFileReset(t)
 
-	if _, _, err := runStateDaemon(t); err != nil {
+	if _, _, err := runRootCmd(t, "state", "daemon"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -634,7 +620,7 @@ func TestStateDaemon_EmitsWarnOnLockContention(t *testing.T) {
 		return nil
 	})
 
-	if _, _, err := runStateDaemon(t); err != nil {
+	if _, _, err := runRootCmd(t, "state", "daemon"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -735,7 +721,7 @@ func TestStateDaemon_HooksCleanupWiring(t *testing.T) {
 		holder := withImmediateRun(t)
 		withDaemonLockFileReset(t)
 
-		if _, _, err := runStateDaemon(t); err != nil {
+		if _, _, err := runRootCmd(t, "state", "daemon"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
@@ -756,7 +742,7 @@ func TestStateDaemon_HooksCleanupWiring(t *testing.T) {
 		holder := withImmediateRun(t)
 		withDaemonLockFileReset(t)
 
-		if _, _, err := runStateDaemon(t); err != nil {
+		if _, _, err := runRootCmd(t, "state", "daemon"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		now := time.Now()
@@ -791,7 +777,7 @@ func TestStateDaemon_HooksCleanupWiring(t *testing.T) {
 		holder := withImmediateRun(t)
 		withDaemonLockFileReset(t)
 
-		if _, _, err := runStateDaemon(t); err != nil {
+		if _, _, err := runRootCmd(t, "state", "daemon"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
@@ -828,7 +814,7 @@ func TestStateDaemon_HooksCleanupWiring(t *testing.T) {
 		holder := withImmediateRun(t)
 		withDaemonLockFileReset(t)
 
-		if _, _, err := runStateDaemon(t); err != nil {
+		if _, _, err := runRootCmd(t, "state", "daemon"); err != nil {
 			t.Fatalf("RunE must proceed to the tick loop despite loadHookStore failure; got error: %v", err)
 		}
 

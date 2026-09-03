@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,24 +11,11 @@ import (
 	"github.com/leeovery/portal/internal/state"
 )
 
-func runStateNotify(t *testing.T) (*bytes.Buffer, *bytes.Buffer, error) {
-	t.Helper()
-	outBuf := new(bytes.Buffer)
-	errBuf := new(bytes.Buffer)
-	resetRootCmd()
-	resetStateCmdFlags()
-	rootCmd.SetOut(outBuf)
-	rootCmd.SetErr(errBuf)
-	rootCmd.SetArgs([]string{"state", "notify"})
-	err := rootCmd.Execute()
-	return outBuf, errBuf, err
-}
-
 func TestStateNotify_CreatesSaveRequestedWhenAbsent(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
 
-	if _, _, err := runStateNotify(t); err != nil {
+	if _, _, err := runRootCmd(t, "state", "notify"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -50,7 +36,7 @@ func TestStateNotify_BumpsMtimeWhenPresent(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
 
-	if _, _, err := runStateNotify(t); err != nil {
+	if _, _, err := runRootCmd(t, "state", "notify"); err != nil {
 		t.Fatalf("first notify: unexpected error: %v", err)
 	}
 	path := filepath.Join(dir, "save.requested")
@@ -61,7 +47,7 @@ func TestStateNotify_BumpsMtimeWhenPresent(t *testing.T) {
 
 	time.Sleep(10 * time.Millisecond)
 
-	if _, _, err := runStateNotify(t); err != nil {
+	if _, _, err := runRootCmd(t, "state", "notify"); err != nil {
 		t.Fatalf("second notify: unexpected error: %v", err)
 	}
 	second, err := os.Stat(path)
@@ -79,7 +65,7 @@ func TestStateNotify_CreatesStateDirWithMode0700WhenMissing(t *testing.T) {
 	dir := filepath.Join(parent, "state-not-yet-created")
 	t.Setenv("PORTAL_STATE_DIR", dir)
 
-	if _, _, err := runStateNotify(t); err != nil {
+	if _, _, err := runRootCmd(t, "state", "notify"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -104,7 +90,7 @@ func TestStateNotify_TruncatesExistingContent(t *testing.T) {
 		t.Fatalf("seed write: %v", err)
 	}
 
-	if _, _, err := runStateNotify(t); err != nil {
+	if _, _, err := runRootCmd(t, "state", "notify"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -121,7 +107,7 @@ func TestStateNotify_ExitsZeroOnSuccess(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
 
-	_, _, err := runStateNotify(t)
+	_, _, err := runRootCmd(t, "state", "notify")
 	if err != nil {
 		t.Fatalf("expected exit 0, got error: %v", err)
 	}
@@ -139,7 +125,7 @@ func TestStateNotify_ExitsNonZeroWhenStateDirNotWritable(t *testing.T) {
 
 	t.Setenv("PORTAL_STATE_DIR", dir)
 
-	_, _, err := runStateNotify(t)
+	_, _, err := runRootCmd(t, "state", "notify")
 	if err == nil {
 		t.Fatal("expected non-zero exit when state dir is not writable, got nil")
 	}
@@ -149,7 +135,7 @@ func TestStateNotify_DoesNotReadOrCreateOtherStateFiles(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
 
-	if _, _, err := runStateNotify(t); err != nil {
+	if _, _, err := runRootCmd(t, "state", "notify"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -180,7 +166,7 @@ func TestStateNotify_DoesNotInvokeBootstrap(t *testing.T) {
 		}
 	}()
 
-	if _, _, err := runStateNotify(t); err != nil {
+	if _, _, err := runRootCmd(t, "state", "notify"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -203,7 +189,7 @@ func TestStateNotify_LogsWarnOnSaveRequestedCreateFailure(t *testing.T) {
 		t.Fatalf("mkdir blocking save.requested: %v", err)
 	}
 
-	_, _, err := runStateNotify(t)
+	_, _, err := runRootCmd(t, "state", "notify")
 	if err == nil {
 		t.Fatal("expected non-zero exit when save.requested cannot be created, got nil")
 	}

@@ -151,7 +151,6 @@ func TestVersionGuard_NotInvokedForExemptCommands(t *testing.T) {
 			}
 
 			resetRootCmd()
-			resetStateCmdFlags()
 			rootCmd.SetArgs(tt.args)
 			err := rootCmd.Execute()
 			if err != nil {

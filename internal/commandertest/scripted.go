@@ -252,13 +252,48 @@ func (s *Scripted) ResetCalls() {
 	s.calls = nil
 }
 
-// CallsMatching returns the recorded calls whose first argument is cmd.
-func (s *Scripted) CallsMatching(cmd string) [][]string {
-	out := [][]string{}
-	for _, call := range s.Calls() {
-		if len(call) > 0 && call[0] == cmd {
-			out = append(out, call)
+// MatchedCall is one recorded call paired with its index in the whole call log,
+// so an assertion can be made on the order calls came in as well as on what
+// each of them carried.
+type MatchedCall struct {
+	Index int
+	Argv  []string
+}
+
+// MatchedCalls is what a CallsMatching query answers with, in call-log order.
+type MatchedCalls []MatchedCall
+
+// FirstIndex returns the call-log index of the first matched call, or -1 when
+// the query matched nothing.
+func (m MatchedCalls) FirstIndex() int {
+	if len(m) == 0 {
+		return -1
+	}
+	return m[0].Index
+}
+
+// CallsMatching returns the recorded calls whose first argument is cmd,
+// narrowed to those whose space-joined argv contains every one of argSubstrs.
+func (s *Scripted) CallsMatching(cmd string, argSubstrs ...string) MatchedCalls {
+	out := MatchedCalls{}
+	for i, call := range s.Calls() {
+		if len(call) == 0 || call[0] != cmd {
+			continue
 		}
+		if !argvContainsAll(call, argSubstrs) {
+			continue
+		}
+		out = append(out, MatchedCall{Index: i, Argv: call})
 	}
 	return out
+}
+
+func argvContainsAll(call []string, substrs []string) bool {
+	joined := strings.Join(call, " ")
+	for _, sub := range substrs {
+		if !strings.Contains(joined, sub) {
+			return false
+		}
+	}
+	return true
 }

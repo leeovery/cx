@@ -30,15 +30,6 @@ func availableCommandNames(help string) map[string]bool {
 	return names
 }
 
-func resetStateCmdFlags() {
-	for _, name := range []string{"fifo", "file", "hook-key"} {
-		if f := stateHydrateCmd.Flags().Lookup(name); f != nil {
-			_ = f.Value.Set("")
-			f.Changed = false
-		}
-	}
-}
-
 func TestStateCommandRegistration(t *testing.T) {
 	t.Run("state is registered as a top-level subcommand of root", func(t *testing.T) {
 		var found bool
@@ -164,7 +155,6 @@ func TestStateInternalSubcommandsAcceptValidArgv(t *testing.T) {
 			outBuf := new(bytes.Buffer)
 			errBuf := new(bytes.Buffer)
 			resetRootCmd()
-			resetStateCmdFlags()
 			rootCmd.SetOut(outBuf)
 			rootCmd.SetErr(errBuf)
 			rootCmd.SetArgs(tt.args)
@@ -180,7 +170,6 @@ func TestStateInternalSubcommandsAcceptValidArgv(t *testing.T) {
 
 func TestStateSignalHydrateRequiresSessionName(t *testing.T) {
 	resetRootCmd()
-	resetStateCmdFlags()
 	rootCmd.SetOut(new(bytes.Buffer))
 	rootCmd.SetErr(new(bytes.Buffer))
 	rootCmd.SetArgs([]string{"state", "signal-hydrate"})
@@ -212,7 +201,6 @@ func TestStateHydrateRequiresFIFOAndFile(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			resetRootCmd()
-			resetStateCmdFlags()
 			rootCmd.SetOut(new(bytes.Buffer))
 			rootCmd.SetErr(new(bytes.Buffer))
 			rootCmd.SetArgs(tt.args)

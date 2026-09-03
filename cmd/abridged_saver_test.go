@@ -50,16 +50,6 @@ func panePIDProbe(args []string) bool {
 	return len(args) > 0 && args[0] == "list-panes" && isPanePIDProbe(args)
 }
 
-func countOp(calls [][]string, op string) int {
-	n := 0
-	for _, c := range calls {
-		if len(c) > 0 && c[0] == op {
-			n++
-		}
-	}
-	return n
-}
-
 // Carries tmux's canonical lowercase "no such session" phrasing, so
 // SaverPanePIDOrAbsent collapses it to (0, false, nil) — the "absent"
 // classification.
@@ -79,11 +69,11 @@ func TestEnsureSaverLiveness_NoOpWhenSaverPresentAndAlive(t *testing.T) {
 
 	ensureSaverLiveness(tmux.NewClient(cmder), t.TempDir())
 
-	if got := countOp(cmder.Calls(), "list-panes"); got != 1 {
+	if got := len(cmder.CallsMatching("list-panes")); got != 1 {
 		t.Errorf("expected exactly 1 presence probe, got %d: %v", got, cmder.Calls())
 	}
 	for _, op := range []string{"has-session", "new-session", "respawn-pane", "kill-session"} {
-		if n := countOp(cmder.Calls(), op); n != 0 {
+		if n := len(cmder.CallsMatching(op)); n != 0 {
 			t.Errorf("expected no %q call for alive saver, got %d: %v", op, n, cmder.Calls())
 		}
 	}
@@ -109,7 +99,7 @@ func TestEnsureSaverLiveness_RevivesViaBootstrapPortalSaverWhenAbsent(t *testing
 
 	ensureSaverLiveness(tmux.NewClient(cmder), t.TempDir())
 
-	if got := countOp(cmder.Calls(), "new-session"); got != 1 {
+	if got := len(cmder.CallsMatching("new-session")); got != 1 {
 		t.Errorf("expected BootstrapPortalSaver create path (1 new-session), got %d: %v", got, cmder.Calls())
 	}
 }
@@ -130,7 +120,7 @@ func TestEnsureSaverLiveness_TreatsProbeTransientErrorAsAbsentAndRevives(t *test
 
 	ensureSaverLiveness(tmux.NewClient(cmder), t.TempDir())
 
-	if got := countOp(cmder.Calls(), "new-session"); got != 1 {
+	if got := len(cmder.CallsMatching("new-session")); got != 1 {
 		t.Errorf("transient probe error must be treated as absent and revive (1 new-session), got %d: %v", got, cmder.Calls())
 	}
 }
@@ -203,7 +193,7 @@ func TestEnsureSaverLiveness_NeverInvokesVersionGate(t *testing.T) {
 
 	ensureSaverLiveness(tmux.NewClient(cmder), t.TempDir())
 
-	if n := countOp(cmder.Calls(), "kill-session"); n != 0 {
+	if n := len(cmder.CallsMatching("kill-session")); n != 0 {
 		t.Errorf("liveness-only helper must never kill-session, got %d: %v", n, cmder.Calls())
 	}
 

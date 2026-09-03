@@ -148,7 +148,7 @@ func TestStateDaemon_ProjectCleanupWiring(t *testing.T) {
 		holder := withImmediateRun(t)
 		withDaemonLockFileReset(t)
 
-		if _, _, err := runStateDaemon(t); err != nil {
+		if _, _, err := runRootCmd(t, "state", "daemon"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
@@ -169,7 +169,7 @@ func TestStateDaemon_ProjectCleanupWiring(t *testing.T) {
 		holder := withImmediateRun(t)
 		withDaemonLockFileReset(t)
 
-		if _, _, err := runStateDaemon(t); err != nil {
+		if _, _, err := runRootCmd(t, "state", "daemon"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		now := time.Now()
@@ -201,7 +201,7 @@ func TestStateDaemon_ProjectCleanupWiring(t *testing.T) {
 		holder := withImmediateRun(t)
 		withDaemonLockFileReset(t)
 
-		if _, _, err := runStateDaemon(t); err != nil {
+		if _, _, err := runRootCmd(t, "state", "daemon"); err != nil {
 			t.Fatalf("RunE must proceed to the tick loop despite loadProjectStore failure; got error: %v", err)
 		}
 

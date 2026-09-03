@@ -79,6 +79,26 @@ func resetRootCmd() {
 		_ = f.Value.Set("false")
 		f.Changed = false
 	}
+	for _, name := range []string{"fifo", "file", "hook-key"} {
+		if f := stateHydrateCmd.Flags().Lookup(name); f != nil {
+			_ = f.Value.Set("")
+			f.Changed = false
+		}
+	}
+}
+
+// runRootCmd executes the root command with args, handing back the buffers its
+// stdout and stderr were routed to alongside the Execute error.
+func runRootCmd(t *testing.T, args ...string) (*bytes.Buffer, *bytes.Buffer, error) {
+	t.Helper()
+	outBuf := new(bytes.Buffer)
+	errBuf := new(bytes.Buffer)
+	resetRootCmd()
+	rootCmd.SetOut(outBuf)
+	rootCmd.SetErr(errBuf)
+	rootCmd.SetArgs(args)
+	err := rootCmd.Execute()
+	return outBuf, errBuf, err
 }
 
 func TestTmuxDependentCommandsFailWithoutTmux(t *testing.T) {
@@ -476,7 +496,6 @@ func TestPersistentPreRunE_RegistersPortalHooks(t *testing.T) {
 				})
 
 				resetRootCmd()
-				resetStateCmdFlags()
 				rootCmd.SetArgs(tt.args)
 				err := rootCmd.Execute()
 				if err != nil {

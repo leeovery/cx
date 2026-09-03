@@ -845,8 +845,8 @@ func TestDaemonStartup_SeedsHashMapFromDisk(t *testing.T) {
 	holder := withImmediateRun(t)
 	withDaemonLockFileReset(t)
 
-	if _, _, err := runStateDaemon(t); err != nil {
-		t.Fatalf("runStateDaemon: %v", err)
+	if _, _, err := runRootCmd(t, "state", "daemon"); err != nil {
+		t.Fatalf("runRootCmd(state daemon): %v", err)
 	}
 
 	if *holder == nil {
@@ -886,8 +886,8 @@ func TestDaemonStartup_LoadsPrevIndexFromSessionsJSON(t *testing.T) {
 	holder := withImmediateRun(t)
 	withDaemonLockFileReset(t)
 
-	if _, _, err := runStateDaemon(t); err != nil {
-		t.Fatalf("runStateDaemon: %v", err)
+	if _, _, err := runRootCmd(t, "state", "daemon"); err != nil {
+		t.Fatalf("runRootCmd(state daemon): %v", err)
 	}
 	if *holder == nil {
 		t.Fatal("daemonRunFunc not invoked")
@@ -910,8 +910,8 @@ func TestDaemonStartup_HandlesMissingSessionsJSONAsNilPrev(t *testing.T) {
 	holder := withImmediateRun(t)
 	withDaemonLockFileReset(t)
 
-	if _, _, err := runStateDaemon(t); err != nil {
-		t.Fatalf("runStateDaemon: %v", err)
+	if _, _, err := runRootCmd(t, "state", "daemon"); err != nil {
+		t.Fatalf("runRootCmd(state daemon): %v", err)
 	}
 	if *holder == nil {
 		t.Fatal("daemonRunFunc not invoked")
@@ -939,8 +939,8 @@ func TestDaemonStartup_LogsWarningOnUndecodableSessionsJSON(t *testing.T) {
 	holder := withImmediateRun(t)
 	withDaemonLockFileReset(t)
 
-	if _, _, err := runStateDaemon(t); err != nil {
-		t.Fatalf("runStateDaemon: %v", err)
+	if _, _, err := runRootCmd(t, "state", "daemon"); err != nil {
+		t.Fatalf("runRootCmd(state daemon): %v", err)
 	}
 	if (*holder).PrevIndex != nil {
 		t.Errorf("PrevIndex should be nil on decode error; got %+v", *(*holder).PrevIndex)

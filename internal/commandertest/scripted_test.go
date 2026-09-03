@@ -72,6 +72,47 @@ func TestScripted(t *testing.T) {
 		}
 	})
 
+	t.Run("it pairs each matched call with its index in the whole log", func(t *testing.T) {
+		c := commandertest.Quiet()
+
+		_, _ = c.Run("has-session", "-t", "=work")
+		_, _ = c.Run("kill-session", "-t", "=work")
+
+		want := commandertest.MatchedCalls{
+			{Index: 1, Argv: []string{"kill-session", "-t", "=work"}},
+		}
+		if got := c.CallsMatching("kill-session"); !reflect.DeepEqual(got, want) {
+			t.Errorf("CallsMatching(kill-session) = %v, want %v", got, want)
+		}
+		if got := c.CallsMatching("kill-session").FirstIndex(); got != 1 {
+			t.Errorf("FirstIndex() = %d, want 1", got)
+		}
+	})
+
+	t.Run("it narrows a query to the calls carrying every stated substring", func(t *testing.T) {
+		c := commandertest.Quiet()
+
+		_, _ = c.Run("set-hook", "-g", "session-created[0]", "run-shell")
+		_, _ = c.Run("set-hook", "-gu", "session-created[0]")
+
+		if got := c.CallsMatching("set-hook", "-gu").FirstIndex(); got != 1 {
+			t.Errorf("CallsMatching(set-hook, -gu).FirstIndex() = %d, want 1", got)
+		}
+		if got := c.CallsMatching("set-hook", "-gu", "window-layout-changed"); len(got) != 0 {
+			t.Errorf("CallsMatching with an unmet substring = %v, want none", got)
+		}
+	})
+
+	t.Run("it answers -1 for the first index of a query that matched nothing", func(t *testing.T) {
+		c := commandertest.Quiet()
+
+		_, _ = c.Run("has-session", "-t", "=work")
+
+		if got := c.CallsMatching("kill-session").FirstIndex(); got != -1 {
+			t.Errorf("FirstIndex() of an unmatched query = %d, want -1", got)
+		}
+	})
+
 	t.Run("it forgets the calls recorded so far when reset", func(t *testing.T) {
 		c := commandertest.Quiet()
 

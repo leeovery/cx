@@ -24,7 +24,6 @@ func parseHydrateHookKey(t *testing.T, args []string) string {
 	})
 
 	resetRootCmd()
-	resetStateCmdFlags()
 	rootCmd.SetOut(new(bytes.Buffer))
 	rootCmd.SetErr(new(bytes.Buffer))
 	rootCmd.SetArgs(args)

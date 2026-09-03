@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bytes"
 	"errors"
 	"os/exec"
 	"strings"
@@ -23,46 +22,21 @@ func newExitError(t *testing.T) error {
 	return err
 }
 
-func setHookCalls(calls [][]string) []string {
+// setHookCalls returns the event named by every global-hook unset the run
+// issued, in the order tmux received them.
+func setHookCalls(cmder *commandertest.Scripted) []string {
 	var out []string
-	for _, c := range calls {
-		if len(c) >= 3 && c[0] == "set-hook" && c[1] == "-gu" {
-			out = append(out, c[2])
+	for _, c := range cmder.CallsMatching("set-hook") {
+		if len(c.Argv) >= 3 && c.Argv[1] == "-gu" {
+			out = append(out, c.Argv[2])
 		}
 	}
 	return out
 }
 
-func callIndex(calls [][]string, op, targetSubstr string) int {
-	for i, c := range calls {
-		if len(c) == 0 || c[0] != op {
-			continue
-		}
-		if targetSubstr == "" {
-			return i
-		}
-		if strings.Contains(strings.Join(c, " "), targetSubstr) {
-			return i
-		}
-	}
-	return -1
-}
-
 func installUninstallDeps(t *testing.T, deps *UninstallDeps) {
 	t.Helper()
 	withUninstallDeps(t, *deps)
-}
-
-func runUninstall(t *testing.T, args ...string) (*bytes.Buffer, *bytes.Buffer, error) {
-	t.Helper()
-	outBuf := new(bytes.Buffer)
-	errBuf := new(bytes.Buffer)
-	resetRootCmd()
-	rootCmd.SetOut(outBuf)
-	rootCmd.SetErr(errBuf)
-	rootCmd.SetArgs(append([]string{"uninstall"}, args...))
-	err := rootCmd.Execute()
-	return outBuf, errBuf, err
 }
 
 // wantCompletionMessage is hard-coded rather than referenced from production,
@@ -81,15 +55,15 @@ func TestUninstall_KillsPortalSaverBeforeRemovingHooks(t *testing.T) {
 	)
 	installUninstallDeps(t, &UninstallDeps{Client: tmux.NewClient(cmder)})
 
-	out, _, err := runUninstall(t)
+	out, _, err := runRootCmd(t, "uninstall")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	hasSessionIdx := callIndex(cmder.Calls(), "has-session", tmux.PortalSaverName)
-	killIdx := callIndex(cmder.Calls(), "kill-session", tmux.PortalSaverName)
-	showHooksIdx := callIndex(cmder.Calls(), "show-hooks", "")
-	setHookIdx := callIndex(cmder.Calls(), "set-hook", "-gu")
+	hasSessionIdx := cmder.CallsMatching("has-session", tmux.PortalSaverName).FirstIndex()
+	killIdx := cmder.CallsMatching("kill-session", tmux.PortalSaverName).FirstIndex()
+	showHooksIdx := cmder.CallsMatching("show-hooks").FirstIndex()
+	setHookIdx := cmder.CallsMatching("set-hook", "-gu").FirstIndex()
 
 	if hasSessionIdx < 0 {
 		t.Fatalf("expected has-session %s call, got calls=%v", tmux.PortalSaverName, cmder.Calls())
@@ -107,7 +81,7 @@ func TestUninstall_KillsPortalSaverBeforeRemovingHooks(t *testing.T) {
 		t.Errorf("expected order has-session(%d) < kill-session(%d) < show-hooks(%d) < set-hook(%d); calls=%v",
 			hasSessionIdx, killIdx, showHooksIdx, setHookIdx, cmder.Calls())
 	}
-	if anchorKillIdx := callIndex(cmder.Calls(), "kill-session", tmux.PortalBootstrapName); anchorKillIdx >= 0 {
+	if anchorKillIdx := cmder.CallsMatching("kill-session", tmux.PortalBootstrapName).FirstIndex(); anchorKillIdx >= 0 {
 		t.Errorf("kill-session must never target %s (the load-bearing anchor); calls=%v", tmux.PortalBootstrapName, cmder.Calls())
 	}
 	if out.String() != wantCompletionMessage {
@@ -123,7 +97,7 @@ func TestUninstall_NoServerRunningIsGracefulNoOpAndPrintsMessage(t *testing.T) {
 	)
 	installUninstallDeps(t, &UninstallDeps{Client: tmux.NewClient(cmder)})
 
-	out, _, err := runUninstall(t)
+	out, _, err := runRootCmd(t, "uninstall")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -149,7 +123,7 @@ func TestUninstall_IsIdempotentWhenSaverAbsent(t *testing.T) {
 	)
 	installUninstallDeps(t, &UninstallDeps{Client: tmux.NewClient(cmder)})
 
-	out, _, err := runUninstall(t)
+	out, _, err := runRootCmd(t, "uninstall")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -171,7 +145,7 @@ func TestUninstall_PrintsExactCompletionMessage(t *testing.T) {
 	)
 	installUninstallDeps(t, &UninstallDeps{Client: tmux.NewClient(cmder)})
 
-	out, errBuf, err := runUninstall(t)
+	out, errBuf, err := runRootCmd(t, "uninstall")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -198,7 +172,7 @@ func TestUninstall_AccumulatesHookRemovalFailureWithoutSkippingKill(t *testing.T
 		Unregister: stub,
 	})
 
-	out, _, err := runUninstall(t)
+	out, _, err := runRootCmd(t, "uninstall")
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -208,7 +182,7 @@ func TestUninstall_AccumulatesHookRemovalFailureWithoutSkippingKill(t *testing.T
 	if !strings.Contains(err.Error(), "hook removal") {
 		t.Errorf("error %q does not contain 'hook removal'", err.Error())
 	}
-	if callIndex(cmder.Calls(), "kill-session", tmux.PortalSaverName) < 0 {
+	if cmder.CallsMatching("kill-session", tmux.PortalSaverName).FirstIndex() < 0 {
 		t.Errorf("expected kill-session %s despite hook removal failure, got calls=%v", tmux.PortalSaverName, cmder.Calls())
 	}
 	if out.String() != wantCompletionMessage {
@@ -234,7 +208,7 @@ func TestUninstall_TransientProbeFaultSurfacesErrorNotSilentRemoval(t *testing.T
 		Logger:     logger,
 	})
 
-	out, _, err := runUninstall(t)
+	out, _, err := runRootCmd(t, "uninstall")
 	if err == nil {
 		t.Fatal("expected an error from the transient probe fault, got nil (false silent 'removed')")
 	}
@@ -276,11 +250,11 @@ func TestUninstall_ToleratesKillSessionCantFindSessionError(t *testing.T) {
 	)
 	installUninstallDeps(t, &UninstallDeps{Client: tmux.NewClient(cmder)})
 
-	out, _, err := runUninstall(t)
+	out, _, err := runRootCmd(t, "uninstall")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if got := setHookCalls(cmder.Calls()); len(got) != 1 || got[0] != "session-created[0]" {
+	if got := setHookCalls(cmder); len(got) != 1 || got[0] != "session-created[0]" {
 		t.Errorf("expected hook removal to run after idempotent kill error; got set-hook -gu calls=%v", got)
 	}
 	if out.String() != wantCompletionMessage {
@@ -304,7 +278,7 @@ func TestUninstall_KillSessionOtherFailureContributesJoinedErrorAndStillRunsUnre
 		Unregister: stub,
 	})
 
-	out, _, err := runUninstall(t)
+	out, _, err := runRootCmd(t, "uninstall")
 	if err == nil {
 		t.Fatal("expected non-nil error from kill failure")
 	}
@@ -336,7 +310,7 @@ func TestUninstall_LogsInfoWhenSaverKilledSuccessfully(t *testing.T) {
 		Logger: logger,
 	})
 
-	if _, _, err := runUninstall(t); err != nil {
+	if _, _, err := runRootCmd(t, "uninstall"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -371,7 +345,7 @@ func TestUninstall_DoesNotInvokeBootstrap(t *testing.T) {
 		}
 	}()
 
-	if _, _, err := runUninstall(t); err != nil {
+	if _, _, err := runRootCmd(t, "uninstall"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }

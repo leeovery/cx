@@ -162,7 +162,6 @@ func TestPersistentPreRunE_DoesNotInvokeOrchestratorForExemptCommands(t *testing
 			withBootstrapDeps(t, BootstrapDeps{Orchestrator: runner})
 
 			resetRootCmd()
-			resetStateCmdFlags()
 			rootCmd.SetArgs(tt.args)
 			err := rootCmd.Execute()
 			if err != nil {

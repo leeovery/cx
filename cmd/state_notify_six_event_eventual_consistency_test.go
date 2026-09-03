@@ -18,7 +18,7 @@ func TestNotifyCommand_TouchesSaveRequestedAndWritesNoSessionsJSON(t *testing.T)
 		dir := t.TempDir()
 		t.Setenv("PORTAL_STATE_DIR", dir)
 
-		if _, _, err := runStateNotify(t); err != nil {
+		if _, _, err := runRootCmd(t, "state", "notify"); err != nil {
 			t.Fatalf("notify subprocess failed: %v", err)
 		}
 

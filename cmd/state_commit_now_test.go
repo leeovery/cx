@@ -15,19 +15,6 @@ import (
 	"github.com/leeovery/portal/internal/state"
 )
 
-func runStateCommitNow(t *testing.T) (*bytes.Buffer, *bytes.Buffer, error) {
-	t.Helper()
-	outBuf := new(bytes.Buffer)
-	errBuf := new(bytes.Buffer)
-	resetRootCmd()
-	resetStateCmdFlags()
-	rootCmd.SetOut(outBuf)
-	rootCmd.SetErr(errBuf)
-	rootCmd.SetArgs([]string{"state", "commit-now"})
-	err := rootCmd.Execute()
-	return outBuf, errBuf, err
-}
-
 type fakeCaptureClient struct {
 	sessions   []string
 	sessionErr error
@@ -157,7 +144,7 @@ func TestStateCommitNow_WritesEmptySessionsJSONWhenZeroLiveSessions(t *testing.T
 	}
 	installCommitNowDeps(t, f)
 
-	if _, _, err := runStateCommitNow(t); err != nil {
+	if _, _, err := runRootCmd(t, "state", "commit-now"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -198,7 +185,7 @@ func TestStateCommitNow_WritesSessionWithWindowsAndPanes(t *testing.T) {
 	}
 	installCommitNowDeps(t, f)
 
-	if _, _, err := runStateCommitNow(t); err != nil {
+	if _, _, err := runRootCmd(t, "state", "commit-now"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -252,7 +239,7 @@ func TestStateCommitNow_WritesMultiWindowMultiPaneSession(t *testing.T) {
 	}
 	installCommitNowDeps(t, f)
 
-	if _, _, err := runStateCommitNow(t); err != nil {
+	if _, _, err := runRootCmd(t, "state", "commit-now"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -307,7 +294,7 @@ func TestStateCommitNow_PassesPrevIndexFromDiskToCaptureStructure(t *testing.T) 
 	}
 	installCommitNowDeps(t, f)
 
-	if _, _, err := runStateCommitNow(t); err != nil {
+	if _, _, err := runRootCmd(t, "state", "commit-now"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -354,7 +341,7 @@ func TestStateCommitNow_OmitsUnderscorePrefixedSessions(t *testing.T) {
 		IsRestoring: func() (bool, error) { return false, nil },
 	})
 
-	if _, _, err := runStateCommitNow(t); err != nil {
+	if _, _, err := runRootCmd(t, "state", "commit-now"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -384,7 +371,7 @@ func TestStateCommitNow_FallsBackToZeroPrevAndLogsWarnWhenSessionsJSONMissing(t 
 	}
 	installCommitNowDeps(t, f)
 
-	if _, _, err := runStateCommitNow(t); err != nil {
+	if _, _, err := runRootCmd(t, "state", "commit-now"); err != nil {
 		t.Fatalf("expected exit 0, got: %v", err)
 	}
 
@@ -433,7 +420,7 @@ func TestStateCommitNow_FallsBackToZeroPrevAndLogsWarnOnCorruptSessionsJSON(t *t
 	}
 	installCommitNowDeps(t, f)
 
-	if _, _, err := runStateCommitNow(t); err != nil {
+	if _, _, err := runRootCmd(t, "state", "commit-now"); err != nil {
 		t.Fatalf("expected exit 0, got: %v", err)
 	}
 
@@ -463,7 +450,7 @@ func TestStateCommitNow_DoesNotTouchSaveRequestedOnSuccess(t *testing.T) {
 	}
 	installCommitNowDeps(t, f)
 
-	if _, _, err := runStateCommitNow(t); err != nil {
+	if _, _, err := runRootCmd(t, "state", "commit-now"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -485,7 +472,7 @@ func TestStateCommitNow_ExitsZeroAndWritesNoBinFiles(t *testing.T) {
 	}
 	installCommitNowDeps(t, f)
 
-	if _, _, err := runStateCommitNow(t); err != nil {
+	if _, _, err := runRootCmd(t, "state", "commit-now"); err != nil {
 		t.Fatalf("expected exit 0, got: %v", err)
 	}
 
@@ -527,7 +514,7 @@ func TestStateCommitNow_ShortCircuits_DoesNotWriteSessionsJSONWhenRestoring(t *t
 	}
 	installCommitNowDeps(t, f)
 
-	if _, _, err := runStateCommitNow(t); err != nil {
+	if _, _, err := runRootCmd(t, "state", "commit-now"); err != nil {
 		t.Fatalf("expected exit 0, got: %v", err)
 	}
 
@@ -559,7 +546,7 @@ func TestStateCommitNow_ShortCircuits_TouchesSaveRequested(t *testing.T) {
 	}
 	installCommitNowDeps(t, f)
 
-	if _, _, err := runStateCommitNow(t); err != nil {
+	if _, _, err := runRootCmd(t, "state", "commit-now"); err != nil {
 		t.Fatalf("expected exit 0, got: %v", err)
 	}
 
@@ -583,7 +570,7 @@ func TestStateCommitNow_ShortCircuits_LogsInfoSkipEvent(t *testing.T) {
 	}
 	installCommitNowDeps(t, f)
 
-	if _, _, err := runStateCommitNow(t); err != nil {
+	if _, _, err := runRootCmd(t, "state", "commit-now"); err != nil {
 		t.Fatalf("expected exit 0, got: %v", err)
 	}
 
@@ -609,7 +596,7 @@ func TestStateCommitNow_ShortCircuits_ExitsZero(t *testing.T) {
 	}
 	installCommitNowDeps(t, f)
 
-	if _, _, err := runStateCommitNow(t); err != nil {
+	if _, _, err := runRootCmd(t, "state", "commit-now"); err != nil {
 		t.Fatalf("expected exit 0, got: %v", err)
 	}
 }
@@ -627,7 +614,7 @@ func TestStateCommitNow_ShortCircuits_ExitsZeroWhenSaveRequestedTouchFails(t *te
 	}
 	installCommitNowDeps(t, f)
 
-	if _, _, err := runStateCommitNow(t); err != nil {
+	if _, _, err := runRootCmd(t, "state", "commit-now"); err != nil {
 		t.Fatalf("expected exit 0 even when touch fails, got: %v", err)
 	}
 
@@ -672,7 +659,7 @@ func TestStateCommitNow_TreatsIsRestoringErrorAsMarkerPresumedSet(t *testing.T) 
 	}
 	installCommitNowDeps(t, f)
 
-	if _, _, err := runStateCommitNow(t); err != nil {
+	if _, _, err := runRootCmd(t, "state", "commit-now"); err != nil {
 		t.Fatalf("expected exit 0 on isRestoring error, got: %v", err)
 	}
 
@@ -728,7 +715,7 @@ func TestStateCommitNow_ProceedsNormallyWhenRestoringClear(t *testing.T) {
 	}
 	installCommitNowDeps(t, f)
 
-	if _, _, err := runStateCommitNow(t); err != nil {
+	if _, _, err := runRootCmd(t, "state", "commit-now"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -756,7 +743,7 @@ func TestStateCommitNow_ExitsNonZeroWhenCaptureStructureFails(t *testing.T) {
 	}
 	installCommitNowDeps(t, f)
 
-	_, _, err := runStateCommitNow(t)
+	_, _, err := runRootCmd(t, "state", "commit-now")
 	if err == nil {
 		t.Fatal("expected non-zero exit (non-nil Execute error) when CaptureStructure fails")
 	}
@@ -775,7 +762,7 @@ func TestStateCommitNow_TouchesSaveRequestedWhenCaptureStructureFails(t *testing
 	}
 	installCommitNowDeps(t, f)
 
-	if _, _, err := runStateCommitNow(t); err == nil {
+	if _, _, err := runRootCmd(t, "state", "commit-now"); err == nil {
 		t.Fatal("expected non-zero exit")
 	}
 
@@ -799,7 +786,7 @@ func TestStateCommitNow_LogsErrorWhenCaptureStructureFails(t *testing.T) {
 	}
 	installCommitNowDeps(t, f)
 
-	if _, _, err := runStateCommitNow(t); err == nil {
+	if _, _, err := runRootCmd(t, "state", "commit-now"); err == nil {
 		t.Fatal("expected non-zero exit")
 	}
 
@@ -829,7 +816,7 @@ func TestStateCommitNow_ExitsNonZeroWhenCommitFails(t *testing.T) {
 	}
 	installCommitNowDeps(t, f)
 
-	if _, _, err := runStateCommitNow(t); err == nil {
+	if _, _, err := runRootCmd(t, "state", "commit-now"); err == nil {
 		t.Fatal("expected non-zero exit when Commit fails")
 	}
 }
@@ -848,7 +835,7 @@ func TestStateCommitNow_TouchesSaveRequestedWhenCommitFails(t *testing.T) {
 	}
 	installCommitNowDeps(t, f)
 
-	if _, _, err := runStateCommitNow(t); err == nil {
+	if _, _, err := runRootCmd(t, "state", "commit-now"); err == nil {
 		t.Fatal("expected non-zero exit")
 	}
 
@@ -889,7 +876,7 @@ func TestStateCommitNow_LeavesSessionsJSONByteIdenticalWhenCommitFailsBeforeRena
 	}
 	installCommitNowDeps(t, f)
 
-	if _, _, err := runStateCommitNow(t); err == nil {
+	if _, _, err := runRootCmd(t, "state", "commit-now"); err == nil {
 		t.Fatal("expected non-zero exit")
 	}
 
@@ -918,7 +905,7 @@ func TestStateCommitNow_LogsErrorWhenCommitFails(t *testing.T) {
 	}
 	installCommitNowDeps(t, f)
 
-	if _, _, err := runStateCommitNow(t); err == nil {
+	if _, _, err := runRootCmd(t, "state", "commit-now"); err == nil {
 		t.Fatal("expected non-zero exit")
 	}
 
@@ -949,7 +936,7 @@ func TestStateCommitNow_ExitsNonZeroWhenBothCommitAndTouchFail(t *testing.T) {
 	}
 	installCommitNowDeps(t, f)
 
-	if _, _, err := runStateCommitNow(t); err == nil {
+	if _, _, err := runRootCmd(t, "state", "commit-now"); err == nil {
 		t.Fatal("expected non-zero exit when both Commit and touch fail")
 	}
 
@@ -975,7 +962,7 @@ func TestStateCommitNow_LogsWarnForTouchFailureAlongsidePrimaryError(t *testing.
 	}
 	installCommitNowDeps(t, f)
 
-	if _, _, err := runStateCommitNow(t); err == nil {
+	if _, _, err := runRootCmd(t, "state", "commit-now"); err == nil {
 		t.Fatal("expected non-zero exit")
 	}
 
@@ -1055,7 +1042,7 @@ func TestStateCommitNow_DoesNotPanicOnAnyFailurePath(t *testing.T) {
 				}
 			}()
 
-			_, _, _ = runStateCommitNow(t)
+			_, _, _ = runRootCmd(t, "state", "commit-now")
 		})
 	}
 }
@@ -1073,7 +1060,7 @@ func TestStateCommitNow_FailureExitErrorIsDetectableSentinel(t *testing.T) {
 	}
 	installCommitNowDeps(t, f)
 
-	_, errBuf, err := runStateCommitNow(t)
+	_, errBuf, err := runRootCmd(t, "state", "commit-now")
 	if err == nil {
 		t.Fatal("expected non-zero exit")
 	}
@@ -1096,7 +1083,7 @@ func TestStateCommitNow_FailureExitPreservesCauseViaUnwrap(t *testing.T) {
 	}
 	installCommitNowDeps(t, f)
 
-	_, _, err := runStateCommitNow(t)
+	_, _, err := runRootCmd(t, "state", "commit-now")
 	if err == nil {
 		t.Fatal("expected non-zero exit")
 	}
