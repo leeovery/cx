@@ -27,6 +27,24 @@ const (
 // skipReasons makes the reasons above enumerable, so anything that must cover
 // every one of them ranges over the set rather than restating it. A reason
 // declared and left out of it is invisible to everything that works from it.
+//
+// The set is deliberately complete rather than fully reachable from every
+// surface that renders it, so a reader meeting a phrase with no path to it is
+// not hunting for one that was never written:
+//
+//   - lock-timeout cannot reach the read-only diagnosis at all. A read that
+//     cannot take the sidecar reads anyway, unlocked, so checkStaleHooks never
+//     stands down for the lock — only the sweep, which takes it exclusively to
+//     delete, can. Its not-evaluable phrase exists for vocabulary completeness,
+//     not for an observed leak, and making it reachable would mean reversing the
+//     degrade-to-unlocked read, which is settled behaviour and stays as it is.
+//   - store-read-failed reaches the diagnosis only through this vocabulary:
+//     checkStaleHooks names the reason and lets the tables word it, rather than
+//     carrying copy of its own.
+//   - sweep-failed is the --fix repair's line alone. A sweep that failed
+//     declined nothing — it ran and left the entry it could not delete — so the
+//     post-repair diagnosis reports that entry as stale rather than as a
+//     stand-down.
 var skipReasons = []string{
 	skipReasonRestoring,
 	skipReasonMarkerReadFailed,
