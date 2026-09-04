@@ -262,8 +262,8 @@
       "items": {
         "resume-hooks-silently-lost": {
           "status": "in-progress",
-          "task_gate_mode": "bounded",
-          "fix_gate_mode": "bounded",
+          "task_gate_mode": "gated",
+          "fix_gate_mode": "gated",
           "analysis_gate_mode": "gated",
           "consolidation_gate_mode": "gated",
           "fix_attempts": 0,
@@ -300,7 +300,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 8,
-          "current_task": "resume-hooks-silently-lost-8-49",
+          "current_task": null,
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -459,7 +459,8 @@
             "resume-hooks-silently-lost-8-45",
             "resume-hooks-silently-lost-8-46",
             "resume-hooks-silently-lost-8-47",
-            "resume-hooks-silently-lost-8-48"
+            "resume-hooks-silently-lost-8-48",
+            "resume-hooks-silently-lost-8-49"
           ],
           "staging": {
             "p1": {
@@ -646,7 +647,8 @@
             4,
             5,
             6,
-            7
+            7,
+            8
           ],
           "bank": [
             {
@@ -1929,6 +1931,53 @@
                 "cmd/seam_guard_test.go",
                 "internal/tui/theme_source_guard_test.go",
                 "internal/theme/leaf_guard_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-49",
+              "source": "executor",
+              "summary": "Every repo-wide source guard re-authors the same walk-relativise-parse preamble.",
+              "detail": "internal/logtest/install_guard_test.go:57-77, internal/portalbintest/lane_guard_test.go:56-81, internal/portaltest/teardown_guard_coverage_test.go:160-190, internal/theme/loader_construction_guard_test.go:18-38 and internal/prefs/appearance_api_guard_test.go:28-46 each repeat ProjectRoot -> GoSourceFiles -> filter by _test.go suffix -> filepath.Rel -> ParseSources, and three of them declare a private relToRoot/relToProjectRoot of their own. A sourceguardtest primitive returning parsed sources already carrying their root-relative path (with the test/non-test filter as an option) would collapse the preamble the way ParseSources collapsed the parse loop.",
+              "files": [
+                "internal/sourceguardtest/parsesources.go",
+                "internal/logtest/install_guard_test.go",
+                "internal/portalbintest/lane_guard_test.go",
+                "internal/portaltest/teardown_guard_coverage_test.go",
+                "internal/theme/loader_construction_guard_test.go",
+                "internal/prefs/appearance_api_guard_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-49",
+              "source": "reviewer",
+              "summary": "An in-memory fixture-parse helper is hand-rolled at every guard that stages one, now including both new ones.",
+              "detail": "stageHandlerInstalls (internal/logtest/install_guard_test.go:158-166) and stageTestFile (internal/portalbintest/lane_guard_test.go:166-179) each repeat token.NewFileSet() + parser.ParseFile(..., sourceguardtest.ParseMode) + wrap into a ParsedSource. The identical three lines already sit at internal/portaltest/teardown_guard_coverage_rule_test.go:148, internal/sourceguardtest/foreachfunccall_test.go:91, internal/capture/theme_panel_fixture_test.go:478 and cmd/state_daemon_lock_pid_ordering_test.go:115. A sourceguardtest.ParseFixture(t, name, src) ParsedSource beside ParseSources would be the sixth-time-lucky home; the fix reaches four other packages.",
+              "files": [
+                "internal/sourceguardtest/parsesources.go",
+                "internal/logtest/install_guard_test.go",
+                "internal/portalbintest/lane_guard_test.go",
+                "internal/portaltest/teardown_guard_coverage_rule_test.go",
+                "internal/sourceguardtest/foreachfunccall_test.go",
+                "internal/capture/theme_panel_fixture_test.go",
+                "cmd/state_daemon_lock_pid_ordering_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-49",
+              "source": "reviewer",
+              "summary": "Relativising a scanned path against the project root is re-authored in nine places.",
+              "detail": "The new relToRoot (internal/logtest/install_guard_test.go:170-177) is a copy of relToProjectRoot (internal/theme/slug_collapse_guard_test.go:52), and the same filepath.Rel(root, ...) + error-handling appears inline at internal/portalbintest/lane_guard_test.go:74, internal/prefs/appearance_api_guard_test.go:42, internal/log/discard_guard_test.go:38, internal/log/migration_guard_test.go:41, internal/portaltest/teardown_guard_coverage_test.go:180, internal/tui/restore_source_guard_test.go:103,182 and internal/tui/theme_source_guard_test.go:28. Naturally paired with the fixture-parse entry — a GoSourceFiles variant returning root-relative paths, or a RelToRoot beside it, would retire both.",
+              "files": [
+                "internal/sourceguardtest/gosourcefiles.go",
+                "internal/logtest/install_guard_test.go",
+                "internal/theme/slug_collapse_guard_test.go",
+                "internal/portalbintest/lane_guard_test.go",
+                "internal/prefs/appearance_api_guard_test.go",
+                "internal/log/discard_guard_test.go",
+                "internal/log/migration_guard_test.go",
+                "internal/portaltest/teardown_guard_coverage_test.go",
+                "internal/tui/restore_source_guard_test.go",
+                "internal/tui/theme_source_guard_test.go"
               ]
             }
           ]
