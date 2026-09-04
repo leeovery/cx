@@ -1,0 +1,179 @@
+package portalbintest_test
+
+import (
+	"fmt"
+	"go/ast"
+	"go/build/constraint"
+	"go/parser"
+	"go/token"
+	"path/filepath"
+	"slices"
+	"sort"
+	"strings"
+	"testing"
+
+	"github.com/leeovery/portal/internal/portalbintest"
+	"github.com/leeovery/portal/internal/sourceguardtest"
+)
+
+// integrationTag is the tag the integration lane is selected by.
+const integrationTag = "integration"
+
+// buildHelperNames is the vocabulary the rule is expressed in: every helper that
+// compiles the portal binary, matched on the callee's own name so a qualified
+// call and a call from inside the declaring package read alike.
+var buildHelperNames = []string{
+	"BuildPortalBinary",
+	"StagePortalBinary",
+	"BuildPortalBinaryDir",
+	"BuildPortalBinaryStable",
+}
+
+// helperRef is one reference to a build helper: which one, and where.
+type helperRef struct {
+	File   string
+	Func   string
+	Helper string
+	Line   int
+}
+
+// scannedTestFile is one _test.go file, carrying whether the unit lane compiles
+// it and the build-helper references it makes.
+type scannedTestFile struct {
+	Rel      string
+	UnitLane bool
+	Refs     []helperRef
+}
+
+// TestBuildHelpersStayInTheIntegrationLane polices the rule that a test which
+// builds the portal binary carries //go:build integration, whichever helper it
+// builds through. The lane is meant to be pure: `go test ./...` compiles no
+// portal binary, so every test that does one belongs behind the tag alongside
+// those that run one. The rule is awkward to verify by hand — a PATH shim on the
+// go command does not intercept the build, because the toolchain directory is
+// prepended for test binaries — which is the other half of why it is a guard.
+func TestBuildHelpersStayInTheIntegrationLane(t *testing.T) {
+	root, err := portalbintest.ProjectRoot()
+	if err != nil {
+		t.Fatalf("resolve project root: %v", err)
+	}
+	paths, err := sourceguardtest.GoSourceFiles(root)
+	if err != nil {
+		t.Fatalf("enumerate .go files: %v", err)
+	}
+
+	var testPaths []string
+	for _, path := range paths {
+		if strings.HasSuffix(path, "_test.go") {
+			testPaths = append(testPaths, path)
+		}
+	}
+
+	var files []scannedTestFile
+	for _, source := range sourceguardtest.ParseSources(t, testPaths) {
+		rel, relErr := filepath.Rel(root, source.Path)
+		if relErr != nil {
+			t.Fatalf("relativise %s: %v", source.Path, relErr)
+		}
+		files = append(files, scannedTestFile{
+			Rel:      rel,
+			UnitLane: compiledInUnitLane(source.File),
+			Refs:     buildHelperRefsIn(rel, source),
+		})
+	}
+
+	if msg := laneGuardFailure(auditBuildHelperLane(files)); msg != "" {
+		t.Fatal(msg)
+	}
+}
+
+// buildHelperRefsIn records every build-helper call one parsed file makes.
+func buildHelperRefsIn(rel string, source sourceguardtest.ParsedSource) []helperRef {
+	var refs []helperRef
+	sourceguardtest.ForEachFuncCall(source.File, func(funcName string, call *ast.CallExpr) bool {
+		callee := sourceguardtest.CalleeName(call)
+		if slices.Contains(buildHelperNames, callee) {
+			refs = append(refs, helperRef{
+				File:   rel,
+				Func:   funcName,
+				Helper: callee,
+				Line:   source.Fset.Position(call.Pos()).Line,
+			})
+		}
+		return true
+	})
+	return refs
+}
+
+// compiledInUnitLane reports whether the unit lane compiles the file — that is,
+// whether its build constraint holds with the integration tag unset. A file with
+// no constraint is in the lane, and so is one whose constraint cannot be parsed:
+// where the tag is unreadable the guard judges rather than excuses.
+func compiledInUnitLane(file *ast.File) bool {
+	for _, group := range file.Comments {
+		if group.Pos() > file.Package {
+			break
+		}
+		for _, comment := range group.List {
+			if !constraint.IsGoBuild(comment.Text) {
+				continue
+			}
+			expr, err := constraint.Parse(comment.Text)
+			if err != nil {
+				return true
+			}
+			return expr.Eval(func(tag string) bool { return tag != integrationTag })
+		}
+	}
+	return true
+}
+
+// auditBuildHelperLane returns how many unit-lane test files it judged, how many
+// build-helper references it saw in either lane, and the sorted descriptions of
+// those made from the unit lane.
+func auditBuildHelperLane(files []scannedTestFile) (scanned, referenced int, defects []string) {
+	for _, file := range files {
+		referenced += len(file.Refs)
+		if !file.UnitLane {
+			continue
+		}
+		scanned++
+		for _, ref := range file.Refs {
+			defects = append(defects, fmt.Sprintf("%s:%d %s calls %s", ref.File, ref.Line, ref.Func, ref.Helper))
+		}
+	}
+	sort.Strings(defects)
+	return scanned, referenced, defects
+}
+
+// laneGuardFailure renders the guard's failure, or "" when the tree passes.
+func laneGuardFailure(scanned, referenced int, defects []string) string {
+	switch {
+	case scanned == 0:
+		return "no untagged _test.go file was scanned; the guard has stopped looking rather than passed"
+	case referenced == 0:
+		return fmt.Sprintf("no test in either lane calls any of %v; the helper vocabulary has drifted off the tree, so this guard proves nothing", buildHelperNames)
+	case len(defects) == 0:
+		return ""
+	}
+	return fmt.Sprintf("%d unit-lane test file(s) build the portal binary:\n  %s\n"+
+		"  a test that builds the binary carries //go:build %s, which keeps `go test ./...` free of portal builds",
+		len(defects), strings.Join(defects, "\n  "), integrationTag)
+}
+
+// stageTestFile parses one miniature fixture file into the record the rule is
+// audited over, under the path it is judged by.
+func stageTestFile(t *testing.T, rel, src string) scannedTestFile {
+	t.Helper()
+	fset := token.NewFileSet()
+	parsed, err := parser.ParseFile(fset, filepath.Base(rel), src, sourceguardtest.ParseMode)
+	if err != nil {
+		t.Fatalf("parse fixture source: %v", err)
+	}
+	source := sourceguardtest.ParsedSource{Path: rel, Fset: fset, File: parsed}
+	return scannedTestFile{
+		Rel:      rel,
+		UnitLane: compiledInUnitLane(parsed),
+		Refs:     buildHelperRefsIn(rel, source),
+	}
+}
