@@ -31,7 +31,7 @@ func LivePaneCoords(t *testing.T, ts *tmuxtest.Socket, session string) []string 
 // answer for a session that is gone, so an assertion about where a restore put
 // its panes could be satisfied by a stranger's session.
 func TryLivePaneCoords(ts *tmuxtest.Socket, session string) ([]string, error) {
-	out, err := ts.TryRun("list-panes", "-s", "-t", tmux.ExactCoordTarget(session),
+	out, err := ts.TryRun("list-panes", "-s", "-t", tmux.CoordTargetExact(session),
 		"-F", livePaneCoordFormat)
 	if err != nil {
 		return nil, fmt.Errorf("list panes in session %q: %w: %s", session, err, strings.TrimSpace(out))

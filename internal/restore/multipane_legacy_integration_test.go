@@ -32,8 +32,8 @@ func TestMultiPaneLegacy_PerPaneHookRouting(t *testing.T) {
 		{token: "mpPaneToken1", hookCmd: "echo " + pane1Marker + " >> " + pane1File},
 	})
 
-	fx.ts.Run(t, "rename-session", "-t", tmux.ExactSessionTarget(renameOldName), renameNewName)
-	if _, err := fx.ts.TryRun("has-session", "-t", tmux.ExactSessionTarget(renameNewName)); err != nil {
+	fx.ts.Run(t, "rename-session", "-t", tmux.SessionTargetExact(renameOldName), renameNewName)
+	if _, err := fx.ts.TryRun("has-session", "-t", tmux.SessionTargetExact(renameNewName)); err != nil {
 		t.Fatalf("session %q not live after rename: %v", renameNewName, err)
 	}
 
@@ -68,7 +68,7 @@ func TestMultiPaneLegacy_UnstampedNoHookLandsOnBareShell(t *testing.T) {
 		t.Fatalf("RestoreFromState: %v", err)
 	}
 
-	if _, err := fx.ts.TryRun("has-session", "-t", tmux.ExactSessionTarget(legacyName)); err != nil {
+	if _, err := fx.ts.TryRun("has-session", "-t", tmux.SessionTargetExact(legacyName)); err != nil {
 		t.Fatalf("un-stamped no-hook session %q not restored: %v", legacyName, err)
 	}
 }

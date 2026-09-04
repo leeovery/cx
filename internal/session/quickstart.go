@@ -58,8 +58,8 @@ func (qs *QuickStart) Run(path string, command []string) (*QuickStartResult, err
 		execArgs = append(execArgs, prepared.ShellCmd)
 	}
 	execArgs = append(execArgs,
-		";", "set-option", "-t", tmux.ExactCoordTarget(prepared.SessionName), PortalDirOption, prepared.ResolvedDir,
-		";", "attach-session", "-t", tmux.ExactSessionTarget(prepared.SessionName),
+		";", "set-option", "-t", tmux.CoordTargetExact(prepared.SessionName), PortalDirOption, prepared.ResolvedDir,
+		";", "attach-session", "-t", tmux.SessionTargetExact(prepared.SessionName),
 	)
 
 	return &QuickStartResult{

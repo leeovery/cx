@@ -10,7 +10,7 @@ import (
 // Unexported deliberately: callers outside the package must come through
 // SaverPanePIDOrAbsent's absence collapse.
 func saverPanePID(c *Client, sessionName string) (int, error) {
-	out, err := c.cmd.Run("list-panes", "-t", ExactCoordTarget(sessionName), "-F", "#{pane_pid}")
+	out, err := c.cmd.Run("list-panes", "-t", CoordTargetExact(sessionName), "-F", "#{pane_pid}")
 	if err != nil {
 		return 0, fmt.Errorf("list-panes -t %s: %w", sessionName, wrapSessionTargetErr(sessionName, err))
 	}
@@ -33,7 +33,7 @@ func saverPanePID(c *Client, sessionName string) (int, error) {
 // SaverPaneID returns the tmux pane id of the first pane in the named session,
 // or ErrEmptyPaneList when the session lists no pane.
 func (c *Client) SaverPaneID(sessionName string) (string, error) {
-	out, err := c.cmd.Run("list-panes", "-t", ExactCoordTarget(sessionName), "-F", "#{pane_id}")
+	out, err := c.cmd.Run("list-panes", "-t", CoordTargetExact(sessionName), "-F", "#{pane_id}")
 	if err != nil {
 		return "", fmt.Errorf("list-panes -t %s -F #{pane_id}: %w", sessionName, wrapSessionTargetErr(sessionName, err))
 	}

@@ -2596,7 +2596,7 @@ func (r *recordingExecer) Exec(argv0 string, argv []string, _ []string) error {
 }
 
 func TestAttachConnectorConnectArgv(t *testing.T) {
-	t.Run("it attaches through ExactSessionTarget", func(t *testing.T) {
+	t.Run("it attaches through SessionTargetExact", func(t *testing.T) {
 		rec := &recordingExecer{}
 		ac := &AttachConnector{
 			execer:   rec,

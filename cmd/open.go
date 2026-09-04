@@ -85,7 +85,7 @@ func (ac *AttachConnector) Connect(name string) error {
 		ex = &realExecer{}
 	}
 
-	argv := []string{"tmux", "attach-session", "-t", tmux.ExactSessionTarget(name)}
+	argv := []string{"tmux", "attach-session", "-t", tmux.SessionTargetExact(name)}
 
 	logExecHandoff(argv)
 
@@ -272,14 +272,14 @@ func buildAckWriter(cmd *cobra.Command) spawn.AckWriter {
 	return spawn.NewServerOptionAckChannel(client, client)
 }
 
-// emitResolveDecision logs one line per target: globs are deterministic rather
-// than guesses, so they emit none.
-func emitResolveDecision(target string, result resolver.QueryResult) {
-	if resolver.HasGlobMeta(target) {
+// emitResolveDecision logs one line per resolved query: globs are deterministic
+// rather than guesses, so they emit none.
+func emitResolveDecision(query string, result resolver.QueryResult) {
+	if resolver.HasGlobMeta(query) {
 		return
 	}
 	domain, resolvedPath := resolveDecision(result)
-	resolveLogger.Info("resolved", "target", target, "domain", domain.String(), "resolved_path", resolvedPath)
+	resolveLogger.Info("resolved", "target", query, "domain", domain.String(), "resolved_path", resolvedPath)
 }
 
 func resolveDecision(result resolver.QueryResult) (domain resolver.Domain, resolvedPath string) {

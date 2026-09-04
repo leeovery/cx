@@ -297,7 +297,7 @@ func BootstrapPortalSaver(c *Client, stateDir string) error {
 
 	if createdSession {
 		fromPID := saverPanePIDBestEffort(c)
-		if err := c.RespawnPane(ExactCoordTarget(PortalSaverName), portalSaverDaemonCommand); err != nil {
+		if err := c.RespawnPane(CoordTargetExact(PortalSaverName), portalSaverDaemonCommand); err != nil {
 			return fmt.Errorf("bootstrap _portal-saver: respawn daemon: %w", err)
 		}
 		toPID := saverPanePIDBestEffort(c)

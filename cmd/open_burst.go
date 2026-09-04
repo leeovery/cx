@@ -62,8 +62,8 @@ func aggregatedMissError(misses []string) error {
 
 const commandAttachOnlyMessage = "a command (-e/--) can only run in a newly-created session, not an existing one"
 
-func singleMissError(target string) error {
-	return fmt.Errorf("nothing resolved for '%s' — try -f %s", target, target)
+func singleMissError(query string) error {
+	return fmt.Errorf("nothing resolved for '%s' — try -f %s", query, query)
 }
 
 // dispatchOpenBurst resolves the whole ordered target set read-only before

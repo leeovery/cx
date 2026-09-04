@@ -98,8 +98,8 @@ func importersOfTmux(listing string) (map[string]string, error) {
 // tmux prefix-matches an unpinned session name, so a target built from one
 // reaches a live stranger whose name merely starts the same way.
 var exactTargetHelpers = map[string]bool{
-	"ExactSessionTarget": true,
-	"ExactCoordTarget":   true,
+	"SessionTargetExact": true,
+	"CoordTargetExact":   true,
 	"windowTargetExact":  true,
 	"PaneTargetExact":    true,
 }
@@ -109,14 +109,16 @@ var exactTargetHelpers = map[string]bool{
 // scan checks wherever that caller sits in one of the derived packages; a named
 // result's provenance is the declaring body itself, which the scan does not
 // check.
-// The allow-list is deliberately narrow rather than "any parameter": a method
+// The allow-list is deliberately narrow rather than "any parameter": a function
 // taking a session *name* must still pin it, which is what makes a bare
 // `-t name` a finding rather than a pass-through. Widening it is the point at
 // which someone has to justify a new unexamined target.
 //
 // It does double duty. It exempts these parameters where they are spent on an
-// argv, and it is also how a method that takes an already-composed target is
-// recognised, so its call sites are held to the same rule.
+// argv, and it is also how a function that takes an already-composed target is
+// recognised, so its call sites are held to the same rule. Recognition reads function
+// declarations alone, so a parameter declared by a function value is exempt
+// where it is spent without that value's call sites being checked.
 var passThroughTargetParams = map[string]bool{
 	"target": true,
 	"paneID": true,
@@ -161,6 +163,33 @@ func probeAddressSession(name string) { probeRun("has-session", "-t", name) }
 		findings := scanBareTargets(t, dirs)
 		if len(findings) != 1 {
 			t.Fatalf("scan of the derived set with one bare target staged in cmd found %d findings, want 1: %v",
+				len(findings), findings)
+		}
+		if !strings.Contains(findings[0].pos, probeFileName) {
+			t.Errorf("finding %v does not name the staged probe", findings[0])
+		}
+	})
+
+	t.Run("it flags a bare target spent through a non-method helper in cmd", func(t *testing.T) {
+		dirs := targetComposingPackages(t)
+		cmdDir := targetComposingPackageDirs(t)[cmdImportPath]
+		probed := stagePackageWithProbe(t, cmdDir, `package cmd
+
+func probeRun(args ...string) {}
+
+func probeAddressSession(target string) { probeRun("has-session", "-t", target) }
+
+func probeSpendSession(name string) { probeAddressSession(name + ":") }
+`)
+		cmdAt := slices.Index(dirs, cmdDir)
+		if cmdAt < 0 {
+			t.Fatalf("the derived package set %v holds no cmd directory to stage a probe over", dirs)
+		}
+		dirs[cmdAt] = probed
+
+		findings := scanBareTargets(t, dirs)
+		if len(findings) != 1 {
+			t.Fatalf("scan of the derived set with one helper-spent bare target staged in cmd found %d findings, want 1: %v",
 				len(findings), findings)
 		}
 		if !strings.Contains(findings[0].pos, probeFileName) {
@@ -227,6 +256,133 @@ func addressSession(c *Client, name string) {
 		}
 	})
 
+	t.Run("it flags a bare target composed in a non-method helper", func(t *testing.T) {
+		dir := writeFixturePackage(t, `package fixture
+
+type Client struct{}
+
+func (c *Client) SendKeys(target string) { run("send-keys", "-t", target) }
+
+func run(args ...string) {}
+
+func addressSession(target string) { run("has-session", "-t", target) }
+
+func spendSession(name string) { addressSession(name + ":") }
+`)
+
+		findings := scanBareTargets(t, []string{dir})
+		if len(findings) != 1 {
+			t.Fatalf("scan of a bare target spent through a non-method helper found %d findings, want 1: %v",
+				len(findings), findings)
+		}
+		if findings[0].detail != "the target passed to addressSession is composed by hand — "+routeItThrough {
+			t.Errorf("finding %v does not name the helper the bare target was passed to", findings[0])
+		}
+	})
+
+	t.Run("it flags a target split across the end of an argv", func(t *testing.T) {
+		dir := writeFixturePackage(t, `package fixture
+
+type Client struct{}
+
+func (c *Client) SendKeys(target string) { run("send-keys", "-t", target) }
+
+func run(args ...string) {}
+
+func addressSession(name string) {
+	args := []string{"kill-session", "-t"}
+	run(append(args, name)...)
+}
+`)
+
+		findings := scanBareTargets(t, []string{dir})
+		if len(findings) != 1 {
+			t.Fatalf("scan of an argv ending in \"-t\" found %d findings, want 1: %v", len(findings), findings)
+		}
+		if findings[0].detail != `"-t" ends its argv, so its target is composed apart from the flag` {
+			t.Errorf("finding %v does not report the target as composed apart from its flag", findings[0])
+		}
+	})
+
+	t.Run("it flags every position two same-named target takers declare", func(t *testing.T) {
+		dir := writeFixturePackage(t, `package fixture
+
+type Client struct{}
+
+func (c *Client) stampPaneToken(session, paneKey, target, token string) {}
+
+func stampPaneToken(paneID string) {}
+
+func run(args ...string) {}
+
+func addressSession(c *Client, target, name string) {
+	stampPaneToken(name + ":")
+	c.stampPaneToken(target, "key", name+":", "token")
+}
+`)
+
+		findings := scanBareTargets(t, []string{dir})
+		if len(findings) != 2 {
+			t.Fatalf("scan of two same-named takers each handed a bare target found %d findings, want 2: %v",
+				len(findings), findings)
+		}
+	})
+
+	t.Run("it flags a hand-composed target assigned to a local of a pass-through name", func(t *testing.T) {
+		dir := writeFixturePackage(t, `package fixture
+
+type Client struct{}
+
+func (c *Client) SendKeys(target string) { run("send-keys", "-t", target) }
+
+func run(args ...string) {}
+
+func addressSession(name string) {
+	target := name + ":"
+	run("has-session", "-t", target)
+}
+`)
+
+		findings := scanBareTargets(t, []string{dir})
+		if len(findings) != 1 {
+			t.Fatalf("scan of a hand-composed target laundered through a local found %d findings, want 1: %v",
+				len(findings), findings)
+		}
+		if findings[0].detail != `the target after "-t" is composed by hand — `+routeItThrough {
+			t.Errorf("finding %v does not report the target as composed by hand", findings[0])
+		}
+	})
+
+	t.Run("it passes a target held by a local of the vocabulary's own name", func(t *testing.T) {
+		dir := writeFixturePackage(t, `package fixture
+
+type Client struct{}
+
+func (c *Client) SendKeys(target string) { run("send-keys", "-t", target) }
+
+func run(args ...string) {}
+
+func resolveCurrentPane() (string, string, error) { return "", "", nil }
+
+var addressSession = &struct{ RunE func() error }{
+	RunE: func() error {
+		key, target, err := resolveCurrentPane()
+		if err != nil {
+			return err
+		}
+		_ = key
+		run("has-session", "-t", target)
+		return nil
+	},
+}
+`)
+
+		findings := scanBareTargets(t, []string{dir})
+		if len(findings) != 0 {
+			t.Errorf("scan flagged %v, want nothing", findings)
+		}
+	})
+
 	t.Run("it passes a package composing every target through the vocabulary", func(t *testing.T) {
 		dir := writeFixturePackage(t, `package fixture
 
@@ -238,16 +394,16 @@ func (c *Client) SendKeys(target string) { run("send-keys", "-t", target) }
 
 func run(args ...string) {}
 
-func ExactCoordTarget(session string) string { return "=" + session + ":" }
+func CoordTargetExact(session string) string { return "=" + session + ":" }
 
 func addressSession(c *Client, name string) {
-	run("has-session", "-t", ExactCoordTarget(name))
-	target := ExactCoordTarget(name)
+	run("has-session", "-t", CoordTargetExact(name))
+	target := CoordTargetExact(name)
 	run("kill-session", "-t", target)
 	args := []string{"split-window", "-t", target}
 	run(args...)
 	_ = c.SplitWindow(target, "/tmp")
-	_ = c.SplitWindow(ExactCoordTarget(name), "/tmp")
+	_ = c.SplitWindow(CoordTargetExact(name), "/tmp")
 }
 `)
 
@@ -285,9 +441,9 @@ func TestBareTargetGuard_FatalsWhenItEnumeratesNoFiles(t *testing.T) {
 }
 
 // The same reasoning one rule down: the argument rule is only as wide as the
-// method set it derives, so an empty set is a scan that has stopped looking
+// function set it derives, so an empty set is a scan that has stopped looking
 // rather than a clean one.
-func TestBareTargetGuard_FatalsWhenItFindsNoTargetTakingMethods(t *testing.T) {
+func TestBareTargetGuard_FatalsWhenItFindsNoTargetTakingFuncs(t *testing.T) {
 	dir := writeFixturePackage(t, `package fixture
 
 func run(args ...string) {}
@@ -300,10 +456,10 @@ func addressSession(session string) { run("has-session", session) }
 	rec.Run(func() { scanBareTargets(rec, []string{dir}) })
 
 	if len(rec.Fatals) != 1 {
-		t.Fatalf("scan of a package declaring no target-taking method reported %d fatals, want 1: %v", len(rec.Fatals), rec.Fatals)
+		t.Fatalf("scan of a package declaring no target-taking function reported %d fatals, want 1: %v", len(rec.Fatals), rec.Fatals)
 	}
 	if !strings.Contains(rec.Fatals[0], "already-composed target") {
-		t.Errorf("fatal message %q does not say the method set was empty", rec.Fatals[0])
+		t.Errorf("fatal message %q does not say the function set was empty", rec.Fatals[0])
 	}
 }
 
@@ -323,11 +479,11 @@ type bareTargetFinding struct {
 
 func (f bareTargetFinding) String() string { return f.pos + ": " + f.detail }
 
-const routeItThrough = "route it through ExactSessionTarget, ExactCoordTarget, windowTargetExact or PaneTargetExact"
+const routeItThrough = "route it through SessionTargetExact, CoordTargetExact, windowTargetExact or PaneTargetExact"
 
 // scanBareTargets reports every place in dirs where a tmux target the exactness
 // vocabulary did not produce is spent: composed into an argv after a literal
-// "-t", or passed to a method that takes an already-composed target. The second
+// "-t", or passed to a function that takes an already-composed target. The second
 // rule is what reaches a target composed in one package and flagged with "-t" in
 // another, which is the shape a hand-built "<session>:" takes on its way to
 // SplitWindow.
@@ -347,37 +503,59 @@ func scanBareTargets(t harnesstest.TestingT, dirs []string) []bareTargetFinding 
 		files = append(files, source.File)
 	}
 
-	methods := targetTakingMethods(files)
-	if len(methods) == 0 {
-		t.Fatalf("no method taking an already-composed target was found, so nothing would be checked at a call site")
+	takers := targetTakingFuncs(files)
+	if len(takers) == 0 {
+		t.Fatalf("no function taking an already-composed target was found, so nothing would be checked at a call site")
 		return nil
 	}
 
 	var findings []bareTargetFinding
 	for _, source := range sources {
-		findings = append(findings, scanFileForBareTargets(source.Fset, source.File, methods)...)
+		findings = append(findings, scanFileForBareTargets(source.Fset, source.File, takers)...)
 	}
 	return findings
 }
 
-// targetTakingMethods records, per method name, the argument positions holding
-// an already-composed target. Every method is read, not only the tmux client's:
-// a parameter named for a target is one wherever it is declared, and a wider
-// map only ever checks more call sites.
-func targetTakingMethods(files []*ast.File) map[string][]int {
-	methods := map[string][]int{}
+// targetTakingFuncs records, per function name, the argument positions holding
+// an already-composed target. Methods and plain functions alike are read, and
+// not only the tmux client's: a parameter named for a target is one wherever it
+// is declared, and a wider map only ever checks more call sites. Reading both narrows the gap
+// between what the rule exempts and what it recognises — the parameter is exempt
+// where it is spent in any function, so a function declaring it is checked at its
+// call sites too, or a bare target reaches tmux through a helper and is never
+// seen.
+//
+// A call site is matched on the callee's name alone, so two declarations sharing
+// a name — a method and a plain function, say — are one entry, and their
+// positions are unioned rather than overwritten: keeping only the last read
+// would drop the other's positions out of the rule while leaving its parameter
+// exempt, which is the asymmetry above by another route. The pooling is why an
+// unrelated function sharing a taker's name has its own arguments checked at
+// those positions; give the two operations distinct names rather than widening
+// the vocabulary to absorb the report.
+func targetTakingFuncs(files []*ast.File) map[string][]int {
+	takers := map[string][]int{}
 	for _, file := range files {
 		for _, decl := range file.Decls {
 			fn, isFunc := decl.(*ast.FuncDecl)
-			if !isFunc || fn.Recv == nil {
+			if !isFunc {
 				continue
 			}
 			if positions := targetParamPositions(fn); len(positions) > 0 {
-				methods[fn.Name.Name] = positions
+				takers[fn.Name.Name] = unionPositions(takers[fn.Name.Name], positions)
 			}
 		}
 	}
-	return methods
+	return takers
+}
+
+// unionPositions merges two position sets, deduped and ascending, so a name's
+// findings come out in a deterministic order whatever order the declarations
+// were read in.
+func unionPositions(a, b []int) []int {
+	merged := slices.Concat(a, b)
+	slices.Sort(merged)
+	return slices.Compact(merged)
 }
 
 func targetParamPositions(fn *ast.FuncDecl) []int {
@@ -394,16 +572,16 @@ func targetParamPositions(fn *ast.FuncDecl) []int {
 	return positions
 }
 
-func scanFileForBareTargets(fset *token.FileSet, file *ast.File, methods map[string][]int) []bareTargetFinding {
+func scanFileForBareTargets(fset *token.FileSet, file *ast.File, takers map[string][]int) []bareTargetFinding {
 	var findings []bareTargetFinding
 	check := func(pos token.Pos, call *ast.CallExpr, elems []ast.Expr) {
 		bound := map[string]bool{}
-		if decl := enclosingFunc(file, pos); decl != nil {
+		if decl := enclosingDecl(file, pos); decl != nil {
 			bound = boundTargets(decl)
 		}
 		findings = append(findings, bareTargetsIn(fset, elems, bound)...)
 		if call != nil {
-			findings = append(findings, bareTargetArguments(fset, call, methods, bound)...)
+			findings = append(findings, bareTargetArguments(fset, call, takers, bound)...)
 		}
 	}
 
@@ -455,21 +633,22 @@ func bareTargetsIn(fset *token.FileSet, elems []ast.Expr, bound map[string]bool)
 	return findings
 }
 
-// bareTargetArguments reports each argument handed to a target-taking method
-// that the vocabulary did not produce.
-func bareTargetArguments(fset *token.FileSet, call *ast.CallExpr, methods map[string][]int, bound map[string]bool) []bareTargetFinding {
-	sel, isSel := call.Fun.(*ast.SelectorExpr)
-	if !isSel {
+// bareTargetArguments reports each argument handed to a target-taking function
+// that the vocabulary did not produce. The callee is read through CalleeName, so
+// a plain function call reaches the rule as much as a method call does.
+func bareTargetArguments(fset *token.FileSet, call *ast.CallExpr, takers map[string][]int, bound map[string]bool) []bareTargetFinding {
+	callee := sourceguardtest.CalleeName(call)
+	if callee == "" {
 		return nil
 	}
 	var findings []bareTargetFinding
-	for _, pos := range methods[sel.Sel.Name] {
+	for _, pos := range takers[callee] {
 		if pos >= len(call.Args) || targetIsExact(call.Args[pos], bound) {
 			continue
 		}
 		findings = append(findings, bareTargetFinding{
 			pos:    fset.Position(call.Args[pos].Pos()).String(),
-			detail: "the target passed to " + sel.Sel.Name + " is composed by hand — " + routeItThrough,
+			detail: "the target passed to " + callee + " is composed by hand — " + routeItThrough,
 		})
 	}
 	return findings
@@ -483,17 +662,21 @@ func targetIsExact(target ast.Expr, bound map[string]bool) bool {
 }
 
 // boundTargets names the identifiers the declaration may spend as a target: the
-// pass-through names its signature declares, those its closures declare, and its
-// locals assigned from the vocabulary.
-func boundTargets(decl *ast.FuncDecl) map[string]bool {
+// pass-through names its signature declares, those its closures declare, and the
+// locals it assigns that the rule reads as already-composed. A declaration of any
+// kind is read, because a command body written as a function literal inside a
+// package-level var declares its pass-throughs there rather than in a signature.
+func boundTargets(decl ast.Decl) map[string]bool {
 	bound := map[string]bool{}
-	bindSignature(bound, decl.Type)
+	if fn, isFunc := decl.(*ast.FuncDecl); isFunc {
+		bindSignature(bound, fn.Type)
+	}
 	ast.Inspect(decl, func(n ast.Node) bool {
 		switch node := n.(type) {
 		case *ast.FuncLit:
 			bindSignature(bound, node.Type)
 		case *ast.AssignStmt:
-			bindVocabularyAssignments(bound, node)
+			bindAssignedTargets(bound, node)
 		}
 		return true
 	})
@@ -521,13 +704,24 @@ func bindFields(bound map[string]bool, fields *ast.FieldList) {
 	}
 }
 
-func bindVocabularyAssignments(bound map[string]bool, assign *ast.AssignStmt) {
-	if len(assign.Lhs) != len(assign.Rhs) {
-		return
-	}
-	for i, rhs := range assign.Rhs {
-		ident, isIdent := assign.Lhs[i].(*ast.Ident)
-		if isIdent && isExactTargetCall(rhs) {
+// bindAssignedTargets binds the identifiers an assignment declares that the rule
+// reads as already-composed. Where the two sides pair up positionally, that is
+// an identifier assigned straight from the vocabulary, whatever it is named.
+// Where they do not — a multi-valued result, whose provenance no expression on
+// the right states — a pass-through name is taken at its word, as it is in a
+// signature.
+//
+// The name is deliberately not read on a paired assignment: there the right-hand
+// side says what the target was composed from, so honouring the name would
+// launder a hand-composed one through a rename.
+func bindAssignedTargets(bound map[string]bool, assign *ast.AssignStmt) {
+	paired := len(assign.Lhs) == len(assign.Rhs)
+	for i, lhs := range assign.Lhs {
+		ident, isIdent := lhs.(*ast.Ident)
+		if !isIdent {
+			continue
+		}
+		if paired && isExactTargetCall(assign.Rhs[i]) || !paired && passThroughTargetParams[ident.Name] {
 			bound[ident.Name] = true
 		}
 	}
@@ -539,6 +733,18 @@ func isExactTargetCall(expr ast.Expr) bool {
 		return false
 	}
 	return exactTargetHelpers[sourceguardtest.CalleeName(call)]
+}
+
+// enclosingDecl returns the top-level declaration holding pos, whatever kind it
+// is; enclosingFunc answers the narrower question of whether a call has already
+// been visited by the function walk.
+func enclosingDecl(file *ast.File, pos token.Pos) ast.Decl {
+	for _, decl := range file.Decls {
+		if decl.Pos() <= pos && pos < decl.End() {
+			return decl
+		}
+	}
+	return nil
 }
 
 func enclosingFunc(file *ast.File, pos token.Pos) *ast.FuncDecl {

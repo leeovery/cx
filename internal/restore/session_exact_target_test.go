@@ -31,7 +31,7 @@ func TestSessionRestorer_SkeletonTargetsAreExactSessions(t *testing.T) {
 		t.Fatalf("Restore: %v", err)
 	}
 
-	want := tmux.ExactCoordTarget("work")
+	want := tmux.CoordTargetExact("work")
 	for _, cmd := range []string{"split-window", "new-window"} {
 		for _, call := range callsNamed(mock.Calls(), cmd) {
 			flag := slices.Index(call, "-t")

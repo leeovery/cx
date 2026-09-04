@@ -86,7 +86,7 @@ func (r *SessionRestorer) createSkeleton(sess state.Session) error {
 	// recently created one, so splits land correctly with no predicted window
 	// index. Pinning the session half keeps a create that produced nothing from
 	// pouring the whole skeleton into a live prefix sibling.
-	target := tmux.ExactCoordTarget(sess.Name)
+	target := tmux.CoordTargetExact(sess.Name)
 
 	for pj := 1; pj < len(sess.Windows[0].Panes); pj++ {
 		p := sess.Windows[0].Panes[pj]
@@ -143,7 +143,7 @@ func (r *SessionRestorer) armPanes(sess state.Session, armInfos []savedPaneArmIn
 			return nil, fmt.Errorf("session %q: %w", sess.Name, err)
 		}
 
-		r.stampPaneToken(sess.Name, liveKey, liveTarget, info.paneToken)
+		r.restampPaneToken(sess.Name, liveKey, liveTarget, info.paneToken)
 
 		hydrateCmd := buildHydrateCommand(exe, fifo, info.scrollAbs, info.paneToken)
 		if err := r.Client.RespawnPane(liveTarget, hydrateCmd); err != nil {
@@ -154,12 +154,12 @@ func (r *SessionRestorer) armPanes(sess state.Session, armInfos []savedPaneArmIn
 	return livePanes, nil
 }
 
-// stampPaneToken re-establishes a pane's durable identity on the live server,
+// restampPaneToken re-establishes a pane's durable identity on the live server,
 // which a tmux pane option cannot carry across a reboot. An empty saved token
 // is skipped rather than written: a stamped "" reads back indistinguishably
 // from absence. A failure costs that pane its hook rather than its session, so
 // it degrades to a WARN instead of aborting the restore.
-func (r *SessionRestorer) stampPaneToken(sessionName, liveKey, target, token string) {
+func (r *SessionRestorer) restampPaneToken(sessionName, liveKey, target, token string) {
 	if token == "" {
 		return
 	}

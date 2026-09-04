@@ -115,7 +115,7 @@ func (s *Socket) WaitForSession(t harnesstest.TestingT, name string, timeout tim
 	t.Helper()
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		out, err := s.TryRun("has-session", "-t", tmux.ExactSessionTarget(name))
+		out, err := s.TryRun("has-session", "-t", tmux.SessionTargetExact(name))
 		if err == nil {
 			return
 		}

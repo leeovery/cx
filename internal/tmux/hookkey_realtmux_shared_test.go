@@ -105,7 +105,7 @@ func sessionPaneIDs(t *testing.T, ts *tmuxtest.Socket, session string) []string 
 // assertion compares against the wire truth rather than a second Portal read.
 func livePanePID(t *testing.T, ts *tmuxtest.Socket, session string) int {
 	t.Helper()
-	out := strings.TrimSpace(ts.Run(t, "list-panes", "-t", tmux.ExactCoordTarget(session), "-F", "#{pane_pid}"))
+	out := strings.TrimSpace(ts.Run(t, "list-panes", "-t", tmux.CoordTargetExact(session), "-F", "#{pane_pid}"))
 	pid, err := strconv.Atoi(strings.SplitN(out, "\n", 2)[0])
 	if err != nil {
 		t.Fatalf("parse pane pid %q: %v", out, err)

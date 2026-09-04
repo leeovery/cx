@@ -42,15 +42,15 @@ func OpenTestLogger(t *testing.T, stateDir string) *slog.Logger {
 
 // Mirrors the production sink's swing, so refreshing an existing portal.log
 // always leaves behind the symlink the production migration guard expects.
-func swingPortalLogSymlink(stateDir, target string) error {
+func swingPortalLogSymlink(stateDir, dayName string) error {
 	link := filepath.Join(stateDir, portalLogName)
 	tmp := link + ".restoretest.symlink.tmp"
 
 	if err := os.Remove(tmp); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("remove stale symlink temp %s: %w", tmp, err)
 	}
-	if err := os.Symlink(target, tmp); err != nil {
-		return fmt.Errorf("create symlink temp %s -> %s: %w", tmp, target, err)
+	if err := os.Symlink(dayName, tmp); err != nil {
+		return fmt.Errorf("create symlink temp %s -> %s: %w", tmp, dayName, err)
 	}
 	if err := os.Rename(tmp, link); err != nil {
 		return fmt.Errorf("rename symlink temp %s -> %s: %w", tmp, link, err)
