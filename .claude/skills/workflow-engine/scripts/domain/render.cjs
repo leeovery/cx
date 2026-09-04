@@ -42,7 +42,7 @@ const { revisitablePhases, revisitPhasesSection } = require('./projections/worku
 const { experimentRegister, experimentApprovalGate, experimentPick, experimentNextGate, experimentSpawnGate, experimentWaitGate } = require('./projections/experiment.cjs');
 const { compareExperimentIds, isParentExperimentId, DERIVED_PHASES, EXPERIMENT_TERMINAL_STATUSES, EXPERIMENT_SPAWN_PHASES } = require('../kernel/manifest-schema.cjs');
 const { WORK_UNIT_TYPES, typeConfig: workUnitTypeConfig, completedPhases } = require('./workunit-detail.cjs');
-const { phaseItems, computeNextPhase, computeTopicLifecycle, experimentWaits, awaitedExperiments } = require('./derivations.cjs');
+const { phaseItems, computeNextPhase, computeTopicLifecycle, lifecyclePhrase, experimentWaits, awaitedExperiments } = require('./derivations.cjs');
 const { manageDetail } = require('./workunit-manage.cjs');
 const { gateOf, counterOf, FIX_THRESHOLD, SESSION_CYCLE_LIMIT } = require('./tasks.cjs');
 const { sourceRows } = require('./transitions.cjs');
@@ -3554,19 +3554,24 @@ function epicAllDoneGate(cwd, { dotpath }) {
 
 // ---------------------------------------------------------------------------
 // epic-soft-gate — the epic menu's advisory phase gates, one surface for the
-// whole table. Empty when the selection raises no concern. The discovery-side
-// rows count unfinished upstream items; the planning and implementation rows
-// read the build order and name the topics sitting ahead of the selection.
-// Advisory always: the menu offers proceed-anyway, never a refusal.
+// whole table. Empty when the selection raises no concern. The specification
+// row counts the discussions the grouping analysis will read; the planning
+// and implementation rows read the build order and name the topics sitting
+// ahead of the selection. Discussion entries carry no gate: a discussion
+// reads its own topic's research, and the menu offers one only once that
+// has settled. Advisory always: the menu offers proceed-anyway, never a
+// refusal.
 // ---------------------------------------------------------------------------
 
 const { SOFT_GATE_ACTIONS } = require('./projections/epic.cjs');
 
-const SOFT_GATE_DISCUSSION_ACTIONS = ['start_discussion', 'start_discussion_after_research', 'continue_discussion', 'new_discussion'];
-
-/** @param {object[]} items @returns {{inProgress: number, total: number}} */
+/**
+ * The discussions the grouping analysis reads: in-progress and completed.
+ * A parked stub or a terminal item never reaches it, so never counts.
+ * @param {object[]} items @returns {{inProgress: number, total: number}}
+ */
 function softGateCounts(items) {
-  const live = items.filter((i) => i.status !== 'cancelled');
+  const live = items.filter((i) => i.status === 'in-progress' || i.status === 'completed');
   return { inProgress: live.filter((i) => i.status === 'in-progress').length, total: live.length };
 }
 
@@ -3615,12 +3620,7 @@ function epicSoftGate(cwd, { dotpath, action, topic }) {
   let message = null;
   let advisory = 'The system will re-analyse if you revisit later — proceeding now is safe, but may require rework.';
 
-  if (SOFT_GATE_DISCUSSION_ACTIONS.includes(action)) {
-    const c = softGateCounts(phaseItems(manifest, 'research'));
-    if (c.total > 0 && c.inProgress > 0) {
-      message = `${c.inProgress} of ${c.total} research topics still in-progress. Topic analysis works best with all research available.`;
-    }
-  } else if (action === 'start_specification') {
+  if (action === 'start_specification') {
     const c = softGateCounts(phaseItems(manifest, 'discussion'));
     if (c.total > 0 && c.inProgress > 0) {
       message = `${c.inProgress} of ${c.total} discussions still in-progress. Later conclusions may reshape this grouping.`;
@@ -3716,6 +3716,37 @@ function blocker(fact, guidance) {
       `> ${guidance}`,
     ),
   ].join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// direct-entry-gate — the epic menu's d/r doors take a free-typed topic name.
+// A name already on the map is not a new topic: the menu row is the way in,
+// so the door refuses, naming where the topic stands. Empty when the name is
+// new, or the work unit carries no map. The one pass-through is a parked
+// research stub — research is downstream of nothing, and a discussing
+// topic's parked research has no menu row, so the r door is its drain.
+// ---------------------------------------------------------------------------
+
+/**
+ * @param {string} cwd
+ * @param {{dotpath: string}} args
+ * @returns {string} blocker sections, or '' when the name is free to start
+ */
+function directEntryGate(cwd, { dotpath }) {
+  const { phase, topic, manifest } = resolveAddress(cwd, dotpath, 'direct-entry-gate');
+  if (phase !== 'research' && phase !== 'discussion') {
+    throw new Error(`render direct-entry-gate: phase must be research or discussion, got "${phase}"`);
+  }
+  if (manifest.work_type !== 'epic') return '';
+  const item = phaseItems(manifest, 'discovery').find((i) => i.name === topic);
+  if (!item) return '';
+  const own = itemOf(manifest, phase, topic);
+  if (phase === 'research' && own && own.status === 'triaged') return '';
+  const { lifecycle, research_state } = computeTopicLifecycle(manifest, topic);
+  return blocker(
+    `"${titlecase(topic)}" is already on the map — ${lifecyclePhrase(lifecycle, research_state, item.routing)}`,
+    'Return to the epic menu — its row for the topic names the next step.',
+  );
 }
 
 /**
@@ -4729,6 +4760,7 @@ const SURFACES = {
   'phase-completed': phaseCompleted,
   'phase-note': phaseNote,
   'entry-gate': entryGate,
+  'direct-entry-gate': directEntryGate,
   'code-gate': codeGate,
   'early-completion-gate': earlyCompletionGate,
   'revisit-gate': revisitGate,
