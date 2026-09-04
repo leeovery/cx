@@ -300,7 +300,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 8,
-          "current_task": "resume-hooks-silently-lost-8-48",
+          "current_task": "resume-hooks-silently-lost-8-49",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -458,7 +458,8 @@
             "resume-hooks-silently-lost-8-44",
             "resume-hooks-silently-lost-8-45",
             "resume-hooks-silently-lost-8-46",
-            "resume-hooks-silently-lost-8-47"
+            "resume-hooks-silently-lost-8-47",
+            "resume-hooks-silently-lost-8-48"
           ],
           "staging": {
             "p1": {
@@ -1914,6 +1915,20 @@
               "detail": "cmd/theme_source_test.go:219 spells out rec.Msg == msg && rec.HasAttr(\"component\") && rec.AttrString(t, \"component\") == \"theme\", which is len(sink.Records().Matching(\"theme\", msg)). It is a second declaration of the predicate Record.Matches documents itself as the single home of. Overlaps the hand-rolled-filter family banked by the executor for this task; this specific site is the one that falsifies the single-home wording.",
               "files": [
                 "cmd/theme_source_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-8-48",
+              "source": "reviewer",
+              "summary": "The same type-over-convention move is recorded as pending in a sibling vocabulary, and the AST walk this task extracted is hand-rolled in nine places.",
+              "detail": "Task 8-46 recorded `type Target string` at internal/tmux's target vocabulary as the durable answer to the identical name-based-guard limitation, and this task's own problem statement says the decision generalises beyond this vocabulary — closing that one is the same edit shape as the one just landed here. Separately, forEachValueSpec (cmd/doctor_stand_down_phrase_guard_test.go:210) is the const/var-spec walk that nine test files re-author (cmd/seam_guard_test.go, cmd/open_theme_nomination_test.go, cmd/prefs_translation_persist_test.go, cmd/capturetool/main_test.go, internal/tui/theme_source_guard_test.go, internal/tui/theme_flash_precedence_test.go, internal/theme/leaf_guard_test.go, internal/theme/theme_test.go); internal/sourceguardtest holds ForEachFuncCall but no value-spec sibling, and promoting one there would fit the primitive set it already declares. Both reach beyond this task's scope.",
+              "files": [
+                "internal/tmux/target_composition_guard_test.go",
+                "internal/sourceguardtest/foreachfunccall.go",
+                "cmd/doctor_stand_down_phrase_guard_test.go",
+                "cmd/seam_guard_test.go",
+                "internal/tui/theme_source_guard_test.go",
+                "internal/theme/leaf_guard_test.go"
               ]
             }
           ]
