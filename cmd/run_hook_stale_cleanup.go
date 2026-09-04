@@ -227,7 +227,20 @@ func (e declinedError) Error() string {
 // are judged against, or with the stand-down that forbids judging them at all.
 // countsLogger carries the cycle's DEBUG counts only; see runHookStaleCleanup.
 func liveTokenEnumeration(reader PaneHookLister, countsLogger *slog.Logger) func(hooks.Snapshot) ([]string, error) {
+	countsLogger = countsOrDefault(countsLogger)
+
 	return func(snapshot hooks.Snapshot) ([]string, error) {
+		// Nothing persisted is nothing to sweep, and everything past this point
+		// costs: a whole-server pane enumeration here, and a deletion that
+		// creates the config directory, creates the sidecar and takes an
+		// exclusive hold. An install that has never registered a hook would
+		// otherwise pay all four on every cycle, in every `hook set`'s way. The
+		// counts line carries no pane figure, because none was taken.
+		if len(snapshot) == 0 {
+			countsLogger.Debug("stale-hook cleanup counts", "entries", 0)
+			return nil, errNothingPersisted
+		}
+
 		view := judgeAgainstLivePanes(reader, len(snapshot))
 		if view.Enumerated {
 			countsLogger.Debug("stale-hook cleanup counts", "panes", view.PaneRows, "entries", len(snapshot))
@@ -235,37 +248,35 @@ func liveTokenEnumeration(reader PaneHookLister, countsLogger *slog.Logger) func
 		if view.Decline.declined() {
 			return nil, declinedError{view.Decline}
 		}
-		// Nothing persisted is nothing to sweep, and the deletion that would
-		// follow is not free: it creates the config directory, creates the
-		// sidecar and takes an exclusive hold. An install that has never
-		// registered a hook would otherwise pay all three on every cycle, in
-		// every `hook set`'s way.
-		if len(snapshot) == 0 {
-			return nil, errNothingPersisted
-		}
 		return view.LiveTokens, nil
 	}
+}
+
+// countsOrDefault leaves the cycle's counts with the component that owns the
+// cycle when a caller names no logger of its own.
+func countsOrDefault(logger *slog.Logger) *slog.Logger {
+	if logger == nil {
+		return hooksLogger
+	}
+	return logger
 }
 
 // runHookStaleCleanup runs one hook-staleness cycle, reporting what it removed
 // or the reason it declined to remove anything.
 //
-// countsLogger governs the cycle's two DEBUG counts — the panes-and-entries
-// line and the reaped line — and nothing else, so a caller may attribute them
-// to its own component; a caller that names none leaves them with the component
+// countsLogger governs the cycle's two DEBUG counts — the counts line and the
+// reaped line — and nothing else, so a caller may attribute them to its own
+// component; a caller that names none leaves them with the component
 // that owns the cycle. Every stand-down is emitted by standDown.emit() under
 // the hooks component regardless, so a caller observing this cycle through
 // countsLogger alone sees the counts and none of the stand-downs.
 func runHookStaleCleanup(reader staleSweepReader, store *hooks.Store, countsLogger *slog.Logger) (sweepOutcome, error) {
-	if countsLogger == nil {
-		countsLogger = hooksLogger
-	}
+	countsLogger = countsOrDefault(countsLogger)
 
 	// Taken before the store is read at all: a restore window is no time to
 	// wait on this file's lock for an answer that cannot be acted on.
 	if decline := hookStalenessStandDown(reader); decline.declined() {
-		decline.emit()
-		return sweepOutcome{DeclineReason: decline.reason}, nil
+		return standDownOutcome(decline)
 	}
 
 	removed, err := store.CleanStale(liveTokenEnumeration(reader, countsLogger))
@@ -287,24 +298,25 @@ func declinedSweep(err error) (sweepOutcome, error) {
 	case errors.Is(err, errNothingPersisted):
 		return sweepOutcome{}, nil
 	case errors.As(err, &declined):
-		declined.emit()
-		return sweepOutcome{DeclineReason: declined.reason}, nil
+		return standDownOutcome(declined.standDown)
 	case errors.Is(err, hooks.ErrLockHeld):
 		// Another writer held the sidecar past the bound: nothing was written
 		// and nothing is wrong, so the cycle stands down rather than reporting a
-		// defect, and the next cadence retries. The nil error keeps the caller
-		// from adding a second report for the same event.
-		lockDecline := declineWarn(skipReasonLockTimeout, "error", err)
-		lockDecline.emit()
-		return sweepOutcome{DeclineReason: lockDecline.reason}, nil
+		// defect, and the next cadence retries.
+		return standDownOutcome(declineWarn(skipReasonLockTimeout, "error", err))
 	case errors.Is(err, hooks.ErrSnapshotRead):
 		// An unreadable store is a decline like any other: the cycle wrote
 		// nothing, and its own WARN names the condition and the read error that
-		// produced it. The nil error keeps the caller from adding a second
-		// report for the same event.
-		readDecline := declineWarn(skipReasonStoreReadFailed, "error", err)
-		readDecline.emit()
-		return sweepOutcome{DeclineReason: readDecline.reason}, nil
+		// produced it.
+		return standDownOutcome(declineWarn(skipReasonStoreReadFailed, "error", err))
 	}
 	return sweepOutcome{}, err
+}
+
+// standDownOutcome emits a decline and renders it as the cycle's outcome. The
+// nil error is the point: the emitted line is the whole report, so a caller
+// cannot add a second one for the same event.
+func standDownOutcome(decline standDown) (sweepOutcome, error) {
+	decline.emit()
+	return sweepOutcome{DeclineReason: decline.reason}, nil
 }

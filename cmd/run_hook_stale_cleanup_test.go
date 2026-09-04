@@ -643,3 +643,55 @@ func sweepErr(reader staleSweepReader, store *hooks.Store, logger *slog.Logger) 
 	_, err := runHookStaleCleanup(reader, store, logger)
 	return err
 }
+
+// With nothing persisted there is no key to judge and none to protect, so the
+// cheapest and most decisive test is taken before the whole-server pane read a
+// daemon would otherwise pay for on every cycle for the life of the process.
+func TestHookSweepWithNothingPersisted(t *testing.T) {
+	t.Run("it enumerates no panes when nothing is persisted", func(t *testing.T) {
+		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody()})
+		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA)}
+
+		if err := sweepErr(lister, store, nil); err != nil {
+			t.Fatalf("runHookStaleCleanup: %v", err)
+		}
+
+		if lister.calls != 0 {
+			t.Errorf("ListAllPaneHookKeys call count = %d, want 0 (an empty store has nothing to judge)", lister.calls)
+		}
+	})
+
+	t.Run("it reports the entry count alone for an empty snapshot", func(t *testing.T) {
+		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody()})
+		logger, sink := newCaptureLoggerForComponent(t, "bootstrap")
+
+		if err := sweepErr(&stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA)}, store, logger); err != nil {
+			t.Fatalf("runHookStaleCleanup: %v", err)
+		}
+
+		rec := sink.Records().Matching("bootstrap", "stale-hook cleanup counts").AtExactLevel(slog.LevelDebug).
+			Only(t, "DEBUG bootstrap stale-hook cleanup counts record")
+		if got := rec.IntAttr(t, "entries"); got != 0 {
+			t.Errorf("entries = %d, want 0", got)
+		}
+		if rec.HasAttr("panes") {
+			t.Errorf("counts line carries a pane count for a cycle that never enumerated: %+v", rec)
+		}
+	})
+
+	t.Run("it tolerates a nil counts logger", func(t *testing.T) {
+		enumerate := liveTokenEnumeration(&stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA)}, nil)
+
+		if _, err := enumerate(hooks.Snapshot{}); !errors.Is(err, errNothingPersisted) {
+			t.Errorf("empty snapshot err = %v, want %v", err, errNothingPersisted)
+		}
+
+		tokens, err := enumerate(hooks.Snapshot{hookstest.LiveSeedA: {"on-resume": "cmd-live"}})
+		if err != nil {
+			t.Fatalf("enumerate: %v", err)
+		}
+		if len(tokens) != 1 || tokens[0] != hookstest.LiveSeedA {
+			t.Errorf("tokens = %v, want [%s]", tokens, hookstest.LiveSeedA)
+		}
+	})
+}
