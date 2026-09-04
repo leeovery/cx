@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/commandertest"
-	"github.com/leeovery/portal/internal/tmux"
 )
 
 func TestHydrateTimeoutLog_EmitsSignalTimeoutTookOnTimeoutPath(t *testing.T) {
@@ -53,9 +52,10 @@ func TestHydrateTimeoutLog_SignalTimeoutPrecedesExecINFO(t *testing.T) {
 	fifo := makeFIFO(t, dir, "hydrate-ord__0.0.fifo")
 
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
-	// A nil HookStore takes the bare-shell exec path, which emits the exec INFO.
 	cfg := hydrateCfg(t, hydrateCfgOpts{FIFO: fifo, File: filepath.Join(dir, "sb"), HookKey: "ord:0.0",
-		OpenFIFO: instantTimeoutOpenFIFO, HandleTimeout: handleHydrateTimeout, Logger: logger})
+		OpenFIFO: instantTimeoutOpenFIFO, HandleTimeout: handleHydrateTimeout, Logger: logger,
+		// A nil HookStore takes the bare-shell exec path, which emits the exec INFO.
+		HookStore: nil})
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
@@ -117,17 +117,16 @@ func TestHydrateTimeoutLog_NilHandleTimeout_NoSignalTimeoutNoExec(t *testing.T) 
 
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
 	exec := &stubExecShell{}
-	cfg := hydrateConfig{
-		FIFO:      fifo,
-		File:      filepath.Join(dir, "sb"),
-		HookKey:   "nil:0.0",
-		Stdout:    new(bytes.Buffer),
-		Client:    tmux.NewClient(commandertest.Quiet()),
-		Logger:    logger,
-		ExecShell: exec.fn(),
-		OpenFIFO:  instantTimeoutOpenFIFO,
-		// HandleTimeout intentionally left nil — test-only fall-through.
-	}
+	cfg := hydrateCfg(t, hydrateCfgOpts{
+		FIFO:          fifo,
+		File:          filepath.Join(dir, "sb"),
+		HookKey:       "nil:0.0",
+		Stdout:        new(bytes.Buffer),
+		Logger:        logger,
+		ExecShell:     exec.fn(),
+		OpenFIFO:      instantTimeoutOpenFIFO,
+		AbsentHandler: hydrateAbsentTimeout,
+	})
 
 	if err := runHydrate(cfg); err == nil {
 		t.Fatal("runHydrate must return the timeout error when HandleTimeout is nil")

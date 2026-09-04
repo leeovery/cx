@@ -949,6 +949,18 @@ func unexpectedFileMissing(t *testing.T) func(cfg hydrateConfig, ctx hydrateFile
 	}
 }
 
+// hydrateAbsentHandler names the one handler a case deliberately leaves nil, so
+// the fall-through that handler guards is reachable through the builder. Its
+// zero value names none: an unnamed handler becomes the loud stand-in below, so
+// a nil handler is never reached by omission.
+type hydrateAbsentHandler uint8
+
+const (
+	hydrateHandlersWired hydrateAbsentHandler = iota
+	hydrateAbsentTimeout
+	hydrateAbsentFileMissing
+)
+
 // hydrateCfgOpts names the parts a hydrate case varies. Stdout, Commander and
 // ExecShell default when unset — a discarded stdout, a fresh recording
 // commander, and a stub exec whose recordings nobody reads. Logger and HookStore
@@ -960,7 +972,8 @@ func unexpectedFileMissing(t *testing.T) func(cfg hydrateConfig, ctx hydrateFile
 // marker unset, shell or hook exec — so wiring a handler a case never named
 // would let a stray excursion satisfy assertions written for a different route.
 // An unnamed handler therefore becomes a stand-in that returns an error, so the
-// excursion surfaces instead of completing.
+// excursion surfaces instead of completing. A case whose subject IS a nil
+// handler names it through AbsentHandler.
 type hydrateCfgOpts struct {
 	FIFO              string
 	File              string
@@ -973,6 +986,7 @@ type hydrateCfgOpts struct {
 	ExecShell         func(prog string, args []string)
 	HandleFileMissing func(cfg hydrateConfig, ctx hydrateFileMissingContext) error
 	HandleTimeout     func(cfg hydrateConfig) error
+	AbsentHandler     hydrateAbsentHandler
 }
 
 // hydrateCfg builds the config a hydrate case runs against: the case names the
@@ -992,13 +1006,17 @@ func hydrateCfg(t *testing.T, opts hydrateCfgOpts) hydrateConfig {
 	if opts.ExecShell == nil {
 		opts.ExecShell = (&stubExecShell{}).fn()
 	}
-	if opts.HandleFileMissing == nil {
-		opts.HandleFileMissing = unexpectedFileMissing(t)
+	// Assigned aside rather than back into opts, which clearAbsentHandler reads
+	// for what the case itself named.
+	fileMissing := opts.HandleFileMissing
+	if fileMissing == nil {
+		fileMissing = unexpectedFileMissing(t)
 	}
-	if opts.HandleTimeout == nil {
-		opts.HandleTimeout = unexpectedTimeout(t)
+	timeout := opts.HandleTimeout
+	if timeout == nil {
+		timeout = unexpectedTimeout(t)
 	}
-	return hydrateConfig{
+	return clearAbsentHandler(t, hydrateConfig{
 		FIFO:              opts.FIFO,
 		File:              opts.File,
 		HookKey:           opts.HookKey,
@@ -1008,9 +1026,32 @@ func hydrateCfg(t *testing.T, opts hydrateCfgOpts) hydrateConfig {
 		HookStore:         opts.HookStore,
 		ExecShell:         opts.ExecShell,
 		OpenFIFO:          opts.OpenFIFO,
-		HandleFileMissing: opts.HandleFileMissing,
-		HandleTimeout:     opts.HandleTimeout,
+		HandleFileMissing: fileMissing,
+		HandleTimeout:     timeout,
+	}, opts)
+}
+
+// clearAbsentHandler runs after the stand-in defaults so the named handler ends
+// up nil rather than loud. Naming a handler and declaring it absent is a case
+// contradicting itself, so it fails rather than picking one.
+func clearAbsentHandler(t *testing.T, cfg hydrateConfig, opts hydrateCfgOpts) hydrateConfig {
+	t.Helper()
+	switch opts.AbsentHandler {
+	case hydrateHandlersWired:
+	case hydrateAbsentTimeout:
+		if opts.HandleTimeout != nil {
+			t.Fatal("hydrateCfg: a case cannot both name a timeout handler and declare it absent")
+		}
+		cfg.HandleTimeout = nil
+	case hydrateAbsentFileMissing:
+		if opts.HandleFileMissing != nil {
+			t.Fatal("hydrateCfg: a case cannot both name a file-missing handler and declare it absent")
+		}
+		cfg.HandleFileMissing = nil
+	default:
+		t.Fatalf("hydrateCfg: unknown absent handler %d", opts.AbsentHandler)
 	}
+	return cfg
 }
 
 func TestHydrate_TimeoutWritesResetPreambleToStdout(t *testing.T) {
