@@ -213,7 +213,7 @@ func pruneDoctorStaleHooks(w io.Writer, deps *DoctorDeps) {
 
 // reportSkippedPrune renders a prune that removed nothing from the shared
 // reason vocabulary, so no branch can reach for words of its own.
-func reportSkippedPrune(w io.Writer, reason string) {
+func reportSkippedPrune(w io.Writer, reason skipReason) {
 	_, _ = fmt.Fprintf(w, "Skipped stale hook prune: %s\n", phraseFor(skippedPrunePhrases, reason))
 }
 
@@ -291,7 +291,7 @@ func checkHostTerminal(detector TerminalDetector, resolve spawn.AdapterResolver)
 
 // staleHooksNotEvaluable reports a stand-down in the diagnosis's register, so a
 // branch reporting one names its reason and the vocabulary words the copy.
-func staleHooksNotEvaluable(name, reason string) checkResult {
+func staleHooksNotEvaluable(name string, reason skipReason) checkResult {
 	return checkResult{name: name, status: checkNotEvaluable, detail: phraseFor(notEvaluableDetails, reason)}
 }
 

@@ -3,6 +3,8 @@ package cmd
 import (
 	"go/ast"
 	"go/token"
+	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -14,8 +16,8 @@ import (
 // missingPhrases reports the declared reasons a surface vocabulary renders
 // nothing for. It is the whole rule the coverage guard applies, named so the
 // guard's own failure mode is testable: a reason declared without a phrase.
-func missingPhrases(reasons []string, m map[string]string) []string {
-	var missing []string
+func missingPhrases(reasons []skipReason, m map[skipReason]string) []skipReason {
+	var missing []skipReason
 	for _, reason := range reasons {
 		if phrase, ok := m[reason]; !ok || phrase == "" {
 			missing = append(missing, reason)
@@ -26,8 +28,8 @@ func missingPhrases(reasons []string, m map[string]string) []string {
 
 // undeclaredKeys reports the vocabulary's keys that name no declared reason —
 // the leftover a retired reason would strand.
-func undeclaredKeys(m map[string]string, reasons []string) []string {
-	var extra []string
+func undeclaredKeys(m map[skipReason]string, reasons []skipReason) []skipReason {
+	var extra []skipReason
 	for key := range m {
 		if !slices.Contains(reasons, key) {
 			extra = append(extra, key)
@@ -68,77 +70,173 @@ func TestStandDownPhraseCoverage(t *testing.T) {
 	})
 
 	t.Run("it fails when a newly declared reason has no phrase", func(t *testing.T) {
-		const sixth = "new-reason-with-no-phrase"
+		const sixth skipReason = "new-reason-with-no-phrase"
 		declared := append(slices.Clone(skipReasons), sixth)
 
-		for name, vocabulary := range map[string]map[string]string{
+		for name, vocabulary := range map[string]map[skipReason]string{
 			"skippedPrunePhrases": skippedPrunePhrases,
 			"notEvaluableDetails": notEvaluableDetails,
 		} {
-			if missing := missingPhrases(declared, vocabulary); !slices.Equal(missing, []string{sixth}) {
+			if missing := missingPhrases(declared, vocabulary); !slices.Equal(missing, []skipReason{sixth}) {
 				t.Errorf("missingPhrases(+%q, %s) = %v, want exactly [%q]; the rule would not catch the omission",
 					sixth, name, missing, sixth)
 			}
 		}
 
-		if phrase := phraseFor(skippedPrunePhrases, sixth); phrase != sixth {
+		if phrase := phraseFor(skippedPrunePhrases, sixth); phrase != string(sixth) {
 			t.Errorf("phraseFor(skippedPrunePhrases, %q) = %q, want the raw reason as the runtime net", sixth, phrase)
 		}
 	})
 }
 
-// The coverage guard above ranges over skipReasons, so it is only as complete as
-// that slice. This one reads the const block itself: a sixth reason declared and
-// left out of the slice would otherwise be invisible to every check.
+// The coverage guard above ranges over skipReasons, so it is only as complete
+// as that slice. This one reads the declarations themselves, keyed on the
+// skipReason type rather than on the names chosen for them: the type is what
+// makes a const a reason, so a const the compiler accepts as one and the slice
+// omits is exactly what stays invisible to every check that ranges over the
+// set. Membership is what the type cannot hold, and it is what this guard still
+// adds over it.
 func TestSkipReasonsEnumeratesEveryDeclaredConst(t *testing.T) {
-	const prefix = "skipReason"
+	sources := sourceguardtest.ParsePackageSources(t, ".", false)
+	declared := declaredReasonConsts(sources)
+	enumerated := enumeratedReasons(t, sources)
 
-	var declared, enumerated []string
-	sliceFound := false
-	for _, source := range sourceguardtest.ParsePackageSources(t, ".", false) {
+	if len(declared) == 0 {
+		t.Fatalf("no const declared with the %s type in the cmd package; the guard is scanning nothing", reasonTypeName)
+	}
+
+	t.Run("it enumerates every const declared with the reason type", func(t *testing.T) {
+		if missing := unenumerated(declared, enumerated); len(missing) > 0 {
+			t.Errorf("skipReasons omits the declared reason(s) %v; every declared reason must be enumerable", missing)
+		}
+		if extra := unenumerated(enumerated, declared); len(extra) > 0 {
+			t.Errorf("skipReasons enumerates %v, which no const declares", extra)
+		}
+		if len(enumerated) != len(skipReasons) {
+			t.Errorf("skipReasons literal names %d reasons but the value holds %d", len(enumerated), len(skipReasons))
+		}
+	})
+
+	// The type admits a const named anything, so the rule must catch one the
+	// slice leaves out however it is named.
+	t.Run("it fails a reason absent from the enumerable set", func(t *testing.T) {
+		synthetic := parseSyntheticSource(t, `package cmd
+
+const offConvention skipReason = "off-convention"
+
+var skipReasons = []skipReason{skipReasonRestoring}
+`)
+		missing := unenumerated(declaredReasonConsts(synthetic), enumeratedReasons(t, synthetic))
+		if !slices.Equal(missing, []string{"offConvention"}) {
+			t.Errorf("unenumerated = %v, want exactly [offConvention]; the rule would not catch the omission", missing)
+		}
+	})
+}
+
+// reasonTypeName is the type whose consts are the reason vocabulary, and
+// reasonNamePrefix the convention its members are named by.
+const (
+	reasonTypeName   = "skipReason"
+	reasonNamePrefix = "skipReason"
+)
+
+// declaredReasonConsts returns the names of every const the package declares as
+// a reason: one carrying the reason type, or one named by the convention. The
+// type is the rule — it is what the compiler accepts as a reason and it reaches
+// a const named anything — and the name is the residual it cannot see: an
+// untyped const in the block is a plain string to the compiler, and passing it
+// as a reason still compiles.
+func declaredReasonConsts(sources []sourceguardtest.ParsedSource) []string {
+	var declared []string
+	forEachValueSpec(sources, func(gen *ast.GenDecl, _ *token.FileSet, value *ast.ValueSpec) {
+		if gen.Tok != token.CONST {
+			return
+		}
+		typed := isReasonType(value.Type)
+		for _, name := range value.Names {
+			if typed || strings.HasPrefix(name.Name, reasonNamePrefix) {
+				declared = append(declared, name.Name)
+			}
+		}
+	})
+	slices.Sort(declared)
+	return declared
+}
+
+// enumeratedReasons returns the identifiers the skipReasons slice literal
+// lists. A package with no such slice is fatal: the rule would otherwise pass
+// having compared nothing.
+func enumeratedReasons(t *testing.T, sources []sourceguardtest.ParsedSource) []string {
+	t.Helper()
+
+	var enumerated []string
+	found := false
+	forEachValueSpec(sources, func(gen *ast.GenDecl, fset *token.FileSet, value *ast.ValueSpec) {
+		if gen.Tok != token.VAR {
+			return
+		}
+		for i, name := range value.Names {
+			if name.Name != "skipReasons" {
+				continue
+			}
+			found = true
+			enumerated = append(enumerated, sliceElementNames(t, fset, value.Values[i])...)
+		}
+	})
+	if !found {
+		t.Fatal("no skipReasons slice found; the guard is scanning nothing")
+	}
+	slices.Sort(enumerated)
+	return enumerated
+}
+
+// unenumerated reports the names in first that second does not hold.
+func unenumerated(first, second []string) []string {
+	var missing []string
+	for _, name := range first {
+		if !slices.Contains(second, name) {
+			missing = append(missing, name)
+		}
+	}
+	return missing
+}
+
+func isReasonType(expr ast.Expr) bool {
+	ident, ok := expr.(*ast.Ident)
+	return ok && ident.Name == reasonTypeName
+}
+
+// forEachValueSpec visits every const and var spec the sources declare.
+func forEachValueSpec(sources []sourceguardtest.ParsedSource, visit func(*ast.GenDecl, *token.FileSet, *ast.ValueSpec)) {
+	for _, source := range sources {
 		for _, decl := range source.File.Decls {
 			gen, ok := decl.(*ast.GenDecl)
 			if !ok {
 				continue
 			}
 			for _, spec := range gen.Specs {
-				value, ok := spec.(*ast.ValueSpec)
-				if !ok {
-					continue
-				}
-				for i, name := range value.Names {
-					switch {
-					case gen.Tok == token.CONST && strings.HasPrefix(name.Name, prefix):
-						declared = append(declared, name.Name)
-					case gen.Tok == token.VAR && name.Name == "skipReasons":
-						sliceFound = true
-						enumerated = append(enumerated, sliceElementNames(t, source.Fset, value.Values[i])...)
-					}
+				if value, ok := spec.(*ast.ValueSpec); ok {
+					visit(gen, source.Fset, value)
 				}
 			}
 		}
 	}
+}
 
-	if len(declared) == 0 {
-		t.Fatalf("no %s* const found in the cmd package; the guard is scanning nothing", prefix)
-	}
-	if !sliceFound {
-		t.Fatal("no skipReasons slice found in the cmd package; the guard is scanning nothing")
-	}
+// parseSyntheticSource parses source authored by the test, so a rule's own
+// failure mode is exercised against a declaration the package does not hold.
+func parseSyntheticSource(t *testing.T, source string) []sourceguardtest.ParsedSource {
+	t.Helper()
 
-	slices.Sort(declared)
-	slices.Sort(enumerated)
-	if !slices.Equal(declared, enumerated) {
-		t.Errorf("skipReasons enumerates %v, but the const block declares %v; every declared reason must be enumerable",
-			enumerated, declared)
+	path := filepath.Join(t.TempDir(), "synthetic.go")
+	if err := os.WriteFile(path, []byte(source), 0o600); err != nil {
+		t.Fatalf("write synthetic source: %v", err)
 	}
-	if len(enumerated) != len(skipReasons) {
-		t.Errorf("skipReasons literal names %d reasons but the value holds %d", len(enumerated), len(skipReasons))
-	}
+	return sourceguardtest.ParseSources(t, []string{path})
 }
 
 // sliceElementNames returns the identifiers a composite slice literal lists, so
-// the guard compares names with the const block rather than re-deriving values.
+// the guard compares names with the declarations rather than re-deriving values.
 func sliceElementNames(t *testing.T, fset *token.FileSet, expr ast.Expr) []string {
 	t.Helper()
 	lit, ok := expr.(*ast.CompositeLit)
@@ -195,7 +293,7 @@ func TestStandDownVocabulariesShareNoInlineLiteral(t *testing.T) {
 		}
 	}
 
-	runtime := map[string]map[string]string{
+	runtime := map[string]map[skipReason]string{
 		"skippedPrunePhrases": skippedPrunePhrases,
 		"notEvaluableDetails": notEvaluableDetails,
 	}

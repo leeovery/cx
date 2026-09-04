@@ -29,7 +29,7 @@ func TestHookSweepDeclineReasonTravelsWithTheError(t *testing.T) {
 		if declined.reason != skipReasonEmptyPaneRead {
 			t.Errorf("reason = %q, want %q", declined.reason, skipReasonEmptyPaneRead)
 		}
-		if want := "hook staleness cycle declined: " + skipReasonEmptyPaneRead; err.Error() != want {
+		if want := "hook staleness cycle declined: " + string(skipReasonEmptyPaneRead); err.Error() != want {
 			t.Errorf("Error() = %q, want %q", err.Error(), want)
 		}
 	})

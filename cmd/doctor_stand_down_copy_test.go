@@ -28,7 +28,7 @@ import (
 // whole rendered lines, the repair's prefix and the check's glyph included.
 type standDownCopyCase struct {
 	name   string
-	reason string
+	reason skipReason
 	// fixture stages an install whose only anomaly is this stand-down and
 	// returns the hooks.json path alongside it, so both arms can pin that the
 	// stand-down wrote nothing.
@@ -56,7 +56,7 @@ type standDownCopyCase struct {
 // not delete, so its post-repair diagnosis is legitimately unhealthy and the
 // read-only surface never reaches it at all. Naming them keeps the count guard
 // below sharp: a genuinely new stand-down still fails it.
-var notStandDownReasons = []string{skipReasonSweepFailed}
+var notStandDownReasons = []skipReason{skipReasonSweepFailed}
 
 func standDownCopyCases() []standDownCopyCase {
 	return []standDownCopyCase{
@@ -231,7 +231,7 @@ func lockTimeoutStandDownDeps(t *testing.T) (*DoctorDeps, string) {
 
 // renderStaleHooksLine renders the not-evaluable check line exactly as the
 // report does, so the assertion reads the user's line rather than a map value.
-func renderStaleHooksLine(reason string) string {
+func renderStaleHooksLine(reason skipReason) string {
 	buf := new(bytes.Buffer)
 	renderDoctorReport(buf, []checkResult{{
 		name:   "stale hooks",
@@ -249,7 +249,7 @@ func renderStaleHooksLine(reason string) string {
 // renderSkippedPruneLine renders the repair line for a reason through the
 // vocabulary, so a suite whose subject is not the copy names the line it
 // expects without pinning a second copy of the words.
-func renderSkippedPruneLine(reason string) string {
+func renderSkippedPruneLine(reason skipReason) string {
 	return "Skipped stale hook prune: " + phraseFor(skippedPrunePhrases, reason)
 }
 
@@ -355,9 +355,9 @@ func TestStandDownCopy(t *testing.T) {
 		// table's expectations: two reasons that agree on their words are the
 		// drift worth catching, and comparing the expectations would only catch
 		// an author who copied a row.
-		reasons := map[string]string{}
-		skipped := map[string]string{}
-		notEvaluable := map[string]string{}
+		reasons := map[skipReason]string{}
+		skipped := map[string]skipReason{}
+		notEvaluable := map[string]skipReason{}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
 				assertStandDownSweep(t, tc)
@@ -407,10 +407,10 @@ func TestStandDownCopy(t *testing.T) {
 
 	t.Run("it renders no raw reason slug on either surface", func(t *testing.T) {
 		for _, tc := range standDownCopyCases() {
-			if phrase := phraseFor(skippedPrunePhrases, tc.reason); phrase == tc.reason || strings.Contains(phrase, tc.reason) {
+			if phrase := phraseFor(skippedPrunePhrases, tc.reason); phrase == string(tc.reason) || strings.Contains(phrase, string(tc.reason)) {
 				t.Errorf("phraseFor(skippedPrunePhrases, %q) = %q; want a user-facing phrase, not the enum value", tc.reason, phrase)
 			}
-			if detail := phraseFor(notEvaluableDetails, tc.reason); detail == tc.reason || strings.Contains(detail, tc.reason) {
+			if detail := phraseFor(notEvaluableDetails, tc.reason); detail == string(tc.reason) || strings.Contains(detail, string(tc.reason)) {
 				t.Errorf("phraseFor(notEvaluableDetails, %q) = %q; want a user-facing phrase, not the enum value", tc.reason, detail)
 			}
 		}
@@ -434,11 +434,11 @@ func TestStandDownCopy(t *testing.T) {
 	// A stand-down that renders as an empty line is the silence this reporting
 	// removes, so an unmapped reason still prints something.
 	t.Run("it renders an unmapped reason as itself on both surfaces", func(t *testing.T) {
-		const unmapped = "unmapped-reason"
-		if got := phraseFor(skippedPrunePhrases, unmapped); got != unmapped {
+		const unmapped skipReason = "unmapped-reason"
+		if got := phraseFor(skippedPrunePhrases, unmapped); got != string(unmapped) {
 			t.Errorf("phraseFor(skippedPrunePhrases, %q) = %q, want the raw reason", unmapped, got)
 		}
-		if got := phraseFor(notEvaluableDetails, unmapped); got != unmapped {
+		if got := phraseFor(notEvaluableDetails, unmapped); got != string(unmapped) {
 			t.Errorf("phraseFor(notEvaluableDetails, %q) = %q, want the raw reason", unmapped, got)
 		}
 	})
@@ -479,7 +479,7 @@ func TestStandDownCopy(t *testing.T) {
 // duration. Watching a branch follow the re-worded entry tells a branch that
 // renders through the vocabulary from one that authors the same words inline:
 // an assertion on today's literal cannot separate them.
-func rewordNotEvaluableDetail(t *testing.T, reason, detail string) {
+func rewordNotEvaluableDetail(t *testing.T, reason skipReason, detail string) {
 	t.Helper()
 	prior := notEvaluableDetails[reason]
 	notEvaluableDetails[reason] = detail

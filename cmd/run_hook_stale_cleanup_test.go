@@ -443,7 +443,7 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 // line the sink holds, so anything at WARN or above is itself a failure, while a
 // WARN stand-down shares the sink with the degraded pre-read's own DEBUG
 // breadcrumb and can only be counted among the WARNs.
-func assertStandDown(t *testing.T, sink *logtest.Sink, level slog.Level, reason string) logtest.Record {
+func assertStandDown(t *testing.T, sink *logtest.Sink, level slog.Level, reason skipReason) logtest.Record {
 	t.Helper()
 
 	var rec logtest.Record
@@ -462,10 +462,10 @@ func assertStandDown(t *testing.T, sink *logtest.Sink, level slog.Level, reason 
 
 // assertStandDownRecord pins the shape of a stand-down line already selected by
 // its caller, for a case whose own selection is stronger than the level alone.
-func assertStandDownRecord(t *testing.T, rec logtest.Record, level slog.Level, reason string) {
+func assertStandDownRecord(t *testing.T, rec logtest.Record, level slog.Level, reason skipReason) {
 	t.Helper()
 	assertHooksRecord(t, rec, standDownWant(level))
-	if got := rec.AttrString(t, "reason"); got != reason {
+	if got := rec.AttrString(t, "reason"); got != string(reason) {
 		t.Errorf("reason = %q, want %q", got, reason)
 	}
 }

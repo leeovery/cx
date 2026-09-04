@@ -51,7 +51,7 @@ func TestDoctorFixAlwaysReportsTheHookPrune(t *testing.T) {
 
 		// The stand-down copy table cannot hold this reason, so the raw-slug
 		// guard every other reason gets from it lives here instead.
-		if phrase := phraseFor(skippedPrunePhrases, skipReasonSweepFailed); phrase == skipReasonSweepFailed || strings.Contains(phrase, skipReasonSweepFailed) {
+		if phrase := phraseFor(skippedPrunePhrases, skipReasonSweepFailed); phrase == string(skipReasonSweepFailed) || strings.Contains(phrase, string(skipReasonSweepFailed)) {
 			t.Errorf("phraseFor(skippedPrunePhrases, %q) = %q; want a user-facing phrase, not the enum value", skipReasonSweepFailed, phrase)
 		}
 	})

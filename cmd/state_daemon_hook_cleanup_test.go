@@ -233,7 +233,7 @@ func TestMaybeRunHookCleanup_ReusesMassDeletionGuard(t *testing.T) {
 	if rec.Level != slog.LevelWarn {
 		t.Errorf("stand-down level = %v, want WARN", rec.Level)
 	}
-	if got := rec.AttrString(t, "reason"); got != skipReasonEmptyPaneRead {
+	if got := rec.AttrString(t, "reason"); got != string(skipReasonEmptyPaneRead) {
 		t.Errorf("reason = %q, want %q", got, skipReasonEmptyPaneRead)
 	}
 }

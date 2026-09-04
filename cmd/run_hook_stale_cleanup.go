@@ -10,18 +10,23 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
+// skipReason is the closed vocabulary of reasons a cycle removed nothing. It is
+// a type rather than a convention over plain strings so no string-typed value
+// can be reported as one; an untyped constant still converts implicitly.
+type skipReason string
+
 // The reasons a cycle removed nothing: the ones it declines to run under,
 // which the logged reason attr also names, and the failure only the
 // caller-facing rendering reports. Every surface that renders one works from
 // this set, so their vocabularies cannot drift from it.
 const (
-	skipReasonRestoring        = "restoring"
-	skipReasonMarkerReadFailed = "marker-read-failed"
-	skipReasonStoreReadFailed  = "store-read-failed"
-	skipReasonPaneReadFailed   = "pane-read-failed"
-	skipReasonEmptyPaneRead    = "empty-pane-read"
-	skipReasonLockTimeout      = "lock-timeout"
-	skipReasonSweepFailed      = "sweep-failed"
+	skipReasonRestoring        skipReason = "restoring"
+	skipReasonMarkerReadFailed skipReason = "marker-read-failed"
+	skipReasonStoreReadFailed  skipReason = "store-read-failed"
+	skipReasonPaneReadFailed   skipReason = "pane-read-failed"
+	skipReasonEmptyPaneRead    skipReason = "empty-pane-read"
+	skipReasonLockTimeout      skipReason = "lock-timeout"
+	skipReasonSweepFailed      skipReason = "sweep-failed"
 )
 
 // skipReasons makes the reasons above enumerable, so anything that must cover
@@ -45,7 +50,7 @@ const (
 //     declined nothing — it ran and left the entry it could not delete — so the
 //     post-repair diagnosis reports that entry as stale rather than as a
 //     stand-down.
-var skipReasons = []string{
+var skipReasons = []skipReason{
 	skipReasonRestoring,
 	skipReasonMarkerReadFailed,
 	skipReasonStoreReadFailed,
@@ -72,7 +77,7 @@ const (
 // skippedPrunePhrases completes "Skipped stale hook prune: …" for a user who
 // asked for a repair. A failed enumeration and a successful one that answered
 // nothing are separate conditions, so neither borrows the other's words.
-var skippedPrunePhrases = map[string]string{
+var skippedPrunePhrases = map[skipReason]string{
 	skipReasonRestoring:        restoreStandDownPhrase,
 	skipReasonMarkerReadFailed: markerReadStandDownPhrase,
 	skipReasonStoreReadFailed:  storeReadStandDownPhrase,
@@ -84,7 +89,7 @@ var skippedPrunePhrases = map[string]string{
 
 // notEvaluableDetails renders a stand-down reason as the reason the count cannot
 // be taken, so the diagnostic reports exactly what the reaper declined to judge.
-var notEvaluableDetails = map[string]string{
+var notEvaluableDetails = map[skipReason]string{
 	skipReasonRestoring:        restoreStandDownPhrase + " (not evaluable)",
 	skipReasonMarkerReadFailed: markerReadStandDownPhrase,
 	skipReasonStoreReadFailed:  storeReadStandDownPhrase,
@@ -97,19 +102,19 @@ var notEvaluableDetails = map[string]string{
 // phraseFor renders a stand-down reason through one of the surface vocabularies
 // above. An unmapped reason falls through to its raw value, so no stand-down can
 // print nothing — a last-resort net, not a licence to leave a reason unmapped.
-func phraseFor(m map[string]string, reason string) string {
+func phraseFor(m map[skipReason]string, reason skipReason) string {
 	if phrase, ok := m[reason]; ok {
 		return phrase
 	}
-	return reason
+	return string(reason)
 }
 
 // standDownMsg and standDownAttrs give every stand-down one line shape, so a
 // single grep answers whether the prune declined and why.
 const standDownMsg = "clean-stale-skipped"
 
-func standDownAttrs(reason string, extra ...any) []any {
-	return append([]any{"op", standDownMsg, "via", hooks.ViaInternal.String(), "reason", reason}, extra...)
+func standDownAttrs(reason skipReason, extra ...any) []any {
+	return append([]any{"op", standDownMsg, "via", hooks.ViaInternal.String(), "reason", string(reason)}, extra...)
 }
 
 // staleSweepReader is the whole tmux surface hook-staleness work reads: the
@@ -125,7 +130,7 @@ type staleSweepReader interface {
 // Emission is the sweep's — a diagnosis that declines has pruned nothing and
 // must not claim a stand-down in the reaper's own vocabulary.
 type standDown struct {
-	reason string
+	reason skipReason
 	level  slog.Level
 	attrs  []any
 }
@@ -138,13 +143,13 @@ func (s standDown) emit() {
 
 // A restore window is an expected state, and warning through every one of them
 // would name a hazard being avoided rather than encountered.
-func declineDebug(reason string, attrs ...any) standDown {
+func declineDebug(reason skipReason, attrs ...any) standDown {
 	return standDown{reason: reason, level: slog.LevelDebug, attrs: attrs}
 }
 
 // A lock that will not yield and a tmux read that answered nothing usable are
 // both anomalies.
-func declineWarn(reason string, attrs ...any) standDown {
+func declineWarn(reason skipReason, attrs ...any) standDown {
 	return standDown{reason: reason, level: slog.LevelWarn, attrs: attrs}
 }
 
@@ -223,7 +228,7 @@ func liveTokensFrom(rows []tmux.PaneHookRow) []string {
 // cycle that declined can never look like one that found nothing.
 type sweepOutcome struct {
 	Removed       []string
-	DeclineReason string
+	DeclineReason skipReason
 }
 
 // A store holding nothing to sweep is an answer, not a failure: it aborts the
@@ -238,7 +243,7 @@ type declinedError struct {
 }
 
 func (e declinedError) Error() string {
-	return "hook staleness cycle declined: " + e.reason
+	return "hook staleness cycle declined: " + string(e.reason)
 }
 
 // liveTokenEnumeration answers the clean with the live token set persisted keys
