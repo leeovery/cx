@@ -188,7 +188,7 @@ xctl alias list                      # list all aliases
 
 ### `xctl hook`
 
-Register per-pane commands that re-execute automatically when a session is attached after a reboot. `hook set` must be run from inside a tmux pane; `hook rm` defaults to the current pane but accepts `--pane-key` to remove a hook for any pane token (including panes that no longer exist). `hook rm` exits non-zero when it removes nothing — a missing entry, a pane with no hook of its own, or a pane that is already gone — so a scripted caller can tell a real removal from a no-op.
+Register per-pane commands that re-execute automatically when a session is attached after a reboot. `hook set` must be run from inside a tmux pane; `hook rm` defaults to the current pane's token but accepts `--pane-key` to remove the entry under any hook key, taken verbatim (including panes that no longer exist, and the old-format `<session>:<window>.<pane>` keys the stale-entry sweep retains forever rather than guessing at — hand removal through this flag is the sanctioned route for those). `hook rm` exits non-zero when it removes nothing — a missing entry, a pane with no hook of its own, or a pane that is already gone — so a scripted caller can tell a real removal from a no-op.
 
 The verb is **`hook`** (singular); **`hooks`** is kept as a permanent silent alias, so existing `xctl hooks …` scripts keep working unchanged.
 
@@ -199,7 +199,7 @@ Two kinds of name are refused, by the picker's `r` modal and by Portal's own ren
 ```bash
 xctl hook set --on-resume "npm start"            # register a resume hook
 xctl hook rm --on-resume                         # remove the current pane's hook
-xctl hook rm --on-resume --pane-key 'k3Xp7Q'     # remove a specific entry (works outside tmux)
+xctl hook rm --on-resume --pane-key 'k3Xp7Q'     # remove the entry under any hook key, verbatim (works outside tmux)
 xctl hook list                                   # list hooks: key, event, command, and the pane's current location (4th column, empty if no live pane carries the token)
 ```
 

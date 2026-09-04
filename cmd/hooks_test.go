@@ -619,6 +619,18 @@ func TestHooksRmCommand(t *testing.T) {
 			t.Error("expected the resolved entry to be removed via fallback")
 		}
 	})
+
+	t.Run("--pane-key help describes a verbatim hook key", func(t *testing.T) {
+		flag := hooksRmCmd.Flags().Lookup("pane-key")
+		if flag == nil {
+			t.Fatal("hook rm has no --pane-key flag")
+		}
+
+		want := "Hook key of the entry to remove, taken verbatim — any key, including an old-format one (defaults to the current pane's token)"
+		if flag.Usage != want {
+			t.Errorf("--pane-key usage = %q, want %q", flag.Usage, want)
+		}
+	})
 }
 
 func TestHookCommandRename(t *testing.T) {

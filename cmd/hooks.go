@@ -308,7 +308,7 @@ func init() {
 
 	hooksRmCmd.Flags().Bool("on-resume", false, "Remove the on-resume hook")
 	_ = hooksRmCmd.MarkFlagRequired("on-resume")
-	hooksRmCmd.Flags().String("pane-key", "", "Pane token of the pane whose hook should be removed (defaults to the current pane)")
+	hooksRmCmd.Flags().String("pane-key", "", "Hook key of the entry to remove, taken verbatim — any key, including an old-format one (defaults to the current pane's token)")
 
 	hookCmd.AddCommand(hooksListCmd)
 	hookCmd.AddCommand(hooksSetCmd)
