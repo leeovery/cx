@@ -262,8 +262,8 @@
       "items": {
         "resume-hooks-silently-lost": {
           "status": "in-progress",
-          "task_gate_mode": "auto",
-          "fix_gate_mode": "auto",
+          "task_gate_mode": "bounded",
+          "fix_gate_mode": "gated",
           "analysis_gate_mode": "gated",
           "consolidation_gate_mode": "gated",
           "fix_attempts": 0,
@@ -300,7 +300,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 8,
-          "current_task": "resume-hooks-silently-lost-8-42",
+          "current_task": "resume-hooks-silently-lost-8-44",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -453,7 +453,8 @@
             "resume-hooks-silently-lost-8-39",
             "resume-hooks-silently-lost-8-40",
             "resume-hooks-silently-lost-8-41",
-            "resume-hooks-silently-lost-8-42"
+            "resume-hooks-silently-lost-8-42",
+            "resume-hooks-silently-lost-8-43"
           ],
           "staging": {
             "p1": {
