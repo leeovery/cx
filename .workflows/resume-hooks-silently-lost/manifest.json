@@ -353,7 +353,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 9,
-          "current_task": "resume-hooks-silently-lost-9-10",
+          "current_task": "resume-hooks-silently-lost-9-11",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -522,7 +522,8 @@
             "resume-hooks-silently-lost-9-6",
             "resume-hooks-silently-lost-9-7",
             "resume-hooks-silently-lost-9-8",
-            "resume-hooks-silently-lost-9-9"
+            "resume-hooks-silently-lost-9-9",
+            "resume-hooks-silently-lost-9-10"
           ],
           "staging": {
             "p1": {
@@ -989,6 +990,35 @@
                 "cmd/run_hook_stale_cleanup.go",
                 "cmd/doctor.go",
                 "cmd/run_hook_stale_cleanup_one_component_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-9-10",
+              "source": "executor",
+              "summary": "The old TestStandDownVocabulariesShareNoInlineLiteral now overlaps the new declared-home guard.",
+              "detail": "cmd/doctor_stand_down_phrase_guard_test.go holds two source rules over the same surface: the older one catches a literal in one phrase map that equals a rendered value of the sibling map, the new one catches any literal spelling a declared *StandDownPhrase const. The older rule remaining unique reach is a shared phrase with no const at all; whether it earns its keep beside the new one is a call better made across the whole guard set than inside this task.",
+              "files": [
+                "cmd/doctor_stand_down_phrase_guard_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-9-10",
+              "source": "executor",
+              "summary": "Other checkNotEvaluable details on the doctor surface are still inline literals with no declared home.",
+              "detail": "cmd/doctor.go checkHooksRegistered (\"could not read hooks (transient tmux error)\") and checkSaverUp (\"could not read saver (transient tmux error)\") word the same class of read-failure stand-down as the two surfaces this task consolidated, are pinned literally a second time in cmd/doctor_test.go:587-588,646-647, and are invisible to every phrase guard. Same consolidation, different checks.",
+              "files": [
+                "cmd/doctor.go",
+                "cmd/doctor_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-9-10",
+              "source": "reviewer",
+              "summary": "Nothing prevents cmd/doctor_test.go re-acquiring a stand-down phrase literal; the new guard scans production only.",
+              "detail": "The declared-home guard must scan production only, since the copy suite spells the phrases deliberately to pin them. An enforceable version would need the copy suite declared as the allowed test-side home, so a literal reappearing in any other test file fails. Outside this task Do list. Related smaller items: standDownPhraseConsts and standDownPhraseRespellings each spell the HasSuffix(name, phraseConstSuffix) rule (two instances — a third should extract, since divergence would let the guard report a const own declaration as a respelling of itself); and standDownPhraseConsts indexes value.Values[i] without a length check, so a valueless const in the group would panic rather than fail with a diagnostic, unlike sliceElementNames beside it.",
+              "files": [
+                "cmd/doctor_stand_down_phrase_guard_test.go",
+                "cmd/doctor_test.go"
               ]
             }
           ]
