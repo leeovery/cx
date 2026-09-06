@@ -15,27 +15,28 @@ type IDGenerator = nanoid.Generator
 
 type ExistsFunc func(name string) bool
 
-// sessionIDPrefix leads a tmux session ID. A generated name opens with the
-// sanitised project fragment, so a fragment carrying this prefix would mint a
-// name tmux resolves as an ID instead of a name — unaddressable either way.
-// Only a leading occurrence carries that meaning.
-const sessionIDPrefix = "$"
+// unwritableLeadingChars are the characters a session name may not open with:
+// tmux resolves a leading "$" as a session ID rather than as a name, and parses
+// a leading "-" as a command flag. A generated name opens with the sanitised
+// project fragment, so a fragment leading with either would mint a name that
+// cannot be handed back.
+// They are dropped rather than substituted, so one unwritable character never
+// escapes to another.
+const unwritableLeadingChars = "$-"
 
-// SanitiseProjectName replaces the characters that would leave a generated
-// session name untidy or unaddressable — periods, colons and a leading dollar —
-// with hyphens.
+// SanitiseProjectName reduces a project name to a fragment a generated session
+// name can open with: periods and colons become hyphens, and a leading
+// character a session name may not open with is dropped. The result may be
+// empty.
 func SanitiseProjectName(name string) string {
 	r := strings.NewReplacer(".", "-", ":", "-")
-	sanitised := r.Replace(name)
 
-	if rest, found := strings.CutPrefix(sanitised, sessionIDPrefix); found {
-		return "-" + rest
-	}
-	return sanitised
+	return strings.TrimLeft(r.Replace(name), unwritableLeadingChars)
 }
 
-// GenerateSessionName produces a session name of the form {project}-{nanoid},
-// retrying a bounded number of times on collision with an existing session.
+// GenerateSessionName produces a session name of the form {project}-{nanoid} —
+// the nanoid alone when the project name sanitises to nothing — retrying a
+// bounded number of times on collision with an existing session.
 func GenerateSessionName(projectName string, gen IDGenerator, exists ExistsFunc) (string, error) {
 	sanitised := SanitiseProjectName(projectName)
 
@@ -45,7 +46,12 @@ func GenerateSessionName(projectName string, gen IDGenerator, exists ExistsFunc)
 			return "", fmt.Errorf("failed to generate session ID: %w", err)
 		}
 
-		candidate := sanitised + "-" + suffix
+		// An empty fragment contributes no separator either: a leading hyphen
+		// is exactly what tmux refuses.
+		candidate := suffix
+		if sanitised != "" {
+			candidate = sanitised + "-" + suffix
+		}
 		if !exists(candidate) {
 			return candidate, nil
 		}

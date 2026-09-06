@@ -62,6 +62,36 @@ func TestRenameRefusesUnaddressableName(t *testing.T) {
 		}
 	})
 
+	t.Run("it reports the hyphen refusal with the flag-prefix wording in the rename band", func(t *testing.T) {
+		rec := &recordingRenamer{}
+		m := newRenameTestModel(rec, "alpha", "-bar")
+
+		updated, _ := m.updateRenameModal(tea.KeyPressMsg{Code: tea.KeyEnter})
+		um := updated.(Model)
+
+		if rec.called {
+			t.Error("a rename to a hyphen-leading name must reach no renamer")
+		}
+		if um.modal != modalNone {
+			t.Errorf("modal = %v, want modalNone after a refusal", um.modal)
+		}
+		if um.flashText != renameFlagPrefixRefusedFlash {
+			t.Errorf("flashText = %q, want %q", um.flashText, renameFlagPrefixRefusedFlash)
+		}
+	})
+
+	t.Run("it names the offending character in the flag-prefix refusal message", func(t *testing.T) {
+		if !strings.Contains(renameFlagPrefixRefusedFlash, `"-"`) {
+			t.Errorf("refusal flash %q does not name the offending character", renameFlagPrefixRefusedFlash)
+		}
+		if strings.Contains(renameFlagPrefixRefusedFlash, flashWarningGlyph) {
+			t.Errorf("the refusal text must not embed the %q glyph (the band prepends it): %q", flashWarningGlyph, renameFlagPrefixRefusedFlash)
+		}
+		if renameFlagPrefixRefusedFlash == renameIDPrefixRefusedFlash || renameFlagPrefixRefusedFlash == renameSeparatorRefusedFlash {
+			t.Errorf("the flag-prefix refusal %q must be distinct from its siblings", renameFlagPrefixRefusedFlash)
+		}
+	})
+
 	t.Run("it renames an addressable name unchanged", func(t *testing.T) {
 		rec := &recordingRenamer{}
 		m := newRenameTestModel(rec, "alpha", "renamed-alpha")

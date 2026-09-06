@@ -33,9 +33,14 @@ func TestSanitiseProjectName(t *testing.T) {
 			want:  "my-cool-app-v2",
 		},
 		{
-			name:  "sanitises a project directory whose name begins with $",
-			input: "$foo",
-			want:  "-foo",
+			name:  "drops a leading dollar from a project fragment rather than substituting a hyphen",
+			input: "$work",
+			want:  "work",
+		},
+		{
+			name:  "drops the hyphen a leading period replaces into",
+			input: ".dotfiles",
+			want:  "dotfiles",
 		},
 		{
 			name:  "leaves a $ that is not leading alone",
@@ -155,7 +160,7 @@ func TestGenerateSessionName(t *testing.T) {
 		}
 	})
 
-	t.Run("handles empty project name", func(t *testing.T) {
+	t.Run("it generates the nanoid alone when the sanitised project fragment is empty", func(t *testing.T) {
 		gen := func() (string, error) { return "abc123", nil }
 		exists := func(name string) bool { return false }
 
@@ -164,8 +169,8 @@ func TestGenerateSessionName(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if got != "-abc123" {
-			t.Errorf("got %q, want %q", got, "-abc123")
+		if got != "abc123" {
+			t.Errorf("got %q, want %q", got, "abc123")
 		}
 	})
 
@@ -213,9 +218,11 @@ func TestGenerateSessionName_SuffixDrawsOnTheGeneralPurposeGenerator(t *testing.
 
 func TestGenerateSessionNameProducesAddressableNames(t *testing.T) {
 	t.Run("it generates only names ValidateSessionName accepts", func(t *testing.T) {
-		// Directory names carrying the characters the generator replaces: the
-		// target separator, the leading ID prefix, and the period.
-		hostileProjectNames := []string{"$foo", "$", "a:b", "a.b", "$a:b"}
+		// Directory names carrying the characters the generator drops or
+		// replaces: the target separator, the leading ID prefix, the period,
+		// and a leading hyphen — plus the empty name, which leaves no fragment
+		// at all.
+		hostileProjectNames := []string{"$foo", "$", "a:b", "a.b", "$a:b", "", "-lead", ".dotfiles"}
 		gen := func() (string, error) { return "abc123", nil }
 		exists := func(string) bool { return false }
 

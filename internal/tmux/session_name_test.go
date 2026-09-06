@@ -228,3 +228,45 @@ func TestValidateSessionName(t *testing.T) {
 		}
 	})
 }
+
+func TestValidateSessionNameFlagPrefix(t *testing.T) {
+	t.Run("it refuses a session name beginning with a hyphen", func(t *testing.T) {
+		err := tmux.ValidateSessionName("-bar")
+
+		if err == nil {
+			t.Fatal(`ValidateSessionName("-bar") = nil; want a refusal`)
+		}
+		if !errors.Is(err, tmuxerr.ErrUnaddressableSessionName) {
+			t.Errorf("error = %v; want it to wrap tmuxerr.ErrUnaddressableSessionName", err)
+		}
+		if !errors.Is(err, tmux.ErrSessionNameFlagPrefix) {
+			t.Errorf("error = %v; want it to wrap tmux.ErrSessionNameFlagPrefix", err)
+		}
+		if !strings.Contains(err.Error(), `"-"`) {
+			t.Errorf("refusal message %q does not name the offending %q character", err.Error(), "-")
+		}
+	})
+
+	t.Run("it accepts a hyphen that is not the first character", func(t *testing.T) {
+		if err := tmux.ValidateSessionName("my-cool-app-abc123"); err != nil {
+			t.Errorf(`ValidateSessionName("my-cool-app-abc123") = %v; want nil`, err)
+		}
+	})
+
+	t.Run("it refuses the rename before composing the tmux argv", func(t *testing.T) {
+		mock := commandertest.Quiet()
+		client := tmux.NewClient(mock)
+
+		err := client.RenameSession("old-name", "-bar")
+
+		if err == nil {
+			t.Fatal("RenameSession to a hyphen-leading name returned nil; want a refusal")
+		}
+		if !errors.Is(err, tmux.ErrSessionNameFlagPrefix) {
+			t.Errorf("error = %v; want it to wrap tmux.ErrSessionNameFlagPrefix", err)
+		}
+		if len(mock.Calls()) != 0 {
+			t.Errorf("refused rename issued %d tmux calls (%v); want none", len(mock.Calls()), mock.Calls())
+		}
+	})
+}

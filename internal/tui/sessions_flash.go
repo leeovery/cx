@@ -53,11 +53,12 @@ func formatSessionGoneFlash(name string) string {
 	return fmt.Sprintf(`session "%s" no longer exists`, name)
 }
 
-// The band's own voice for each rename refusal. Neither carries a ⚠ glyph — the
+// The band's own voice for each rename refusal. None carries a ⚠ glyph — the
 // warning band prepends one.
 const (
-	renameSeparatorRefusedFlash = `":" isn't allowed in a session name — tmux reads it as a separator`
-	renameIDPrefixRefusedFlash  = `"$" isn't allowed at the start of a session name — tmux reads it as a session ID`
+	renameSeparatorRefusedFlash  = `":" isn't allowed in a session name — tmux reads it as a separator`
+	renameIDPrefixRefusedFlash   = `"$" isn't allowed at the start of a session name — tmux reads it as a session ID`
+	renameFlagPrefixRefusedFlash = `"-" isn't allowed at the start of a session name — tmux reads it as a command flag`
 )
 
 // renameRefusalFlash picks the band's wording from the rule the validator
@@ -65,6 +66,9 @@ const (
 func renameRefusalFlash(err error) string {
 	if errors.Is(err, tmux.ErrSessionNameIDPrefix) {
 		return renameIDPrefixRefusedFlash
+	}
+	if errors.Is(err, tmux.ErrSessionNameFlagPrefix) {
+		return renameFlagPrefixRefusedFlash
 	}
 	return renameSeparatorRefusedFlash
 }

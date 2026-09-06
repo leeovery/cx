@@ -73,19 +73,26 @@ const targetSeparator = ":"
 // Only a leading occurrence carries this meaning.
 const sessionIDPrefix = "$"
 
-// ErrSessionNameSeparator and ErrSessionNameIDPrefix report which rule refused a
-// name; discriminate with errors.Is when the answer selects wording of its own. A
-// refusal wraps one of them alongside ErrUnaddressableSessionName, so a caller
-// that only cares that the name is unaddressable still matches. Each carries the
-// clause it contributes to the refusal message rather than a heading of its own,
-// so nothing is said twice.
+// flagPrefix leads a command-line flag. A session name is passed to tmux as a
+// bare positional in places, where a leading occurrence is parsed as a flag
+// rather than as the name — rename-session answers one with "unknown flag".
+const flagPrefix = "-"
+
+// ErrSessionNameSeparator, ErrSessionNameIDPrefix and ErrSessionNameFlagPrefix
+// report which rule refused a name; discriminate with errors.Is when the answer
+// selects wording of its own. A refusal wraps one of them alongside
+// ErrUnaddressableSessionName, so a caller that only cares that the name is
+// unaddressable still matches. Each carries the clause it contributes to the
+// refusal message rather than a heading of its own, so nothing is said twice.
 var (
-	ErrSessionNameSeparator = fmt.Errorf("contains %q, which tmux reserves as a target separator", targetSeparator)
-	ErrSessionNameIDPrefix  = fmt.Errorf("begins with %q, which tmux reserves as a session ID prefix", sessionIDPrefix)
+	ErrSessionNameSeparator  = fmt.Errorf("contains %q, which tmux reserves as a target separator", targetSeparator)
+	ErrSessionNameIDPrefix   = fmt.Errorf("begins with %q, which tmux reserves as a session ID prefix", sessionIDPrefix)
+	ErrSessionNameFlagPrefix = fmt.Errorf("begins with %q, which tmux reads as a command flag", flagPrefix)
 )
 
-// ValidateSessionName reports whether a session name can be addressed by the
-// exact-match target every per-session operation composes. The returned error
+// ValidateSessionName reports whether a session name can be handed back to tmux —
+// addressed by the exact-match target every per-session operation composes, and
+// carried as the bare positional a rename passes it as. The returned error
 // wraps ErrUnaddressableSessionName plus the sentinel for the rule that refused,
 // and names the offending character, so a caller can surface the refusal verbatim
 // or choose wording of its own.
@@ -95,6 +102,9 @@ func ValidateSessionName(name string) error {
 	}
 	if strings.HasPrefix(name, sessionIDPrefix) {
 		return fmt.Errorf("%w: %q %w", ErrUnaddressableSessionName, name, ErrSessionNameIDPrefix)
+	}
+	if strings.HasPrefix(name, flagPrefix) {
+		return fmt.Errorf("%w: %q %w", ErrUnaddressableSessionName, name, ErrSessionNameFlagPrefix)
 	}
 	return nil
 }
