@@ -353,7 +353,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 9,
-          "current_task": "resume-hooks-silently-lost-9-9",
+          "current_task": "resume-hooks-silently-lost-9-10",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -521,7 +521,8 @@
             "resume-hooks-silently-lost-9-5",
             "resume-hooks-silently-lost-9-6",
             "resume-hooks-silently-lost-9-7",
-            "resume-hooks-silently-lost-9-8"
+            "resume-hooks-silently-lost-9-8",
+            "resume-hooks-silently-lost-9-9"
           ],
           "staging": {
             "p1": {
@@ -977,6 +978,17 @@
                 "internal/hookstest/staging.go",
                 "internal/hooks/cleanstale_read_sentinel_test.go",
                 "cmd/run_hook_stale_cleanup_read_failure_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-9-9",
+              "source": "reviewer",
+              "summary": "sweepFailedStandDownPhrase carries StandDown in its name while its own doc says it is deliberately not one.",
+              "detail": "The contradiction is a residual of this task remedy, not an executor error — the Do list named the identifier verbatim. Clearing it is one rename across cmd/run_hook_stale_cleanup.go:73, cmd/doctor.go:224 and cmd/run_hook_stale_cleanup_one_component_test.go:119, with no copy change. The name asserting membership in a vocabulary the type excludes is the same species of drift this task removed.",
+              "files": [
+                "cmd/run_hook_stale_cleanup.go",
+                "cmd/doctor.go",
+                "cmd/run_hook_stale_cleanup_one_component_test.go"
               ]
             }
           ]
