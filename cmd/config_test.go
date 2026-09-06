@@ -9,9 +9,10 @@ import (
 )
 
 func TestConfigFilePath(t *testing.T) {
-	// Pin HOME to a temp dir in any subtest that resolves the default location:
-	// the non-overridden path runs the one-shot Application Support migration,
-	// which against the ambient home would move the developer's real config files.
+	// TestMain poisons HOME package-wide, so a subtest resolving the default
+	// location can never reach the developer's files. Pinning a temp HOME of its
+	// own buys a subtest a home no other subtest writes into, which is what lets
+	// it assert on the exact path and on what the migration moved there.
 	t.Run("it resolves projects.json under the temp home when XDG_CONFIG_HOME is empty", func(t *testing.T) {
 		homeDir := t.TempDir()
 		t.Setenv("HOME", homeDir)
