@@ -64,7 +64,7 @@ func runDaemonTick(
 					hash uint64
 				)
 				if !opts.emptyScrollback {
-					target := tmux.PaneTarget(sess.Name, win.Index, pane.Index)
+					target := tmux.PaneTargetExact(sess.Name, win.Index, pane.Index)
 					data, hash, err = state.CaptureAndHashPane(client, target)
 					if err != nil {
 						t.Fatalf("CaptureAndHashPane %s: %v", target, err)

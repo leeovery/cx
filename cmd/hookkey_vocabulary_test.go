@@ -123,7 +123,7 @@ type mockKeyResolver struct {
 	calls int
 }
 
-func (m *mockKeyResolver) ResolveHookKey(_ string) (string, error) {
+func (m *mockKeyResolver) ResolveHookKey(_ tmux.Target) (string, error) {
 	m.calls++
 	return m.key, m.err
 }
@@ -131,7 +131,7 @@ func (m *mockKeyResolver) ResolveHookKey(_ string) (string, error) {
 // paneStampCall is one recorded set-option -p, kept whole so a test can assert
 // the option name and value as well as the target.
 type paneStampCall struct {
-	target string
+	target tmux.Target
 	name   string
 	value  string
 }
@@ -146,7 +146,7 @@ type recordingPaneStamper struct {
 	onCall func()
 }
 
-func (r *recordingPaneStamper) SetPaneOption(target, name, value string) error {
+func (r *recordingPaneStamper) SetPaneOption(target tmux.Target, name, value string) error {
 	if r.onCall != nil {
 		r.onCall()
 	}
@@ -161,9 +161,9 @@ type stampedPane struct {
 	stamps []paneStampCall
 }
 
-func (p *stampedPane) ResolveHookKey(_ string) (string, error) { return p.token, nil }
+func (p *stampedPane) ResolveHookKey(_ tmux.Target) (string, error) { return p.token, nil }
 
-func (p *stampedPane) SetPaneOption(target, name, value string) error {
+func (p *stampedPane) SetPaneOption(target tmux.Target, name, value string) error {
 	p.stamps = append(p.stamps, paneStampCall{target: target, name: name, value: value})
 	p.token = value
 	return nil

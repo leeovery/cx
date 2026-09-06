@@ -2615,6 +2615,26 @@ func TestAttachConnectorConnectArgv(t *testing.T) {
 			t.Errorf("argv = %v, want %v", rec.argv, want)
 		}
 	})
+
+	// The argv is exec'd rather than run through the client, so it spends its
+	// target as a plain string — the pinning must still come from the typed
+	// constructor rather than from a second spelling of the same prefix.
+	t.Run("it pins a hand-composed exec-chain target through the typed constructor", func(t *testing.T) {
+		rec := &recordingExecer{}
+		ac := &AttachConnector{
+			execer:   rec,
+			tmuxPath: "/usr/bin/tmux",
+		}
+
+		if err := ac.Connect("foo"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		want := []string{"tmux", "attach-session", "-t", string(tmux.CoordTargetExact("foo"))}
+		if !slices.Equal(rec.argv, want) {
+			t.Errorf("argv = %v, want %v", rec.argv, want)
+		}
+	})
 }
 
 func assertResolveAttr(t *testing.T, rec logtest.Record, key, want string) {

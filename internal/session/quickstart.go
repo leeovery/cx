@@ -60,9 +60,12 @@ func (qs *QuickStart) Run(path string, command []string) (*QuickStartResult, err
 	if prepared.ShellCmd != "" {
 		execArgs = append(execArgs, prepared.ShellCmd)
 	}
+	// Spent as a string because the chain is an argv the tmux client does not
+	// run; the pinning is the constructor's, not this slice's.
+	target := string(tmux.CoordTargetExact(prepared.SessionName))
 	execArgs = append(execArgs,
-		";", "set-option", "-t", tmux.CoordTargetExact(prepared.SessionName), PortalDirOption, prepared.ResolvedDir,
-		";", "attach-session", "-t", tmux.CoordTargetExact(prepared.SessionName),
+		";", "set-option", "-t", target, PortalDirOption, prepared.ResolvedDir,
+		";", "attach-session", "-t", target,
 	)
 
 	return &QuickStartResult{

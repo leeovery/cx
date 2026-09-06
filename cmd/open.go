@@ -90,7 +90,9 @@ func (ac *AttachConnector) Connect(name string) error {
 	// separator: without it a period-bearing name is split into window and pane
 	// and any live session whose name extends the pre-period component answers
 	// instead.
-	argv := []string{"tmux", "attach-session", "-t", tmux.CoordTargetExact(name)}
+	// Spent as a string because this argv is exec'd directly rather than run
+	// through the client; the pinning is the constructor's, not this slice's.
+	argv := []string{"tmux", "attach-session", "-t", string(tmux.CoordTargetExact(name))}
 
 	logExecHandoff(argv)
 

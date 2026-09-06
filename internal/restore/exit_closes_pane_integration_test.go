@@ -121,7 +121,7 @@ func setupExitClosesPane(t *testing.T, hookCmd string) (string, *tmuxtest.Socket
 	ts.WaitForSession(t, sessionName, 2*time.Second)
 
 	const paneToken = "exitClosesPaneToken"
-	paneTarget := tmux.PaneTarget(sessionName, 0, 0)
+	paneTarget := tmux.PaneTargetExact(sessionName, 0, 0)
 	ts.StampPaneToken(t, paneTarget, paneToken)
 
 	idx, err := state.CaptureStructure(client, nil, nil, nil)

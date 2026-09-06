@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/session"
+	"github.com/leeovery/portal/internal/tmux"
 )
 
 // Both per-session steps of the chain take a target tmux parses as a window or
@@ -24,6 +25,17 @@ func TestQuickStartTargetsAreExact(t *testing.T) {
 		result, name := runQuickStart(t)
 
 		assertContainsSubseq(t, result.ExecArgs, []string{"attach-session", "-t", "=" + name + ":"})
+	})
+
+	// The chain is exec'd rather than run through the client, so it spends its
+	// targets as plain strings — the pinning must still come from the typed
+	// constructor rather than from a second spelling of the same prefix.
+	t.Run("it pins a hand-composed exec-chain target through the typed constructor", func(t *testing.T) {
+		result, name := runQuickStart(t)
+
+		pinned := string(tmux.CoordTargetExact(name))
+		assertContainsSubseq(t, result.ExecArgs, []string{"set-option", "-t", pinned})
+		assertContainsSubseq(t, result.ExecArgs, []string{"attach-session", "-t", pinned})
 	})
 }
 

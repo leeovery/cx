@@ -83,7 +83,7 @@ func TestHookKeyDurability_RespawnPane(t *testing.T) {
 	before := probe.location
 
 	// Restore arms every pane this way, so the stamp has to outlive it.
-	if err := client.RespawnPane(probe.paneID, "sleep 30"); err != nil {
+	if err := client.RespawnPane(tmux.PaneIDTarget(probe.paneID), "sleep 30"); err != nil {
 		t.Fatalf("RespawnPane(%q): %v", probe.paneID, err)
 	}
 
@@ -106,7 +106,7 @@ func TestHookKeyDurability_NoInheritance(t *testing.T) {
 
 	t.Run("it does not inherit the token into a split", func(t *testing.T) {
 		before := sessionPaneIDs(t, ts, sessionName)
-		if err := client.SplitWindow(probe.paneID, "", ""); err != nil {
+		if err := client.SplitWindow(tmux.PaneIDTarget(probe.paneID), "", ""); err != nil {
 			t.Fatalf("SplitWindow(%q): %v", probe.paneID, err)
 		}
 		probe.assertCreatedPaneCarriesNoToken(t, newPaneID(t, before, sessionPaneIDs(t, ts, sessionName)))
@@ -145,17 +145,17 @@ func newStampedPaneFixture(t *testing.T, sessionName, token string) (*tmuxtest.S
 		ts.Run(t, "set-option", "-g", "renumber-windows", "on")
 
 		for range 2 {
-			if err := client.NewWindow(sessionName, "", "", ""); err != nil {
+			if err := client.NewWindow(tmux.Target(sessionName), "", "", ""); err != nil {
 				t.Fatalf("NewWindow(%q): %v", sessionName, err)
 			}
 		}
-		if err := client.SplitWindow(sessionName+":1", "", ""); err != nil {
+		if err := client.SplitWindow(tmux.Target(sessionName+":1"), "", ""); err != nil {
 			t.Fatalf("SplitWindow(%q): %v", sessionName+":1", err)
 		}
 	}))
 
 	paneID := paneIDAt(t, ts, sessionName+":1.1")
-	ts.StampPaneToken(t, paneID, token)
+	ts.StampPaneToken(t, tmux.PaneIDTarget(paneID), token)
 
 	probe := &paneTokenProbe{client: client, paneID: paneID, token: token}
 	probe.location = probe.tokenRow(t).Location
@@ -185,7 +185,7 @@ func (p *paneTokenProbe) tokenRow(t *testing.T) tmux.PaneHookRow {
 
 func (p *paneTokenProbe) assertResolvesToToken(t *testing.T) {
 	t.Helper()
-	resolved, err := p.client.ResolveHookKey(p.paneID)
+	resolved, err := p.client.ResolveHookKey(tmux.PaneIDTarget(p.paneID))
 	if err != nil {
 		t.Fatalf("ResolveHookKey(%q): %v", p.paneID, err)
 	}
@@ -212,7 +212,7 @@ func (p *paneTokenProbe) assertSurvivedMove(t *testing.T) tmux.PaneHookRow {
 // live, carries no token of its own, and left the stamped pane the sole holder.
 func (p *paneTokenProbe) assertCreatedPaneCarriesNoToken(t *testing.T, createdPaneID string) {
 	t.Helper()
-	resolved, err := p.client.ResolveHookKey(createdPaneID)
+	resolved, err := p.client.ResolveHookKey(tmux.PaneIDTarget(createdPaneID))
 	if err != nil {
 		t.Fatalf("ResolveHookKey(%q) on the created pane: %v", createdPaneID, err)
 	}

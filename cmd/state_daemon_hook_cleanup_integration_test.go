@@ -97,8 +97,8 @@ func TestDaemon_ThrottledHookCleanup_ReapsStaleRetainsLiveOnIdleServer(t *testin
 	// the daemon's enumeration reports.
 	sock.Run(t, "new-session", "-d", "-s", liveWorkSession, "sh", "-c", "exec tail -f /dev/null")
 	livePaneTarget := liveWorkSession + ":0.0"
-	sock.StampPaneToken(t, livePaneTarget, hookstest.LiveSeedA)
-	liveHookKey := sock.ReadPaneToken(t, livePaneTarget)
+	sock.StampPaneToken(t, tmux.Target(livePaneTarget), hookstest.LiveSeedA)
+	liveHookKey := sock.ReadPaneToken(t, tmux.Target(livePaneTarget))
 	if liveHookKey != hookstest.LiveSeedA {
 		t.Fatalf("live pane token = %q, want %q (the stamp did not land)", liveHookKey, hookstest.LiveSeedA)
 	}

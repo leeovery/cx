@@ -90,11 +90,11 @@ func TestSocket_SendKeys(t *testing.T) {
 		s.SendKeys(t, tmux.PaneTargetExact("keys", 0, 0), "echo socket-marker")
 
 		landed := harnesstest.PollUntil(t, 2*time.Second, 20*time.Millisecond, func() bool {
-			return strings.Contains(s.Run(t, "capture-pane", "-p", "-t", tmux.PaneTargetExact("keys", 0, 0)), "socket-marker")
+			return strings.Contains(s.Run(t, "capture-pane", "-p", "-t", string(tmux.PaneTargetExact("keys", 0, 0))), "socket-marker")
 		})
 		if !landed {
 			t.Fatalf("sent keys never appeared in the fixture pane; capture-pane=%q",
-				s.Run(t, "capture-pane", "-p", "-t", tmux.PaneTargetExact("keys", 0, 0)))
+				s.Run(t, "capture-pane", "-p", "-t", string(tmux.PaneTargetExact("keys", 0, 0))))
 		}
 	})
 

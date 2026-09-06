@@ -73,9 +73,9 @@ func (s *Socket) TryRun(args ...string) (string, error) {
 // SendKeys types keys into the pane addressed by target and follows them with
 // Enter, so the pane runs them as a command rather than leaving them at its
 // prompt. It runs on the fixture's own socket, never the ambient server.
-func (s *Socket) SendKeys(t *testing.T, target, keys string) {
+func (s *Socket) SendKeys(t *testing.T, target tmux.Target, keys string) {
 	t.Helper()
-	s.Run(t, "send-keys", "-t", target, keys, "Enter")
+	s.Run(t, "send-keys", "-t", string(target), keys, "Enter")
 }
 
 // KillServer tears down the isolated tmux server. Errors are ignored: an
@@ -125,7 +125,7 @@ func (s *Socket) WaitForSession(t harnesstest.TestingT, name string, timeout tim
 	t.Helper()
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		out, err := s.TryRun("has-session", "-t", tmux.CoordTargetExact(name))
+		out, err := s.TryRun("has-session", "-t", string(tmux.CoordTargetExact(name)))
 		if err == nil {
 			return
 		}

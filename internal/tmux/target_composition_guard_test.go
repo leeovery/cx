@@ -102,31 +102,26 @@ var exactTargetHelpers = map[string]bool{
 	"CoordTargetExact":   true,
 	"windowTargetExact":  true,
 	"PaneTargetExact":    true,
+	"PaneIDTarget":       true,
 }
 
-// passThroughTargetParams names the parameters and named results that hold an
-// already-composed target. A parameter's provenance is its caller's, which this
-// scan checks wherever that caller sits in one of the derived packages; a named
-// result's provenance is the declaring body itself, which the scan does not
-// check.
-// The allow-list is deliberately narrow rather than "any parameter": a function
-// taking a session *name* must still pin it, which is what makes a bare
-// `-t name` a finding rather than a pass-through. Widening it is the point at
-// which someone has to justify a new unexamined target.
-//
-// It does double duty. It exempts these parameters where they are spent on an
-// argv, and it is also how a function that takes an already-composed target is
-// recognised, so its call sites are held to the same rule. Recognition reads function
-// declarations alone, so a parameter declared by a function value is exempt
-// where it is spent without that value's call sites being checked.
-var passThroughTargetParams = map[string]bool{
-	"target": true,
-	"paneID": true,
+// targetTypeNames are the ways the composed-target type is spelled in a
+// signature: bare inside internal/tmux, qualified everywhere else. A parameter
+// declared with it holds a target the compiler has already vouched for, so the
+// scan takes it at its word — which is what lets a parameter be named for what
+// it holds rather than for what a source scan will recognise.
+var targetTypeNames = map[string]bool{
+	"Target":      true,
+	"tmux.Target": true,
 }
 
-// TestTmuxTargetsAreComposedThroughTheExactnessVocabulary is the standing guard:
-// the exactness rule has been rediscovered a call site at a time, so it is
-// enforced here rather than left to whoever writes the next one.
+// TestTmuxTargetsAreComposedThroughTheExactnessVocabulary is the standing guard
+// over the residue the Target type cannot express. The type refuses a computed
+// string where a target is required, and that is the whole of what it refuses:
+// an untyped constant converts to a Target implicitly, an explicit conversion
+// converts anything at all, and an argv is a []string all the way down, so a
+// literal "-t" followed by a concatenation never meets the type in the first
+// place. Both rules below are read against that residue.
 func TestTmuxTargetsAreComposedThroughTheExactnessVocabulary(t *testing.T) {
 	findings := scanBareTargets(t, targetComposingPackages(t))
 	for _, finding := range findings {
@@ -169,33 +164,6 @@ func probeAddressSession(name string) { probeRun("has-session", "-t", name) }
 			t.Errorf("finding %v does not name the staged probe", findings[0])
 		}
 	})
-
-	t.Run("it flags a bare target spent through a non-method helper in cmd", func(t *testing.T) {
-		dirs := targetComposingPackages(t)
-		cmdDir := targetComposingPackageDirs(t)[cmdImportPath]
-		probed := stagePackageWithProbe(t, cmdDir, `package cmd
-
-func probeRun(args ...string) {}
-
-func probeAddressSession(target string) { probeRun("has-session", "-t", target) }
-
-func probeSpendSession(name string) { probeAddressSession(name + ":") }
-`)
-		cmdAt := slices.Index(dirs, cmdDir)
-		if cmdAt < 0 {
-			t.Fatalf("the derived package set %v holds no cmd directory to stage a probe over", dirs)
-		}
-		dirs[cmdAt] = probed
-
-		findings := scanBareTargets(t, dirs)
-		if len(findings) != 1 {
-			t.Fatalf("scan of the derived set with one helper-spent bare target staged in cmd found %d findings, want 1: %v",
-				len(findings), findings)
-		}
-		if !strings.Contains(findings[0].pos, probeFileName) {
-			t.Errorf("finding %v does not name the staged probe", findings[0])
-		}
-	})
 }
 
 const probeFileName = "zz_probe.go"
@@ -232,62 +200,37 @@ func TestBareTargetGuard_FlagsAPackageComposingABareTarget(t *testing.T) {
 
 import "fmt"
 
-type Client struct{}
-
-func (c *Client) SplitWindow(target, cwd string) error { return nil }
-
 func run(args ...string) {}
+
+type Target string
+
+func SelectPane(target Target) { run("select-pane", "-t", string(target)) }
 
 var stagedArgs = []string{"kill-session", "-t", "some-name"}
 
-func addressSession(c *Client, name string) {
+func addressSession(name string) {
 	bare := name + "-2"
 	run("has-session", "-t", bare)
 	run("kill-session", "-t", fmt.Sprintf("%s:", name))
 	args := []string{"new-window", "-t", name + ":"}
 	run(args...)
-	_ = c.SplitWindow(name+":", "/tmp")
 }
 `)
 
 		findings := scanBareTargets(t, []string{dir})
-		if len(findings) != 5 {
-			t.Fatalf("scan found %d bare targets, want 5: %v", len(findings), findings)
-		}
-	})
-
-	t.Run("it flags a bare target composed in a non-method helper", func(t *testing.T) {
-		dir := writeFixturePackage(t, `package fixture
-
-type Client struct{}
-
-func (c *Client) SelectPane(target string) { run("select-pane", "-t", target) }
-
-func run(args ...string) {}
-
-func addressSession(target string) { run("has-session", "-t", target) }
-
-func spendSession(name string) { addressSession(name + ":") }
-`)
-
-		findings := scanBareTargets(t, []string{dir})
-		if len(findings) != 1 {
-			t.Fatalf("scan of a bare target spent through a non-method helper found %d findings, want 1: %v",
-				len(findings), findings)
-		}
-		if findings[0].detail != "the target passed to addressSession is composed by hand — "+routeItThrough {
-			t.Errorf("finding %v does not name the helper the bare target was passed to", findings[0])
+		if len(findings) != 4 {
+			t.Fatalf("scan found %d bare targets, want 4: %v", len(findings), findings)
 		}
 	})
 
 	t.Run("it flags a target split across the end of an argv", func(t *testing.T) {
 		dir := writeFixturePackage(t, `package fixture
 
-type Client struct{}
-
-func (c *Client) SelectPane(target string) { run("select-pane", "-t", target) }
-
 func run(args ...string) {}
+
+type Target string
+
+func SelectPane(target Target) { run("select-pane", "-t", string(target)) }
 
 func addressSession(name string) {
 	args := []string{"kill-session", "-t"}
@@ -304,38 +247,14 @@ func addressSession(name string) {
 		}
 	})
 
-	t.Run("it flags every position two same-named target takers declare", func(t *testing.T) {
+	t.Run("it flags a hand-composed target laundered through a local", func(t *testing.T) {
 		dir := writeFixturePackage(t, `package fixture
-
-type Client struct{}
-
-func (c *Client) stampPaneToken(session, paneKey, target, token string) {}
-
-func stampPaneToken(paneID string) {}
 
 func run(args ...string) {}
 
-func addressSession(c *Client, target, name string) {
-	stampPaneToken(name + ":")
-	c.stampPaneToken(target, "key", name+":", "token")
-}
-`)
+type Target string
 
-		findings := scanBareTargets(t, []string{dir})
-		if len(findings) != 2 {
-			t.Fatalf("scan of two same-named takers each handed a bare target found %d findings, want 2: %v",
-				len(findings), findings)
-		}
-	})
-
-	t.Run("it flags a hand-composed target assigned to a local of a pass-through name", func(t *testing.T) {
-		dir := writeFixturePackage(t, `package fixture
-
-type Client struct{}
-
-func (c *Client) SelectPane(target string) { run("select-pane", "-t", target) }
-
-func run(args ...string) {}
+func SelectPane(target Target) { run("select-pane", "-t", string(target)) }
 
 func addressSession(name string) {
 	target := name + ":"
@@ -353,27 +272,180 @@ func addressSession(name string) {
 		}
 	})
 
-	t.Run("it passes a target held by a local of the vocabulary's own name", func(t *testing.T) {
-		dir := writeFixturePackage(t, `package fixture
+	// The vocabulary's own package composes its targets out of string pieces and
+	// hands them to the commander as an argv, so nothing there passes through a
+	// Target parameter for the type to judge.
+	t.Run("it fails the reduced source guard when a target is concatenated inside the tmux package", func(t *testing.T) {
+		dir := writeFixturePackage(t, `package tmux
 
-type Client struct{}
-
-func (c *Client) SelectPane(target string) { run("select-pane", "-t", target) }
+type Target string
 
 func run(args ...string) {}
 
-func resolveCurrentPane() (string, string, error) { return "", "", nil }
+func CoordTargetExact(session string) Target { return Target("=" + session + ":") }
 
-var addressSession = &struct{ RunE func() error }{
-	RunE: func() error {
-		key, target, err := resolveCurrentPane()
-		if err != nil {
-			return err
+func SelectPane(target Target) { run("select-pane", "-t", string(target)) }
+
+func addressSession(session string) {
+	run("kill-session", "-t", "="+session+":")
+}
+`)
+
+		findings := scanBareTargets(t, []string{dir})
+		if len(findings) != 1 {
+			t.Fatalf("scan of a concatenated target inside the tmux package found %d findings, want 1: %v",
+				len(findings), findings)
 		}
-		_ = key
-		run("has-session", "-t", target)
-		return nil
-	},
+	})
+
+	// The two shapes the type admits: a constant is untyped until it is used, and
+	// a conversion converts whatever it is given.
+	t.Run("it flags an untyped constant handed to a target parameter", func(t *testing.T) {
+		dir := writeFixturePackage(t, `package fixture
+
+type Target string
+
+const SaverName = "_portal-saver"
+
+func CoordTargetExact(session string) Target { return Target("=" + session + ":") }
+
+func RespawnPane(target Target, command string) {}
+
+func armSaver() { RespawnPane(SaverName, "portal state daemon") }
+`)
+
+		findings := scanBareTargets(t, []string{dir})
+		if len(findings) != 1 {
+			t.Fatalf("scan of an untyped constant handed to a target parameter found %d findings, want 1: %v",
+				len(findings), findings)
+		}
+		if findings[0].detail != "the target passed to RespawnPane is composed by hand — "+routeItThrough {
+			t.Errorf("finding %v does not name the parameter the constant reached", findings[0])
+		}
+	})
+
+	t.Run("it flags a hand-composed target converted to the target type", func(t *testing.T) {
+		dir := writeFixturePackage(t, `package fixture
+
+type Target string
+
+func CoordTargetExact(session string) Target { return Target("=" + session + ":") }
+
+func SetPaneOption(target Target, name, value string) {}
+
+func stamp(name string) { SetPaneOption(Target(name+":"), "@portal-pane-id", "tok") }
+`)
+
+		findings := scanBareTargets(t, []string{dir})
+		if len(findings) != 1 {
+			t.Fatalf("scan of a conversion handed to a target parameter found %d findings, want 1: %v",
+				len(findings), findings)
+		}
+		if findings[0].detail != "the target passed to SetPaneOption is composed by hand — "+routeItThrough {
+			t.Errorf("finding %v does not name the parameter the conversion reached", findings[0])
+		}
+	})
+
+	t.Run("it passes a target parameter handed the vocabulary's own output", func(t *testing.T) {
+		dir := writeFixturePackage(t, `package fixture
+
+type Target string
+
+func CoordTargetExact(session string) Target { return Target("=" + session + ":") }
+
+func SplitWindow(target Target, cwd string) {}
+
+func splitTwice(name string) {
+	SplitWindow(CoordTargetExact(name), "/tmp")
+	pinned := CoordTargetExact(name)
+	SplitWindow(pinned, "/tmp")
+}
+
+func splitThrough(liveTarget Target) { SplitWindow(liveTarget, "/tmp") }
+`)
+
+		findings := scanBareTargets(t, []string{dir})
+		if len(findings) != 0 {
+			t.Errorf("scan flagged %v, want nothing", findings)
+		}
+	})
+
+	// A multi-valued call hands one right-hand side to several identifiers, so
+	// only the target-typed result position may be spent as a target — its
+	// siblings are strings like any other, and the position must be read behind
+	// unnamed result fields as much as named ones.
+	t.Run("it flags the sibling of a multi-valued target result while passing the target itself", func(t *testing.T) {
+		const src = `package fixture
+
+type Target string
+
+func run(args ...string) {}
+
+func CoordTargetExact(session string) Target { return Target("=" + session + ":") }
+
+func SelectPane(target Target) { run("select-pane", "-t", string(target)) }
+
+func resolveCurrentPaneKey(name string) (string, Target, error) {
+	return "", CoordTargetExact(name), nil
+}
+
+func addressSession(name string) {
+	key, target, err := resolveCurrentPaneKey(name)
+	if err != nil {
+		return
+	}
+	run("has-session", "-t", key)
+	run("kill-session", "-t", string(target))
+}
+`
+		dir := writeFixturePackage(t, src)
+
+		findings := scanBareTargets(t, []string{dir})
+		if len(findings) != 1 {
+			t.Fatalf("scan of a multi-valued target result found %d findings, want 1 (the sibling alone): %v",
+				len(findings), findings)
+		}
+		if findings[0].detail != `the target after "-t" is composed by hand — `+routeItThrough {
+			t.Errorf("finding %v does not report the sibling as composed by hand", findings[0])
+		}
+		wantLine := lineOf(t, src, `run("has-session"`)
+		if !strings.Contains(findings[0].pos, fmt.Sprintf("fixture.go:%d:", wantLine)) {
+			t.Errorf("finding %v is not the sibling spent at fixture.go:%d", findings[0], wantLine)
+		}
+	})
+
+	t.Run("it passes a vocabulary target spent as a string on an argv the client does not run", func(t *testing.T) {
+		dir := writeFixturePackage(t, `package fixture
+
+type Target string
+
+func run(args ...string) {}
+
+func CoordTargetExact(session string) Target { return Target("=" + session + ":") }
+
+func SelectPane(target Target) { run("select-pane", "-t", string(target)) }
+
+func addressSession(name string) []string {
+	pinned := string(CoordTargetExact(name))
+	return []string{"tmux", "attach-session", "-t", pinned, "-t", string(CoordTargetExact(name))}
+}
+`)
+
+		findings := scanBareTargets(t, []string{dir})
+		if len(findings) != 0 {
+			t.Errorf("scan flagged %v, want nothing", findings)
+		}
+	})
+
+	t.Run("it passes a target held by a parameter declared as a tmux target, whatever it is named", func(t *testing.T) {
+		dir := writeFixturePackage(t, `package fixture
+
+import "github.com/leeovery/portal/internal/tmux"
+
+func run(args ...string) {}
+
+func addressPane(liveTarget tmux.Target) {
+	run("respawn-pane", "-k", "-t", string(liveTarget))
 }
 `)
 
@@ -386,24 +458,20 @@ var addressSession = &struct{ RunE func() error }{
 	t.Run("it passes a package composing every target through the vocabulary", func(t *testing.T) {
 		dir := writeFixturePackage(t, `package fixture
 
-type Client struct{}
-
-func (c *Client) SplitWindow(target, cwd string) error { return nil }
-
-func (c *Client) SelectPane(target string) { run("select-pane", "-t", target) }
-
 func run(args ...string) {}
+
+type Target string
+
+func SelectPane(target Target) { run("select-pane", "-t", string(target)) }
 
 func CoordTargetExact(session string) string { return "=" + session + ":" }
 
-func addressSession(c *Client, name string) {
+func addressSession(name string) {
 	run("has-session", "-t", CoordTargetExact(name))
 	target := CoordTargetExact(name)
 	run("kill-session", "-t", target)
 	args := []string{"split-window", "-t", target}
 	run(args...)
-	_ = c.SplitWindow(target, "/tmp")
-	_ = c.SplitWindow(CoordTargetExact(name), "/tmp")
 }
 `)
 
@@ -463,6 +531,20 @@ func addressSession(session string) { run("has-session", session) }
 	}
 }
 
+// lineOf returns the 1-based line of the first line in src holding needle, so a
+// fixture's expected position is derived from the source it is asserted against
+// rather than counted by hand.
+func lineOf(t *testing.T, src, needle string) int {
+	t.Helper()
+	for i, line := range strings.Split(src, "\n") {
+		if strings.Contains(line, needle) {
+			return i + 1
+		}
+	}
+	t.Fatalf("fixture source holds no line containing %q", needle)
+	return 0
+}
+
 func writeFixturePackage(t *testing.T, src string) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -479,14 +561,15 @@ type bareTargetFinding struct {
 
 func (f bareTargetFinding) String() string { return f.pos + ": " + f.detail }
 
-const routeItThrough = "route it through SessionTargetExact, CoordTargetExact, windowTargetExact or PaneTargetExact"
+const routeItThrough = "route it through SessionTargetExact, CoordTargetExact, windowTargetExact, PaneTargetExact or PaneIDTarget"
 
-// scanBareTargets reports every place in dirs where a tmux target the exactness
+// scanBareTargets reports every place in dirs where a target the exactness
 // vocabulary did not produce is spent: composed into an argv after a literal
-// "-t", or passed to a function that takes an already-composed target. The second
-// rule is what reaches a target composed in one package and flagged with "-t" in
-// another, which is the shape a hand-built "<session>:" takes on its way to
-// SplitWindow.
+// "-t", or passed to a parameter declared with the target type. The first rule
+// reaches the argv shape the type never sees at all — a client method building
+// its own argv, or a tmux command line the client never runs. The second reaches
+// the two shapes the type admits into a Target: an untyped constant, and an
+// explicit conversion.
 func scanBareTargets(t harnesstest.TestingT, dirs []string) []bareTargetFinding {
 	t.Helper()
 
@@ -508,31 +591,70 @@ func scanBareTargets(t harnesstest.TestingT, dirs []string) []bareTargetFinding 
 		t.Fatalf("no function taking an already-composed target was found, so nothing would be checked at a call site")
 		return nil
 	}
+	producers := targetReturningFuncs(files)
 
 	var findings []bareTargetFinding
 	for _, source := range sources {
-		findings = append(findings, scanFileForBareTargets(source.Fset, source.File, takers)...)
+		findings = append(findings, scanFileForBareTargets(source.Fset, source.File, takers, producers)...)
 	}
 	return findings
 }
 
-// targetTakingFuncs records, per function name, the argument positions holding
-// an already-composed target. Methods and plain functions alike are read, and
-// not only the tmux client's: a parameter named for a target is one wherever it
-// is declared, and a wider map only ever checks more call sites. Reading both narrows the gap
-// between what the rule exempts and what it recognises — the parameter is exempt
-// where it is spent in any function, so a function declaring it is checked at its
-// call sites too, or a bare target reaches tmux through a helper and is never
-// seen.
+// targetReturningFuncs records, per function name, the result positions declared
+// with the target type — the mirror of targetTakingFuncs, and how a target
+// arriving through a multi-valued call is recognised: there the right-hand side
+// is one call for several identifiers, so the position is what says which of
+// them holds the target. The declared type is what the position is read from,
+// which is narrower than provenance: a declaring body composing its result by
+// conversion is a shape no rule here reaches.
+func targetReturningFuncs(files []*ast.File) map[string][]int {
+	producers := map[string][]int{}
+	for _, file := range files {
+		for _, decl := range file.Decls {
+			fn, isFunc := decl.(*ast.FuncDecl)
+			if !isFunc {
+				continue
+			}
+			if positions := targetResultPositions(fn); len(positions) > 0 {
+				producers[fn.Name.Name] = unionPositions(producers[fn.Name.Name], positions)
+			}
+		}
+	}
+	return producers
+}
+
+func targetResultPositions(fn *ast.FuncDecl) []int {
+	if fn.Type.Results == nil {
+		return nil
+	}
+	var positions []int
+	pos := 0
+	for _, field := range fn.Type.Results.List {
+		typed := isTargetType(field.Type)
+		// An unnamed result occupies its position all the same.
+		width := max(len(field.Names), 1)
+		for range width {
+			if typed {
+				positions = append(positions, pos)
+			}
+			pos++
+		}
+	}
+	return positions
+}
+
+// targetTakingFuncs records, per function name, the argument positions declared
+// with the target type. Methods and plain functions alike are read, and not only
+// the tmux client's: a parameter typed Target holds a composed target wherever it
+// is declared, and a wider map only ever checks more call sites.
 //
 // A call site is matched on the callee's name alone, so two declarations sharing
 // a name — a method and a plain function, say — are one entry, and their
-// positions are unioned rather than overwritten: keeping only the last read
-// would drop the other's positions out of the rule while leaving its parameter
-// exempt, which is the asymmetry above by another route. The pooling is why an
-// unrelated function sharing a taker's name has its own arguments checked at
-// those positions; give the two operations distinct names rather than widening
-// the vocabulary to absorb the report.
+// positions are unioned rather than overwritten: keeping only the last read would
+// drop the other's positions out of the rule. The pooling is why an unrelated
+// function sharing a taker's name has its own arguments checked at those
+// positions; give the two operations distinct names rather than widening the
+// vocabulary to absorb the report.
 func targetTakingFuncs(files []*ast.File) map[string][]int {
 	takers := map[string][]int{}
 	for _, file := range files {
@@ -562,8 +684,9 @@ func targetParamPositions(fn *ast.FuncDecl) []int {
 	var positions []int
 	pos := 0
 	for _, field := range fn.Type.Params.List {
-		for _, name := range field.Names {
-			if passThroughTargetParams[name.Name] {
+		typed := isTargetType(field.Type)
+		for range field.Names {
+			if typed {
 				positions = append(positions, pos)
 			}
 			pos++
@@ -572,12 +695,12 @@ func targetParamPositions(fn *ast.FuncDecl) []int {
 	return positions
 }
 
-func scanFileForBareTargets(fset *token.FileSet, file *ast.File, takers map[string][]int) []bareTargetFinding {
+func scanFileForBareTargets(fset *token.FileSet, file *ast.File, takers, producers map[string][]int) []bareTargetFinding {
 	var findings []bareTargetFinding
 	check := func(pos token.Pos, call *ast.CallExpr, elems []ast.Expr) {
 		bound := map[string]bool{}
 		if decl := enclosingDecl(file, pos); decl != nil {
-			bound = boundTargets(decl)
+			bound = boundTargets(decl, producers)
 		}
 		findings = append(findings, bareTargetsIn(fset, elems, bound)...)
 		if call != nil {
@@ -633,7 +756,7 @@ func bareTargetsIn(fset *token.FileSet, elems []ast.Expr, bound map[string]bool)
 	return findings
 }
 
-// bareTargetArguments reports each argument handed to a target-taking function
+// bareTargetArguments reports each argument handed to a target-taking parameter
 // that the vocabulary did not produce. The callee is read through CalleeName, so
 // a plain function call reaches the rule as much as a method call does.
 func bareTargetArguments(fset *token.FileSet, call *ast.CallExpr, takers map[string][]int, bound map[string]bool) []bareTargetFinding {
@@ -654,19 +777,34 @@ func bareTargetArguments(fset *token.FileSet, call *ast.CallExpr, takers map[str
 	return findings
 }
 
+// targetIsExact reads through a string conversion first: a Target spent on an
+// argv is converted back at that argv, so the conversion is the shape the rule
+// meets rather than an exception to it.
 func targetIsExact(target ast.Expr, bound map[string]bool) bool {
+	target = unwrapStringConversion(target)
 	if ident, isIdent := target.(*ast.Ident); isIdent {
 		return bound[ident.Name]
 	}
 	return isExactTargetCall(target)
 }
 
-// boundTargets names the identifiers the declaration may spend as a target: the
-// pass-through names its signature declares, those its closures declare, and the
-// locals it assigns that the rule reads as already-composed. A declaration of any
-// kind is read, because a command body written as a function literal inside a
-// package-level var declares its pass-throughs there rather than in a signature.
-func boundTargets(decl ast.Decl) map[string]bool {
+func unwrapStringConversion(expr ast.Expr) ast.Expr {
+	call, isCall := expr.(*ast.CallExpr)
+	if !isCall || len(call.Args) != 1 {
+		return expr
+	}
+	if ident, isIdent := call.Fun.(*ast.Ident); isIdent && ident.Name == "string" {
+		return call.Args[0]
+	}
+	return expr
+}
+
+// boundTargets names the identifiers the declaration may spend as a target:
+// those its signatures declare with the target type, and the locals its
+// assignments bind (see bindAssignedTargets). A declaration of any kind is read,
+// because a command body written as a function literal inside a package-level
+// var declares its parameters there rather than in a signature.
+func boundTargets(decl ast.Decl, producers map[string][]int) map[string]bool {
 	bound := map[string]bool{}
 	if fn, isFunc := decl.(*ast.FuncDecl); isFunc {
 		bindSignature(bound, fn.Type)
@@ -676,16 +814,15 @@ func boundTargets(decl ast.Decl) map[string]bool {
 		case *ast.FuncLit:
 			bindSignature(bound, node.Type)
 		case *ast.AssignStmt:
-			bindAssignedTargets(bound, node)
+			bindAssignedTargets(bound, node, producers)
 		}
 		return true
 	})
 	return bound
 }
 
-// A named result carries the same word as a parameter would and is declared in
-// the same signature, so it is read the same way: a function returning a
-// composed target names it in its own signature rather than in its caller's.
+// A named result carries the target type as a parameter would and is declared in
+// the same signature, so it is read the same way.
 func bindSignature(bound map[string]bool, sig *ast.FuncType) {
 	bindFields(bound, sig.Params)
 	bindFields(bound, sig.Results)
@@ -696,32 +833,64 @@ func bindFields(bound map[string]bool, fields *ast.FieldList) {
 		return
 	}
 	for _, field := range fields.List {
+		if !isTargetType(field.Type) {
+			continue
+		}
 		for _, name := range field.Names {
-			if passThroughTargetParams[name.Name] {
-				bound[name.Name] = true
-			}
+			bound[name.Name] = true
 		}
 	}
 }
 
-// bindAssignedTargets binds the identifiers an assignment declares that the rule
-// reads as already-composed. Where the two sides pair up positionally, that is
-// an identifier assigned straight from the vocabulary, whatever it is named.
-// Where they do not — a multi-valued result, whose provenance no expression on
-// the right states — a pass-through name is taken at its word, as it is in a
-// signature.
+func isTargetType(expr ast.Expr) bool {
+	switch typ := expr.(type) {
+	case *ast.Ident:
+		return targetTypeNames[typ.Name]
+	case *ast.SelectorExpr:
+		pkg, isIdent := typ.X.(*ast.Ident)
+		return isIdent && targetTypeNames[pkg.Name+"."+typ.Sel.Name]
+	}
+	return false
+}
+
+// bindAssignedTargets binds the identifiers assigned straight from the
+// vocabulary, whatever they are named — the right-hand side says where the
+// target came from, so a rename cannot launder a hand-composed one into the set.
+// An identifier taking its value from anywhere else is left unbound and reported
+// where it is spent.
 //
-// The name is deliberately not read on a paired assignment: there the right-hand
-// side says what the target was composed from, so honouring the name would
-// launder a hand-composed one through a rename.
-func bindAssignedTargets(bound map[string]bool, assign *ast.AssignStmt) {
-	paired := len(assign.Lhs) == len(assign.Rhs)
+// A multi-valued call has one right-hand side for several identifiers, so there
+// the position of a target-typed result is what names the identifier holding a
+// target.
+func bindAssignedTargets(bound map[string]bool, assign *ast.AssignStmt, producers map[string][]int) {
+	if len(assign.Lhs) != len(assign.Rhs) {
+		bindMultiValuedTargets(bound, assign, producers)
+		return
+	}
 	for i, lhs := range assign.Lhs {
 		ident, isIdent := lhs.(*ast.Ident)
 		if !isIdent {
 			continue
 		}
-		if paired && isExactTargetCall(assign.Rhs[i]) || !paired && passThroughTargetParams[ident.Name] {
+		if isExactTargetCall(unwrapStringConversion(assign.Rhs[i])) {
+			bound[ident.Name] = true
+		}
+	}
+}
+
+func bindMultiValuedTargets(bound map[string]bool, assign *ast.AssignStmt, producers map[string][]int) {
+	if len(assign.Rhs) != 1 {
+		return
+	}
+	call, isCall := assign.Rhs[0].(*ast.CallExpr)
+	if !isCall {
+		return
+	}
+	for _, pos := range producers[sourceguardtest.CalleeName(call)] {
+		if pos >= len(assign.Lhs) {
+			continue
+		}
+		if ident, isIdent := assign.Lhs[pos].(*ast.Ident); isIdent {
 			bound[ident.Name] = true
 		}
 	}

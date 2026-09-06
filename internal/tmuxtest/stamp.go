@@ -5,13 +5,14 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/state"
+	"github.com/leeovery/portal/internal/tmux"
 )
 
 // StampPaneToken writes Portal's pane-token option onto target using raw tmux,
 // so a fixture never stages itself through the client call under test.
-func (s *Socket) StampPaneToken(t *testing.T, target, token string) {
+func (s *Socket) StampPaneToken(t *testing.T, target tmux.Target, token string) {
 	t.Helper()
-	s.Run(t, "set-option", "-p", "-t", target, state.PortalPaneIDOption, token)
+	s.Run(t, "set-option", "-p", "-t", string(target), state.PortalPaneIDOption, token)
 }
 
 // ReadPaneToken reads Portal's pane-token option back off target using raw
@@ -22,9 +23,9 @@ func (s *Socket) StampPaneToken(t *testing.T, target, token string) {
 // target no pane answers to, `display-message` exits 0 having fallen back to
 // the session's current pane (the `=` prefix does not change this), so it
 // would hand a fixture another pane's token instead of failing.
-func (s *Socket) ReadPaneToken(t *testing.T, target string) string {
+func (s *Socket) ReadPaneToken(t *testing.T, target tmux.Target) string {
 	t.Helper()
-	out, err := s.TryRun("show-options", "-p", "-t", target, "-v", state.PortalPaneIDOption)
+	out, err := s.TryRun("show-options", "-p", "-t", string(target), "-v", state.PortalPaneIDOption)
 	if err != nil {
 		return ""
 	}

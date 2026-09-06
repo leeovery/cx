@@ -85,7 +85,7 @@ func (c *Client) ServerRunning() bool {
 
 // HasSession is false both for an absent session and for no running server.
 func (c *Client) HasSession(name string) bool {
-	_, err := c.cmd.Run("has-session", "-t", CoordTargetExact(name))
+	_, err := c.cmd.Run("has-session", "-t", string(CoordTargetExact(name)))
 	return err == nil
 }
 
@@ -94,7 +94,7 @@ func (c *Client) HasSession(name string) bool {
 // fault returns (true, err), so a caller proceeds as if present and logs rather
 // than reporting the session missing.
 func (c *Client) HasSessionProbe(name string) (bool, error) {
-	_, err := c.cmd.Run("has-session", "-t", CoordTargetExact(name))
+	_, err := c.cmd.Run("has-session", "-t", string(CoordTargetExact(name)))
 	if err == nil {
 		return true, nil
 	}
@@ -229,15 +229,15 @@ func (c *Client) CurrentSessionName() (string, error) {
 // the second reads the token, which is empty for a live pane that has never
 // been stamped. An empty key is therefore a resolved pane with no hook identity
 // yet, never a pane that is gone.
-func (c *Client) ResolveHookKey(paneID string) (string, error) {
+func (c *Client) ResolveHookKey(paneID Target) (string, error) {
 	// The probe must name no option: show-options rejects an option the pane
 	// does not carry with the same exit status it rejects a missing pane, so
 	// naming one makes an un-stamped pane indistinguishable from a gone one.
-	if _, err := c.cmd.Run("show-options", "-p", "-t", paneID); err != nil {
+	if _, err := c.cmd.Run("show-options", "-p", "-t", string(paneID)); err != nil {
 		return "", fmt.Errorf("no pane answers to %q: %w", paneID, err)
 	}
 
-	output, err := c.cmd.Run("display-message", "-p", "-t", paneID, HookKeyFormat)
+	output, err := c.cmd.Run("display-message", "-p", "-t", string(paneID), HookKeyFormat)
 	if err != nil {
 		return "", fmt.Errorf("failed to resolve hook key for pane %q: %w", paneID, err)
 	}
@@ -261,7 +261,7 @@ func (c *Client) ResolveHookKey(paneID string) (string, error) {
 // connect to, say — wrapped with the session name and preserving the underlying
 // *CommandError for a caller that wants tmux's own words.
 func (c *Client) ActivePaneCurrentPath(session string) (string, error) {
-	output, err := c.cmd.Run("display-message", "-p", "-t", CoordTargetExact(session), "-F", "#{pane_current_path}")
+	output, err := c.cmd.Run("display-message", "-p", "-t", string(CoordTargetExact(session)), "-F", "#{pane_current_path}")
 	if err != nil {
 		return "", fmt.Errorf("failed to read active pane current path for session %q: %w", session, err)
 	}
@@ -269,7 +269,7 @@ func (c *Client) ActivePaneCurrentPath(session string) (string, error) {
 }
 
 func (c *Client) KillSession(name string) error {
-	_, err := c.cmd.Run("kill-session", "-t", CoordTargetExact(name))
+	_, err := c.cmd.Run("kill-session", "-t", string(CoordTargetExact(name)))
 	if err != nil {
 		return fmt.Errorf("failed to kill tmux session %q: %w", name, wrapSessionTargetErr(name, err))
 	}
@@ -285,7 +285,7 @@ func (c *Client) RenameSession(oldName, newName string) error {
 	if err := ValidateSessionName(newName); err != nil {
 		return fmt.Errorf("failed to rename tmux session %q to %q: %w", oldName, newName, err)
 	}
-	_, err := c.cmd.Run("rename-session", "-t", CoordTargetExact(oldName), newName)
+	_, err := c.cmd.Run("rename-session", "-t", string(CoordTargetExact(oldName)), newName)
 	if err != nil {
 		return fmt.Errorf("failed to rename tmux session %q to %q: %w", oldName, newName, wrapSessionTargetErr(oldName, err))
 	}
@@ -293,7 +293,7 @@ func (c *Client) RenameSession(oldName, newName string) error {
 }
 
 func (c *Client) SwitchClient(name string) error {
-	_, err := c.cmd.Run("switch-client", "-t", CoordTargetExact(name))
+	_, err := c.cmd.Run("switch-client", "-t", string(CoordTargetExact(name)))
 	if err != nil {
 		return fmt.Errorf("failed to switch to session %q: %w", name, wrapSessionTargetErr(name, err))
 	}
@@ -311,8 +311,8 @@ func (c *Client) SetServerOption(name, value string) error {
 // SetPaneOption sets a tmux option scoped to one pane. The option name comes
 // from the caller, and a target naming no live pane fails here rather than
 // silently succeeding.
-func (c *Client) SetPaneOption(target, name, value string) error {
-	_, err := c.cmd.Run("set-option", "-p", "-t", target, name, value)
+func (c *Client) SetPaneOption(target Target, name, value string) error {
+	_, err := c.cmd.Run("set-option", "-p", "-t", string(target), name, value)
 	if err != nil {
 		return fmt.Errorf("failed to set pane option %s on %s: %w", name, target, err)
 	}
@@ -323,7 +323,7 @@ func (c *Client) SetPaneOption(target, name, value string) error {
 // route global (-g) options through it: the -t scoping is what keeps the write
 // out of the global namespace.
 func (c *Client) SetSessionOption(session, name, value string) error {
-	_, err := c.cmd.Run("set-option", "-t", CoordTargetExact(session), name, value)
+	_, err := c.cmd.Run("set-option", "-t", string(CoordTargetExact(session)), name, value)
 	if err != nil {
 		return fmt.Errorf("failed to set session option %s on %s: %w", name, session, err)
 	}
@@ -389,6 +389,12 @@ func (c *Client) ShowAllServerOptions() (string, error) {
 	return out, nil
 }
 
+// Target is a composed tmux `-t` argument. The exactness vocabulary below is
+// the route that pins one, and a Target is spent back as a string at the argv
+// that consumes it — inside the client on its way to the commander, or in a
+// tmux command line the client never runs.
+type Target string
+
 type PaneCoord struct {
 	Window int
 	Pane   int
@@ -408,8 +414,8 @@ func PaneTarget(session string, window, pane int) string {
 // PaneTargetExact is the coordinate-bearing sibling of CoordTargetExact: the
 // "=" exact-match prefix a `-t` needs when its session may be gone, with the
 // window and pane spelled out. See PaneTarget.
-func PaneTargetExact(session string, window, pane int) string {
-	return fmt.Sprintf("=%s:%d.%d", session, window, pane)
+func PaneTargetExact(session string, window, pane int) Target {
+	return Target(fmt.Sprintf("=%s:%d.%d", session, window, pane))
 }
 
 // SessionTargetExact pins a session name for a `-t` that tmux parses as a
@@ -433,16 +439,14 @@ func PaneTargetExact(session string, window, pane int) string {
 // client does not run — an exec chain, say — pins its targets through the same
 // two forms rather than re-deriving the prefix.
 //
-// The four exact forms return a plain string, so a hand-composed one is
-// assignable wherever a pinned one is and only a name-based source scan tells
-// them apart. A named `type Target string` returned by these four and taken by
-// every `-t` parameter is the settled answer: it moves the rule into the type
-// system, where a laundered or reassigned target cannot pass. Landing it is a
-// signature change across the client's whole surface and its callers in cmd,
-// internal/state and internal/restore — deferred for that reach, not because
-// the string form is preferred.
-func SessionTargetExact(session string) string {
-	return "=" + session
+// The exact forms return Target, and every `-t` parameter takes one, so a
+// computed string does not type-check where a pinned target is required and
+// renaming a local cannot launder one into place. Two shapes still reach a
+// Target without the vocabulary — an untyped constant, which converts
+// implicitly, and an explicit conversion, which converts anything — so the type
+// carries the rule without closing it.
+func SessionTargetExact(session string) Target {
+	return Target("=" + session)
 }
 
 // CoordTargetExact pins a session name for a `-t` tmux parses as a window or
@@ -460,8 +464,17 @@ func SessionTargetExact(session string) string {
 // tmux's own default in place — the session's current window, and that window's
 // active pane — which is where a bare session name resolved to already. See
 // SessionTargetExact.
-func CoordTargetExact(session string) string {
-	return "=" + session + ":"
+func CoordTargetExact(session string) Target {
+	return Target("=" + session + ":")
+}
+
+// PaneIDTarget pins a tmux pane ID — "%7", the value tmux itself publishes as
+// $TMUX_PANE — as a target. A pane ID is server-unique and is never
+// prefix-matched, so it carries no "=" and needs none; the constructor exists so
+// a pane ID enters the vocabulary by a named route rather than by a bare
+// conversion at the call site.
+func PaneIDTarget(paneID string) Target {
+	return Target(paneID)
 }
 
 // windowTarget formats a plain "session:window" target, for an error message or
@@ -472,14 +485,14 @@ func windowTarget(session string, window int) string {
 	return fmt.Sprintf("%s:%d", session, window)
 }
 
-func windowTargetExact(session string, window int) string {
-	return "=" + windowTarget(session, window)
+func windowTargetExact(session string, window int) Target {
+	return Target("=" + windowTarget(session, window))
 }
 
 // ListPanesInSession returns the coords of every live pane in the session,
 // across all its windows, sorted by window then pane.
 func (c *Client) ListPanesInSession(session string) ([]PaneCoord, error) {
-	out, err := c.cmd.Run("list-panes", "-s", "-t", CoordTargetExact(session), "-F", "#{window_index}:#{pane_index}")
+	out, err := c.cmd.Run("list-panes", "-s", "-t", string(CoordTargetExact(session)), "-F", "#{window_index}:#{pane_index}")
 	if err != nil {
 		return nil, fmt.Errorf("failed to list panes in session %q: %w", session, err)
 	}
@@ -536,7 +549,7 @@ func (c *Client) ListWindowsAndPanesInSession(session string) ([]WindowGroup, er
 	format := "#{window_index}" + listWindowsAndPanesFieldSep +
 		"#{window_name}" + listWindowsAndPanesFieldSep +
 		"#{pane_index}"
-	out, err := c.cmd.Run("list-panes", "-s", "-t", CoordTargetExact(session), "-F", format)
+	out, err := c.cmd.Run("list-panes", "-s", "-t", string(CoordTargetExact(session)), "-F", format)
 	if err != nil {
 		return nil, fmt.Errorf("list windows and panes for session %s: %w", session, err)
 	}
@@ -598,7 +611,7 @@ func (c *Client) ListAllPanesWithFormat(format string) (string, error) {
 // ShowEnvironment returns the session's environment raw, for the caller to
 // parse: one "NAME=value" per line, or "-NAME" for a removed entry.
 func (c *Client) ShowEnvironment(session string) (string, error) {
-	out, err := c.cmd.Run("show-environment", "-t", CoordTargetExact(session))
+	out, err := c.cmd.Run("show-environment", "-t", string(CoordTargetExact(session)))
 	if err != nil {
 		return "", fmt.Errorf("failed to show environment for session %q: %w", session, wrapSessionTargetErr(session, err))
 	}
@@ -671,8 +684,8 @@ func parsePaneHookRows(output string) ([]PaneHookRow, error) {
 // flag is load-bearing: it kills the existing process atomically, rather than
 // failing because the pane is occupied, so command really is the pane's
 // initial process.
-func (c *Client) RespawnPane(target, command string) error {
-	_, err := c.cmd.Run("respawn-pane", "-k", "-t", target, command)
+func (c *Client) RespawnPane(target Target, command string) error {
+	_, err := c.cmd.Run("respawn-pane", "-k", "-t", string(target), command)
 	if err != nil {
 		return fmt.Errorf("failed to respawn-pane %q: %w", target, err)
 	}
@@ -715,8 +728,8 @@ func (c *Client) AppendGlobalHook(event, command string) error {
 
 // CapturePane returns the pane's whole scrollback, ANSI escapes included and
 // untrimmed, so a caller can hash and persist it byte-for-byte.
-func (c *Client) CapturePane(target string) (string, error) {
-	out, err := c.cmd.RunRaw("capture-pane", "-e", "-p", "-S", "-", "-t", target)
+func (c *Client) CapturePane(target Target) (string, error) {
+	out, err := c.cmd.RunRaw("capture-pane", "-e", "-p", "-S", "-", "-t", string(target))
 	if err != nil {
 		return "", fmt.Errorf("failed to capture pane %q: %w", target, err)
 	}
@@ -741,8 +754,8 @@ func (c *Client) NewSessionWithCommand(name, cwd, shellCommand string) error {
 }
 
 // NewWindow applies name, cwd and shellCommand only when non-empty.
-func (c *Client) NewWindow(target, name, cwd, shellCommand string) error {
-	args := []string{"new-window", "-t", target}
+func (c *Client) NewWindow(target Target, name, cwd, shellCommand string) error {
+	args := []string{"new-window", "-t", string(target)}
 	if name != "" {
 		args = append(args, "-n", name)
 	}
@@ -760,8 +773,8 @@ func (c *Client) NewWindow(target, name, cwd, shellCommand string) error {
 }
 
 // SplitWindow applies cwd and shellCommand only when non-empty.
-func (c *Client) SplitWindow(target, cwd, shellCommand string) error {
-	args := []string{"split-window", "-t", target}
+func (c *Client) SplitWindow(target Target, cwd, shellCommand string) error {
+	args := []string{"split-window", "-t", string(target)}
 	if cwd != "" {
 		args = append(args, "-c", cwd)
 	}
@@ -776,7 +789,7 @@ func (c *Client) SplitWindow(target, cwd, shellCommand string) error {
 }
 
 func (c *Client) SetSessionEnvironment(session, key, value string) error {
-	_, err := c.cmd.Run("set-environment", "-t", CoordTargetExact(session), key, value)
+	_, err := c.cmd.Run("set-environment", "-t", string(CoordTargetExact(session)), key, value)
 	if err != nil {
 		return fmt.Errorf("failed to set env %s on %q: %w", key, session, wrapSessionTargetErr(session, err))
 	}
@@ -788,7 +801,7 @@ func (c *Client) SetSessionEnvironment(session, key, value string) error {
 // split-window for that window must already have run.
 func (c *Client) SelectLayout(session string, window int, layout string) error {
 	bareTarget := windowTarget(session, window)
-	args := []string{"select-layout", "-t", windowTargetExact(session, window), layout}
+	args := []string{"select-layout", "-t", string(windowTargetExact(session, window)), layout}
 	_, err := c.cmd.Run(args...)
 	if err != nil {
 		return fmt.Errorf("failed to select-layout %s: %w", bareTarget, err)
@@ -798,7 +811,7 @@ func (c *Client) SelectLayout(session string, window int, layout string) error {
 
 func (c *Client) SelectWindow(session string, window int) error {
 	bareTarget := windowTarget(session, window)
-	args := []string{"select-window", "-t", windowTargetExact(session, window)}
+	args := []string{"select-window", "-t", string(windowTargetExact(session, window))}
 	_, err := c.cmd.Run(args...)
 	if err != nil {
 		return fmt.Errorf("failed to select-window %s: %w", bareTarget, err)
@@ -811,7 +824,7 @@ func (c *Client) SelectWindow(session string, window int) error {
 func (c *Client) SelectPane(session string, window, pane int) error {
 	bareTarget := PaneTarget(session, window, pane)
 	target := PaneTargetExact(session, window, pane)
-	args := []string{"select-pane", "-t", target}
+	args := []string{"select-pane", "-t", string(target)}
 	_, err := c.cmd.Run(args...)
 	if err != nil {
 		return fmt.Errorf("failed to select-pane %s: %w", bareTarget, err)
@@ -825,7 +838,7 @@ func (c *Client) SelectPane(session string, window, pane int) error {
 func (c *Client) ResizePaneZoom(session string, window, pane int) error {
 	bareTarget := PaneTarget(session, window, pane)
 	target := PaneTargetExact(session, window, pane)
-	args := []string{"resize-pane", "-Z", "-t", target}
+	args := []string{"resize-pane", "-Z", "-t", string(target)}
 	_, err := c.cmd.Run(args...)
 	if err != nil {
 		return fmt.Errorf("failed to resize-pane -Z %s: %w", bareTarget, err)

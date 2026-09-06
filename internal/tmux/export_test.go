@@ -88,3 +88,5 @@ func WaitForSaverDaemonReadyFnSeam() *func(string) error {
 func KillSaverAndWaitForDaemonFnSeam() *func(*Client, string) error {
 	return &saver.Ops.KillAndWait
 }
+
+var WindowTargetExact = windowTargetExact

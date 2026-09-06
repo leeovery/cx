@@ -2,6 +2,8 @@ package tmux_test
 
 import (
 	"testing"
+
+	"github.com/leeovery/portal/internal/tmux"
 )
 
 // Registration reads one pane and the sweep enumerates them all; the two must
@@ -20,7 +22,7 @@ func TestHookKeyCrossSite_ResolveAgreesWithEnumeration(t *testing.T) {
 
 	for _, location := range []string{sessionName + ":0.0", sessionName + ":0.1", sessionName + ":1.0"} {
 		t.Run(location, func(t *testing.T) {
-			resolved, err := client.ResolveHookKey(location)
+			resolved, err := client.ResolveHookKey(tmux.Target(location))
 			if err != nil {
 				t.Fatalf("ResolveHookKey(%q): %v", location, err)
 			}

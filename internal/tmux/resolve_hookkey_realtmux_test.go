@@ -51,7 +51,7 @@ func TestResolveHookKey_AgainstARealServer(t *testing.T) {
 			t.Fatalf("fixture pane %q already carries pane options: %q", pane, out)
 		}
 
-		got, err := client.ResolveHookKey(pane)
+		got, err := client.ResolveHookKey(tmux.PaneIDTarget(pane))
 		if err != nil {
 			t.Fatalf("ResolveHookKey on a live pane with no pane options: %v", err)
 		}
@@ -63,9 +63,9 @@ func TestResolveHookKey_AgainstARealServer(t *testing.T) {
 	t.Run("it resolves a stamped pane to its token", func(t *testing.T) {
 		ts, client, pane := liveHookKeyPane(t, "rhk-stamped")
 
-		ts.StampPaneToken(t, pane, "tok123")
+		ts.StampPaneToken(t, tmux.PaneIDTarget(pane), "tok123")
 
-		got, err := client.ResolveHookKey(pane)
+		got, err := client.ResolveHookKey(tmux.PaneIDTarget(pane))
 		if err != nil {
 			t.Fatalf("ResolveHookKey(%q): %v", pane, err)
 		}
@@ -86,7 +86,7 @@ func TestResolveHookKey_AgainstARealServer(t *testing.T) {
 			t.Errorf("show-options naming the option said %q, want %q — the failure indistinguishable from a gone pane", out, "invalid option")
 		}
 
-		if _, err := client.ResolveHookKey(pane); err != nil {
+		if _, err := client.ResolveHookKey(tmux.PaneIDTarget(pane)); err != nil {
 			t.Fatalf("ResolveHookKey on the same live pane failed (%v); the probe must not name the option", err)
 		}
 	})

@@ -15,7 +15,7 @@ import (
 // HookKeyResolver maps a tmux pane ID ("%3") to its hook key — the pane's
 // durable token, empty for a pane that has never been stamped.
 type HookKeyResolver interface {
-	ResolveHookKey(paneID string) (string, error)
+	ResolveHookKey(paneID tmux.Target) (string, error)
 }
 
 // PaneHookLister returns one row per live pane: the pane's hook token, empty
@@ -28,7 +28,7 @@ type PaneHookLister interface {
 
 // PaneOptionSetter writes one tmux option onto one pane.
 type PaneOptionSetter interface {
-	SetPaneOption(target, name, value string) error
+	SetPaneOption(target tmux.Target, name, value string) error
 }
 
 var (
@@ -46,12 +46,12 @@ type HooksDeps struct {
 	TokenMinter nanoid.Generator
 }
 
-func requireTmuxPane() (string, error) {
+func requireTmuxPane() (tmux.Target, error) {
 	paneID := os.Getenv("TMUX_PANE")
 	if paneID == "" {
 		return "", fmt.Errorf("must be run from inside a tmux pane")
 	}
-	return paneID, nil
+	return tmux.PaneIDTarget(paneID), nil
 }
 
 func buildHooksTmuxClient() *tmux.Client {
@@ -64,7 +64,7 @@ func buildHooksTmuxClient() *tmux.Client {
 // A failed read is surfaced as the resolver phrased it: a gone pane is reported
 // in tmux's own words behind one Portal-authored clause, and restating that
 // clause here would put a second one in front of them.
-func resolveCurrentPaneKey() (hookKey, paneID string, err error) {
+func resolveCurrentPaneKey() (hookKey string, paneID tmux.Target, err error) {
 	paneID, err = requireTmuxPane()
 	if err != nil {
 		return "", "", err
@@ -105,7 +105,7 @@ func hookSeams() HooksDeps {
 
 // stampPaneToken mints a token for an un-stamped pane and writes it, returning
 // tmux's own error unaltered so a target naming no pane reads as tmux said it.
-func stampPaneToken(paneID string) (string, error) {
+func stampPaneToken(paneID tmux.Target) (string, error) {
 	seams := hookSeams()
 
 	token, err := seams.TokenMinter()

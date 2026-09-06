@@ -99,9 +99,9 @@ func TestCaptureRealTmuxPeriodBearingSessionName(t *testing.T) {
 func seedPeriodScrollback(t *testing.T, ts *tmuxtest.Socket) {
 	t.Helper()
 	target := tmux.PaneTargetExact(periodSession, 0, 0)
-	ts.Run(t, "send-keys", "-t", target, "echo "+periodMarker, "Enter")
+	ts.Run(t, "send-keys", "-t", string(target), "echo "+periodMarker, "Enter")
 	seeded := func() bool {
-		out, err := ts.TryRun("capture-pane", "-p", "-t", target)
+		out, err := ts.TryRun("capture-pane", "-p", "-t", string(target))
 		return err == nil && strings.Contains(out, periodMarker)
 	}
 	if !harnesstest.PollUntil(t, 2*time.Second, 20*time.Millisecond, seeded) {

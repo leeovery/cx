@@ -143,7 +143,7 @@ func attachClient(t *testing.T, ts *tmuxtest.Socket, session string) {
 	host := tmuxtest.New(t, "ptl-periodhost-")
 	attach := strings.Join([]string{
 		"tmux", "-S", shellquote.Single(ts.SocketPath()), "-f", "/dev/null",
-		"attach-session", "-t", shellquote.Single(tmux.CoordTargetExact(session)),
+		"attach-session", "-t", shellquote.Single(string(tmux.CoordTargetExact(session))),
 	}, " ")
 	host.Run(t, "new-session", "-d", "-s", "host", attach)
 

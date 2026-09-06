@@ -118,5 +118,5 @@ func TestQuickStart_ComposedStepsResolveTheLiveSession(t *testing.T) {
 
 func sessionOptions(t *testing.T, ts *tmuxtest.Socket, name string) string {
 	t.Helper()
-	return ts.Run(t, "show-options", "-t", tmux.CoordTargetExact(name))
+	return ts.Run(t, "show-options", "-t", string(tmux.CoordTargetExact(name)))
 }

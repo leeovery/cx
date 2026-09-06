@@ -86,7 +86,7 @@ func TestSurfaceAudit_TmuxCapturePaneSignatureUnchanged(t *testing.T) {
 	}
 	src := string(b)
 
-	const wantSignature = "func (c *Client) CapturePane(target string) (string, error) {"
+	const wantSignature = "func (c *Client) CapturePane(target Target) (string, error) {"
 	if !strings.Contains(src, wantSignature) {
 		t.Errorf(
 			"%s no longer contains the verbatim CapturePane signature %q. "+

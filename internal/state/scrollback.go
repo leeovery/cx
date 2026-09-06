@@ -18,9 +18,13 @@ import (
 // zero hash does not — empty bytes hash non-zero.
 type HashMap map[string]uint64
 
-// PaneCapturer is declared here so internal/state need not import internal/tmux.
-type PaneCapturer interface {
-	CapturePane(target string) (string, error)
+// PaneCapturer is declared here so internal/state need not import internal/tmux
+// — which it must not, since that package imports this one. The target type is a
+// parameter rather than a plain string for the same reason: the tmux client
+// takes its own named target type, and hardcoding string here would put this
+// seam out of its reach.
+type PaneCapturer[T ~string] interface {
+	CapturePane(target T) (string, error)
 }
 
 // SeedHashMap rebuilds the dedup map from the on-disk scrollback files, so the
@@ -59,7 +63,7 @@ func SeedHashMap(dir string, logger *slog.Logger) HashMap {
 	return hm
 }
 
-func CaptureAndHashPane(c PaneCapturer, target string) ([]byte, uint64, error) {
+func CaptureAndHashPane[T ~string](c PaneCapturer[T], target T) ([]byte, uint64, error) {
 	out, err := c.CapturePane(target)
 	if err != nil {
 		return nil, 0, err

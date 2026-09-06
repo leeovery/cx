@@ -303,7 +303,7 @@ func (fx *divergentRebootFixture) disableRenumberWindows(t *testing.T) {
 func (fx *divergentRebootFixture) stampTokens(t *testing.T) {
 	t.Helper()
 	for _, p := range fx.stamped {
-		fx.ts.StampPaneToken(t, tmux.PaneTarget(divergentSessionName, p.savedWin, p.savedPane), p.token)
+		fx.ts.StampPaneToken(t, tmux.PaneTargetExact(divergentSessionName, p.savedWin, p.savedPane), p.token)
 	}
 }
 

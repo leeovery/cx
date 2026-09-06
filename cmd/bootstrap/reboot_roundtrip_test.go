@@ -100,7 +100,7 @@ func runRebootRoundTrip(t *testing.T, cfg roundTripCfg) {
 		paneBase:   cfg.savePaneBase,
 	})
 
-	hookPaneTarget := tmux.PaneTarget("alpha", cfg.saveBase+0, cfg.savePaneBase+0)
+	hookPaneTarget := tmux.PaneTargetExact("alpha", cfg.saveBase+0, cfg.savePaneBase+0)
 	ts.StampPaneToken(t, hookPaneTarget, savedHookKey)
 
 	idx := runDaemonTick(t, client, stateDir, withoutSkipGuard(), withEmptyScrollback())

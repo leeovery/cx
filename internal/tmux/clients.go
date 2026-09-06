@@ -16,7 +16,7 @@ type ClientInfo struct {
 // failing invocation yields an empty slice and a nil error — it is the no-server
 // / no-clients signal — and only a malformed line returns an error.
 func (c *Client) ListClients(session string) ([]ClientInfo, error) {
-	output, err := c.cmd.Run("list-clients", "-t", CoordTargetExact(session), "-F", "#{client_pid} #{client_activity}")
+	output, err := c.cmd.Run("list-clients", "-t", string(CoordTargetExact(session)), "-F", "#{client_pid} #{client_activity}")
 	if err != nil {
 		// Swallowed deliberately: the error is the zero-clients signal.
 		return []ClientInfo{}, nil

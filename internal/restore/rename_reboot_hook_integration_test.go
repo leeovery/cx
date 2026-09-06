@@ -75,7 +75,7 @@ func runRenameRebootFire(t *testing.T, rename func(t *testing.T, ts *tmuxtest.So
 	if _, err := fx.ts.TryRun("has-session", "-t", "="+renameNewName); err != nil {
 		t.Fatalf("session %q not live after rename: %v", renameNewName, err)
 	}
-	if liveToken := fx.ts.ReadPaneToken(t, tmux.PaneTarget(renameNewName, 0, 0)); liveToken != renamePaneToken {
+	if liveToken := fx.ts.ReadPaneToken(t, tmux.PaneTargetExact(renameNewName, 0, 0)); liveToken != renamePaneToken {
 		t.Fatalf("pane token after rename = %q; want %q (must be rename-immune)", liveToken, renamePaneToken)
 	}
 

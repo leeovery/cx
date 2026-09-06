@@ -159,11 +159,11 @@ func (r *SessionRestorer) armPanes(sess state.Session, armInfos []savedPaneArmIn
 // is skipped rather than written: a stamped "" reads back indistinguishably
 // from absence. A failure costs that pane its hook rather than its session, so
 // it degrades to a WARN instead of aborting the restore.
-func (r *SessionRestorer) restampPaneToken(sessionName, liveKey, target, token string) {
+func (r *SessionRestorer) restampPaneToken(sessionName, liveKey string, liveTarget tmux.Target, token string) {
 	if token == "" {
 		return
 	}
-	if err := r.Client.SetPaneOption(target, state.PortalPaneIDOption, token); err != nil {
+	if err := r.Client.SetPaneOption(liveTarget, state.PortalPaneIDOption, token); err != nil {
 		r.logger().Warn("set pane token failed", "session", sessionName, "pane_key", liveKey, "error", err)
 	}
 }

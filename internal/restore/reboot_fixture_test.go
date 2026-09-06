@@ -92,7 +92,7 @@ func newRebootFixture(t *testing.T, socketPrefix, sessionName string, panes []re
 		if p.token == "" {
 			continue
 		}
-		fx.ts.StampPaneToken(t, tmux.PaneTarget(sessionName, 0, i), p.token)
+		fx.ts.StampPaneToken(t, tmux.PaneTargetExact(sessionName, 0, i), p.token)
 	}
 
 	return fx

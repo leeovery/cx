@@ -74,10 +74,10 @@ func seedThreePaneStampedSession(t *testing.T, sessionName, token string) (*tmux
 	t.Helper()
 	ts, client, _ := seedRealTmuxServer(t, hookKeyFixture(sessionName,
 		func(t *testing.T, _ *tmuxtest.Socket, client *tmux.Client, _ string) {
-			if err := client.SplitWindow(sessionName+":0", "", ""); err != nil {
+			if err := client.SplitWindow(tmux.Target(sessionName+":0"), "", ""); err != nil {
 				t.Fatalf("SplitWindow(%q): %v", sessionName+":0", err)
 			}
-			if err := client.NewWindow(sessionName, "", "", ""); err != nil {
+			if err := client.NewWindow(tmux.Target(sessionName), "", "", ""); err != nil {
 				t.Fatalf("NewWindow(%q): %v", sessionName, err)
 			}
 		}))
@@ -85,7 +85,7 @@ func seedThreePaneStampedSession(t *testing.T, sessionName, token string) (*tmux
 	if len(paneIDs) == 0 {
 		t.Fatalf("session %q reported no panes", sessionName)
 	}
-	ts.StampPaneToken(t, paneIDs[0], token)
+	ts.StampPaneToken(t, tmux.PaneIDTarget(paneIDs[0]), token)
 	return ts, client, paneIDs
 }
 
@@ -105,7 +105,7 @@ func sessionPaneIDs(t *testing.T, ts *tmuxtest.Socket, session string) []string 
 // assertion compares against the wire truth rather than a second Portal read.
 func livePanePID(t *testing.T, ts *tmuxtest.Socket, session string) int {
 	t.Helper()
-	out := strings.TrimSpace(ts.Run(t, "list-panes", "-t", tmux.CoordTargetExact(session), "-F", "#{pane_pid}"))
+	out := strings.TrimSpace(ts.Run(t, "list-panes", "-t", string(tmux.CoordTargetExact(session)), "-F", "#{pane_pid}"))
 	pid, err := strconv.Atoi(strings.SplitN(out, "\n", 2)[0])
 	if err != nil {
 		t.Fatalf("parse pane pid %q: %v", out, err)

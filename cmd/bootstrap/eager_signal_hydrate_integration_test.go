@@ -249,7 +249,7 @@ func TestPhase1Integration_DaemonSkipsCaptureWithoutEagerSignal_AC4NegativeContr
 	}
 }
 
-func waitForPaneText(t *testing.T, client *tmux.Client, target, needle string, budget, tick time.Duration) {
+func waitForPaneText(t *testing.T, client *tmux.Client, target tmux.Target, needle string, budget, tick time.Duration) {
 	t.Helper()
 	deadline := time.Now().Add(budget)
 	for time.Now().Before(deadline) {
