@@ -353,7 +353,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 9,
-          "current_task": "resume-hooks-silently-lost-9-7",
+          "current_task": "resume-hooks-silently-lost-9-8",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -519,7 +519,8 @@
             "resume-hooks-silently-lost-9-3",
             "resume-hooks-silently-lost-9-4",
             "resume-hooks-silently-lost-9-5",
-            "resume-hooks-silently-lost-9-6"
+            "resume-hooks-silently-lost-9-6",
+            "resume-hooks-silently-lost-9-7"
           ],
           "staging": {
             "p1": {
@@ -953,6 +954,17 @@
               "detail": "The failure line carries error alone, unlike the stand-down line in the same cycle (op=clean-stale-skipped, via=internal) and unlike cmd/hooks.go:242. grep hooks: reconstructs the cycle whole (the criterion this task was given), but an op-keyed query does not reach the failure. Giving it an op would add a value to the specs closed op vocabulary, which this task had no mandate to amend — so the conservative choice is defensible and the alternative belongs in a spec amendment.",
               "files": [
                 "cmd/run_hook_stale_cleanup.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-9-7",
+              "source": "reviewer",
+              "summary": "The two-pane sessionsOut/panesOut fixture literal is hand-rolled at ~10 sites across the daemon test files.",
+              "detail": "cmd/state_daemon_capture_logging_test.go:183-185 (this task, following the local convention), cmd/state_daemon_cycle_summary_test.go:162-163,190-191,276-277, cmd/state_daemon_run_test.go:435,467,960,1063,1125,1174. oneSession() already exists at cmd/state_daemon_run_test.go:218 and carries the comment explaining the trailing pane-token column, which the hand-rolled copies do not. A twoPaneSession() sibling would consolidate them. Pre-existing; this task added one more instance rather than creating the duplication.",
+              "files": [
+                "cmd/state_daemon_run_test.go",
+                "cmd/state_daemon_cycle_summary_test.go",
+                "cmd/state_daemon_capture_logging_test.go"
               ]
             }
           ]
