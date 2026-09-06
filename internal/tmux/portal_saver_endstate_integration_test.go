@@ -141,8 +141,7 @@ func TestBootstrapPortalSaver_LockLoser_NoNoSuchSessionLogNoise(t *testing.T) {
 				bootstrapErr)
 		}
 		t.Fatalf("BootstrapPortalSaver returned unexpected error %v; want nil "+
-			"(SetSessionOption ran against the live placeholder pane; readiness "+
-			"barrier WARN-swallows its timeout)", bootstrapErr)
+			"(SetSessionOption ran against the live placeholder pane)", bootstrapErr)
 	}
 }
 

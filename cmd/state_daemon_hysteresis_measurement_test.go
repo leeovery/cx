@@ -188,7 +188,7 @@ func measureClientAttached(t *testing.T, binary string) int {
 }
 
 // The scenario most likely to produce a non-zero transient: the recreate
-// carries a ~2s readiness barrier plus tmux respawn settle time, and the
+// carries the saver readiness barrier plus tmux respawn settle time, and the
 // chosen N must absorb it.
 func measureBootstrapRecreate(t *testing.T, binary string) int {
 	t.Helper()

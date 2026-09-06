@@ -55,12 +55,21 @@ type SaverBarrierSeams struct {
 	Logger            *slog.Logger
 }
 
-// SaverReadinessSeams paces the readiness barrier's poll loop. Timeout covers
-// normal daemon startup — fork, exec, flock, PID-file write — while keeping the
-// bootstrap step bounded.
+// SaverReadinessSeams paces the readiness barrier's poll loop. Stall and
+// Ceiling are separate budgets on purpose: a host under IO contention makes a
+// healthy daemon slower to fork, exec, flock and write its PID file without
+// making it broken, so wall-clock alone must not decide the verdict.
 type SaverReadinessSeams struct {
 	PollInterval time.Duration
-	Timeout      time.Duration
+	// Stall is how long a readiness observation that has already moved may
+	// stay put before the barrier gives up. Every change restarts it, and it
+	// does not run until the first change: before that there is no progress to
+	// have stopped, only a daemon that has not surfaced yet.
+	Stall time.Duration
+	// Ceiling bounds the whole wait unconditionally, so a daemon that never
+	// surfaces — and one whose observation churns without ever identifying —
+	// still ends the step rather than hanging bootstrap.
+	Ceiling time.Duration
 }
 
 type SaverVersionSeams struct {
@@ -106,7 +115,8 @@ var saver = SaverSeams{
 
 	Readiness: SaverReadinessSeams{
 		PollInterval: 50 * time.Millisecond,
-		Timeout:      2 * time.Second,
+		Stall:        2 * time.Second,
+		Ceiling:      10 * time.Second,
 	},
 
 	Version: SaverVersionSeams{
@@ -219,42 +229,92 @@ func escalateKillToSIGKILL(priorPID int) error {
 	return nil
 }
 
-// Closes the race between the respawn and the bootstrap steps after it, which
-// assume a healthy daemon. Every not-yet-ready shape is a continue, and a
-// timeout only WARNs — it returns nil, because the daemon's own lock
-// acquisition is the safety net for a truly stuck case.
-func waitForSaverDaemonReady(stateDir string) error {
-	deadline := time.Now().Add(saver.Readiness.Timeout)
+// ErrSaverDaemonNotReady reports that the readiness barrier gave up before the
+// saver's daemon identified itself. Bootstrap turns it into a user-visible
+// warning; it never aborts a step.
+var ErrSaverDaemonNotReady = errors.New("saver daemon did not come up")
 
-	ticker := time.NewTicker(saver.Readiness.PollInterval)
-	defer ticker.Stop()
+// readinessObservation is one poll of the daemon's readiness: what daemon.pid
+// read back and what identifying that pid said. It is comparable so the barrier
+// can tell a daemon that is still moving from one that has stopped, and it
+// renders itself into the give-up error so a failed bootstrap says what the
+// daemon was last doing.
+type readinessObservation struct {
+	pid         int
+	readErr     string
+	verdict     state.IdentifyResult
+	identifyErr string
+}
 
-	for {
-		if pid, ready := isSaverDaemonReady(stateDir); ready {
-			saverLogger.Info("daemon ready", "target_pid", pid)
-			return nil
-		}
-		if !time.Now().Before(deadline) {
-			saver.Barrier.Logger.Warn("saver respawn: daemon did not come up")
-			return nil
-		}
-		<-ticker.C
+func (o readinessObservation) ready() bool {
+	return o.readErr == "" && o.identifyErr == "" && o.verdict == state.IdentifyIsPortalDaemon
+}
+
+func (o readinessObservation) String() string {
+	switch {
+	case o.readErr != "":
+		return fmt.Sprintf("daemon.pid unreadable: %s", o.readErr)
+	case o.identifyErr != "":
+		return fmt.Sprintf("pid %d unidentifiable: %s", o.pid, o.identifyErr)
+	default:
+		return fmt.Sprintf("pid %d %s", o.pid, describeVerdict(o.verdict))
 	}
 }
 
-func isSaverDaemonReady(stateDir string) (int, bool) {
+func describeVerdict(v state.IdentifyResult) string {
+	switch v {
+	case state.IdentifyIsPortalDaemon:
+		return "is a portal state daemon"
+	case state.IdentifyNotPortalDaemon:
+		return "is not a portal state daemon"
+	case state.IdentifyDead:
+		return "is dead"
+	default:
+		return fmt.Sprintf("identifies as %d", v)
+	}
+}
+
+func observeSaverReadiness(stateDir string) readinessObservation {
 	pid, err := saver.ReadPID(stateDir)
 	if err != nil {
-		return 0, false
+		return readinessObservation{readErr: err.Error()}
 	}
-	result, err := saver.IdentifyDaemon(pid)
+	verdict, err := saver.IdentifyDaemon(pid)
 	if err != nil {
-		return 0, false
+		return readinessObservation{pid: pid, identifyErr: err.Error()}
 	}
-	if result != state.IdentifyIsPortalDaemon {
-		return 0, false
+	return readinessObservation{pid: pid, verdict: verdict}
+}
+
+// Closes the race between the respawn and the bootstrap steps after it, which
+// assume a healthy daemon. Every not-yet-ready shape is a continue: the wait
+// only ends when the observation reads ready, when it has moved and then sat
+// still for the whole stall budget, or when the ceiling elapses.
+func waitForSaverDaemonReady(stateDir string) error {
+	ceiling := time.Now().Add(saver.Readiness.Ceiling)
+
+	var last readinessObservation
+	var stallDeadline time.Time
+	for first := true; ; first = false {
+		observation := observeSaverReadiness(stateDir)
+		if observation.ready() {
+			saverLogger.Info("daemon ready", "target_pid", observation.pid)
+			return nil
+		}
+		if !first && observation != last {
+			stallDeadline = time.Now().Add(saver.Readiness.Stall)
+		}
+		last = observation
+
+		now := time.Now()
+		stalled := !stallDeadline.IsZero() && now.After(stallDeadline)
+		if stalled || now.After(ceiling) {
+			err := fmt.Errorf("%w: %s", ErrSaverDaemonNotReady, observation)
+			saver.Barrier.Logger.Warn("saver respawn: daemon did not come up", "error", err)
+			return err
+		}
+		time.Sleep(saver.Readiness.PollInterval)
 	}
-	return pid, true
 }
 
 // BootstrapPortalSaver idempotently ensures _portal-saver exists and hosts a
@@ -303,7 +363,9 @@ func BootstrapPortalSaver(c *Client, stateDir string) error {
 		toPID := saverPanePIDBestEffort(c)
 		saverLogger.Info("respawn-daemon", "from_pid", fromPID, "to_pid", toPID, "tmux_pane", paneID)
 
-		_ = saver.Ops.WaitForReady(stateDir)
+		if err := saver.Ops.WaitForReady(stateDir); err != nil {
+			return err
+		}
 	}
 
 	return nil

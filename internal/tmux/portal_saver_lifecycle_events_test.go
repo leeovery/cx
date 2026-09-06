@@ -262,7 +262,7 @@ func TestBootstrapPortalSaver_StillEmitsRespawnDaemonBestEffortWhenPanePIDReadFa
 
 func TestWaitForSaverDaemonReady_EmitsDaemonReadyWithTargetPidOnSuccess(t *testing.T) {
 	installReadinessPollInterval(t, 1*time.Millisecond)
-	installReadinessTimeout(t, 500*time.Millisecond)
+	installReadinessBudget(t, 500*time.Millisecond, 5*time.Second)
 	sink := logtest.Install(t)
 
 	installReadinessReadPID(t, func(string) (int, error) { return 4321, nil })
@@ -283,9 +283,9 @@ func TestWaitForSaverDaemonReady_EmitsDaemonReadyWithTargetPidOnSuccess(t *testi
 	}
 }
 
-func TestWaitForSaverDaemonReady_EmitsNoDaemonReadyAndKeepsWarnOnTimeout(t *testing.T) {
+func TestWaitForSaverDaemonReady_EmitsNoDaemonReadyAndKeepsWarnOnGiveUp(t *testing.T) {
 	installReadinessPollInterval(t, 1*time.Millisecond)
-	installReadinessTimeout(t, 20*time.Millisecond)
+	installReadinessBudget(t, 5*time.Millisecond, 20*time.Millisecond)
 	sink := logtest.Install(t)
 
 	installReadinessReadPID(t, func(string) (int, error) { return 4321, nil })
@@ -295,8 +295,8 @@ func TestWaitForSaverDaemonReady_EmitsNoDaemonReadyAndKeepsWarnOnTimeout(t *test
 	barrier := &barrierLog{}
 	installBarrierLogger(t, barrier)
 
-	if err := tmux.WaitForSaverDaemonReady(t.TempDir()); err != nil {
-		t.Fatalf("WaitForSaverDaemonReady returned error: %v", err)
+	if err := tmux.WaitForSaverDaemonReady(t.TempDir()); !errors.Is(err, tmux.ErrSaverDaemonNotReady) {
+		t.Fatalf("WaitForSaverDaemonReady returned %v; want ErrSaverDaemonNotReady", err)
 	}
 
 	if evs := sink.Records().Matching("saver", "daemon ready"); len(evs) != 0 {

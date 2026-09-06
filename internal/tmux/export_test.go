@@ -63,8 +63,12 @@ func SaverReadinessPollIntervalSeam() *time.Duration {
 	return &saver.Readiness.PollInterval
 }
 
-func SaverReadinessTimeoutSeam() *time.Duration {
-	return &saver.Readiness.Timeout
+func SaverReadinessStallSeam() *time.Duration {
+	return &saver.Readiness.Stall
+}
+
+func SaverReadinessCeilingSeam() *time.Duration {
+	return &saver.Readiness.Ceiling
 }
 
 func PortalSaverReadVersionFileSeam() *func(string) (string, error) {

@@ -11,6 +11,7 @@ import (
 
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/state"
+	"github.com/leeovery/portal/internal/tmux"
 )
 
 type stepRecorder struct {
@@ -1088,5 +1089,34 @@ func TestOrchestratorRun_sweepOrphanDaemonsHappyPathEmitsNoWarn(t *testing.T) {
 		if rec.AttrOrEmpty("step") == stepSweepOrphanDaemons {
 			t.Errorf("nil-returning SweepOrphanDaemons must not emit a Warn entry; got %+v", rec)
 		}
+	}
+}
+
+func TestOrchestratorRun_surfacesASaverThatNeverCameUpAsAWarningAndAbortsNoStep(t *testing.T) {
+	r := &stepRecorder{EnsureSaverErr: fmt.Errorf("%w: last=identify-dead pid=4321", tmux.ErrSaverDaemonNotReady)}
+	sink := &logtest.Sink{}
+	o := newOrchestrator(r, slog.New(sink))
+
+	_, warnings, err := o.Run(context.Background())
+	if err != nil {
+		t.Fatalf("Run must not turn a saver that never came up into a fatal; got %v", err)
+	}
+	if len(warnings) != 1 || warnings[0].Lines[0] != SaverDownWarning().Lines[0] {
+		t.Fatalf("warnings = %#v; want exactly one SaverDownWarning", warnings)
+	}
+	want := []string{
+		"EnsureServer",
+		"RegisterPortalHooks",
+		"Set",
+		"SweepOrphanDaemons",
+		"EnsureSaver",
+		"Restore",
+		"EagerSignalHydrate",
+		"Clear",
+		"CleanStaleMarkers",
+		"Sweep",
+	}
+	if !slices.Equal(r.calls, want) {
+		t.Errorf("calls = %v, want every step to run: %v", r.calls, want)
 	}
 }
