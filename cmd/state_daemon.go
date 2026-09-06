@@ -283,10 +283,7 @@ func captureAndCommit(ctx context.Context, deps *daemonDeps) error {
 						continue
 					}
 					anomalous++
-					// The plain coordinate, not the pinned target: the "=" is an
-					// addressing detail of the failed read, not part of a key.
-					coord := tmux.PaneTarget(sess.Name, win.Index, pane.Index)
-					deps.Logger.Warn("capture pane failed", "pane_key", coord, "error", err)
+					deps.Logger.Warn("capture pane failed", "pane_key", paneKey, "error", err)
 					continue
 				}
 				written, err := state.WriteScrollbackIfChanged(deps.Dir, paneKey, data, hash, deps.HashMap)
