@@ -353,7 +353,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 9,
-          "current_task": "resume-hooks-silently-lost-9-13",
+          "current_task": "resume-hooks-silently-lost-9-14",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -525,7 +525,8 @@
             "resume-hooks-silently-lost-9-9",
             "resume-hooks-silently-lost-9-10",
             "resume-hooks-silently-lost-9-11",
-            "resume-hooks-silently-lost-9-12"
+            "resume-hooks-silently-lost-9-12",
+            "resume-hooks-silently-lost-9-13"
           ],
           "staging": {
             "p1": {
@@ -1055,6 +1056,16 @@
                 "internal/hookstest/hooks.go",
                 "internal/hookstest/staging.go",
                 "cmd/testhelpers_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-9-13",
+              "source": "reviewer",
+              "summary": "Two sibling seam builders still carry the design aside deleted from hookSeams.",
+              "detail": "cmd/doctor.go:76-77 and cmd/state_commit_now.go:51-53 both read \"A new seam costs one fill line here; leaving it out is a nil dereference at first use rather than ...\". The second clause is a legitimate warning and should stay; the first is the design aside this task removed from cmd/hooks.go:83, so the three sibling comments now diverge on it. Out of this task scope (it named cmd/hooks.go only) and a two-file edit.",
+              "files": [
+                "cmd/doctor.go",
+                "cmd/state_commit_now.go"
               ]
             }
           ]
