@@ -127,7 +127,7 @@ func writeSeed(t *testing.T, path string, body []byte) {
 func shapeEntries(entries map[string]string) map[string]map[string]string {
 	shaped := make(map[string]map[string]string, len(entries))
 	for key, command := range entries {
-		shaped[key] = map[string]string{"on-resume": command}
+		shaped[key] = map[string]string{hooks.EventOnResume.String(): command}
 	}
 	return shaped
 }

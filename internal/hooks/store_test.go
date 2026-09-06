@@ -950,7 +950,27 @@ func TestCleanStaleLogging(t *testing.T) {
 		summary.RequireDuration(t, "took")
 	})
 
-	t.Run("it emits an empty value for a removed entry with no on-resume event", func(t *testing.T) {
+	t.Run("it logs the removed command in the value attr when a stale on-resume entry is reaped", func(t *testing.T) {
+		store, _ := hookstest.StageStore(t, hookstest.Staging{
+			Seed: fmt.Sprintf(`{%q:{"on-resume":"cmd1"}}`, hookstest.ReapableSeedA),
+		})
+
+		sink := logtest.Install(t)
+		if _, err := store.CleanStale(enumerating("my-session:0.0")); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		perKey, _ := partitionCleanStaleRecords(t, sink.Records())
+		removed := perKey.Only(t, "per-key clean-stale record")
+		if got := removed.AttrString(t, "hook_key"); got != hookstest.ReapableSeedA {
+			t.Errorf("hook_key = %q, want %q", got, hookstest.ReapableSeedA)
+		}
+		if got := removed.AttrString(t, "value"); got != "cmd1" {
+			t.Errorf("value = %q, want %q", got, "cmd1")
+		}
+	})
+
+	t.Run("it logs a non-empty value when the reaped entry is filed under another event", func(t *testing.T) {
 		store, _ := hookstest.StageStore(t, hookstest.Staging{
 			Seed: fmt.Sprintf(`{%q:{"on-exit":"x"}}`, hookstest.ReapableSeedA),
 		})
@@ -965,12 +985,12 @@ func TestCleanStaleLogging(t *testing.T) {
 		if got := removed.AttrString(t, "hook_key"); got != hookstest.ReapableSeedA {
 			t.Errorf("hook_key = %q, want %q", got, hookstest.ReapableSeedA)
 		}
-		if got := removed.AttrString(t, "value"); got != "" {
-			t.Errorf("value = %q, want empty", got)
+		if got := removed.AttrString(t, "value"); got != "x" {
+			t.Errorf("value = %q, want %q", got, "x")
 		}
 	})
 
-	t.Run("it emits one line for a key holding several events", func(t *testing.T) {
+	t.Run("it reports the events a reaped key actually held rather than one assumed name", func(t *testing.T) {
 		store, _ := hookstest.StageStore(t, hookstest.Staging{
 			Seed: fmt.Sprintf(`{%q:{"on-resume":"cmd1","on-exit":"x"}}`, hookstest.ReapableSeedA),
 		})
@@ -981,8 +1001,9 @@ func TestCleanStaleLogging(t *testing.T) {
 		}
 
 		perKey, _ := partitionCleanStaleRecords(t, sink.Records())
-		if got := perKey.Only(t, "per-key clean-stale record").AttrString(t, "value"); got != "cmd1" {
-			t.Errorf("value = %q, want %q", got, "cmd1")
+		want := "on-exit=x; on-resume=cmd1"
+		if got := perKey.Only(t, "per-key clean-stale record").AttrString(t, "value"); got != want {
+			t.Errorf("value = %q, want %q", got, want)
 		}
 	})
 
@@ -1295,7 +1316,7 @@ func TestRemoveLogging(t *testing.T) {
 			name string
 			seed map[string]map[string]string
 			key  string
-			ev   string
+			ev   hooks.Event
 		}{
 			{
 				name: "absent key",
@@ -1323,7 +1344,7 @@ func TestRemoveLogging(t *testing.T) {
 				store := hooks.NewStore(hookstest.HooksPath(t, dir))
 				for key, events := range tc.seed {
 					for event, command := range events {
-						if err := store.Set(key, event, command, hooks.ViaCLI); err != nil {
+						if err := store.Set(key, hooks.Event(event), command, hooks.ViaCLI); err != nil {
 							t.Fatalf("unexpected error on set: %v", err)
 						}
 					}

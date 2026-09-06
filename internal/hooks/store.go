@@ -7,6 +7,7 @@ import (
 	"maps"
 	"os"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/leeovery/portal/internal/fileutil"
@@ -111,7 +112,7 @@ func (s *Store) save(h Snapshot) error {
 // Set adds or overwrites the hook for key and event. Writing the same command
 // again is a no-op: the file is left untouched. via records the mutation origin
 // for the audit breadcrumb.
-func (s *Store) Set(key, event, command string, via Via) error {
+func (s *Store) Set(key string, event Event, command string, via Via) error {
 	lock, err := s.acquireMutationLock()
 	if err != nil {
 		// Under the method's own op, not classifySet's verdict: that verdict reads
@@ -137,7 +138,7 @@ func (s *Store) Set(key, event, command string, via Via) error {
 	if h[key] == nil {
 		h[key] = make(map[string]string)
 	}
-	h[key][event] = command
+	h[key][event.String()] = command
 
 	if err := s.save(h); err != nil {
 		logger.Warn(op, "op", op, "hook_key", key, "value", command, "via", via.String(),
@@ -149,12 +150,12 @@ func (s *Store) Set(key, event, command string, via Via) error {
 	return nil
 }
 
-func classifySet(h Snapshot, key, event, command string) string {
+func classifySet(h Snapshot, key string, event Event, command string) string {
 	events, ok := h[key]
 	if !ok {
 		return "set"
 	}
-	existing, ok := events[event]
+	existing, ok := events[event.String()]
 	if !ok {
 		return "set"
 	}
@@ -169,7 +170,7 @@ func classifySet(h Snapshot, key, event, command string) string {
 // nothing — an absent key, an absent event, an absent file — writes no file and
 // emits no breadcrumb, and a failed save reports no removal. The answer comes
 // from the map this call loaded and mutated, never from a separate read.
-func (s *Store) Remove(key, event string, via Via) (bool, error) {
+func (s *Store) Remove(key string, event Event, via Via) (bool, error) {
 	lock, err := s.acquireMutationLock()
 	if err != nil {
 		// A failed operation, not the silent no-removal below: that one changed
@@ -188,11 +189,11 @@ func (s *Store) Remove(key, event string, via Via) (bool, error) {
 	if !ok {
 		return false, nil
 	}
-	if _, ok := events[event]; !ok {
+	if _, ok := events[event.String()]; !ok {
 		return false, nil
 	}
 
-	delete(events, event)
+	delete(events, event.String())
 	if len(events) == 0 {
 		delete(h, key)
 	}
@@ -351,10 +352,36 @@ func (s *Store) deleteStale(live []string, snapshot Snapshot) ([]string, error) 
 	// The commands come from h, the pre-delete map.
 	for _, key := range removed {
 		logger.Info("clean-stale", "op", "clean-stale", "hook_key", key,
-			"value", h[key]["on-resume"], "via", ViaInternal.String())
+			"value", removedValue(h[key]), "via", ViaInternal.String())
 	}
 
 	storelog.EmitCleanStaleSummary(logger, len(removed), start, nil)
 
 	return removed, nil
+}
+
+// removedValue renders a reaped key's value attr from the events that key
+// actually held, so the breadcrumb reports the commands the deletion destroyed
+// whatever they were filed under. A key holding one event renders its command
+// alone — the recoverable form an operator copies back out of the log — and a
+// key holding several renders every event=command pair in event order, since
+// naming one of them would misreport the rest.
+func removedValue(events map[string]string) string {
+	if len(events) == 1 {
+		for _, command := range events {
+			return command
+		}
+	}
+
+	names := make([]string, 0, len(events))
+	for event := range events {
+		names = append(names, event)
+	}
+	sort.Strings(names)
+
+	pairs := make([]string, 0, len(names))
+	for _, event := range names {
+		pairs = append(pairs, event+"="+events[event])
+	}
+	return strings.Join(pairs, "; ")
 }

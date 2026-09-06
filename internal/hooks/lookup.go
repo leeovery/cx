@@ -22,7 +22,7 @@ func LookupOnResume(store *Store, hookKey string) (string, bool, error) {
 	if !ok {
 		return "", false, nil
 	}
-	cmd, ok := events["on-resume"]
+	cmd, ok := events[EventOnResume.String()]
 	if !ok || cmd == "" {
 		return "", false, nil
 	}

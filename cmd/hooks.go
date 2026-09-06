@@ -216,7 +216,7 @@ var hooksSetCmd = &cobra.Command{
 			return err
 		}
 
-		if err := store.Set(hookKey, "on-resume", command, hooks.ViaCLI); err != nil {
+		if err := store.Set(hookKey, hooks.EventOnResume, command, hooks.ViaCLI); err != nil {
 			return err
 		}
 
@@ -290,7 +290,7 @@ var hooksRmCmd = &cobra.Command{
 
 		// The removal itself reports whether an entry went: a read taken before it
 		// would answer from a snapshot the mutation never saw.
-		removed, err := store.Remove(hookKey, "on-resume", hooks.ViaCLI)
+		removed, err := store.Remove(hookKey, hooks.EventOnResume, hooks.ViaCLI)
 		if err != nil {
 			return err
 		}
