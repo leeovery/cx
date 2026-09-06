@@ -6,7 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/hookstest"
+	"github.com/leeovery/portal/internal/hooksweep"
 	"github.com/leeovery/portal/internal/logtest"
 )
 
@@ -24,7 +26,7 @@ func TestHookSweepReportsAStoreReadStandDownOnce(t *testing.T) {
 
 		maybeRunHookCleanup(deps)
 
-		assertStandDown(t, sink, slog.LevelWarn, skipReasonStoreReadFailed)
+		assertStandDown(t, sink, slog.LevelWarn, hooksweep.ReasonStoreReadFailed)
 		if got := len(injectedSink.Records()); got != 0 {
 			t.Errorf("daemon-logger record count = %d, want 0; entries=%+v", got, injectedSink.Records())
 		}
@@ -38,13 +40,15 @@ func TestHookSweepReportsAStoreReadStandDownOnce(t *testing.T) {
 
 		pruneDoctorStaleHooks(new(bytes.Buffer), deps)
 
-		assertStandDown(t, sink, slog.LevelWarn, skipReasonStoreReadFailed)
+		assertStandDown(t, sink, slog.LevelWarn, hooksweep.ReasonStoreReadFailed)
 	})
 
 	// The daemon's throttled sweep under a held lock: one WARN for the cycle,
 	// none of the daemon's own over it, and the file left as it was.
 	t.Run("it still reports a lock-timeout stand-down exactly once", func(t *testing.T) {
-		store, path, _ := lockedSweepFixture(t, lockBound)
+		hooks.SetLockTimeoutForTest(t, lockBound)
+		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: hookstest.StaleHookSeed})
+		hookstest.HoldHooksSidecar(t, path)
 		before := readFileBytes(t, path)
 
 		sink := logtest.Install(t)
@@ -55,7 +59,7 @@ func TestHookSweepReportsAStoreReadStandDownOnce(t *testing.T) {
 		maybeRunHookCleanup(deps)
 
 		assertHooksFileUnchanged(t, path, before, "rewritten by the daemon under a held lock")
-		assertStandDown(t, sink, slog.LevelWarn, skipReasonLockTimeout)
+		assertStandDown(t, sink, slog.LevelWarn, hooksweep.ReasonLockTimeout)
 		if got := len(injectedSink.Records().AtExactLevel(slog.LevelWarn)); got != 0 {
 			t.Errorf("injected-logger WARN count = %d, want 0; entries=%+v", got, injectedSink.Records())
 		}

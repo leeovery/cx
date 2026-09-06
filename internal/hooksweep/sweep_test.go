@@ -1,21 +1,17 @@
-package cmd
+package hooksweep
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
-	"strings"
 	"testing"
 
 	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/hookstest"
 	"github.com/leeovery/portal/internal/logtest"
-	"github.com/leeovery/portal/internal/state"
 )
 
-func TestRunHookStaleCleanup(t *testing.T) {
+func TestRunCycle(t *testing.T) {
 	const entryDebugFmt = "stale-hook cleanup counts"
 	const completionDebugFmt = "stale-hook cleanup removed"
 
@@ -25,22 +21,22 @@ func TestRunHookStaleCleanup(t *testing.T) {
   %q: {"on-resume": "cmd-b"}
 }`, hookstest.ReapableSeedA, hookstest.ReapableSeedB)
 		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
-		before := readFileBytes(t, path)
+		before := hookstest.HooksFileBytes(t, path)
 
 		loggerSink := logtest.Install(t)
-		lister := &stubStaleSweepReader{rows: tokenRows(), err: nil}
+		lister := &stubReader{rows: tokenRows(), err: nil}
 
-		if err := sweepErr(lister, store); err != nil {
-			t.Fatalf("runHookStaleCleanup: %v", err)
+		if err := runErr(lister, store); err != nil {
+			t.Fatalf("Run: %v", err)
 		}
 
-		assertHooksFileUnchanged(t, path, before, "modified by hazard-guard branch")
+		hookstest.AssertHooksFileUnchanged(t, path, before, "modified by hazard-guard branch")
 
 		if got := len(loggerSink.Records().Matching("hooks", entryDebugFmt).AtExactLevel(slog.LevelDebug)); got != 1 {
 			t.Errorf("entry-point Debug count = %d, want 1; entries=%+v", got, loggerSink.Records())
 		}
 
-		assertStandDown(t, loggerSink, slog.LevelWarn, skipReasonEmptyPaneRead)
+		assertStandDown(t, loggerSink, slog.LevelWarn, ReasonEmptyPaneRead)
 
 		if got := len(loggerSink.Records().Matching("hooks", completionDebugFmt).AtExactLevel(slog.LevelDebug)); got != 0 {
 			t.Errorf("completion Debug count = %d, want 0 (must NOT fire on hazard branch); entries=%+v", got, loggerSink.Records())
@@ -49,16 +45,16 @@ func TestRunHookStaleCleanup(t *testing.T) {
 
 	t.Run("both-sides-empty no-op", func(t *testing.T) {
 		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: ""})
-		before := readFileBytes(t, path)
+		before := hookstest.HooksFileBytes(t, path)
 
 		loggerSink := logtest.Install(t)
-		lister := &stubStaleSweepReader{rows: tokenRows(), err: nil}
+		lister := &stubReader{rows: tokenRows(), err: nil}
 
-		if err := sweepErr(lister, store); err != nil {
-			t.Fatalf("runHookStaleCleanup: %v", err)
+		if err := runErr(lister, store); err != nil {
+			t.Fatalf("Run: %v", err)
 		}
 
-		assertHooksFileUnchanged(t, path, before, "materialised under both-sides-empty path")
+		hookstest.AssertHooksFileUnchanged(t, path, before, "materialised under both-sides-empty path")
 
 		if got := len(loggerSink.Records().Matching("hooks", entryDebugFmt).AtExactLevel(slog.LevelDebug)); got != 1 {
 			t.Errorf("entry-point Debug count = %d, want 1; entries=%+v", got, loggerSink.Records())
@@ -78,14 +74,14 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 
 		loggerSink := logtest.Install(t)
-		lister := &stubStaleSweepReader{rows: nil, err: errors.New("tmux dead")}
+		lister := &stubReader{rows: nil, err: errors.New("tmux dead")}
 
-		outcome, err := runHookStaleCleanup(lister, store)
+		outcome, err := Run(lister, store)
 		if err != nil {
-			t.Fatalf("runHookStaleCleanup on ListAllPaneHookKeys error: want nil, got %v", err)
+			t.Fatalf("Run on ListAllPaneHookKeys error: want nil, got %v", err)
 		}
-		if outcome.DeclineReason != skipReasonPaneReadFailed {
-			t.Fatalf("DeclineReason = %q, want %q", outcome.DeclineReason, skipReasonPaneReadFailed)
+		if outcome.DeclineReason != ReasonPaneReadFailed {
+			t.Fatalf("DeclineReason = %q, want %q", outcome.DeclineReason, ReasonPaneReadFailed)
 		}
 
 		if got := len(loggerSink.Records().Matching("hooks", entryDebugFmt).AtExactLevel(slog.LevelDebug)); got != 0 {
@@ -97,14 +93,14 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		store, _ := hookstest.StageStore(t, hookstest.Staging{Unreadable: true})
 
 		loggerSink := logtest.Install(t)
-		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA), err: nil}
+		lister := &stubReader{rows: tokenRows(hookstest.LiveSeedA), err: nil}
 
-		outcome, err := runHookStaleCleanup(lister, store)
+		outcome, err := Run(lister, store)
 		if err != nil {
-			t.Fatalf("runHookStaleCleanup on a Load error: want nil, got %v", err)
+			t.Fatalf("Run on a Load error: want nil, got %v", err)
 		}
-		if outcome.DeclineReason != skipReasonStoreReadFailed {
-			t.Fatalf("DeclineReason = %q, want %q", outcome.DeclineReason, skipReasonStoreReadFailed)
+		if outcome.DeclineReason != ReasonStoreReadFailed {
+			t.Fatalf("DeclineReason = %q, want %q", outcome.DeclineReason, ReasonStoreReadFailed)
 		}
 
 		if got := len(loggerSink.Records().Matching("hooks", entryDebugFmt).AtExactLevel(slog.LevelDebug)); got != 0 {
@@ -121,11 +117,11 @@ func TestRunHookStaleCleanup(t *testing.T) {
 }`, hookstest.LiveSeedA, hookstest.ReapableSeedB, hookstest.ReapableSeedC, hookstest.ReapableSeedD)
 		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 
-		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA), err: nil}
+		lister := &stubReader{rows: tokenRows(hookstest.LiveSeedA), err: nil}
 
-		outcome, err := runHookStaleCleanup(lister, store)
+		outcome, err := Run(lister, store)
 		if err != nil {
-			t.Fatalf("runHookStaleCleanup: %v", err)
+			t.Fatalf("Run: %v", err)
 		}
 		removedSeen := outcome.Removed
 
@@ -151,10 +147,10 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 
 		loggerSink := logtest.Install(t)
-		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA, hookstest.LiveSeedB, hookstest.LiveSeedC), err: nil}
+		lister := &stubReader{rows: tokenRows(hookstest.LiveSeedA, hookstest.LiveSeedB, hookstest.LiveSeedC), err: nil}
 
-		if err := sweepErr(lister, store); err != nil {
-			t.Fatalf("runHookStaleCleanup: %v", err)
+		if err := runErr(lister, store); err != nil {
+			t.Fatalf("Run: %v", err)
 		}
 
 		postRun, err := store.Load(hooks.ViaInternal)
@@ -186,10 +182,10 @@ func TestRunHookStaleCleanup(t *testing.T) {
 		seed := fmt.Sprintf(`{%q: {"on-resume": "cmd-a"}}`, hookstest.LiveSeedA)
 		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 
-		rec := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA)}
+		rec := &stubReader{rows: tokenRows(hookstest.LiveSeedA)}
 
-		if err := sweepErr(rec, store); err != nil {
-			t.Fatalf("runHookStaleCleanup: %v", err)
+		if err := runErr(rec, store); err != nil {
+			t.Fatalf("Run: %v", err)
 		}
 
 		if rec.calls != 1 {
@@ -204,10 +200,10 @@ func TestRunHookStaleCleanup(t *testing.T) {
 }`, hookstest.LiveSeedA, hookstest.ReapableSeedA)
 		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 
-		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA), err: nil}
+		lister := &stubReader{rows: tokenRows(hookstest.LiveSeedA), err: nil}
 
-		if err := sweepErr(lister, store); err != nil {
-			t.Fatalf("runHookStaleCleanup: %v", err)
+		if err := runErr(lister, store); err != nil {
+			t.Fatalf("Run: %v", err)
 		}
 
 		postRun, err := store.Load(hooks.ViaInternal)
@@ -224,20 +220,20 @@ func TestRunHookStaleCleanup(t *testing.T) {
 }
 
 // A key the reaper cannot parse as a token is not evidence of a dead pane, so
-// neither entry point may take it — however the sweep is reached.
+// no cycle may take it, however the sweep is reached.
 func TestUnjudgeableHookKeyRetention(t *testing.T) {
-	t.Run("it retains a non-token-shaped key across the daemon sweep", func(t *testing.T) {
+	t.Run("it retains a non-token-shaped key across a sweep", func(t *testing.T) {
 		retained := hookstest.UnjudgeableSeedA
 		seed := fmt.Sprintf(`{
   %q: {"on-resume": "cmd-live"},
   %q: {"on-resume": "cmd-old"}
 }`, hookstest.LiveSeedA, retained)
 		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
-		before := readFileBytes(t, path)
+		before := hookstest.HooksFileBytes(t, path)
 
-		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA)}
-		if err := sweepErr(lister, store); err != nil {
-			t.Fatalf("runHookStaleCleanup: %v", err)
+		lister := &stubReader{rows: tokenRows(hookstest.LiveSeedA)}
+		if err := runErr(lister, store); err != nil {
+			t.Fatalf("Run: %v", err)
 		}
 
 		postRun, err := store.Load(hooks.ViaInternal)
@@ -248,48 +244,9 @@ func TestUnjudgeableHookKeyRetention(t *testing.T) {
 			t.Errorf("non-token-shaped key was swept; got %v", keysOf(postRun))
 		}
 
-		assertHooksFileUnchanged(t, path, before, "rewritten with nothing to remove")
+		hookstest.AssertHooksFileUnchanged(t, path, before, "rewritten with nothing to remove")
 	})
 
-	t.Run("it retains a non-token-shaped key across doctor --fix", func(t *testing.T) {
-		dir := t.TempDir()
-		seedHealthyStateDir(t, dir)
-		hookStore, hooksPath := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(hookstest.UnjudgeableSeedA)})
-		projectStore, _ := seedProjectsJSON(t, t.TempDir())
-		deps := staleDeps(dir, &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA)}, hookStore, projectStore)
-
-		outBuf, _, err := runDoctorWith(t, deps, "--fix")
-		if err != nil {
-			t.Fatalf("Execute err = %v; want nil (nothing to repair)", err)
-		}
-
-		after, err := os.ReadFile(hooksPath)
-		if err != nil {
-			t.Fatalf("read hooks.json: %v", err)
-		}
-		if !strings.Contains(string(after), hookstest.UnjudgeableSeedA) {
-			t.Errorf("doctor --fix pruned the non-token-shaped entry:\n%s", after)
-		}
-		if strings.Contains(outBuf.String(), "Pruned stale hook: "+hookstest.UnjudgeableSeedA) {
-			t.Errorf("doctor --fix reported pruning a retained entry:\n%s", outBuf.String())
-		}
-	})
-
-	t.Run("it exits 0 from portal doctor with only retained non-token-shaped entries present", func(t *testing.T) {
-		dir := t.TempDir()
-		seedHealthyStateDir(t, dir)
-		hookStore, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(hookstest.UnjudgeableSeedA, hookstest.UnjudgeableSeedB)})
-		projectStore, _ := seedProjectsJSON(t, t.TempDir())
-		deps := staleDeps(dir, &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA)}, hookStore, projectStore)
-
-		outBuf, _, err := runDoctorWith(t, deps)
-		if err != nil {
-			t.Fatalf("Execute err = %v; want nil (retained entries are not a failing check)", err)
-		}
-		if !strings.Contains(outBuf.String(), "✓ stale hooks: no stale hooks") {
-			t.Errorf("stale-hooks check did not pass:\n%s", outBuf.String())
-		}
-	})
 }
 
 // A restore window is a hole in the reaper's judgement: every live pane carries
@@ -298,10 +255,10 @@ func TestUnjudgeableHookKeyRetention(t *testing.T) {
 func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 	t.Run("it stands down before enumerating while the restore marker is set", func(t *testing.T) {
 		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hookstest.StaleHookSeed})
-		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA), restoring: true}
+		lister := &stubReader{rows: tokenRows(hookstest.LiveSeedA), restoring: true}
 
-		if err := sweepErr(lister, store); err != nil {
-			t.Fatalf("runHookStaleCleanup: %v", err)
+		if err := runErr(lister, store); err != nil {
+			t.Fatalf("Run: %v", err)
 		}
 
 		if lister.calls != 0 {
@@ -314,14 +271,14 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 	// is reported under.
 	t.Run("it stands down before enumerating when the marker read fails", func(t *testing.T) {
 		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hookstest.StaleHookSeed})
-		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA), restoringErr: errors.New("tmux dead")}
+		lister := &stubReader{rows: tokenRows(hookstest.LiveSeedA), restoringErr: errors.New("tmux dead")}
 
-		outcome, err := runHookStaleCleanup(lister, store)
+		outcome, err := Run(lister, store)
 		if err != nil {
-			t.Fatalf("runHookStaleCleanup: %v", err)
+			t.Fatalf("Run: %v", err)
 		}
-		if outcome.DeclineReason != skipReasonMarkerReadFailed {
-			t.Fatalf("DeclineReason = %q, want %q", outcome.DeclineReason, skipReasonMarkerReadFailed)
+		if outcome.DeclineReason != ReasonMarkerReadFailed {
+			t.Fatalf("DeclineReason = %q, want %q", outcome.DeclineReason, ReasonMarkerReadFailed)
 		}
 
 		if lister.calls != 0 {
@@ -334,15 +291,15 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 		// marker — rather than the store read — proves it was never loaded.
 		store, _ := hookstest.StageStore(t, hookstest.Staging{Unreadable: true})
 
-		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA), restoring: true}
+		lister := &stubReader{rows: tokenRows(hookstest.LiveSeedA), restoring: true}
 
-		outcome, err := runHookStaleCleanup(lister, store)
+		outcome, err := Run(lister, store)
 		if err != nil {
-			t.Fatalf("runHookStaleCleanup: want nil (store untouched), got %v", err)
+			t.Fatalf("Run: want nil (store untouched), got %v", err)
 		}
-		if outcome.DeclineReason != skipReasonRestoring {
+		if outcome.DeclineReason != ReasonRestoring {
 			t.Errorf("DeclineReason = %q, want %q (a store read would have declined with %q)",
-				outcome.DeclineReason, skipReasonRestoring, skipReasonStoreReadFailed)
+				outcome.DeclineReason, ReasonRestoring, ReasonStoreReadFailed)
 		}
 		if lister.calls != 0 {
 			t.Errorf("ListAllPaneHookKeys call count = %d, want 0", lister.calls)
@@ -354,10 +311,10 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 
 	t.Run("it sweeps normally when the marker is absent", func(t *testing.T) {
 		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hookstest.StaleHookSeed})
-		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA)}
+		lister := &stubReader{rows: tokenRows(hookstest.LiveSeedA)}
 
-		if err := sweepErr(lister, store); err != nil {
-			t.Fatalf("runHookStaleCleanup: %v", err)
+		if err := runErr(lister, store); err != nil {
+			t.Fatalf("Run: %v", err)
 		}
 
 		if lister.calls != 1 {
@@ -375,89 +332,6 @@ func TestHookSweepStandsDownWhileRestoring(t *testing.T) {
 		}
 	})
 
-	t.Run("it stands the doctor --fix prune down while restoring", func(t *testing.T) {
-		deps, hooksPath, _, _, _ := seedStalePruneFixture(t, t.TempDir(), restoringHookLister())
-
-		// The exit code is the diagnosis's business, not the prune's.
-		outBuf, _, _ := runDoctorWith(t, deps, "--fix")
-
-		after, err := os.ReadFile(hooksPath)
-		if err != nil {
-			t.Fatalf("read hooks.json: %v", err)
-		}
-		if !strings.Contains(string(after), hookstest.ReapableSeedA) {
-			t.Errorf("doctor --fix pruned a hook during a restore:\n%s", after)
-		}
-		if strings.Contains(outBuf.String(), "Pruned stale hook:") {
-			t.Errorf("doctor --fix reported a prune during a restore:\n%s", outBuf.String())
-		}
-	})
-
-	t.Run("it leaves the daemon's tick behaviour unchanged", func(t *testing.T) {
-		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hookstest.StaleHookSeed})
-		fc := &daemonFakeCommander{
-			panesOut:     livePaneRowOut,
-			optionByName: map[string]string{state.RestoringMarkerName: "1"},
-		}
-		deps := hookCleanupDeps(fc, store, discardDaemonLogger())
-		deps.Dir = t.TempDir()
-
-		tick(context.Background(), deps)
-
-		if got := fc.callsContaining("show-option"); len(got) != 1 {
-			t.Errorf("tick made %d show-option reads, want 1 (its own marker read; the sweep must not be reached): %v", len(got), got)
-		}
-		if got := fc.callsContaining("list-panes"); len(got) != 0 {
-			t.Errorf("tick enumerated panes despite the restoring marker: %v", got)
-		}
-		postRun, err := store.Load(hooks.ViaInternal)
-		if err != nil {
-			t.Fatalf("store.Load post-run: %v", err)
-		}
-		if _, ok := postRun[hookstest.ReapableSeedA]; !ok {
-			t.Errorf("tick reaped a hook despite the restoring marker; got %v", keysOf(postRun))
-		}
-	})
-}
-
-// assertStandDown pins the stand-down breadcrumb at the level the sweep is
-// expected to report it, and returns it for per-case attr assertions. The level
-// picks the record set the count is taken over: a DEBUG stand-down is the only
-// line the sink holds, so anything at WARN or above is itself a failure, while a
-// WARN stand-down shares the sink with the degraded pre-read's own DEBUG
-// breadcrumb and can only be counted among the WARNs.
-func assertStandDown(t *testing.T, sink *logtest.Sink, level slog.Level, reason skipReason) logtest.Record {
-	t.Helper()
-
-	var rec logtest.Record
-	if level < slog.LevelWarn {
-		for _, r := range sink.Records().AtOrAboveLevel(slog.LevelWarn) {
-			t.Errorf("stand-down emitted at %v: %+v", r.Level, r)
-		}
-		rec = sink.Records().Only(t, "log record")
-	} else {
-		rec = sink.Records().AtOrAboveLevel(level).Only(t, "record at or above level")
-	}
-
-	assertStandDownRecord(t, rec, level, reason)
-	return rec
-}
-
-// assertStandDownRecord pins the shape of a stand-down line already selected by
-// its caller, for a case whose own selection is stronger than the level alone.
-func assertStandDownRecord(t *testing.T, rec logtest.Record, level slog.Level, reason skipReason) {
-	t.Helper()
-	assertHooksRecord(t, rec, standDownWant(level))
-	if got := rec.AttrString(t, "reason"); got != string(reason) {
-		t.Errorf("reason = %q, want %q", got, reason)
-	}
-}
-
-// standDownWant is the stand-down's half of the hooks record shape: every
-// stand-down carries the same message, op and via, and differs only in the
-// level it is reported at.
-func standDownWant(level slog.Level) hooksRecordWant {
-	return hooksRecordWant{level: level, msg: "clean-stale-skipped", op: "clean-stale-skipped", via: "internal"}
 }
 
 // A repair that silently did not run is indistinguishable from a repair that
@@ -465,13 +339,13 @@ func standDownWant(level slog.Level) hooksRecordWant {
 func TestHookSweepReportsStandDown(t *testing.T) {
 	t.Run("it reports nothing when the live set is empty and no entries are persisted", func(t *testing.T) {
 		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: ""})
-		lister := &stubStaleSweepReader{rows: tokenRows()}
+		lister := &stubReader{rows: tokenRows()}
 
 		sink := logtest.Install(t)
 
-		outcome, err := runHookStaleCleanup(lister, store)
+		outcome, err := Run(lister, store)
 		if err != nil {
-			t.Fatalf("runHookStaleCleanup: %v", err)
+			t.Fatalf("Run: %v", err)
 		}
 
 		if outcome.DeclineReason != "" {
@@ -484,19 +358,19 @@ func TestHookSweepReportsStandDown(t *testing.T) {
 
 	t.Run("it reports the failed enumeration as a stand-down on the hooks component", func(t *testing.T) {
 		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hookstest.StaleHookSeed})
-		lister := &stubStaleSweepReader{err: errors.New("tmux dead")}
+		lister := &stubReader{err: errors.New("tmux dead")}
 
 		sink := logtest.Install(t)
 
-		outcome, err := runHookStaleCleanup(lister, store)
+		outcome, err := Run(lister, store)
 		if err != nil {
-			t.Fatalf("runHookStaleCleanup on an enumeration error: want nil, got %v", err)
+			t.Fatalf("Run on an enumeration error: want nil, got %v", err)
 		}
-		if outcome.DeclineReason != skipReasonPaneReadFailed {
-			t.Fatalf("DeclineReason = %q, want %q", outcome.DeclineReason, skipReasonPaneReadFailed)
+		if outcome.DeclineReason != ReasonPaneReadFailed {
+			t.Fatalf("DeclineReason = %q, want %q", outcome.DeclineReason, ReasonPaneReadFailed)
 		}
 
-		assertStandDown(t, sink, slog.LevelWarn, skipReasonPaneReadFailed)
+		assertStandDown(t, sink, slog.LevelWarn, ReasonPaneReadFailed)
 	})
 }
 
@@ -510,13 +384,13 @@ func TestHookSweepGuardCountsPaneRowsNotTokens(t *testing.T) {
   %q: {"on-resume": "cmd-live"}
 }`, hookstest.UnjudgeableSeedA, hookstest.UnjudgeableSeedB)
 		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
-		before := readFileBytes(t, path)
+		before := hookstest.HooksFileBytes(t, path)
 
 		sink := logtest.Install(t)
 
-		outcome, err := runHookStaleCleanup(&stubStaleSweepReader{rows: unstampedRows(3)}, store)
+		outcome, err := Run(&stubReader{rows: unstampedRows(3)}, store)
 		if err != nil {
-			t.Fatalf("runHookStaleCleanup: %v", err)
+			t.Fatalf("Run: %v", err)
 		}
 
 		if outcome.DeclineReason != "" {
@@ -525,16 +399,16 @@ func TestHookSweepGuardCountsPaneRowsNotTokens(t *testing.T) {
 		for _, rec := range sink.Records().AtOrAboveLevel(slog.LevelWarn) {
 			t.Errorf("unexpected Warn with rows present and no token: %+v", rec)
 		}
-		assertHooksFileUnchanged(t, path, before, "rewritten with only unjudgeable entries present")
+		hookstest.AssertHooksFileUnchanged(t, path, before, "rewritten with only unjudgeable entries present")
 	})
 
 	t.Run("it still deletes a token-shaped key absent from the live token set", func(t *testing.T) {
 		seed := fmt.Sprintf(`{%q: {"on-resume": "cmd-gone"}}`, hookstest.ReapableSeedA)
 		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 
-		lister := &stubStaleSweepReader{rows: append(tokenRows(hookstest.ReapableSeedB), unstampedRows(1)...)}
-		if err := sweepErr(lister, store); err != nil {
-			t.Fatalf("runHookStaleCleanup: %v", err)
+		lister := &stubReader{rows: append(tokenRows(hookstest.ReapableSeedB), unstampedRows(1)...)}
+		if err := runErr(lister, store); err != nil {
+			t.Fatalf("Run: %v", err)
 		}
 
 		postRun, err := store.Load(hooks.ViaInternal)
@@ -550,13 +424,13 @@ func TestHookSweepGuardCountsPaneRowsNotTokens(t *testing.T) {
 		seed := fmt.Sprintf(`{%q: {"on-resume": "cmd-gone"}}`, hookstest.ReapableSeedA)
 		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 
-		outcome, err := runHookStaleCleanup(&stubStaleSweepReader{rows: nil}, store)
+		outcome, err := Run(&stubReader{rows: nil}, store)
 		if err != nil {
-			t.Fatalf("runHookStaleCleanup: %v", err)
+			t.Fatalf("Run: %v", err)
 		}
 
-		if outcome.DeclineReason != skipReasonEmptyPaneRead {
-			t.Errorf("DeclineReason = %q, want %q", outcome.DeclineReason, skipReasonEmptyPaneRead)
+		if outcome.DeclineReason != ReasonEmptyPaneRead {
+			t.Errorf("DeclineReason = %q, want %q", outcome.DeclineReason, ReasonEmptyPaneRead)
 		}
 		postRun, err := store.Load(hooks.ViaInternal)
 		if err != nil {
@@ -571,9 +445,9 @@ func TestHookSweepGuardCountsPaneRowsNotTokens(t *testing.T) {
 		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: fmt.Sprintf(`{%q: {"on-resume": "cmd-live"}}`, hookstest.UnjudgeableSeedB)})
 
 		loggerSink := logtest.Install(t)
-		lister := &stubStaleSweepReader{rows: unstampedRows(4)}
-		if err := sweepErr(lister, store); err != nil {
-			t.Fatalf("runHookStaleCleanup: %v", err)
+		lister := &stubReader{rows: unstampedRows(4)}
+		if err := runErr(lister, store); err != nil {
+			t.Fatalf("Run: %v", err)
 		}
 
 		rec := loggerSink.Records().Matching("hooks", "stale-hook cleanup counts").AtExactLevel(slog.LevelDebug).Only(t, "DEBUG hooks stale-hook cleanup counts record")
@@ -589,9 +463,9 @@ func TestHookSweepGuardCountsPaneRowsNotTokens(t *testing.T) {
 }`, hookstest.UnjudgeableSeedA)
 		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: seed})
 
-		lister := &stubStaleSweepReader{rows: unstampedRows(2)}
-		if err := sweepErr(lister, store); err != nil {
-			t.Fatalf("runHookStaleCleanup: %v", err)
+		lister := &stubReader{rows: unstampedRows(2)}
+		if err := runErr(lister, store); err != nil {
+			t.Fatalf("Run: %v", err)
 		}
 
 		postRun, err := store.Load(hooks.ViaInternal)
@@ -610,23 +484,16 @@ func TestHookSweepGuardCountsPaneRowsNotTokens(t *testing.T) {
 	})
 }
 
-// sweepErr drives the sweep and keeps only its error, for the cases that assert
-// on hooks.json or on the log rather than on what the cycle reported.
-func sweepErr(reader staleSweepReader, store *hooks.Store) error {
-	_, err := runHookStaleCleanup(reader, store)
-	return err
-}
-
 // With nothing persisted there is no key to judge and none to protect, so the
 // cheapest and most decisive test is taken before the whole-server pane read a
 // daemon would otherwise pay for on every cycle for the life of the process.
 func TestHookSweepWithNothingPersisted(t *testing.T) {
 	t.Run("it enumerates no panes when nothing is persisted", func(t *testing.T) {
 		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody()})
-		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA)}
+		lister := &stubReader{rows: tokenRows(hookstest.LiveSeedA)}
 
-		if err := sweepErr(lister, store); err != nil {
-			t.Fatalf("runHookStaleCleanup: %v", err)
+		if err := runErr(lister, store); err != nil {
+			t.Fatalf("Run: %v", err)
 		}
 
 		if lister.calls != 0 {
@@ -638,8 +505,8 @@ func TestHookSweepWithNothingPersisted(t *testing.T) {
 		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody()})
 		sink := logtest.Install(t)
 
-		if err := sweepErr(&stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA)}, store); err != nil {
-			t.Fatalf("runHookStaleCleanup: %v", err)
+		if err := runErr(&stubReader{rows: tokenRows(hookstest.LiveSeedA)}, store); err != nil {
+			t.Fatalf("Run: %v", err)
 		}
 
 		rec := sink.Records().Matching("hooks", "stale-hook cleanup counts").AtExactLevel(slog.LevelDebug).
@@ -653,7 +520,7 @@ func TestHookSweepWithNothingPersisted(t *testing.T) {
 	})
 
 	t.Run("it answers the live token set for a non-empty snapshot", func(t *testing.T) {
-		enumerate := liveTokenEnumeration(&stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA)})
+		enumerate := liveTokenEnumeration(&stubReader{rows: tokenRows(hookstest.LiveSeedA)})
 
 		if _, err := enumerate(hooks.Snapshot{}); !errors.Is(err, errNothingPersisted) {
 			t.Errorf("empty snapshot err = %v, want %v", err, errNothingPersisted)

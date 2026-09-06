@@ -10,10 +10,13 @@ import (
 
 // The \bCleanStale\b word boundary is deliberate: the marker-sweep method
 // CleanStaleMarkers carries a trailing word char, so only the bare hooks
-// method matches. Only production files are scanned — test files legitimately
-// mention the name in prose.
+// method matches. The cycle itself now lives in internal/hooksweep, so the
+// package name is what names it here: a bootstrap step has no business reaching
+// that package at all, whichever of its entry points it reached for. Only
+// production files are scanned — test files legitimately mention the name in
+// prose.
 func TestHooksCleanStale_NoBootstrapStepIsAnAutomaticCaller(t *testing.T) {
-	forbidden := regexp.MustCompile(`\bCleanStale\b|\brunHookStaleCleanup\b`)
+	forbidden := regexp.MustCompile(`\bCleanStale\b|\bhooksweep\b`)
 
 	const bootstrapDir = "bootstrap"
 	entries, err := os.ReadDir(bootstrapDir)

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/hookstest"
+	"github.com/leeovery/portal/internal/hooksweep"
 	"github.com/leeovery/portal/internal/logtest"
 )
 
@@ -36,7 +37,7 @@ func TestDoctorFixAlwaysReportsTheHookPrune(t *testing.T) {
 
 		outBuf, _, _ := runDoctorWith(t, deps, "--fix")
 
-		assertSkippedPruneLine(t, outBuf.String(), renderSkippedPruneLine(skipReasonRestoring))
+		assertSkippedPruneLine(t, outBuf.String(), renderSkippedPruneLine(hooksweep.ReasonRestoring))
 	})
 
 	// A failed sweep is no stand-down, so its line is rendered by a renderer of

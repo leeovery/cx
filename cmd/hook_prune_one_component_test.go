@@ -35,37 +35,10 @@ func sweepFailureFixture(t *testing.T) *hooks.Store {
 
 // One cycle is one story, and reconstructing it must not mean correlating three
 // components: whatever a cycle has to say about itself belongs to the subsystem
-// it sweeps.
+// it sweeps, whichever caller drove it. That the cycle emits under one component
+// at all is internal/hooksweep's own to pin; what these cases add is that its two
+// callers reach it identically and neither adds a line of its own over it.
 func TestHookSweepEmitsOneCycleUnderOneComponent(t *testing.T) {
-	t.Run("it emits a cycle's counts, stand-down and failure lines all under the hooks component", func(t *testing.T) {
-		sink := logtest.Install(t)
-
-		reaping, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hookstest.StaleHookSeed})
-		if _, err := runHookStaleCleanup(&stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA)}, reaping); err != nil {
-			t.Fatalf("runHookStaleCleanup on the reaping cycle: %v", err)
-		}
-
-		standingDown, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hookstest.StaleHookSeed})
-		if _, err := runHookStaleCleanup(&stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA), restoring: true}, standingDown); err != nil {
-			t.Fatalf("runHookStaleCleanup on the stand-down cycle: %v", err)
-		}
-
-		if _, err := runHookStaleCleanup(&stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA)}, sweepFailureFixture(t)); err == nil {
-			t.Fatal("runHookStaleCleanup on the failing cycle: want an error, got nil")
-		}
-
-		for _, msg := range []string{"stale-hook cleanup counts", "stale-hook cleanup removed", standDownMsg, sweepFailedMsg} {
-			if got := len(sink.Records().Matching("hooks", msg)); got == 0 {
-				t.Errorf("records matching hooks/%q = 0, want at least one; records=%+v", msg, sink.Records())
-			}
-		}
-		for _, rec := range sink.Records() {
-			if got := componentOf(rec); got != "hooks" {
-				t.Errorf("record emitted under component %q, want hooks: %+v", got, rec)
-			}
-		}
-	})
-
 	t.Run("it emits the same component and messages from the daemon and from doctor --fix", func(t *testing.T) {
 		daemonSink := logtest.Install(t)
 		daemonStore, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hookstest.StaleHookSeed})

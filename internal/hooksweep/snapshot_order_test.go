@@ -1,4 +1,4 @@
-package cmd
+package hooksweep
 
 import (
 	"fmt"
@@ -18,14 +18,14 @@ func TestHookSweepSnapshotPrecedesEnumeration(t *testing.T) {
 	t.Run("it retains an entry written during the pane enumeration", func(t *testing.T) {
 		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: fmt.Sprintf(`{%q: {"on-resume": "cmd-live"}}`, hookstest.LiveSeedA)})
 
-		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA), during: func() {
+		lister := &stubReader{rows: tokenRows(hookstest.LiveSeedA), during: func() {
 			if err := store.Set(hookstest.ReapableSeedA, "on-resume", "cmd-fresh", hooks.ViaCLI); err != nil {
 				t.Errorf("register a hook during the enumeration: %v", err)
 			}
 		}}
 
-		if err := sweepErr(lister, store); err != nil {
-			t.Fatalf("runHookStaleCleanup: %v", err)
+		if err := runErr(lister, store); err != nil {
+			t.Fatalf("Run: %v", err)
 		}
 
 		postRun, err := store.Load(hooks.ViaInternal)
@@ -34,7 +34,7 @@ func TestHookSweepSnapshotPrecedesEnumeration(t *testing.T) {
 		}
 		if _, ok := postRun[hookstest.ReapableSeedA]; !ok {
 			t.Errorf("an entry registered during the enumeration was reaped; file holds %v (%s)",
-				keysOf(postRun), readFileBytes(t, path))
+				keysOf(postRun), hookstest.HooksFileBytes(t, path))
 		}
 		if _, ok := postRun[hookstest.LiveSeedA]; !ok {
 			t.Errorf("the live entry was reaped; file holds %v", keysOf(postRun))
@@ -45,14 +45,14 @@ func TestHookSweepSnapshotPrecedesEnumeration(t *testing.T) {
 		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: fmt.Sprintf(`{%q: {"on-resume": "cmd-live"}}`, hookstest.LiveSeedA)})
 
 		probed := false
-		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA), during: func() {
+		lister := &stubReader{rows: tokenRows(hookstest.LiveSeedA), during: func() {
 			probed = true
 			// A tmux read must sit outside the lock.
 			hookstest.AssertSidecarFree(t, path)
 		}}
 
-		if err := sweepErr(lister, store); err != nil {
-			t.Fatalf("runHookStaleCleanup: %v", err)
+		if err := runErr(lister, store); err != nil {
+			t.Fatalf("Run: %v", err)
 		}
 		if !probed {
 			t.Fatal("the enumeration never ran — the probe proves nothing about the lock")
@@ -73,7 +73,7 @@ func TestHookSweepSnapshotPrecedesEnumeration(t *testing.T) {
 		// snapshot holds and the sweep would otherwise have reaped — while a
 		// registration lands for seed D. C leaves the file by someone else's
 		// hand and D never enters the snapshot, so neither may be named.
-		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA), during: func() {
+		lister := &stubReader{rows: tokenRows(hookstest.LiveSeedA), during: func() {
 			if _, err := store.Remove(hookstest.ReapableSeedC, "on-resume", hooks.ViaCLI); err != nil {
 				t.Errorf("remove a hook during the enumeration: %v", err)
 			}
@@ -82,9 +82,9 @@ func TestHookSweepSnapshotPrecedesEnumeration(t *testing.T) {
 			}
 		}}
 
-		outcome, err := runHookStaleCleanup(lister, store)
+		outcome, err := Run(lister, store)
 		if err != nil {
-			t.Fatalf("runHookStaleCleanup: %v", err)
+			t.Fatalf("Run: %v", err)
 		}
 		reported := slices.Clone(outcome.Removed)
 		slices.Sort(reported)
@@ -92,7 +92,7 @@ func TestHookSweepSnapshotPrecedesEnumeration(t *testing.T) {
 		want := []string{hookstest.ReapableSeedB}
 		if !slices.Equal(reported, want) {
 			t.Errorf("Removed reported %v, want only %v — the outcome names this sweep's deletions, not a prediction over the file (file holds %s)",
-				reported, want, readFileBytes(t, path))
+				reported, want, hookstest.HooksFileBytes(t, path))
 		}
 	})
 }
@@ -105,9 +105,9 @@ func TestHookSweepTakesNoLockWithNothingPersisted(t *testing.T) {
 	configDir := filepath.Join(configRoot, "portal")
 	hooksPath := filepath.Join(configDir, "hooks.json")
 
-	lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA)}
-	if err := sweepErr(lister, hooks.NewStore(hooksPath)); err != nil {
-		t.Fatalf("runHookStaleCleanup: %v", err)
+	lister := &stubReader{rows: tokenRows(hookstest.LiveSeedA)}
+	if err := runErr(lister, hooks.NewStore(hooksPath)); err != nil {
+		t.Fatalf("Run: %v", err)
 	}
 
 	if entries := dirListing(t, configRoot); len(entries) != 0 {

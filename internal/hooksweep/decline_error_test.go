@@ -1,4 +1,4 @@
-package cmd
+package hooksweep
 
 import (
 	"errors"
@@ -14,7 +14,7 @@ import (
 // reported with no reason reads as a cycle that ran and found nothing.
 func TestHookSweepDeclineReasonTravelsWithTheError(t *testing.T) {
 	t.Run("it carries the decline reason inside the error the closure returns", func(t *testing.T) {
-		enumerate := liveTokenEnumeration(&stubStaleSweepReader{rows: nil})
+		enumerate := liveTokenEnumeration(&stubReader{rows: nil})
 
 		tokens, err := enumerate(hooks.Snapshot{hookstest.ReapableSeedA: {"on-resume": "cmd-gone"}})
 
@@ -25,23 +25,23 @@ func TestHookSweepDeclineReasonTravelsWithTheError(t *testing.T) {
 		if !errors.As(err, &declined) {
 			t.Fatalf("errors.As(%v, *declinedError) = false; want the reason to ride the error", err)
 		}
-		if declined.reason != skipReasonEmptyPaneRead {
-			t.Errorf("reason = %q, want %q", declined.reason, skipReasonEmptyPaneRead)
+		if declined.reason != ReasonEmptyPaneRead {
+			t.Errorf("reason = %q, want %q", declined.reason, ReasonEmptyPaneRead)
 		}
-		if want := "hook staleness cycle declined: " + string(skipReasonEmptyPaneRead); err.Error() != want {
+		if want := "hook staleness cycle declined: " + string(ReasonEmptyPaneRead); err.Error() != want {
 			t.Errorf("Error() = %q, want %q", err.Error(), want)
 		}
 	})
 
 	t.Run("it leaves DeclineReason empty for a cycle that ran and removed nothing", func(t *testing.T) {
 		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(hookstest.LiveSeedA, hookstest.LiveSeedB)})
-		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA, hookstest.LiveSeedB)}
+		lister := &stubReader{rows: tokenRows(hookstest.LiveSeedA, hookstest.LiveSeedB)}
 
 		sink := logtest.Install(t)
 
-		outcome, err := runHookStaleCleanup(lister, store)
+		outcome, err := Run(lister, store)
 		if err != nil {
-			t.Fatalf("runHookStaleCleanup: %v", err)
+			t.Fatalf("Run: %v", err)
 		}
 
 		if outcome.DeclineReason != "" {
@@ -57,13 +57,13 @@ func TestHookSweepDeclineReasonTravelsWithTheError(t *testing.T) {
 
 	t.Run("it still returns nothing-persisted without a stand-down line", func(t *testing.T) {
 		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody()})
-		lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA)}
+		lister := &stubReader{rows: tokenRows(hookstest.LiveSeedA)}
 
 		sink := logtest.Install(t)
 
-		outcome, err := runHookStaleCleanup(lister, store)
+		outcome, err := Run(lister, store)
 		if err != nil {
-			t.Fatalf("runHookStaleCleanup: %v", err)
+			t.Fatalf("Run: %v", err)
 		}
 
 		if outcome.DeclineReason != "" {

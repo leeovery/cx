@@ -153,7 +153,7 @@ func TestSweepPreReadBound(t *testing.T) {
 		elapsed := time.Since(start)
 
 		if err != nil {
-			t.Fatalf("runHookStaleCleanup: %v", err)
+			t.Fatalf("hooksweep.Run: %v", err)
 		}
 		if elapsed >= time.Second {
 			t.Fatalf("the pre-read spent %v under a held lock — it waited at the mutation bound, not the derived pre-read bound (%v)", elapsed, short)

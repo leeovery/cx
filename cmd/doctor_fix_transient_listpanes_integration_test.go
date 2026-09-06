@@ -9,13 +9,14 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/hookstest"
+	"github.com/leeovery/portal/internal/hooksweep"
 	"github.com/leeovery/portal/internal/portaltest"
 	"github.com/leeovery/portal/internal/tmux"
 	"github.com/leeovery/portal/internal/tmuxtest"
 	"github.com/leeovery/portal/internal/transienttest"
 )
 
-func runDoctorFixHookPrune(t *testing.T, lister staleSweepReader) (string, error) {
+func runDoctorFixHookPrune(t *testing.T, lister hooksweep.Reader) (string, error) {
 	t.Helper()
 	hookStore, err := loadHookStore()
 	if err != nil {
@@ -42,7 +43,7 @@ func assertNoStaleHookPrunesOnStdout(t *testing.T, output string, seededKeys ...
 }
 
 func TestDoctorFix_TmuxTransient_DoesNotWipeHooks(t *testing.T) {
-	// A live server behind the stub is load-bearing: runHookStaleCleanup reads
+	// A live server behind the stub is load-bearing: the cycle reads
 	// @portal-restoring before it enumerates, and that read is not intercepted —
 	// against a dead socket it fails, and a failed read stands the whole cycle
 	// down before either list-panes failure mode is reached.

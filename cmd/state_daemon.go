@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/leeovery/portal/internal/hooks"
+	"github.com/leeovery/portal/internal/hooksweep"
 	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/project"
 	"github.com/leeovery/portal/internal/state"
@@ -210,7 +211,7 @@ func maybeRunHookCleanup(deps *daemonDeps) {
 	}
 	// The failure is the sweep's own to report, under the component that owns
 	// the subsystem it swept; the tick survives it either way.
-	_, _ = runHookStaleCleanup(deps.Client, deps.HookStore)
+	_, _ = hooksweep.Run(deps.Client, deps.HookStore)
 	deps.lastCleanup = time.Now()
 }
 

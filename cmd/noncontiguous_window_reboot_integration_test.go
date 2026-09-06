@@ -191,7 +191,7 @@ func TestNonContiguousWindowReboot_KeepsTokenKeyedHooks(t *testing.T) {
 	})
 
 	if err := sweepErr(fx.client, fx.store); err != nil {
-		t.Fatalf("runHookStaleCleanup: %v", err)
+		t.Fatalf("hooksweep.Run: %v", err)
 	}
 	swept, err := fx.store.Load(hooks.ViaInternal)
 	if err != nil {

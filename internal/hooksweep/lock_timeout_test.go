@@ -1,4 +1,4 @@
-package cmd
+package hooksweep
 
 import (
 	"errors"
@@ -26,25 +26,25 @@ func lockedSweepFixture(t *testing.T, bound time.Duration) (*hooks.Store, string
 }
 
 func TestHookSweepStandsDownOnLockTimeout(t *testing.T) {
-	lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA)}
+	lister := &stubReader{rows: tokenRows(hookstest.LiveSeedA)}
 
 	t.Run("it deletes nothing when the sweep cannot take the lock", func(t *testing.T) {
 		store, path, _ := lockedSweepFixture(t, lockBound)
-		before := readFileBytes(t, path)
+		before := hookstest.HooksFileBytes(t, path)
 
-		if err := sweepErr(lister, store); err != nil {
-			t.Fatalf("runHookStaleCleanup: want nil on a lock timeout, got %v", err)
+		if err := runErr(lister, store); err != nil {
+			t.Fatalf("Run: want nil on a lock timeout, got %v", err)
 		}
 
-		assertHooksFileUnchanged(t, path, before, "rewritten under a held lock")
+		hookstest.AssertHooksFileUnchanged(t, path, before, "rewritten under a held lock")
 	})
 
 	t.Run("it emits exactly one WARN per stood-down cycle", func(t *testing.T) {
 		store, _, _ := lockedSweepFixture(t, lockBound)
 		sink := logtest.Install(t)
 
-		if err := sweepErr(lister, store); err != nil {
-			t.Fatalf("runHookStaleCleanup: %v", err)
+		if err := runErr(lister, store); err != nil {
+			t.Fatalf("Run: %v", err)
 		}
 
 		assertStandDown(t, sink, slog.LevelWarn, "lock-timeout")
@@ -58,8 +58,8 @@ func TestHookSweepStandsDownOnLockTimeout(t *testing.T) {
 		store, _, _ := lockedSweepFixture(t, bound)
 
 		start := time.Now()
-		if err := sweepErr(lister, store); err != nil {
-			t.Fatalf("runHookStaleCleanup: %v", err)
+		if err := runErr(lister, store); err != nil {
+			t.Fatalf("Run: %v", err)
 		}
 		elapsed := time.Since(start)
 
@@ -74,14 +74,14 @@ func TestHookSweepStandsDownOnLockTimeout(t *testing.T) {
 	t.Run("it retries on the next cadence", func(t *testing.T) {
 		store, _, release := lockedSweepFixture(t, lockBound)
 
-		if err := sweepErr(lister, store); err != nil {
-			t.Fatalf("runHookStaleCleanup under the lock: %v", err)
+		if err := runErr(lister, store); err != nil {
+			t.Fatalf("Run under the lock: %v", err)
 		}
 		release()
 
-		outcome, err := runHookStaleCleanup(lister, store)
+		outcome, err := Run(lister, store)
 		if err != nil {
-			t.Fatalf("runHookStaleCleanup after release: %v", err)
+			t.Fatalf("Run after release: %v", err)
 		}
 
 		if len(outcome.Removed) != 1 || outcome.Removed[0] != hookstest.ReapableSeedA {
@@ -101,7 +101,7 @@ func TestHookSweepStandsDownOnLockTimeout(t *testing.T) {
 }
 
 func TestHookSweepDiscriminatesLockTimeoutFromFailure(t *testing.T) {
-	lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA)}
+	lister := &stubReader{rows: tokenRows(hookstest.LiveSeedA)}
 
 	t.Run("it still returns an error for a save failure", func(t *testing.T) {
 		store, _ := hookstest.StageStore(t, hookstest.Staging{
@@ -111,9 +111,9 @@ func TestHookSweepDiscriminatesLockTimeoutFromFailure(t *testing.T) {
 		})
 		sink := logtest.Install(t)
 
-		outcome, err := runHookStaleCleanup(lister, store)
+		outcome, err := Run(lister, store)
 		if err == nil {
-			t.Fatal("runHookStaleCleanup: want an error on a save failure, got nil")
+			t.Fatal("Run: want an error on a save failure, got nil")
 		}
 		if errors.Is(err, hooks.ErrLockHeld) {
 			t.Errorf("save failure %v reported as a lock timeout", err)
@@ -144,9 +144,9 @@ func TestHookSweepDiscriminatesLockTimeoutFromFailure(t *testing.T) {
 		})
 		sink := logtest.Install(t)
 
-		outcome, err := runHookStaleCleanup(lister, store)
+		outcome, err := Run(lister, store)
 		if err == nil {
-			t.Fatal("runHookStaleCleanup: want an error, got nil")
+			t.Fatal("Run: want an error, got nil")
 		}
 		if !strings.Contains(err.Error(), hooks.ErrLockHeld.Error()) {
 			t.Fatalf("fixture error %q does not carry the sentinel's text; the case measures nothing", err)
@@ -158,24 +158,6 @@ func TestHookSweepDiscriminatesLockTimeoutFromFailure(t *testing.T) {
 			if rec.Msg == standDownMsg {
 				t.Errorf("a non-sentinel error whose text carries the sentinel was treated as a stand-down: %+v", rec)
 			}
-		}
-	})
-}
-
-func TestDoctorFixReportsLockedHookPrune(t *testing.T) {
-	// The read side degrades where the write side stands down, so the un-pruned
-	// entry is reported as the stale hook it is rather than as a lock problem.
-	t.Run("it reports the un-pruned entry as stale in the same window", func(t *testing.T) {
-		hooks.SetLockTimeoutForTest(t, lockBound)
-		store, path := hookstest.StageStore(t, hookstest.Staging{Seed: hookstest.StaleHookSeed})
-		hookstest.HoldHooksSidecar(t, path)
-
-		got := checkStaleHooks(&stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA)}, store)
-		if got.status != checkFail {
-			t.Errorf("status = %v, want checkFail under a held lock", got.status)
-		}
-		if got.detail != "1 stale hook entry" {
-			t.Errorf("detail = %q, want %q", got.detail, "1 stale hook entry")
 		}
 	})
 }

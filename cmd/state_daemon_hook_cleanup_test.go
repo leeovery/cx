@@ -11,6 +11,7 @@ import (
 
 	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/hookstest"
+	"github.com/leeovery/portal/internal/hooksweep"
 	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/tmux"
@@ -234,7 +235,7 @@ func TestMaybeRunHookCleanup_ReusesMassDeletionGuard(t *testing.T) {
 	if rec.Level != slog.LevelWarn {
 		t.Errorf("stand-down level = %v, want WARN", rec.Level)
 	}
-	if got := rec.AttrString(t, "reason"); got != string(skipReasonEmptyPaneRead) {
-		t.Errorf("reason = %q, want %q", got, skipReasonEmptyPaneRead)
+	if got := rec.AttrString(t, "reason"); got != string(hooksweep.ReasonEmptyPaneRead) {
+		t.Errorf("reason = %q, want %q", got, hooksweep.ReasonEmptyPaneRead)
 	}
 }

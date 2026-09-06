@@ -1,4 +1,4 @@
-package cmd
+package hooksweep
 
 import (
 	"go/ast"
@@ -32,6 +32,6 @@ func TestDeclinedErrorLiteralAlwaysNamesItsStandDown(t *testing.T) {
 	}
 
 	if literals == 0 {
-		t.Fatal("no declinedError literal found in the cmd package; the guard is scanning nothing")
+		t.Fatal("no declinedError literal found in this package; the guard is scanning nothing")
 	}
 }

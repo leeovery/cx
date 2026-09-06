@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/hooks"
+	"github.com/leeovery/portal/internal/hooksweep"
 	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/project"
 	"github.com/leeovery/portal/internal/spawn"
@@ -197,7 +198,7 @@ func doctorSeamCases() []seamCase {
 			field:  "HookLister",
 			inject: func(t *testing.T) { withDoctorDeps(t, DoctorDeps{HookLister: sentinelLister}) },
 			assert: func(t *testing.T) {
-				if got := resolveDoctorDeps().HookLister; got != staleSweepReader(sentinelLister) {
+				if got := resolveDoctorDeps().HookLister; got != hooksweep.Reader(sentinelLister) {
 					t.Errorf("HookLister = %#v; want the injected lister", got)
 				}
 			},

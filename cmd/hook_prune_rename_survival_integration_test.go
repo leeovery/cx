@@ -8,6 +8,7 @@ import (
 
 	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/hookstest"
+	"github.com/leeovery/portal/internal/hooksweep"
 	"github.com/leeovery/portal/internal/tmuxtest"
 )
 
@@ -65,7 +66,7 @@ func TestRenameRestoreCleanupSurvival_KeepsRestoredTokenKeyedHook(t *testing.T) 
 	}
 
 	if err := sweepErr(client, store); err != nil {
-		t.Fatalf("runHookStaleCleanup: %v", err)
+		t.Fatalf("hooksweep.Run: %v", err)
 	}
 
 	postRun, err := store.Load(hooks.ViaInternal)
@@ -84,7 +85,7 @@ func TestRenameRestoreCleanupSurvival_KeepsRestoredTokenKeyedHook(t *testing.T) 
 	}
 }
 
-func assertLiveTokenPresent(t *testing.T, lister staleSweepReader, want string) {
+func assertLiveTokenPresent(t *testing.T, lister hooksweep.Reader, want string) {
 	t.Helper()
 	rows, err := lister.ListAllPaneHookKeys()
 	if err != nil {

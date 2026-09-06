@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/hookstest"
+	"github.com/leeovery/portal/internal/hooksweep"
 )
 
 // The diagnostic must answer the reaper's question with the reaper's own
@@ -31,7 +32,7 @@ func TestStaleHookVerdictParity(t *testing.T) {
 			got := checkStaleHooks(tc.lister, checkStore)
 			checkJudgeable := got.status != checkNotEvaluable
 
-			outcome, _ := runHookStaleCleanup(tc.lister, sweepStore)
+			outcome, _ := hooksweep.Run(tc.lister, sweepStore)
 			sweepJudgeable := outcome.DeclineReason == ""
 
 			if checkJudgeable != tc.judgeable {

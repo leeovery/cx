@@ -9,6 +9,7 @@ import (
 	"sort"
 
 	"github.com/leeovery/portal/internal/hooks"
+	"github.com/leeovery/portal/internal/hooksweep"
 	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/project"
@@ -61,7 +62,7 @@ type DoctorDeps struct {
 	ServerRunning func() bool
 	SaverPresent  func() (present bool, err error)
 	HookCounts    func() (map[string]int, error)
-	HookLister    staleSweepReader
+	HookLister    hooksweep.Reader
 	HookStore     *hooks.Store
 	ProjectStore  *project.Store
 	PrefsStore    *prefs.Store
@@ -197,7 +198,7 @@ func pruneDoctorStaleHooks(w io.Writer, deps *DoctorDeps) {
 	if deps.HookStore == nil {
 		return
 	}
-	outcome, err := runHookStaleCleanup(deps.HookLister, deps.HookStore)
+	outcome, err := hooksweep.Run(deps.HookLister, deps.HookStore)
 	if err != nil {
 		reportFailedPrune(w)
 		return
@@ -210,9 +211,59 @@ func pruneDoctorStaleHooks(w io.Writer, deps *DoctorDeps) {
 	}
 }
 
+// The phrases both surface vocabularies share are written once here, so
+// re-wording one moves every line that prints it. A restore that is running and
+// a marker that could not be read stand the cycle down alike, but they are
+// different conditions: the server is routinely down when a user reaches for a
+// diagnosis, and reporting that as a restore would assert something that is not
+// happening.
+const (
+	restoreStandDownPhrase    = "restore in progress"
+	markerReadStandDownPhrase = "could not read the restore marker"
+	storeReadStandDownPhrase  = "could not read hooks.json"
+	paneReadStandDownPhrase   = "could not enumerate live panes"
+	lockStandDownPhrase       = "hooks.json is locked"
+)
+
+// sweepFailedStandDownPhrase words a sweep that ran and failed. It reads
+// alongside the stand-down phrases above and is deliberately not one of them:
+// no reason names it, because the cycle declined nothing.
+const sweepFailedStandDownPhrase = "the sweep could not complete"
+
+// skippedPrunePhrases completes "Skipped stale hook prune: …" for a user who
+// asked for a repair. A failed enumeration and a successful one that answered
+// nothing are separate conditions, so neither borrows the other's words.
+var skippedPrunePhrases = map[hooksweep.Reason]string{
+	hooksweep.ReasonRestoring:        restoreStandDownPhrase,
+	hooksweep.ReasonMarkerReadFailed: markerReadStandDownPhrase,
+	hooksweep.ReasonStoreReadFailed:  storeReadStandDownPhrase,
+	hooksweep.ReasonPaneReadFailed:   paneReadStandDownPhrase,
+	hooksweep.ReasonEmptyPaneRead:    "live pane list came back empty",
+	hooksweep.ReasonLockTimeout:      lockStandDownPhrase,
+}
+
+// notEvaluableDetails renders a stand-down reason as the reason the count cannot
+// be taken, so the diagnostic reports exactly what the reaper declined to judge.
+var notEvaluableDetails = map[hooksweep.Reason]string{
+	hooksweep.ReasonRestoring:        restoreStandDownPhrase + " (not evaluable)",
+	hooksweep.ReasonMarkerReadFailed: markerReadStandDownPhrase,
+	hooksweep.ReasonStoreReadFailed:  storeReadStandDownPhrase,
+	hooksweep.ReasonPaneReadFailed:   paneReadStandDownPhrase,
+	hooksweep.ReasonEmptyPaneRead:    "zero live panes with hooks present (not evaluable)",
+	hooksweep.ReasonLockTimeout:      lockStandDownPhrase + " (not evaluable)",
+}
+
+// phraseFor renders a stand-down reason through one of the surface vocabularies
+// above. A reason no vocabulary words renders nothing rather than its own slug:
+// exhaustiveness is a test's to enforce, and a runtime fall-through would only
+// make internal words look like copy on the command that explains what happened.
+func phraseFor(m map[hooksweep.Reason]string, reason hooksweep.Reason) string {
+	return m[reason]
+}
+
 // reportSkippedPrune renders a prune that removed nothing from the shared
 // reason vocabulary, so no branch can reach for words of its own.
-func reportSkippedPrune(w io.Writer, reason skipReason) {
+func reportSkippedPrune(w io.Writer, reason hooksweep.Reason) {
 	_, _ = fmt.Fprintf(w, "Skipped stale hook prune: %s\n", phraseFor(skippedPrunePhrases, reason))
 }
 
@@ -298,7 +349,7 @@ func checkHostTerminal(detector TerminalDetector, resolve spawn.AdapterResolver)
 
 // staleHooksNotEvaluable reports a stand-down in the diagnosis's register, so a
 // branch reporting one names its reason and the vocabulary words the copy.
-func staleHooksNotEvaluable(name string, reason skipReason) checkResult {
+func staleHooksNotEvaluable(name string, reason hooksweep.Reason) checkResult {
 	return checkResult{name: name, status: checkNotEvaluable, detail: phraseFor(notEvaluableDetails, reason)}
 }
 
@@ -309,25 +360,25 @@ func staleHooksNotEvaluable(name string, reason skipReason) checkResult {
 // report the lot stale and mislead a --fix into mass-deleting user-authored
 // on-resume commands. A live pane carrying no token is not that case — under
 // lazy stamping it is the ordinary one, and the count proceeds.
-func checkStaleHooks(reader staleSweepReader, store *hooks.Store) checkResult {
+func checkStaleHooks(reader hooksweep.Reader, store *hooks.Store) checkResult {
 	const name = "stale hooks"
 	// No store to read and a read that failed are one condition to a user: the
 	// file could not be read, so both render the vocabulary's words for it.
 	if store == nil {
-		return staleHooksNotEvaluable(name, skipReasonStoreReadFailed)
+		return staleHooksNotEvaluable(name, hooksweep.ReasonStoreReadFailed)
 	}
 	persisted, err := store.Load(hooks.ViaDoctor)
 	if err != nil {
-		return staleHooksNotEvaluable(name, skipReasonStoreReadFailed)
+		return staleHooksNotEvaluable(name, hooksweep.ReasonStoreReadFailed)
 	}
 
-	if decline := hookStalenessStandDown(reader); decline.declined() {
-		return staleHooksNotEvaluable(name, decline.reason)
+	if decline := hooksweep.StalenessStandDown(reader); decline.Declined() {
+		return staleHooksNotEvaluable(name, decline.Reason())
 	}
 
-	view := judgeAgainstLivePanes(reader, len(persisted))
-	if view.Decline.declined() {
-		return staleHooksNotEvaluable(name, view.Decline.reason)
+	view := hooksweep.JudgeAgainstLivePanes(reader, len(persisted))
+	if view.Decline.Declined() {
+		return staleHooksNotEvaluable(name, view.Decline.Reason())
 	}
 
 	if view.PaneRows == 0 && len(persisted) == 0 {

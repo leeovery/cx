@@ -21,6 +21,7 @@ import (
 
 	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/hookstest"
+	"github.com/leeovery/portal/internal/hooksweep"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/project"
 )
@@ -30,7 +31,7 @@ import (
 // whole rendered lines, the repair's prefix and the check's glyph included.
 type standDownCopyCase struct {
 	name   string
-	reason skipReason
+	reason hooksweep.Reason
 	// fixture stages an install whose only anomaly is this stand-down and
 	// returns the hooks.json path alongside it, so both arms can pin that the
 	// stand-down wrote nothing.
@@ -56,7 +57,7 @@ func standDownCopyCases() []standDownCopyCase {
 	return []standDownCopyCase{
 		{
 			name:                   "restore window",
-			reason:                 skipReasonRestoring,
+			reason:                 hooksweep.ReasonRestoring,
 			sharedPhrase:           restoreStandDownPhrase,
 			fixture:                restoringStandDownDeps,
 			level:                  slog.LevelDebug,
@@ -67,7 +68,7 @@ func standDownCopyCases() []standDownCopyCase {
 		},
 		{
 			name:                   "restore marker unreadable",
-			reason:                 skipReasonMarkerReadFailed,
+			reason:                 hooksweep.ReasonMarkerReadFailed,
 			sharedPhrase:           markerReadStandDownPhrase,
 			fixture:                markerReadFailedStandDownDeps,
 			level:                  slog.LevelDebug,
@@ -78,7 +79,7 @@ func standDownCopyCases() []standDownCopyCase {
 		},
 		{
 			name:                   "hooks.json unreadable",
-			reason:                 skipReasonStoreReadFailed,
+			reason:                 hooksweep.ReasonStoreReadFailed,
 			sharedPhrase:           storeReadStandDownPhrase,
 			fixture:                storeReadFailedStandDownDeps,
 			level:                  slog.LevelWarn,
@@ -89,7 +90,7 @@ func standDownCopyCases() []standDownCopyCase {
 		},
 		{
 			name:                   "pane enumeration failed",
-			reason:                 skipReasonPaneReadFailed,
+			reason:                 hooksweep.ReasonPaneReadFailed,
 			sharedPhrase:           paneReadStandDownPhrase,
 			fixture:                paneReadFailedStandDownDeps,
 			level:                  slog.LevelWarn,
@@ -100,7 +101,7 @@ func standDownCopyCases() []standDownCopyCase {
 		},
 		{
 			name:                   "empty pane list",
-			reason:                 skipReasonEmptyPaneRead,
+			reason:                 hooksweep.ReasonEmptyPaneRead,
 			fixture:                emptyPaneReadStandDownDeps,
 			level:                  slog.LevelWarn,
 			attrs:                  emptyPaneReadStandDownAttrs,
@@ -110,7 +111,7 @@ func standDownCopyCases() []standDownCopyCase {
 		},
 		{
 			name:             "hooks.json locked",
-			reason:           skipReasonLockTimeout,
+			reason:           hooksweep.ReasonLockTimeout,
 			sharedPhrase:     lockStandDownPhrase,
 			fixture:          lockTimeoutStandDownDeps,
 			level:            slog.LevelWarn,
@@ -226,7 +227,7 @@ func lockTimeoutStandDownDeps(t *testing.T) (*DoctorDeps, string) {
 
 // renderStaleHooksLine renders the not-evaluable check line exactly as the
 // report does, so the assertion reads the user's line rather than a map value.
-func renderStaleHooksLine(reason skipReason) string {
+func renderStaleHooksLine(reason hooksweep.Reason) string {
 	buf := new(bytes.Buffer)
 	renderDoctorReport(buf, []checkResult{{
 		name:   "stale hooks",
@@ -244,7 +245,7 @@ func renderStaleHooksLine(reason skipReason) string {
 // renderSkippedPruneLine renders the repair line for a reason through the
 // vocabulary, so a suite whose subject is not the copy names the line it
 // expects without pinning a second copy of the words.
-func renderSkippedPruneLine(reason skipReason) string {
+func renderSkippedPruneLine(reason hooksweep.Reason) string {
 	return "Skipped stale hook prune: " + phraseFor(skippedPrunePhrases, reason)
 }
 
@@ -292,9 +293,9 @@ func assertStandDownSweep(t *testing.T, tc standDownCopyCase) {
 	before := hooksPathState(t, hooksPath)
 	sink := logtest.Install(t)
 
-	outcome, err := runHookStaleCleanup(deps.HookLister, deps.HookStore)
+	outcome, err := hooksweep.Run(deps.HookLister, deps.HookStore)
 	if err != nil {
-		t.Fatalf("runHookStaleCleanup: %v", err)
+		t.Fatalf("hooksweep.Run: %v", err)
 	}
 	if outcome.DeclineReason != tc.reason {
 		t.Fatalf("DeclineReason = %q, want %q", outcome.DeclineReason, tc.reason)
@@ -339,17 +340,17 @@ func TestStandDownCopy(t *testing.T) {
 	// table covers the set whole: no member is excluded from it, and a new one
 	// arrives here or fails.
 	t.Run("it enumerates every stand-down reason with no subtraction list", func(t *testing.T) {
-		covered := map[skipReason]string{}
+		covered := map[hooksweep.Reason]string{}
 		for _, tc := range standDownCopyCases() {
 			if prior, ok := covered[tc.reason]; ok {
 				t.Errorf("case %q reuses the reason %q already covered by %q; want one row per decline path", tc.name, tc.reason, prior)
 			}
 			covered[tc.reason] = tc.name
-			if !slices.Contains(skipReasons, tc.reason) {
+			if !slices.Contains(hooksweep.Reasons, tc.reason) {
 				t.Errorf("case %q covers %q, which is no declared reason", tc.name, tc.reason)
 			}
 		}
-		for _, reason := range skipReasons {
+		for _, reason := range hooksweep.Reasons {
 			if _, ok := covered[reason]; !ok {
 				t.Errorf("declared reason %q has no copy case; every reason a cycle declines under is covered here", reason)
 			}
@@ -361,9 +362,9 @@ func TestStandDownCopy(t *testing.T) {
 	// catching, and comparing the expectations would only catch an author who
 	// copied a row.
 	t.Run("it renders a distinct phrase for each of the six reasons on both surfaces", func(t *testing.T) {
-		skipped := map[string]skipReason{}
-		notEvaluable := map[string]skipReason{}
-		for _, reason := range skipReasons {
+		skipped := map[string]hooksweep.Reason{}
+		notEvaluable := map[string]hooksweep.Reason{}
+		for _, reason := range hooksweep.Reasons {
 			renderedSkipped := renderSkippedPruneLine(reason)
 			if prior, ok := skipped[renderedSkipped]; ok {
 				t.Errorf("reason %q borrows the skipped-prune line already used by %q: %q", reason, prior, renderedSkipped)
@@ -469,7 +470,7 @@ func TestStandDownCopy(t *testing.T) {
 // duration. Watching a branch follow the re-worded entry tells a branch that
 // renders through the vocabulary from one that authors the same words inline:
 // an assertion on today's literal cannot separate them.
-func rewordNotEvaluableDetail(t *testing.T, reason skipReason, detail string) {
+func rewordNotEvaluableDetail(t *testing.T, reason hooksweep.Reason, detail string) {
 	t.Helper()
 	prior := notEvaluableDetails[reason]
 	notEvaluableDetails[reason] = detail
@@ -479,7 +480,7 @@ func rewordNotEvaluableDetail(t *testing.T, reason skipReason, detail string) {
 func TestStaleHooksCheckStandDownCopy(t *testing.T) {
 	t.Run("it renders the nil-store and failed-load branches from the vocabulary", func(t *testing.T) {
 		const reworded = "hooks.json could not be read this run"
-		rewordNotEvaluableDetail(t, skipReasonStoreReadFailed, reworded)
+		rewordNotEvaluableDetail(t, hooksweep.ReasonStoreReadFailed, reworded)
 
 		unreadable, _ := hookstest.StageStore(t, hookstest.Staging{Unreadable: true})
 		cases := []struct {
