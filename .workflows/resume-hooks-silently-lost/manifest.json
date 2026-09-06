@@ -316,7 +316,7 @@
         "resume-hooks-silently-lost": {
           "status": "in-progress",
           "task_gate_mode": "bounded",
-          "fix_gate_mode": "gated",
+          "fix_gate_mode": "bounded",
           "analysis_gate_mode": "auto",
           "consolidation_gate_mode": "gated",
           "fix_attempts": 0,
@@ -353,7 +353,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 9,
-          "current_task": "resume-hooks-silently-lost-9-2",
+          "current_task": "resume-hooks-silently-lost-9-3",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -514,7 +514,8 @@
             "resume-hooks-silently-lost-8-47",
             "resume-hooks-silently-lost-8-48",
             "resume-hooks-silently-lost-8-49",
-            "resume-hooks-silently-lost-9-1"
+            "resume-hooks-silently-lost-9-1",
+            "resume-hooks-silently-lost-9-2"
           ],
           "staging": {
             "p1": {
@@ -813,6 +814,18 @@
                 "internal/tmux/portal_saver_test.go",
                 "internal/tmux/portal_saver_endstate_integration_test.go",
                 "internal/tmux/portal_saver_integration_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-9-2",
+              "source": "executor",
+              "summary": "The last two consumers of SessionTargetExact are integration test files in another package, leaving the helper production-dead.",
+              "detail": "internal/restore/multipane_legacy_integration_test.go:35,36,71 compose rename-session/has-session targets through tmux.SessionTargetExact, which the per-command measurement now shows is the wrong form for both commands (it passes only because those fixture names carry no period). With those two moved, SessionTargetExact has no caller outside its own form test and the guard allowlist, at which point keeping-versus-deleting the vocabulary member is a decision worth taking deliberately.",
+              "files": [
+                "internal/restore/multipane_legacy_integration_test.go",
+                "internal/tmux/tmux.go",
+                "internal/tmux/exact_target_forms_test.go",
+                "internal/tmux/target_composition_guard_test.go"
               ]
             }
           ]
