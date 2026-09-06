@@ -2,7 +2,7 @@
   "provider": "openai",
   "model": "text-embedding-3-small",
   "dimensions": 1536,
-  "last_indexed": "2026-09-04T17:01:13.296Z",
+  "last_indexed": "2026-09-06T20:32:29.850Z",
   "pending": [],
   "pending_removals": []
 }

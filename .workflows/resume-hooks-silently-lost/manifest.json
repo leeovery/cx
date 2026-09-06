@@ -319,7 +319,7 @@
           "fix_gate_mode": "bounded",
           "analysis_gate_mode": "auto",
           "consolidation_gate_mode": "gated",
-          "fix_attempts": 0,
+          "fix_attempts": 1,
           "analysis_cycle_total": 4,
           "analysis_cycle_session": 1,
           "linters": [
