@@ -297,7 +297,7 @@ func assertStandDownSweep(t *testing.T, tc standDownCopyCase) {
 	before := hooksPathState(t, hooksPath)
 	sink := logtest.Install(t)
 
-	outcome, err := runHookStaleCleanup(deps.HookLister, deps.HookStore, nil)
+	outcome, err := runHookStaleCleanup(deps.HookLister, deps.HookStore)
 	if err != nil {
 		t.Fatalf("runHookStaleCleanup: %v", err)
 	}

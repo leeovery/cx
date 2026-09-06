@@ -24,7 +24,7 @@ func TestHookSweepSnapshotPrecedesEnumeration(t *testing.T) {
 			}
 		}}
 
-		if err := sweepErr(lister, store, nil); err != nil {
+		if err := sweepErr(lister, store); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
@@ -51,7 +51,7 @@ func TestHookSweepSnapshotPrecedesEnumeration(t *testing.T) {
 			hookstest.AssertSidecarFree(t, path)
 		}}
 
-		if err := sweepErr(lister, store, nil); err != nil {
+		if err := sweepErr(lister, store); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 		if !probed {
@@ -82,7 +82,7 @@ func TestHookSweepSnapshotPrecedesEnumeration(t *testing.T) {
 			}
 		}}
 
-		outcome, err := runHookStaleCleanup(lister, store, nil)
+		outcome, err := runHookStaleCleanup(lister, store)
 		if err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
@@ -106,7 +106,7 @@ func TestHookSweepTakesNoLockWithNothingPersisted(t *testing.T) {
 	hooksPath := filepath.Join(configDir, "hooks.json")
 
 	lister := &stubStaleSweepReader{rows: tokenRows(hookstest.LiveSeedA)}
-	if err := sweepErr(lister, hooks.NewStore(hooksPath), nil); err != nil {
+	if err := sweepErr(lister, hooks.NewStore(hooksPath)); err != nil {
 		t.Fatalf("runHookStaleCleanup: %v", err)
 	}
 

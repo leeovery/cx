@@ -248,10 +248,7 @@ func (e declinedError) Error() string {
 
 // liveTokenEnumeration answers the clean with the live token set persisted keys
 // are judged against, or with the stand-down that forbids judging them at all.
-// countsLogger carries the cycle's DEBUG counts only; see runHookStaleCleanup.
-func liveTokenEnumeration(reader PaneHookLister, countsLogger *slog.Logger) func(hooks.Snapshot) ([]string, error) {
-	countsLogger = countsOrDefault(countsLogger)
-
+func liveTokenEnumeration(reader PaneHookLister) func(hooks.Snapshot) ([]string, error) {
 	return func(snapshot hooks.Snapshot) ([]string, error) {
 		// Nothing persisted is nothing to sweep, and everything past this point
 		// costs: a whole-server pane enumeration here, and a deletion that
@@ -260,13 +257,13 @@ func liveTokenEnumeration(reader PaneHookLister, countsLogger *slog.Logger) func
 		// otherwise pay all four on every cycle, in every `hook set`'s way. The
 		// counts line carries no pane figure, because none was taken.
 		if len(snapshot) == 0 {
-			countsLogger.Debug("stale-hook cleanup counts", "entries", 0)
+			hooksLogger.Debug("stale-hook cleanup counts", "entries", 0)
 			return nil, errNothingPersisted
 		}
 
 		view := judgeAgainstLivePanes(reader, len(snapshot))
 		if view.Enumerated {
-			countsLogger.Debug("stale-hook cleanup counts", "panes", view.PaneRows, "entries", len(snapshot))
+			hooksLogger.Debug("stale-hook cleanup counts", "panes", view.PaneRows, "entries", len(snapshot))
 		}
 		if view.Decline.declined() {
 			return nil, declinedError{view.Decline}
@@ -275,46 +272,40 @@ func liveTokenEnumeration(reader PaneHookLister, countsLogger *slog.Logger) func
 	}
 }
 
-// countsOrDefault leaves the cycle's counts with the component that owns the
-// cycle when a caller names no logger of its own.
-func countsOrDefault(logger *slog.Logger) *slog.Logger {
-	if logger == nil {
-		return hooksLogger
-	}
-	return logger
-}
+// sweepFailedMsg reports a cycle that neither ran to completion nor stood down
+// for a reason it could name. It rides the hooks component with every other
+// line of the cycle, so one grep reconstructs the whole of it and no caller has
+// to word the sweep's internals in a vocabulary of its own.
+const sweepFailedMsg = "stale-hook cleanup failed"
 
 // runHookStaleCleanup runs one hook-staleness cycle, reporting what it removed
 // or the reason it declined to remove anything.
 //
-// countsLogger governs the cycle's two DEBUG counts — the counts line and the
-// reaped line — and nothing else, so a caller may attribute them to its own
-// component; a caller that names none leaves them with the component
-// that owns the cycle. Every stand-down is emitted by standDown.emit() under
-// the hooks component regardless, so a caller observing this cycle through
-// countsLogger alone sees the counts and none of the stand-downs.
-func runHookStaleCleanup(reader staleSweepReader, store *hooks.Store, countsLogger *slog.Logger) (sweepOutcome, error) {
-	countsLogger = countsOrDefault(countsLogger)
-
+// The whole cycle — its counts, its stand-downs and its failures alike — is
+// emitted under the hooks component, whichever caller drove it. A caller keeps
+// only the cycle-summary line its own component owes.
+func runHookStaleCleanup(reader staleSweepReader, store *hooks.Store) (sweepOutcome, error) {
 	// Taken before the store is read at all: a restore window is no time to
 	// wait on this file's lock for an answer that cannot be acted on.
 	if decline := hookStalenessStandDown(reader); decline.declined() {
 		return standDownOutcome(decline)
 	}
 
-	removed, err := store.CleanStale(liveTokenEnumeration(reader, countsLogger))
+	removed, err := store.CleanStale(liveTokenEnumeration(reader))
 	if err != nil {
 		return declinedSweep(err)
 	}
 
-	countsLogger.Debug("stale-hook cleanup removed", "reaped", len(removed))
+	hooksLogger.Debug("stale-hook cleanup removed", "reaped", len(removed))
 
 	return sweepOutcome{Removed: removed}, nil
 }
 
 // declinedSweep renders the outcome of a clean that wrote nothing. A guard's
 // own stand-down carries the reason it decided on; the store's own failure
-// modes are named here because only this cycle knows what they cost it.
+// modes are named here because only this cycle knows what they cost it. A
+// failure none of them classifies is reported here and still returned: the
+// error is what drives a caller's own rendered output, not a second log line.
 func declinedSweep(err error) (sweepOutcome, error) {
 	var declined declinedError
 	switch {
@@ -333,6 +324,7 @@ func declinedSweep(err error) (sweepOutcome, error) {
 		// produced it.
 		return standDownOutcome(declineWarn(skipReasonStoreReadFailed, "error", err))
 	}
+	hooksLogger.Warn(sweepFailedMsg, "error", err)
 	return sweepOutcome{}, err
 }
 

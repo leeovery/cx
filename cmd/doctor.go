@@ -197,9 +197,8 @@ func pruneDoctorStaleHooks(w io.Writer, deps *DoctorDeps) {
 	if deps.HookStore == nil {
 		return
 	}
-	outcome, err := runHookStaleCleanup(deps.HookLister, deps.HookStore, bootstrapLogger)
+	outcome, err := runHookStaleCleanup(deps.HookLister, deps.HookStore)
 	if err != nil {
-		bootstrapLogger.Warn("doctor --fix: stale-hook prune failed", "error", err)
 		reportSkippedPrune(w, skipReasonSweepFailed)
 		return
 	}

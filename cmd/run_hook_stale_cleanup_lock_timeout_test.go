@@ -32,7 +32,7 @@ func TestHookSweepStandsDownOnLockTimeout(t *testing.T) {
 		store, path, _ := lockedSweepFixture(t, lockBound)
 		before := readFileBytes(t, path)
 
-		if err := sweepErr(lister, store, nil); err != nil {
+		if err := sweepErr(lister, store); err != nil {
 			t.Fatalf("runHookStaleCleanup: want nil on a lock timeout, got %v", err)
 		}
 
@@ -42,16 +42,12 @@ func TestHookSweepStandsDownOnLockTimeout(t *testing.T) {
 	t.Run("it emits exactly one WARN per stood-down cycle", func(t *testing.T) {
 		store, _, _ := lockedSweepFixture(t, lockBound)
 		sink := logtest.Install(t)
-		injected, injectedSink := newCaptureLoggerForComponent(t, "daemon")
 
-		if err := sweepErr(lister, store, injected); err != nil {
+		if err := sweepErr(lister, store); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 
 		assertStandDown(t, sink, slog.LevelWarn, "lock-timeout")
-		for _, rec := range injectedSink.Records().AtExactLevel(slog.LevelWarn) {
-			t.Errorf("unexpected WARN on the injected logger: %+v", rec)
-		}
 	})
 
 	// The sweep takes the sidecar twice, and only the mutation waits at the full
@@ -62,7 +58,7 @@ func TestHookSweepStandsDownOnLockTimeout(t *testing.T) {
 		store, _, _ := lockedSweepFixture(t, bound)
 
 		start := time.Now()
-		if err := sweepErr(lister, store, nil); err != nil {
+		if err := sweepErr(lister, store); err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
 		elapsed := time.Since(start)
@@ -78,12 +74,12 @@ func TestHookSweepStandsDownOnLockTimeout(t *testing.T) {
 	t.Run("it retries on the next cadence", func(t *testing.T) {
 		store, _, release := lockedSweepFixture(t, lockBound)
 
-		if err := sweepErr(lister, store, nil); err != nil {
+		if err := sweepErr(lister, store); err != nil {
 			t.Fatalf("runHookStaleCleanup under the lock: %v", err)
 		}
 		release()
 
-		outcome, err := runHookStaleCleanup(lister, store, nil)
+		outcome, err := runHookStaleCleanup(lister, store)
 		if err != nil {
 			t.Fatalf("runHookStaleCleanup after release: %v", err)
 		}
@@ -115,7 +111,7 @@ func TestHookSweepDiscriminatesLockTimeoutFromFailure(t *testing.T) {
 		})
 		sink := logtest.Install(t)
 
-		outcome, err := runHookStaleCleanup(lister, store, nil)
+		outcome, err := runHookStaleCleanup(lister, store)
 		if err == nil {
 			t.Fatal("runHookStaleCleanup: want an error on a save failure, got nil")
 		}
@@ -148,7 +144,7 @@ func TestHookSweepDiscriminatesLockTimeoutFromFailure(t *testing.T) {
 		})
 		sink := logtest.Install(t)
 
-		outcome, err := runHookStaleCleanup(lister, store, nil)
+		outcome, err := runHookStaleCleanup(lister, store)
 		if err == nil {
 			t.Fatal("runHookStaleCleanup: want an error, got nil")
 		}

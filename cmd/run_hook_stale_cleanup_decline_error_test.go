@@ -14,8 +14,7 @@ import (
 // reported with no reason reads as a cycle that ran and found nothing.
 func TestHookSweepDeclineReasonTravelsWithTheError(t *testing.T) {
 	t.Run("it carries the decline reason inside the error the closure returns", func(t *testing.T) {
-		logger, _ := newCaptureLoggerForComponent(t, "bootstrap")
-		enumerate := liveTokenEnumeration(&stubStaleSweepReader{rows: nil}, logger)
+		enumerate := liveTokenEnumeration(&stubStaleSweepReader{rows: nil})
 
 		tokens, err := enumerate(hooks.Snapshot{hookstest.ReapableSeedA: {"on-resume": "cmd-gone"}})
 
@@ -40,8 +39,7 @@ func TestHookSweepDeclineReasonTravelsWithTheError(t *testing.T) {
 
 		sink := logtest.Install(t)
 
-		injected, _ := newCaptureLoggerForComponent(t, "bootstrap")
-		outcome, err := runHookStaleCleanup(lister, store, injected)
+		outcome, err := runHookStaleCleanup(lister, store)
 		if err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
@@ -52,8 +50,8 @@ func TestHookSweepDeclineReasonTravelsWithTheError(t *testing.T) {
 		if len(outcome.Removed) != 0 {
 			t.Errorf("Removed = %v, want none (every key is live)", outcome.Removed)
 		}
-		if recs := sink.Records(); len(recs) != 0 {
-			t.Errorf("hooks-component records = %+v, want none", recs)
+		if recs := sink.Records().WithMessage(standDownMsg); len(recs) != 0 {
+			t.Errorf("stand-down records = %+v, want none", recs)
 		}
 	})
 
@@ -63,8 +61,7 @@ func TestHookSweepDeclineReasonTravelsWithTheError(t *testing.T) {
 
 		sink := logtest.Install(t)
 
-		injected, _ := newCaptureLoggerForComponent(t, "bootstrap")
-		outcome, err := runHookStaleCleanup(lister, store, injected)
+		outcome, err := runHookStaleCleanup(lister, store)
 		if err != nil {
 			t.Fatalf("runHookStaleCleanup: %v", err)
 		}
@@ -72,8 +69,8 @@ func TestHookSweepDeclineReasonTravelsWithTheError(t *testing.T) {
 		if outcome.DeclineReason != "" {
 			t.Errorf("DeclineReason = %q, want none with nothing persisted", outcome.DeclineReason)
 		}
-		if recs := sink.Records(); len(recs) != 0 {
-			t.Errorf("hooks-component records = %+v, want none", recs)
+		if recs := sink.Records().WithMessage(standDownMsg); len(recs) != 0 {
+			t.Errorf("stand-down records = %+v, want none", recs)
 		}
 	})
 }

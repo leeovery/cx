@@ -31,7 +31,7 @@ func TestStaleHookVerdictParity(t *testing.T) {
 			got := checkStaleHooks(tc.lister, checkStore)
 			checkJudgeable := got.status != checkNotEvaluable
 
-			outcome, _ := runHookStaleCleanup(tc.lister, sweepStore, nil)
+			outcome, _ := runHookStaleCleanup(tc.lister, sweepStore)
 			sweepJudgeable := outcome.DeclineReason == ""
 
 			if checkJudgeable != tc.judgeable {

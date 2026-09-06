@@ -45,38 +45,14 @@ func TestDoctorFixAlwaysReportsTheHookPrune(t *testing.T) {
 		outBuf, _, _ := runDoctorWith(t, deps, "--fix")
 
 		assertSkippedPruneLine(t, outBuf.String(), "Skipped stale hook prune: the sweep could not complete")
-		if len(sink.Records().Matching("bootstrap", "doctor --fix: stale-hook prune failed").AtExactLevel(slog.LevelWarn)) != 1 {
-			t.Errorf("want one WARN naming the failed prune; records=%+v", sink.Records())
+		if len(sink.Records().Matching("hooks", sweepFailedMsg).AtExactLevel(slog.LevelWarn)) != 1 {
+			t.Errorf("want one WARN naming the failed sweep under the hooks component; records=%+v", sink.Records())
 		}
 
 		// The stand-down copy table cannot hold this reason, so the raw-slug
 		// guard every other reason gets from it lives here instead.
 		if phrase := phraseFor(skippedPrunePhrases, skipReasonSweepFailed); phrase == string(skipReasonSweepFailed) || strings.Contains(phrase, string(skipReasonSweepFailed)) {
 			t.Errorf("phraseFor(skippedPrunePhrases, %q) = %q; want a user-facing phrase, not the enum value", skipReasonSweepFailed, phrase)
-		}
-	})
-}
-
-// The counts belong to the sweep, so a caller that names no logger has them
-// attributed to the component that owns them rather than to a step forbidden
-// from running it.
-func TestHookStaleCleanupCountsDefaultComponent(t *testing.T) {
-	t.Run("it attributes the cycle counts to the hooks component when no logger is supplied", func(t *testing.T) {
-		sink := logtest.Install(t)
-		store, _ := hookstest.StageStore(t, hookstest.Staging{Seed: hooksBody(hookstest.ReapableSeedA)})
-
-		if _, err := runHookStaleCleanup(staleHookLister(), store, nil); err != nil {
-			t.Fatalf("runHookStaleCleanup: %v", err)
-		}
-
-		for _, msg := range []string{"stale-hook cleanup counts", "stale-hook cleanup removed"} {
-			if len(sink.Records().Matching("hooks", msg).AtExactLevel(slog.LevelDebug)) != 1 {
-				t.Errorf("records matching debug/hooks/%q = %d, want 1; records=%+v",
-					msg, len(sink.Records().Matching("hooks", msg).AtExactLevel(slog.LevelDebug)), sink.Records())
-			}
-			if len(sink.Records().Matching("bootstrap", msg).AtExactLevel(slog.LevelDebug)) != 0 {
-				t.Errorf("%q was attributed to the bootstrap component; records=%+v", msg, sink.Records())
-			}
 		}
 	})
 }

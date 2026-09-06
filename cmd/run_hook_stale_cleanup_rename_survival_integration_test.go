@@ -64,7 +64,7 @@ func TestRenameRestoreCleanupSurvival_KeepsRestoredTokenKeyedHook(t *testing.T) 
 		t.Fatalf("pre-cleanup seed missing stale key %q; keys=%v", hookstest.ReapableSeedA, keysOf(preRun))
 	}
 
-	if err := sweepErr(client, store, nil); err != nil {
+	if err := sweepErr(client, store); err != nil {
 		t.Fatalf("runHookStaleCleanup: %v", err)
 	}
 

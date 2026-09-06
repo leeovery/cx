@@ -125,7 +125,7 @@ func TestSweepPreReadBound(t *testing.T) {
 		sink := logtest.Install(t)
 
 		start := time.Now()
-		err := sweepErr(lister, store, bootstrapLogger)
+		err := sweepErr(lister, store)
 		elapsed := time.Since(start)
 
 		if err != nil {

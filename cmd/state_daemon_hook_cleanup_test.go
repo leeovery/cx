@@ -112,10 +112,11 @@ func TestMaybeRunHookCleanup_FiresAtIntervalBoundary(t *testing.T) {
 	}
 }
 
-// A failure the sweep does not name as a stand-down is the daemon's to report:
-// the cycle is swallowed so the tick survives it, and the throttle anchor still
-// advances so a failing prune backs off instead of retrying every tick.
-func TestMaybeRunHookCleanup_LogsWarnAndSwallowsCleanupError(t *testing.T) {
+// A failure the sweep does not name as a stand-down is reported by the sweep
+// itself: the cycle is swallowed so the tick survives it, and the throttle
+// anchor still advances so a failing prune backs off instead of retrying every
+// tick.
+func TestMaybeRunHookCleanup_SwallowsCleanupError(t *testing.T) {
 	// A denied write is a failure the sweep returns rather than standing down
 	// on: the mutation takes its lock and reads cleanly, then fails at the temp
 	// create.
@@ -136,8 +137,8 @@ func TestMaybeRunHookCleanup_LogsWarnAndSwallowsCleanupError(t *testing.T) {
 
 	maybeRunHookCleanup(deps)
 
-	if got := sink.Body(); !strings.Contains(got, "hooks stale-cleanup failed") {
-		t.Errorf("expected gate WARN 'hooks stale-cleanup failed' under daemon component; got:\n%s", got)
+	if got := sink.Body(); got != "" {
+		t.Errorf("the daemon worded the sweep's failure itself; got:\n%s", got)
 	}
 
 	if deps.lastCleanup.Before(beforeCall) {
@@ -167,8 +168,8 @@ func TestMaybeRunHookCleanup_ListPanesErrorSwallowedNoReap(t *testing.T) {
 		t.Errorf("entry reaped despite ListAllPanesWithFormat error; hooks=%v", keysOf(postRun))
 	}
 
-	if got := sink.Body(); strings.Contains(got, "hooks stale-cleanup failed") {
-		t.Errorf("gate WARN fired despite swallowed ListAllPanesWithFormat error; got:\n%s", got)
+	if got := sink.Body(); got != "" {
+		t.Errorf("the daemon emitted a line of its own for a swallowed list error; got:\n%s", got)
 	}
 
 	if deps.lastCleanup.Before(beforeCall) {
@@ -195,8 +196,8 @@ func TestMaybeRunHookCleanup_NilStoreNoOps(t *testing.T) {
 		t.Errorf("lastCleanup mutated with a nil store: got %v, want %v", deps.lastCleanup, anchor)
 	}
 
-	if got := sink.Body(); strings.Contains(got, "hooks stale-cleanup failed") {
-		t.Errorf("gate WARN fired with a nil store; got:\n%s", got)
+	if got := sink.Body(); got != "" {
+		t.Errorf("the daemon emitted a line with a nil store; got:\n%s", got)
 	}
 }
 
@@ -229,7 +230,7 @@ func TestMaybeRunHookCleanup_ReusesMassDeletionGuard(t *testing.T) {
 	if got := sink.Body(); strings.Contains(got, "clean-stale-skipped") {
 		t.Errorf("stand-down WARN landed on the daemon logger; got:\n%s", got)
 	}
-	rec := hooksSink.Records().Only(t, "log record")
+	rec := hooksSink.Records().AtOrAboveLevel(slog.LevelWarn).Only(t, "record at or above WARN")
 	if rec.Level != slog.LevelWarn {
 		t.Errorf("stand-down level = %v, want WARN", rec.Level)
 	}

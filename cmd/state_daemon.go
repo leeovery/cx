@@ -208,9 +208,9 @@ func maybeRunHookCleanup(deps *daemonDeps) {
 	if time.Since(deps.lastCleanup) < hookCleanupInterval {
 		return
 	}
-	if _, err := runHookStaleCleanup(deps.Client, deps.HookStore, deps.Logger); err != nil {
-		deps.Logger.Warn("hooks stale-cleanup failed", "error", err)
-	}
+	// The failure is the sweep's own to report, under the component that owns
+	// the subsystem it swept; the tick survives it either way.
+	_, _ = runHookStaleCleanup(deps.Client, deps.HookStore)
 	deps.lastCleanup = time.Now()
 }
 
