@@ -177,8 +177,8 @@ func TestCleanStaleSnapshotNarrowing(t *testing.T) {
 			enumerated = true
 			return nil, nil
 		})
-		if !errors.Is(err, hooks.ErrSnapshotRead) {
-			t.Fatalf("CleanStale error = %v, want errors.Is ErrSnapshotRead", err)
+		if !errors.Is(err, hooks.ErrStoreRead) {
+			t.Fatalf("CleanStale error = %v, want errors.Is ErrStoreRead", err)
 		}
 		if enumerated {
 			t.Error("the enumeration ran despite an unreadable file — it was never judgeable")

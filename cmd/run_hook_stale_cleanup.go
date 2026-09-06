@@ -318,10 +318,10 @@ func declinedSweep(err error) (sweepOutcome, error) {
 		// and nothing is wrong, so the cycle stands down rather than reporting a
 		// defect, and the next cadence retries.
 		return standDownOutcome(declineWarn(skipReasonLockTimeout, "error", err))
-	case errors.Is(err, hooks.ErrSnapshotRead):
-		// An unreadable store is a decline like any other: the cycle wrote
-		// nothing, and its own WARN names the condition and the read error that
-		// produced it.
+	case errors.Is(err, hooks.ErrStoreRead):
+		// A hooks.json the cycle could not read, at either of the two reads it
+		// takes, is a decline like any other: it wrote nothing, and its own WARN
+		// names the condition and the read error that produced it.
 		return standDownOutcome(declineWarn(skipReasonStoreReadFailed, "error", err))
 	}
 	hooksLogger.Warn(sweepFailedMsg, "error", err)

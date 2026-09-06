@@ -277,10 +277,11 @@ func StaleKeys(persisted Snapshot, live []string) []string {
 	return staleKeys(persisted, live)
 }
 
-// ErrSnapshotRead reports that the clean's own pre-read of the file failed, so
-// the enumeration never ran and nothing was judged — as distinct from a failure
-// of the deletion that would have followed it.
-var ErrSnapshotRead = errors.New("failed to read hooks snapshot")
+// ErrStoreRead reports that a read of the file failed, whichever of the clean's
+// two reads it was: the pre-read, which leaves the enumeration unrun and
+// nothing judged, or the load the deletion takes under its own hold. A clean
+// that read, judged and then failed to write carries it from neither.
+var ErrStoreRead = errors.New("failed to read hooks store")
 
 // CleanStale removes and returns the hook entries whose key enumerateLive's
 // answer leaves stale: absent from that live set, judgeable by the staleness
@@ -297,11 +298,11 @@ var ErrSnapshotRead = errors.New("failed to read hooks snapshot")
 // enumerateLive is handed that snapshot and returns the live keys; any error it
 // returns aborts the clean with the file untouched and is returned unwrapped, so
 // a caller can carry its own reasons through. A failed snapshot read returns
-// ErrSnapshotRead and never calls it.
+// ErrStoreRead and never calls it.
 func (s *Store) CleanStale(enumerateLive func(Snapshot) ([]string, error)) ([]string, error) {
 	snapshot, err := s.loadSnapshot()
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrSnapshotRead, err)
+		return nil, fmt.Errorf("%w: %w", ErrStoreRead, err)
 	}
 
 	live, err := enumerateLive(snapshot)
@@ -329,7 +330,7 @@ func (s *Store) deleteStale(live []string, snapshot Snapshot) ([]string, error) 
 
 	h, err := s.load()
 	if err != nil {
-		return nil, fmt.Errorf("failed to load hooks: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrStoreRead, err)
 	}
 
 	removed := narrowToSnapshot(staleKeys(h, live), snapshot)

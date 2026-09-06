@@ -88,7 +88,7 @@ func standDownCopyCases() []standDownCopyCase {
 			sharedPhrase:           storeReadStandDownPhrase,
 			fixture:                storeReadFailedStandDownDeps,
 			level:                  slog.LevelWarn,
-			attrs:                  standDownErrorAttrCarrying(hooks.ErrSnapshotRead.Error()),
+			attrs:                  standDownErrorAttrCarrying(hooks.ErrStoreRead.Error()),
 			skippedLine:            "Skipped stale hook prune: could not read hooks.json",
 			notEvaluableLine:       "  · stale hooks: could not read hooks.json",
 			postRepairNotEvaluable: true,
