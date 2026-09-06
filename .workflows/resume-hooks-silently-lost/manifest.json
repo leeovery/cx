@@ -353,7 +353,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 9,
-          "current_task": "resume-hooks-silently-lost-9-14",
+          "current_task": "resume-hooks-silently-lost-9-15",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -526,7 +526,8 @@
             "resume-hooks-silently-lost-9-10",
             "resume-hooks-silently-lost-9-11",
             "resume-hooks-silently-lost-9-12",
-            "resume-hooks-silently-lost-9-13"
+            "resume-hooks-silently-lost-9-13",
+            "resume-hooks-silently-lost-9-14"
           ],
           "staging": {
             "p1": {
@@ -1066,6 +1067,19 @@
               "files": [
                 "cmd/doctor.go",
                 "cmd/state_commit_now.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-9-14",
+              "source": "reviewer",
+              "summary": "Test-side tmux targets are now half-pinned: this task moved two suites onto PaneTargetExact while the rest of the tree still hands tmux.PaneTarget to real tmux commands.",
+              "detail": "Remaining unpinned real-command call sites include cmd/noncontiguous_window_reboot_integration_test.go:287 (ts.Run(\"split-window\", \"-t\", tmux.PaneTarget(...))), internal/restore/integration_full_test.go:157 (ts.Run(\"select-pane\", ...)), and cmd/bootstrap/reboot_roundtrip_test.go:103,205,368-371,407. The target-composition guard deliberately does not scan _test.go files (sourceguardtest.PackageGoFiles(dir, false)), so nothing enforces either answer. The class is not purely theoretical — fixtures that deliberately stage prefix siblings exist (internal/tmuxtest/socket_realtmux_test.go:30, sib / sib-2). Worth one phase-level decision: pin test targets by the same per-command rule, or state the exemption once, rather than leaving the tree split.",
+              "files": [
+                "cmd/noncontiguous_window_reboot_integration_test.go",
+                "internal/restore/integration_full_test.go",
+                "cmd/bootstrap/reboot_roundtrip_test.go",
+                "cmd/bootstrap/daemon_tick_test_helpers_test.go",
+                "internal/tmux/target_composition_guard_test.go"
               ]
             }
           ]
