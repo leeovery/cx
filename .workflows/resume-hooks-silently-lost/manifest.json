@@ -353,7 +353,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 9,
-          "current_task": "resume-hooks-silently-lost-9-12",
+          "current_task": "resume-hooks-silently-lost-9-13",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -524,7 +524,8 @@
             "resume-hooks-silently-lost-9-8",
             "resume-hooks-silently-lost-9-9",
             "resume-hooks-silently-lost-9-10",
-            "resume-hooks-silently-lost-9-11"
+            "resume-hooks-silently-lost-9-11",
+            "resume-hooks-silently-lost-9-12"
           ],
           "staging": {
             "p1": {
@@ -1020,6 +1021,40 @@
               "files": [
                 "cmd/doctor_stand_down_phrase_guard_test.go",
                 "cmd/doctor_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-9-12",
+              "source": "executor",
+              "summary": "Two AST guard helpers are now declared twice, in two packages test files.",
+              "detail": "forEachValueSpec and parseSyntheticSource are needed by both the phrase guards that stayed in cmd (cmd/doctor_stand_down_phrase_guard_test.go:95 and :114) and the reason guard that moved (internal/hooksweep/reason_enumeration_guard_test.go:134 and :150). Both are subject-neutral source-scanning primitives of exactly the kind internal/sourceguardtest exists to own, and lifting them there (as ForEachValueSpec / ParseSyntheticSource) would delete both copies; the ~20 other guards would likely take them too.",
+              "files": [
+                "cmd/doctor_stand_down_phrase_guard_test.go",
+                "internal/hooksweep/reason_enumeration_guard_test.go",
+                "internal/sourceguardtest/parsesources.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-9-12",
+              "source": "executor",
+              "summary": "The phrase declared-home guard can only see cmd, and the cycle is no longer there.",
+              "detail": "TestStandDownPhrasesAreSpelledOnlyInTheirDeclaredHome (cmd/doctor_stand_down_phrase_guard_test.go) scans ParsePackageSources(t, \".\", false), so a stand-down phrase respelled in internal/hooksweep — or in any other package that grows a hook-staleness surface — is invisible to it. The hole is unreachable today (the moved package emits no user copy and holds no phrase), so widening it to a repo-wide sourceguardtest.GoSourceFiles walk is a strengthening rather than a fix.",
+              "files": [
+                "cmd/doctor_stand_down_phrase_guard_test.go",
+                "internal/hooksweep/reason.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-9-12",
+              "source": "reviewer",
+              "summary": "The package move duplicated the hooks.json test-body and pane-row builders across the package boundary.",
+              "detail": "hooksBody, tokenRows and unstampedRows are now byte-identical in cmd/hookkey_vocabulary_test.go:27,41,49 and internal/hooksweep/helpers_test.go:25,39,47, and const lockBound = 60ms is declared in both cmd/testhelpers_test.go:20 and internal/hooksweep/helpers_test.go:142. internal/hookstest is the documented cross-package hooks.json staging surface and already holds the adjacent vocabulary (StaleHookSeed at hooks.go:206, marshalBody/Staging.Entries at staging.go:127) — hooksBody call sites could largely become Staging{Entries: ...} outright. Lifting tokenRows/unstampedRows there would add an internal/tmux edge to hookstest, which is the tradeoff worth deciding once rather than per-suite. The near-twin seam fakes and the two assertStandDown helpers are defensible consumer-side fakes; the body/row builders are the part with a shared home.",
+              "files": [
+                "cmd/hookkey_vocabulary_test.go",
+                "internal/hooksweep/helpers_test.go",
+                "internal/hookstest/hooks.go",
+                "internal/hookstest/staging.go",
+                "cmd/testhelpers_test.go"
               ]
             }
           ]
