@@ -7,20 +7,42 @@ import (
 	"github.com/leeovery/portal/internal/sourceguardtest"
 )
 
-// The staleness rule has one implementation and both readers reach it directly.
-// The clean must not be layered on the exported StaleKeys: it judges the key
-// set it has already loaded, and the exported query is free to grow
-// caller-facing behaviour that must not run inside the clean's own pass.
-func TestCleanStaleDoesNotCallStaleKeys(t *testing.T) {
-	cleanPath := map[string]bool{"CleanStale": true, "deleteStale": true}
+// The staleness rule has one implementation under one exported name, and every
+// reader of staleness reaches it rather than restating it. An unexported twin
+// beside it would be a second name for the same rule, and a caller reaching the
+// twin would be a reader the exported name's callers cannot account for.
+func TestStalenessRuleHasOneExportedFunction(t *testing.T) {
+	t.Run("it applies the staleness rule through the single exported function from both callers", func(t *testing.T) {
+		for _, source := range sourceguardtest.ParsePackageSources(t, ".", false) {
+			for _, decl := range source.File.Decls {
+				fn, ok := decl.(*ast.FuncDecl)
+				if ok && fn.Name.Name == "staleKeys" {
+					t.Errorf("%s: an unexported staleKeys survives beside the exported StaleKeys", source.Fset.Position(fn.Pos()))
+				}
+			}
+		}
 
-	for _, source := range sourceguardtest.ParsePackageSources(t, ".", false) {
-		sourceguardtest.ForEachFuncCall(source.File, func(funcName string, call *ast.CallExpr) bool {
-			if cleanPath[funcName] && sourceguardtest.CalleeName(call) == "StaleKeys" {
-				t.Errorf("%s: the clean calls StaleKeys — both must reach the staleness rule through the unexported implementation", source.Path)
+		assertCallsStaleKeys(t, ".", "deleteStale")
+		assertCallsStaleKeys(t, "../../cmd", "checkStaleHooks")
+	})
+}
+
+// assertCallsStaleKeys fails unless the named function in the package at dir
+// reaches the staleness rule by calling StaleKeys.
+func assertCallsStaleKeys(t *testing.T, dir, funcName string) {
+	t.Helper()
+
+	var called bool
+	for _, source := range sourceguardtest.ParsePackageSources(t, dir, false) {
+		sourceguardtest.ForEachFuncCall(source.File, func(enclosing string, call *ast.CallExpr) bool {
+			if enclosing == funcName && sourceguardtest.CalleeName(call) == "StaleKeys" {
+				called = true
 			}
 			return true
 		})
+	}
+	if !called {
+		t.Errorf("%s does not call StaleKeys — every reader of staleness must reach the one exported function", funcName)
 	}
 }
 

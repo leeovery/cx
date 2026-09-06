@@ -66,7 +66,7 @@ func TestReadSharedLock(t *testing.T) {
 		if _, err := store.CleanStale(abortingEnumeration(nil)); !errors.Is(err, errAbortEnumeration) {
 			t.Fatalf("CleanStale snapshot read: %v", err)
 		}
-		if _, _, err := hooks.LookupOnResume(store, "k00"); err != nil {
+		if _, _, err := store.LookupOnResume("k00", hooks.ViaHydrate); err != nil {
 			t.Fatalf("LookupOnResume: %v", err)
 		}
 
@@ -247,7 +247,7 @@ func TestReadSharedLockBoundSelection(t *testing.T) {
 			"Load": func() error { _, err := store.Load(hooks.ViaCLI); return err },
 			"List": func() error { _, err := store.List(hooks.ViaCLI); return err },
 			"LookupOnResume": func() error {
-				_, _, err := hooks.LookupOnResume(store, "k00")
+				_, _, err := store.LookupOnResume("k00", hooks.ViaHydrate)
 				return err
 			},
 		}
@@ -266,8 +266,8 @@ func TestReadSharedLockBoundSelection(t *testing.T) {
 }
 
 func TestReadSharedLockVia(t *testing.T) {
-	// Every read names its caller in the degradation breadcrumb, and the
-	// in-package hydrate read names itself without a caller-supplied value.
+	// Every read names its caller in the degradation breadcrumb, from the
+	// caller's own Via — including the hydrate lookup.
 	cases := []struct {
 		name string
 		via  hooks.Via
@@ -282,7 +282,7 @@ func TestReadSharedLockVia(t *testing.T) {
 			return nil
 		}},
 		{"LookupOnResume", hooks.ViaHydrate, func(s *hooks.Store) error {
-			_, _, err := hooks.LookupOnResume(s, "k00")
+			_, _, err := s.LookupOnResume("k00", hooks.ViaHydrate)
 			return err
 		}},
 	}
@@ -310,7 +310,7 @@ func TestLookupOnResumeUnderHeldLock(t *testing.T) {
 		hookstest.HoldHooksSidecar(t, path)
 
 		sink := logtest.Install(t)
-		cmd, ok, err := hooks.LookupOnResume(store, "tok01")
+		cmd, ok, err := store.LookupOnResume("tok01", hooks.ViaHydrate)
 		if err != nil {
 			t.Fatalf("LookupOnResume returned an error under a held lock: %v", err)
 		}
@@ -327,7 +327,7 @@ func TestLookupOnResumeUnderHeldLock(t *testing.T) {
 
 		sink := logtest.Install(t)
 		start := time.Now()
-		cmd, ok, err := hooks.LookupOnResume(store, "")
+		cmd, ok, err := store.LookupOnResume("", hooks.ViaHydrate)
 		elapsed := time.Since(start)
 
 		if err != nil || ok || cmd != "" {

@@ -236,12 +236,16 @@ func (s *Store) List(via Via) ([]Hook, error) {
 	return list, nil
 }
 
-// staleKeys applies the staleness rule; every reader of staleness must route
+// StaleKeys applies the staleness rule; every reader of staleness must route
 // through here rather than restate it. A persisted key is stale iff it is
 // absent from live and its shape is one the rule can judge — token-shaped, or
 // empty. A key of any other shape cannot be told apart from an entry that has
 // not been converted to a pane token yet, so it is retained.
-func staleKeys(persisted Snapshot, live []string) []string {
+//
+// It carries no mass-deletion guard: an empty live set makes every judgeable
+// persisted key stale, and deferring on that is the caller's repair-safety
+// policy.
+func StaleKeys(persisted Snapshot, live []string) []string {
 	liveSet := make(map[string]struct{}, len(live))
 	for _, k := range live {
 		liveSet[k] = struct{}{}
@@ -267,14 +271,6 @@ func narrowToSnapshot(candidates []string, snapshot Snapshot) []string {
 		}
 	}
 	return narrowed
-}
-
-// StaleKeys returns the persisted hook keys absent from live whose shape the
-// staleness rule can judge; a key it cannot judge is retained. It carries no
-// mass-deletion guard: an empty live set makes every judgeable persisted key
-// stale, and deferring on that is the caller's repair-safety policy.
-func StaleKeys(persisted Snapshot, live []string) []string {
-	return staleKeys(persisted, live)
 }
 
 // ErrStoreRead reports that a read of the file failed, whichever of the clean's
@@ -333,7 +329,7 @@ func (s *Store) deleteStale(live []string, snapshot Snapshot) ([]string, error) 
 		return nil, fmt.Errorf("%w: %w", ErrStoreRead, err)
 	}
 
-	removed := narrowToSnapshot(staleKeys(h, live), snapshot)
+	removed := narrowToSnapshot(StaleKeys(h, live), snapshot)
 
 	if len(removed) == 0 {
 		return removed, nil

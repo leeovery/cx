@@ -110,6 +110,30 @@ func TestHookListDegradedRead(t *testing.T) {
 	})
 }
 
+func TestHydrateLookupDegradedRead(t *testing.T) {
+	t.Run("it names the hydrate helper on a degraded lookup", func(t *testing.T) {
+		hooks.SetLockTimeoutForTest(t, 40*time.Millisecond)
+		store, path := hookstest.StageStore(t, hookstest.Staging{Entries: map[string]string{
+			hookstest.SubjectSeedA: "claude --resume abc",
+		}})
+		hookstest.HoldHooksSidecar(t, path)
+
+		exec := &stubExecShell{}
+		sink := logtest.Install(t)
+		execShellOrHookAndExit(hydrateCfg(t, hydrateCfgOpts{
+			HookKey:   hookstest.SubjectSeedA,
+			OpenFIFO:  unexpectedOpenFIFO(t),
+			HookStore: store,
+			ExecShell: exec.fn(),
+		}))
+
+		if !exec.called {
+			t.Fatal("the hydrate helper never reached its exec — a busy lock must not drop the pane")
+		}
+		hookstest.AssertDegradedRead(t, sink, "hydrate")
+	})
+}
+
 func TestSweepPreReadBound(t *testing.T) {
 	t.Run("it degrades the sweep pre-read at the short bound", func(t *testing.T) {
 		hooks.SetLockTimeoutForTest(t, 5*time.Second)

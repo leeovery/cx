@@ -118,7 +118,7 @@ func TestTransientListPanesHelpers_Smoke(t *testing.T) {
 		path := hookstest.ResolveHooksFilePathFromEnv(t, env)
 		store := hooks.NewStore(path)
 		for key, want := range entries {
-			cmd, ok, err := hooks.LookupOnResume(store, key)
+			cmd, ok, err := store.LookupOnResume(key, hooks.ViaHydrate)
 			if err != nil {
 				t.Fatalf("LookupOnResume(%s): %v", key, err)
 			}

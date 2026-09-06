@@ -176,7 +176,7 @@ func execShellOrHookAndExit(cfg hydrateConfig) {
 		execShellAndExit(cfg)
 		return
 	}
-	command, found, err := hooks.LookupOnResume(cfg.HookStore, cfg.HookKey)
+	command, found, err := cfg.HookStore.LookupOnResume(cfg.HookKey, hooks.ViaHydrate)
 	if err != nil {
 		cfg.Logger.Debug("hook lookup", "hook_key", cfg.HookKey, "result", "error", "error", err)
 		cfg.Logger.Warn("lookup on-resume hook failed", "hook_key", cfg.HookKey, "error", err)
