@@ -340,14 +340,21 @@ func checkStaleHooks(reader staleSweepReader, store *hooks.Store) checkResult {
 	return checkResult{name: name, status: checkPass, detail: "no stale hooks"}
 }
 
+// projectStoreReadStandDownPhrase words a projects.json the check could not
+// read. It is declared rather than written at each branch that renders it, so
+// a re-wording moves them together. It names no stand-down reason from the
+// hooks vocabulary: that vocabulary words a hook cycle's declines, and this
+// check runs no cycle and has no repair line to word.
+const projectStoreReadStandDownPhrase = "could not read projects.json"
+
 func checkStaleProjects(store *project.Store) checkResult {
 	const name = "stale projects"
 	if store == nil {
-		return checkResult{name: name, status: checkNotEvaluable, detail: "could not read projects.json"}
+		return checkResult{name: name, status: checkNotEvaluable, detail: projectStoreReadStandDownPhrase}
 	}
 	stale, err := store.StaleEntries()
 	if err != nil {
-		return checkResult{name: name, status: checkNotEvaluable, detail: "could not read projects.json"}
+		return checkResult{name: name, status: checkNotEvaluable, detail: projectStoreReadStandDownPhrase}
 	}
 	if len(stale) > 0 {
 		return checkResult{name: name, status: checkFail, detail: pluralCount(len(stale), "stale project", "stale projects")}

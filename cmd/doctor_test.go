@@ -965,8 +965,8 @@ func TestDoctorStaleHooksCheck(t *testing.T) {
 		if got.status != checkNotEvaluable {
 			t.Errorf("status = %v; want checkNotEvaluable (never a mass-stale failure)", got.status)
 		}
-		if got.detail != "zero live panes with hooks present (not evaluable)" {
-			t.Errorf("detail = %q; want %q", got.detail, "zero live panes with hooks present (not evaluable)")
+		if want := phraseFor(notEvaluableDetails, skipReasonEmptyPaneRead); got.detail != want {
+			t.Errorf("detail = %q; want %q", got.detail, want)
 		}
 	})
 
@@ -1019,8 +1019,8 @@ func TestDoctorStaleHooksCheck(t *testing.T) {
 		if got.status != checkNotEvaluable {
 			t.Errorf("status = %v; want checkNotEvaluable on an enumeration error", got.status)
 		}
-		if got.detail != "could not enumerate live panes" {
-			t.Errorf("detail = %q; want %q", got.detail, "could not enumerate live panes")
+		if want := phraseFor(notEvaluableDetails, skipReasonPaneReadFailed); got.detail != want {
+			t.Errorf("detail = %q; want %q", got.detail, want)
 		}
 	})
 
@@ -1141,7 +1141,7 @@ func TestDoctorStaleHooksCheck(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Execute err = %v; want nil (not-evaluable never drives the exit code)\n%s", err, outBuf.String())
 		}
-		if want := "· stale hooks: restore in progress (not evaluable)"; !strings.Contains(outBuf.String(), want) {
+		if want := renderStaleHooksLine(skipReasonRestoring); !strings.Contains(outBuf.String(), want) {
 			t.Errorf("report missing %q:\n%s", want, outBuf.String())
 		}
 	})
@@ -1163,8 +1163,8 @@ func assertRestoreWindowResult(t *testing.T, got checkResult) {
 	if got.status != checkNotEvaluable {
 		t.Errorf("status = %v; want checkNotEvaluable in a restore window", got.status)
 	}
-	if got.detail != "restore in progress (not evaluable)" {
-		t.Errorf("detail = %q; want %q", got.detail, "restore in progress (not evaluable)")
+	if want := phraseFor(notEvaluableDetails, skipReasonRestoring); got.detail != want {
+		t.Errorf("detail = %q; want %q", got.detail, want)
 	}
 }
 
@@ -1175,8 +1175,8 @@ func assertMarkerReadFailedResult(t *testing.T, got checkResult) {
 	if got.status != checkNotEvaluable {
 		t.Errorf("status = %v; want checkNotEvaluable on a failed marker read", got.status)
 	}
-	if got.detail != "could not read the restore marker" {
-		t.Errorf("detail = %q; want %q", got.detail, "could not read the restore marker")
+	if want := phraseFor(notEvaluableDetails, skipReasonMarkerReadFailed); got.detail != want {
+		t.Errorf("detail = %q; want %q", got.detail, want)
 	}
 }
 
@@ -1233,8 +1233,8 @@ func TestDoctorStaleHooksParityWithPredicate(t *testing.T) {
 			wantStatus checkStatus
 			wantDetail string
 		}{
-			{"enumeration error", []string{hookstest.ReapableSeedA}, &stubStaleSweepReader{err: errors.New("tmux transient")}, checkNotEvaluable, "could not enumerate live panes"},
-			{"empty live with hooks present", []string{hookstest.ReapableSeedA}, &stubStaleSweepReader{rows: tokenRows()}, checkNotEvaluable, "zero live panes with hooks present (not evaluable)"},
+			{"enumeration error", []string{hookstest.ReapableSeedA}, &stubStaleSweepReader{err: errors.New("tmux transient")}, checkNotEvaluable, phraseFor(notEvaluableDetails, skipReasonPaneReadFailed)},
+			{"empty live with hooks present", []string{hookstest.ReapableSeedA}, &stubStaleSweepReader{rows: tokenRows()}, checkNotEvaluable, phraseFor(notEvaluableDetails, skipReasonEmptyPaneRead)},
 			{"empty live with no hooks", nil, &stubStaleSweepReader{rows: tokenRows()}, checkPass, "no hooks"},
 		}
 		for _, tc := range cases {
@@ -1308,8 +1308,8 @@ func TestDoctorStaleProjectsParityWithPredicate(t *testing.T) {
 		if got.status != checkNotEvaluable {
 			t.Errorf("status = %v, want checkNotEvaluable on a load error", got.status)
 		}
-		if got.detail != "could not read projects.json" {
-			t.Errorf("detail = %q, want %q", got.detail, "could not read projects.json")
+		if got.detail != projectStoreReadStandDownPhrase {
+			t.Errorf("detail = %q, want %q", got.detail, projectStoreReadStandDownPhrase)
 		}
 	})
 }

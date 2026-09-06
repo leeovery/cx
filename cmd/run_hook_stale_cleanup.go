@@ -65,6 +65,7 @@ const (
 	markerReadStandDownPhrase = "could not read the restore marker"
 	storeReadStandDownPhrase  = "could not read hooks.json"
 	paneReadStandDownPhrase   = "could not enumerate live panes"
+	lockStandDownPhrase       = "hooks.json is locked"
 )
 
 // sweepFailedStandDownPhrase words a sweep that ran and failed. It reads
@@ -81,7 +82,7 @@ var skippedPrunePhrases = map[skipReason]string{
 	skipReasonStoreReadFailed:  storeReadStandDownPhrase,
 	skipReasonPaneReadFailed:   paneReadStandDownPhrase,
 	skipReasonEmptyPaneRead:    "live pane list came back empty",
-	skipReasonLockTimeout:      "hooks.json is locked",
+	skipReasonLockTimeout:      lockStandDownPhrase,
 }
 
 // notEvaluableDetails renders a stand-down reason as the reason the count cannot
@@ -92,7 +93,7 @@ var notEvaluableDetails = map[skipReason]string{
 	skipReasonStoreReadFailed:  storeReadStandDownPhrase,
 	skipReasonPaneReadFailed:   paneReadStandDownPhrase,
 	skipReasonEmptyPaneRead:    "zero live panes with hooks present (not evaluable)",
-	skipReasonLockTimeout:      "hooks.json is locked (not evaluable)",
+	skipReasonLockTimeout:      lockStandDownPhrase + " (not evaluable)",
 }
 
 // phraseFor renders a stand-down reason through one of the surface vocabularies

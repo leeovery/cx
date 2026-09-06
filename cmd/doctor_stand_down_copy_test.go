@@ -14,6 +14,7 @@ import (
 	"errors"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -21,6 +22,7 @@ import (
 	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/hookstest"
 	"github.com/leeovery/portal/internal/logtest"
+	"github.com/leeovery/portal/internal/project"
 )
 
 // standDownCopyCase is one stand-down reason and everything the two surfaces
@@ -39,9 +41,8 @@ type standDownCopyCase struct {
 	level slog.Level
 	attrs func(t *testing.T, rec logtest.Record)
 	// sharedPhrase is the const both vocabularies compose this reason's words
-	// from — empty for a reason production names no such const for, whether
-	// because its surfaces say different things (the empty pane list) or
-	// because they repeat the same words unshared (the lock).
+	// from — empty for a reason production names no such const for, because its
+	// surfaces say different things (the empty pane list).
 	sharedPhrase     string
 	skippedLine      string
 	notEvaluableLine string
@@ -110,6 +111,7 @@ func standDownCopyCases() []standDownCopyCase {
 		{
 			name:             "hooks.json locked",
 			reason:           skipReasonLockTimeout,
+			sharedPhrase:     lockStandDownPhrase,
 			fixture:          lockTimeoutStandDownDeps,
 			level:            slog.LevelWarn,
 			attrs:            standDownErrorAttrCarrying(hooks.ErrLockHeld.Error()),
@@ -495,6 +497,52 @@ func TestStaleHooksCheckStandDownCopy(t *testing.T) {
 				}
 				if got.detail != reworded {
 					t.Errorf("detail = %q, want the re-worded vocabulary entry %q", got.detail, reworded)
+				}
+			})
+		}
+	})
+}
+
+// unreadableProjectStore stages a projects.json the store cannot read — inside
+// a directory with no permissions, so Load fails with a permission error rather
+// than reporting the file simply absent.
+func unreadableProjectStore(t *testing.T) *project.Store {
+	t.Helper()
+
+	dir := filepath.Join(t.TempDir(), "noread")
+	if err := os.Mkdir(dir, 0o000); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+	return project.NewStore(filepath.Join(dir, "projects.json"))
+}
+
+// The projects reaper stands down on a read it could not take, exactly as the
+// hooks one does, but takes no reason from the hooks vocabulary, so it has no
+// row in the table above. The const's own comment carries why.
+func TestStaleProjectsCheckStandDownCopy(t *testing.T) {
+	t.Run("it words the read failure as the user reads it", func(t *testing.T) {
+		if projectStoreReadStandDownPhrase != "could not read projects.json" {
+			t.Errorf("projectStoreReadStandDownPhrase = %q, want the line the report prints", projectStoreReadStandDownPhrase)
+		}
+	})
+
+	t.Run("it renders the projects read-failure line from its declared const", func(t *testing.T) {
+		cases := []struct {
+			name  string
+			store *project.Store
+		}{
+			{name: "no store to read", store: nil},
+			{name: "store read failed", store: unreadableProjectStore(t)},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				got := checkStaleProjects(tc.store)
+				if got.status != checkNotEvaluable {
+					t.Errorf("status = %v, want not evaluable", got.status)
+				}
+				if got.detail != projectStoreReadStandDownPhrase {
+					t.Errorf("detail = %q, want the declared phrase %q", got.detail, projectStoreReadStandDownPhrase)
 				}
 			})
 		}
