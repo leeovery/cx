@@ -85,7 +85,12 @@ func (ac *AttachConnector) Connect(name string) error {
 		ex = &realExecer{}
 	}
 
-	argv := []string{"tmux", "attach-session", "-t", tmux.SessionTargetExact(name)}
+	// attach-session parses its -t as a window or pane target before falling
+	// back to a session lookup, so the target is pinned with the trailing
+	// separator: without it a period-bearing name is split into window and pane
+	// and any live session whose name extends the pre-period component answers
+	// instead.
+	argv := []string{"tmux", "attach-session", "-t", tmux.CoordTargetExact(name)}
 
 	logExecHandoff(argv)
 

@@ -2,7 +2,7 @@ package tmux_test
 
 import (
 	"fmt"
-	"strings"
+	"slices"
 	"testing"
 
 	"github.com/leeovery/portal/internal/commandertest"
@@ -115,15 +115,13 @@ func TestListClients(t *testing.T) {
 		if len(mock.Calls()) == 0 {
 			t.Fatal("expected at least one tmux call")
 		}
-		args := strings.Join(mock.Calls()[0], " ")
-		if !strings.Contains(args, "list-clients") {
-			t.Errorf("args %q do not invoke list-clients", args)
-		}
-		if !strings.Contains(args, "-t =dev") {
-			t.Errorf("args %q do not target the session exactly (=dev)", args)
-		}
-		if !strings.Contains(args, "#{client_pid} #{client_activity}") {
-			t.Errorf("args %q do not request the client_pid+client_activity format", args)
+		// The trailing ":" is the exactness, not the "=" alone: list-clients
+		// parses its -t as a window or pane target, so a separator-free "=dev"
+		// is read as a window name and falls through to the fuzzy lookup that
+		// reaches a live prefix sibling.
+		want := []string{"list-clients", "-t", "=dev:", "-F", "#{client_pid} #{client_activity}"}
+		if got := mock.Calls()[0]; !slices.Equal(got, want) {
+			t.Errorf("composed %v, want %v", got, want)
 		}
 	})
 }

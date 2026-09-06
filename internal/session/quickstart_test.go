@@ -25,7 +25,7 @@ func wantExecArgs(name, dir, shellCmd string) []string {
 	}
 	return append(args,
 		";", "set-option", "-t", "="+name+":", session.PortalDirOption, dir,
-		";", "attach-session", "-t", "="+name,
+		";", "attach-session", "-t", "="+name+":",
 	)
 }
 
@@ -105,7 +105,7 @@ func TestQuickStart(t *testing.T) {
 		want := []string{
 			"tmux", "new-session", "-d", "-s", name, "-c", gitRoot,
 			";", "set-option", "-t", "=" + name + ":", session.PortalDirOption, gitRoot,
-			";", "attach-session", "-t", "=" + name,
+			";", "attach-session", "-t", "=" + name + ":",
 		}
 		if !reflect.DeepEqual(result.ExecArgs, want) {
 			t.Fatalf("result.ExecArgs = %v, want %v", result.ExecArgs, want)

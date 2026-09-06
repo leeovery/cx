@@ -61,11 +61,12 @@ func (m *captureMock) answerShowEnvironment(args ...string) (string, error) {
 	return m.envBySession[session], nil
 }
 
-// sessionFromExactTarget undoes the "=" exact-match prefix the tmux client
-// composes onto a session target, so the fake resolves the same session real
-// tmux would.
+// sessionFromExactTarget undoes the exact target form the tmux client composes
+// for a per-session read: the "=" exact-match prefix and the trailing ":" that
+// makes tmux read the leading component as a session name rather than splitting
+// it on a period. The fake resolves the same session real tmux would.
 func sessionFromExactTarget(target string) string {
-	return strings.TrimPrefix(target, "=")
+	return strings.TrimSuffix(strings.TrimPrefix(target, "="), ":")
 }
 
 func listSessionsFor(names ...string) string {

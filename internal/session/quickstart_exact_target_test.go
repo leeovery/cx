@@ -7,9 +7,12 @@ import (
 	"github.com/leeovery/portal/internal/session"
 )
 
-// The chain's two per-session steps take different target kinds: set-option
-// resolves a pane target to reach a session option, so it needs the trailing
-// separator, while attach-session takes a session target and rejects one.
+// Both per-session steps of the chain take a target tmux parses as a window or
+// pane, so both need the trailing separator: measured on tmux 3.7c, a bare
+// "=name" is split on a period into window and pane and reaches a live prefix
+// sibling instead — set-option resolves a pane target to reach a session option,
+// and attach-session resolves the session's current window through the same
+// parse.
 func TestQuickStartTargetsAreExact(t *testing.T) {
 	t.Run("it pins the quickstart set-option target to the exact session", func(t *testing.T) {
 		result, name := runQuickStart(t)
@@ -20,7 +23,7 @@ func TestQuickStartTargetsAreExact(t *testing.T) {
 	t.Run("it pins the quickstart attach-session target to the exact session", func(t *testing.T) {
 		result, name := runQuickStart(t)
 
-		assertContainsSubseq(t, result.ExecArgs, []string{"attach-session", "-t", "=" + name})
+		assertContainsSubseq(t, result.ExecArgs, []string{"attach-session", "-t", "=" + name + ":"})
 	})
 }
 

@@ -109,13 +109,15 @@ func (s *Socket) Client() *tmux.Client {
 
 // WaitForSession polls until the named session is queryable or timeout elapses.
 // new-session looks synchronous, but a brief settle window before the session
-// answers has been observed. The target is pinned exactly: tmux's fuzzy form
-// lets a live prefix sibling answer for a session that does not exist yet.
+// answers has been observed. The target is pinned the way the client pins a
+// has-session target: tmux's fuzzy form lets a live prefix sibling answer for a
+// session that does not exist yet, and a separator-free "=name" is split on a
+// period into window and pane, so a period-bearing name would never answer.
 func (s *Socket) WaitForSession(t harnesstest.TestingT, name string, timeout time.Duration) {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		out, err := s.TryRun("has-session", "-t", tmux.SessionTargetExact(name))
+		out, err := s.TryRun("has-session", "-t", tmux.CoordTargetExact(name))
 		if err == nil {
 			return
 		}

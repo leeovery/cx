@@ -342,7 +342,7 @@ func TestHasSession(t *testing.T) {
 		if len(mock.Calls()) != 1 {
 			t.Fatalf("expected 1 call, got %d", len(mock.Calls()))
 		}
-		wantArgs := "has-session -t =my-session"
+		wantArgs := "has-session -t =my-session:"
 		gotArgs := strings.Join(mock.Calls()[0], " ")
 		if gotArgs != wantArgs {
 			t.Errorf("called with %q, want %q", gotArgs, wantArgs)
@@ -382,7 +382,7 @@ func TestHasSessionUsesExactMatchPrefix(t *testing.T) {
 		t.Fatalf("expected 1 call, got %d", len(mock.Calls()))
 	}
 	got := mock.Calls()[0]
-	want := []string{"has-session", "-t", "=foo"}
+	want := []string{"has-session", "-t", "=foo:"}
 	if len(got) != len(want) {
 		t.Fatalf("got %d args %v, want %d args %v", len(got), got, len(want), want)
 	}
@@ -399,13 +399,15 @@ func TestHasSessionUsesExactMatchPrefix(t *testing.T) {
 		exactMock := commandertest.FromFunc(func(args ...string) (string, error) {
 			if len(args) >= 3 && args[0] == "has-session" && args[1] == "-t" {
 				switch args[2] {
-				case "=foo":
+				case "=foo:":
 					return "", fmt.Errorf("can't find session: foo")
-				case "=foo-2":
+				case "=foo-2:":
 					return "", nil
-				case "foo":
-					// Reaching this arm means the "=" was dropped: real
-					// tmux would prefix-match the live "foo-2" here.
+				case "foo", "=foo":
+					// Reaching either arm means the target was not composed
+					// exactly: tmux prefix-matches the bare form, and reads the
+					// separator-free "=foo" as a window name before falling
+					// through to the same fuzzy lookup — which finds "foo-2".
 					return "", nil
 				}
 			}
@@ -438,7 +440,7 @@ func TestHasSessionProbe(t *testing.T) {
 		if len(mock.Calls()) != 1 {
 			t.Fatalf("expected 1 call, got %d", len(mock.Calls()))
 		}
-		wantArgs := "has-session -t =my-session"
+		wantArgs := "has-session -t =my-session:"
 		gotArgs := strings.Join(mock.Calls()[0], " ")
 		if gotArgs != wantArgs {
 			t.Errorf("called with %q, want %q", gotArgs, wantArgs)
@@ -625,7 +627,7 @@ func TestKillSession(t *testing.T) {
 		if len(mock.Calls()) != 1 {
 			t.Fatalf("expected 1 call, got %d", len(mock.Calls()))
 		}
-		wantArgs := "kill-session -t =my-session"
+		wantArgs := "kill-session -t =my-session:"
 		gotArgs := strings.Join(mock.Calls()[0], " ")
 		if gotArgs != wantArgs {
 			t.Errorf("called with %q, want %q", gotArgs, wantArgs)
@@ -648,12 +650,12 @@ func TestKillSessionUsesExactMatchPrefix(t *testing.T) {
 	exactMock := commandertest.FromFunc(func(args ...string) (string, error) {
 		if len(args) >= 3 && args[0] == "kill-session" && args[1] == "-t" {
 			switch args[2] {
-			case "=foo":
+			case "=foo:":
 				return "", fmt.Errorf("can't find session: foo")
-			case "=foo-2":
+			case "=foo-2:":
 				return "", nil
-			case "foo":
-				t.Errorf("KillSession reached bare-\"foo\" prefix-match arm; \"=\" prefix dropped, live \"foo-2\" would have been killed")
+			case "foo", "=foo":
+				t.Errorf("KillSession composed the fuzzy target %q; live \"foo-2\" would have been killed", args[2])
 				return "", nil
 			}
 		}
@@ -691,7 +693,7 @@ func TestSwitchClient(t *testing.T) {
 		if len(mock.Calls()) != 1 {
 			t.Fatalf("expected 1 call, got %d", len(mock.Calls()))
 		}
-		wantArgs := "switch-client -t =my-session"
+		wantArgs := "switch-client -t =my-session:"
 		gotArgs := strings.Join(mock.Calls()[0], " ")
 		if gotArgs != wantArgs {
 			t.Errorf("called with %q, want %q", gotArgs, wantArgs)
@@ -865,7 +867,7 @@ func TestRenameSession(t *testing.T) {
 		if len(mock.Calls()) != 1 {
 			t.Fatalf("expected 1 call, got %d", len(mock.Calls()))
 		}
-		wantArgs := "rename-session -t =old-name new-name"
+		wantArgs := "rename-session -t =old-name: new-name"
 		gotArgs := strings.Join(mock.Calls()[0], " ")
 		if gotArgs != wantArgs {
 			t.Errorf("called with %q, want %q", gotArgs, wantArgs)
@@ -888,10 +890,10 @@ func TestRenameSessionUsesExactMatchPrefix(t *testing.T) {
 	exactMock := commandertest.FromFunc(func(args ...string) (string, error) {
 		if len(args) >= 3 && args[0] == "rename-session" && args[1] == "-t" {
 			switch args[2] {
-			case "=foo":
+			case "=foo:":
 				return "", fmt.Errorf("can't find session: foo")
-			case "foo":
-				t.Fatalf("RenameSession used bare target %q; prefix-collision regression (would rename live foo-2)", args[2])
+			case "foo", "=foo":
+				t.Fatalf("RenameSession composed the fuzzy target %q; prefix-collision regression (would rename live foo-2)", args[2])
 			}
 		}
 		return "", fmt.Errorf("unexpected args: %v", args)
@@ -907,7 +909,7 @@ func TestRenameSessionUsesExactMatchPrefix(t *testing.T) {
 		t.Fatalf("expected 1 call, got %d: %v", len(exactMock.Calls()), exactMock.Calls())
 	}
 	got := exactMock.Calls()[0]
-	want := []string{"rename-session", "-t", "=foo", "bar"}
+	want := []string{"rename-session", "-t", "=foo:", "bar"}
 	if len(got) != len(want) {
 		t.Fatalf("got %d args %v, want %d args %v", len(got), got, len(want), want)
 	}
@@ -1406,7 +1408,7 @@ func TestShowEnvironment(t *testing.T) {
 		if len(mock.Calls()) != 1 {
 			t.Fatalf("expected 1 call, got %d", len(mock.Calls()))
 		}
-		wantArgs := "show-environment -t =work"
+		wantArgs := "show-environment -t =work:"
 		gotArgs := strings.Join(mock.Calls()[0], " ")
 		if gotArgs != wantArgs {
 			t.Errorf("called with %q, want %q", gotArgs, wantArgs)
@@ -1865,7 +1867,7 @@ func TestSetSessionEnvironment(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		want := []string{"set-environment", "-t", "=work", "LANG", "en_US.UTF-8"}
+		want := []string{"set-environment", "-t", "=work:", "LANG", "en_US.UTF-8"}
 		got := mock.Calls()[0]
 		if len(got) != len(want) {
 			t.Fatalf("got %d args %v, want %d args %v", len(got), got, len(want), want)

@@ -44,9 +44,12 @@ func NewQuickStart(git GitResolver, store ProjectStore, checker SessionChecker, 
 // Should the create not produce the session, a bare name prefix-matches onto a
 // live sibling and the stamp lands on a stranger; that the tmux in hand
 // abandons a ";" chain at its first failure is one version's behaviour, not
-// something a write to someone else's session may rest on. The steps take
-// different target kinds — set-option resolves a pane target to reach a session
-// option, attach-session a session target — so they take different helpers.
+// something a write to someone else's session may rest on. Both steps take a
+// target tmux parses as a window or pane — set-option resolves a pane target to
+// reach a session option, and attach-session resolves the session's current
+// window through the same parse — so both take CoordTargetExact, whose trailing
+// separator is what keeps a period in the name from being read as a window and
+// pane.
 func (qs *QuickStart) Run(path string, command []string) (*QuickStartResult, error) {
 	prepared, err := PrepareSession(path, command, qs.git, qs.store, qs.checker, qs.gen, qs.shell)
 	if err != nil {
@@ -59,7 +62,7 @@ func (qs *QuickStart) Run(path string, command []string) (*QuickStartResult, err
 	}
 	execArgs = append(execArgs,
 		";", "set-option", "-t", tmux.CoordTargetExact(prepared.SessionName), PortalDirOption, prepared.ResolvedDir,
-		";", "attach-session", "-t", tmux.SessionTargetExact(prepared.SessionName),
+		";", "attach-session", "-t", tmux.CoordTargetExact(prepared.SessionName),
 	)
 
 	return &QuickStartResult{

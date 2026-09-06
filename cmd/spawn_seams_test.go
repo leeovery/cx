@@ -50,7 +50,7 @@ func TestBuildProductionSpawnSeams(t *testing.T) {
 		if got := seams.Exists("mysession"); !got {
 			t.Errorf("Exists returned false; quietCommander defaults to no error, want true")
 		}
-		want := []string{"has-session", "-t", "=mysession"}
+		want := []string{"has-session", "-t", "=mysession:"}
 		if len(cmder.Calls()) != 1 || !slices.Equal(cmder.Calls()[0], want) {
 			t.Errorf("Exists drove commander with %v, want exactly one %v call", cmder.Calls(), want)
 		}

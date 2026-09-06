@@ -8,21 +8,21 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// The two exact forms tmux needs, and the reason each site takes the one it
-// does: tmux only honours the "=" exact-match prefix when it parses the target
-// as a session. A command whose -t is a window or pane target ("coordinate"
-// below) parses a bare "=foo" as a window/pane name, falls through to its own
-// fuzzy lookup and prefix-matches anyway — the trailing ":" is what forces the
-// leading component to be read as a session name. set-option is the trap: it
-// writes a session option, but resolves a pane target to get there, so it takes
-// the coordinate form despite being a per-session write.
-const (
-	sessionTargetForm = "=exact"
-	coordTargetForm   = "=exact:"
-)
+// The exact target form every route below composes, and why it is the
+// coordinate one: tmux only honours the "=" exact-match prefix where it parses
+// the target as a session. A command whose -t is a window or pane target parses
+// a bare "=foo" as a window/pane name and falls through to its own fuzzy lookup,
+// prefix-matching anyway — and a colon-free "=my.app" is split on the period
+// into window and pane before the session lookup is even tried, so a live
+// prefix extension of "my" displaces it. The trailing ":" is what forces the
+// leading component to be read as a session name. Measured per command on tmux
+// 3.7c, every route Portal runs against one session parses a window-or-pane
+// target, set-option (a session-option write reached through a pane target)
+// included, so every route here takes the coordinate form.
+const coordTargetForm = "=exact:"
 
 // exactTargetSession is the session name every route in perSessionRoutes is
-// invoked against; the two target forms above are its exact renderings.
+// invoked against; the coordinate form above is its exact rendering.
 const exactTargetSession = "exact"
 
 // perSessionRoute is one operation that composes an exact tmux target for a
@@ -43,13 +43,13 @@ var perSessionRoutes = []perSessionRoute{
 	{
 		name:    "ShowEnvironment",
 		command: "show-environment",
-		want:    sessionTargetForm,
+		want:    coordTargetForm,
 		invoke:  func(c *tmux.Client) { _, _ = c.ShowEnvironment(exactTargetSession) },
 	},
 	{
 		name:    "SetSessionEnvironment",
 		command: "set-environment",
-		want:    sessionTargetForm,
+		want:    coordTargetForm,
 		invoke:  func(c *tmux.Client) { _ = c.SetSessionEnvironment(exactTargetSession, "K", "v") },
 	},
 	{

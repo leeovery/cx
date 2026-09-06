@@ -1034,7 +1034,7 @@ func TestOpenSession_DelegatesToBuildSessionConnector(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	wantCall := []string{"switch-client", "-t", "=api-x7Kd9a"}
+	wantCall := []string{"switch-client", "-t", "=api-x7Kd9a:"}
 	found := false
 	for _, c := range cmder.Calls() {
 		if slices.Equal(c, wantCall) {
@@ -2025,7 +2025,7 @@ func TestLogExecHandoff_Helper(t *testing.T) {
 	t.Run("strips argv[0] and joins the rest under target=tmux", func(t *testing.T) {
 		sink := logtest.Install(t)
 
-		logExecHandoff([]string{"tmux", "attach-session", "-t", "=foo"})
+		logExecHandoff([]string{"tmux", "attach-session", "-t", "=foo:"})
 
 		rec := sink.Records().Matching("process", "exec").Only(t, "process exec record")
 		if rec.Level != slog.LevelInfo {
@@ -2034,8 +2034,8 @@ func TestLogExecHandoff_Helper(t *testing.T) {
 		if target := rec.AttrString(t, "target"); target != "tmux" {
 			t.Errorf("target attr = %q, want %q", target, "tmux")
 		}
-		if gotArgs := rec.AttrString(t, "args"); gotArgs != "attach-session -t =foo" {
-			t.Errorf("args attr = %q, want %q", gotArgs, "attach-session -t =foo")
+		if gotArgs := rec.AttrString(t, "args"); gotArgs != "attach-session -t =foo:" {
+			t.Errorf("args attr = %q, want %q", gotArgs, "attach-session -t =foo:")
 		}
 	})
 
@@ -2596,7 +2596,7 @@ func (r *recordingExecer) Exec(argv0 string, argv []string, _ []string) error {
 }
 
 func TestAttachConnectorConnectArgv(t *testing.T) {
-	t.Run("it attaches through SessionTargetExact", func(t *testing.T) {
+	t.Run("it attaches through CoordTargetExact", func(t *testing.T) {
 		rec := &recordingExecer{}
 		ac := &AttachConnector{
 			execer:   rec,
@@ -2610,7 +2610,7 @@ func TestAttachConnectorConnectArgv(t *testing.T) {
 		if rec.argv0 != "/usr/bin/tmux" {
 			t.Errorf("argv0 = %q, want %q", rec.argv0, "/usr/bin/tmux")
 		}
-		want := []string{"tmux", "attach-session", "-t", "=foo"}
+		want := []string{"tmux", "attach-session", "-t", "=foo:"}
 		if !slices.Equal(rec.argv, want) {
 			t.Errorf("argv = %v, want %v", rec.argv, want)
 		}
@@ -2662,7 +2662,7 @@ func TestAttachConnector_EmitsExecMarkerBeforeExec(t *testing.T) {
 			t.Errorf("target attr = %q, want %q", target, "tmux")
 		}
 		gotArgs := r.AttrString(t, "args")
-		wantArgs := "attach-session -t =foo"
+		wantArgs := "attach-session -t =foo:"
 		if gotArgs != wantArgs {
 			t.Errorf("args attr = %q, want %q", gotArgs, wantArgs)
 		}
@@ -2908,8 +2908,8 @@ func TestExecMarker_VisibleAtWARN(t *testing.T) {
 	if target := r.AttrString(t, "target"); target != "tmux" {
 		t.Errorf("target attr = %q, want %q", target, "tmux")
 	}
-	if gotArgs := r.AttrString(t, "args"); gotArgs != "attach-session -t =foo" {
-		t.Errorf("args attr = %q, want %q", gotArgs, "attach-session -t =foo")
+	if gotArgs := r.AttrString(t, "args"); gotArgs != "attach-session -t =foo:" {
+		t.Errorf("args attr = %q, want %q", gotArgs, "attach-session -t =foo:")
 	}
 }
 

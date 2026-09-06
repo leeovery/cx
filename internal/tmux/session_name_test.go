@@ -61,7 +61,7 @@ func TestRenameSessionRefusesColon(t *testing.T) {
 		if len(mock.Calls()) != 1 {
 			t.Fatalf("expected 1 call, got %d: %v", len(mock.Calls()), mock.Calls())
 		}
-		const wantArgs = "rename-session -t =old-name new-name"
+		const wantArgs = "rename-session -t =old-name: new-name"
 		if got := strings.Join(mock.Calls()[0], " "); got != wantArgs {
 			t.Errorf("called with %q, want %q", got, wantArgs)
 		}

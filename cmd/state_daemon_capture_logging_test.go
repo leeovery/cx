@@ -224,11 +224,12 @@ func TestDaemonTick_CapturePaneFailureLogsWarnWithPaneKey(t *testing.T) {
 	}
 }
 
-// sessionFromExactTarget undoes the "=" exact-match prefix the tmux client
-// composes onto a session or pane target, so a fake resolves the same target
-// real tmux would.
+// sessionFromExactTarget undoes the exact target form the tmux client composes
+// for a per-session read: the "=" exact-match prefix and the trailing ":" that
+// makes tmux read the leading component as a session name rather than splitting
+// it on a period. A fake resolves the same session real tmux would.
 func sessionFromExactTarget(target string) string {
-	return strings.TrimPrefix(target, "=")
+	return strings.TrimSuffix(strings.TrimPrefix(target, "="), ":")
 }
 
 // showEnvironmentFor matches the per-session environment read, resolving the
