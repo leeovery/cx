@@ -199,7 +199,7 @@ func pruneDoctorStaleHooks(w io.Writer, deps *DoctorDeps) {
 	}
 	outcome, err := runHookStaleCleanup(deps.HookLister, deps.HookStore)
 	if err != nil {
-		reportSkippedPrune(w, skipReasonSweepFailed)
+		reportFailedPrune(w)
 		return
 	}
 	for _, key := range outcome.Removed {
@@ -214,6 +214,14 @@ func pruneDoctorStaleHooks(w io.Writer, deps *DoctorDeps) {
 // reason vocabulary, so no branch can reach for words of its own.
 func reportSkippedPrune(w io.Writer, reason skipReason) {
 	_, _ = fmt.Fprintf(w, "Skipped stale hook prune: %s\n", phraseFor(skippedPrunePhrases, reason))
+}
+
+// reportFailedPrune renders a prune that ran and failed. It reads as a skipped
+// prune because that is what the user got, but it is no stand-down — the sweep
+// declined nothing — so it names its own phrase rather than drawing one from
+// the stand-down vocabulary.
+func reportFailedPrune(w io.Writer) {
+	_, _ = fmt.Fprintf(w, "Skipped stale hook prune: %s\n", sweepFailedStandDownPhrase)
 }
 
 func pruneDoctorStaleProjects(w io.Writer, deps *DoctorDeps) {

@@ -51,13 +51,6 @@ type standDownCopyCase struct {
 	postRepairNotEvaluable bool
 }
 
-// notStandDownReasons are declared reasons this table cannot hold. A failed
-// sweep declined nothing — it ran, wrote nothing and left the entry it could
-// not delete, so its post-repair diagnosis is legitimately unhealthy and the
-// read-only surface never reaches it at all. Naming them keeps the count guard
-// below sharp: a genuinely new stand-down still fails it.
-var notStandDownReasons = []skipReason{skipReasonSweepFailed}
-
 func standDownCopyCases() []standDownCopyCase {
 	return []standDownCopyCase{
 		{
@@ -340,25 +333,50 @@ func assertStandDownRepair(t *testing.T, tc standDownCopyCase) {
 }
 
 func TestStandDownCopy(t *testing.T) {
-	t.Run("it names a phrase for every stand-down reason on both surfaces", func(t *testing.T) {
-		cases := standDownCopyCases()
-		if want := len(skipReasons) - len(notStandDownReasons); len(cases) != want {
-			t.Fatalf("stand-down copy cases = %d, want one per declared stand-down reason (%d)", len(cases), want)
-		}
-		for _, reason := range notStandDownReasons {
-			if !slices.Contains(skipReasons, reason) {
-				t.Errorf("excluded reason %q is not declared; the count guard is subtracting nothing", reason)
+	// Every reason the type holds is a reason a cycle declined under, so the
+	// table covers the set whole: no member is excluded from it, and a new one
+	// arrives here or fails.
+	t.Run("it enumerates every stand-down reason with no subtraction list", func(t *testing.T) {
+		covered := map[skipReason]string{}
+		for _, tc := range standDownCopyCases() {
+			if prior, ok := covered[tc.reason]; ok {
+				t.Errorf("case %q reuses the reason %q already covered by %q; want one row per decline path", tc.name, tc.reason, prior)
+			}
+			covered[tc.reason] = tc.name
+			if !slices.Contains(skipReasons, tc.reason) {
+				t.Errorf("case %q covers %q, which is no declared reason", tc.name, tc.reason)
 			}
 		}
+		for _, reason := range skipReasons {
+			if _, ok := covered[reason]; !ok {
+				t.Errorf("declared reason %q has no copy case; every reason a cycle declines under is covered here", reason)
+			}
+		}
+	})
 
-		// The uniqueness checks below read the *rendered* phrases, not the
-		// table's expectations: two reasons that agree on their words are the
-		// drift worth catching, and comparing the expectations would only catch
-		// an author who copied a row.
-		reasons := map[skipReason]string{}
+	// The uniqueness checks read the *rendered* phrases, not the table's
+	// expectations: two reasons that agree on their words are the drift worth
+	// catching, and comparing the expectations would only catch an author who
+	// copied a row.
+	t.Run("it renders a distinct phrase for each of the six reasons on both surfaces", func(t *testing.T) {
 		skipped := map[string]skipReason{}
 		notEvaluable := map[string]skipReason{}
-		for _, tc := range cases {
+		for _, reason := range skipReasons {
+			renderedSkipped := renderSkippedPruneLine(reason)
+			if prior, ok := skipped[renderedSkipped]; ok {
+				t.Errorf("reason %q borrows the skipped-prune line already used by %q: %q", reason, prior, renderedSkipped)
+			}
+			renderedDetail := phraseFor(notEvaluableDetails, reason)
+			if prior, ok := notEvaluable[renderedDetail]; ok {
+				t.Errorf("reason %q borrows the not-evaluable detail already used by %q: %q", reason, prior, renderedDetail)
+			}
+			skipped[renderedSkipped] = reason
+			notEvaluable[renderedDetail] = reason
+		}
+	})
+
+	t.Run("it names a phrase for every stand-down reason on both surfaces", func(t *testing.T) {
+		for _, tc := range standDownCopyCases() {
 			t.Run(tc.name, func(t *testing.T) {
 				assertStandDownSweep(t, tc)
 				assertStandDownRepair(t, tc)
@@ -367,24 +385,6 @@ func TestStandDownCopy(t *testing.T) {
 					t.Errorf("not-evaluable line = %q, want %q", got, tc.notEvaluableLine)
 				}
 			})
-
-			if prior, ok := reasons[tc.reason]; ok {
-				t.Errorf("case %q reuses the reason %q already covered by %q; want one row per decline path", tc.name, tc.reason, prior)
-			}
-			renderedSkipped := renderSkippedPruneLine(tc.reason)
-			if prior, ok := skipped[renderedSkipped]; ok {
-				t.Errorf("reason %q borrows the skipped-prune line already used by %q: %q", tc.reason, prior, renderedSkipped)
-			}
-			renderedDetail := phraseFor(notEvaluableDetails, tc.reason)
-			if prior, ok := notEvaluable[renderedDetail]; ok {
-				t.Errorf("reason %q borrows the not-evaluable detail already used by %q: %q", tc.reason, prior, renderedDetail)
-			}
-			reasons[tc.reason] = tc.name
-			skipped[renderedSkipped] = tc.reason
-			notEvaluable[renderedDetail] = tc.reason
-		}
-		if len(reasons) != len(cases) {
-			t.Errorf("distinct reasons = %d, want %d", len(reasons), len(cases))
 		}
 	})
 
@@ -428,18 +428,6 @@ func TestStandDownCopy(t *testing.T) {
 			if strings.Contains(phraseFor(notEvaluableDetails, tc.reason), withdrawn) {
 				t.Errorf("reason %q still renders the withdrawn phrase %q in the diagnosis", tc.reason, withdrawn)
 			}
-		}
-	})
-
-	// A stand-down that renders as an empty line is the silence this reporting
-	// removes, so an unmapped reason still prints something.
-	t.Run("it renders an unmapped reason as itself on both surfaces", func(t *testing.T) {
-		const unmapped skipReason = "unmapped-reason"
-		if got := phraseFor(skippedPrunePhrases, unmapped); got != string(unmapped) {
-			t.Errorf("phraseFor(skippedPrunePhrases, %q) = %q, want the raw reason", unmapped, got)
-		}
-		if got := phraseFor(notEvaluableDetails, unmapped); got != string(unmapped) {
-			t.Errorf("phraseFor(notEvaluableDetails, %q) = %q, want the raw reason", unmapped, got)
 		}
 	})
 

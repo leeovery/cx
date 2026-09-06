@@ -39,10 +39,10 @@ func undeclaredKeys(m map[skipReason]string, reasons []skipReason) []skipReason 
 	return extra
 }
 
-// Every stand-down reason reaches the user through two vocabularies, and an
-// unmapped one falls through to its raw slug — internal words on the command
-// whose purpose is explaining what happened. The fall-through stays as the
-// runtime net; this guard is what makes the omission a test failure instead.
+// Every stand-down reason reaches the user through two vocabularies, and
+// nothing at runtime words one they leave out. This guard is the whole
+// enforcement: an omission is a test failure here, rather than an empty phrase
+// on the command whose purpose is explaining what happened.
 func TestStandDownPhraseCoverage(t *testing.T) {
 	if len(skipReasons) == 0 {
 		t.Fatal("skipReasons is empty; the coverage guard would pass having checked nothing")
@@ -69,22 +69,25 @@ func TestStandDownPhraseCoverage(t *testing.T) {
 		}
 	})
 
-	t.Run("it fails when a newly declared reason has no phrase", func(t *testing.T) {
-		const sixth skipReason = "new-reason-with-no-phrase"
-		declared := append(slices.Clone(skipReasons), sixth)
+	t.Run("it fails the coverage guard when a declared reason is absent from a phrase map", func(t *testing.T) {
+		const unmapped skipReason = "new-reason-with-no-phrase"
+		declared := append(slices.Clone(skipReasons), unmapped)
 
 		for name, vocabulary := range map[string]map[skipReason]string{
 			"skippedPrunePhrases": skippedPrunePhrases,
 			"notEvaluableDetails": notEvaluableDetails,
 		} {
-			if missing := missingPhrases(declared, vocabulary); !slices.Equal(missing, []skipReason{sixth}) {
+			if missing := missingPhrases(declared, vocabulary); !slices.Equal(missing, []skipReason{unmapped}) {
 				t.Errorf("missingPhrases(+%q, %s) = %v, want exactly [%q]; the rule would not catch the omission",
-					sixth, name, missing, sixth)
+					unmapped, name, missing, unmapped)
 			}
-		}
 
-		if phrase := phraseFor(skippedPrunePhrases, sixth); phrase != string(sixth) {
-			t.Errorf("phraseFor(skippedPrunePhrases, %q) = %q, want the raw reason as the runtime net", sixth, phrase)
+			// Nothing renders an unmapped reason: this guard is the whole
+			// enforcement, so a reason left out of a map must not reach a
+			// surface wearing its own slug as copy.
+			if phrase := phraseFor(vocabulary, unmapped); phrase != "" {
+				t.Errorf("phraseFor(%s, %q) = %q, want nothing; the guard is the only enforcement", name, unmapped, phrase)
+			}
 		}
 	})
 }

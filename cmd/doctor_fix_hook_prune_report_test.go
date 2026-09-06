@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"log/slog"
 	"strings"
 	"testing"
@@ -38,21 +39,25 @@ func TestDoctorFixAlwaysReportsTheHookPrune(t *testing.T) {
 		assertSkippedPruneLine(t, outBuf.String(), renderSkippedPruneLine(skipReasonRestoring))
 	})
 
-	t.Run("it prints a skipped line when the stale-hook sweep fails", func(t *testing.T) {
+	// A failed sweep is no stand-down, so its line is rendered by a renderer of
+	// its own rather than through the stand-down vocabulary.
+	t.Run("it renders the same failed-sweep line for --fix after sweep-failed leaves the reason type", func(t *testing.T) {
+		const want = "Skipped stale hook prune: the sweep could not complete"
+
+		var direct bytes.Buffer
+		reportFailedPrune(&direct)
+		if got := direct.String(); got != want+"\n" {
+			t.Errorf("reportFailedPrune wrote %q, want %q", got, want+"\n")
+		}
+
 		sink := logtest.Install(t)
 		deps := failingSweepDeps(t)
 
 		outBuf, _, _ := runDoctorWith(t, deps, "--fix")
 
-		assertSkippedPruneLine(t, outBuf.String(), "Skipped stale hook prune: the sweep could not complete")
+		assertSkippedPruneLine(t, outBuf.String(), want)
 		if len(sink.Records().Matching("hooks", sweepFailedMsg).AtExactLevel(slog.LevelWarn)) != 1 {
 			t.Errorf("want one WARN naming the failed sweep under the hooks component; records=%+v", sink.Records())
-		}
-
-		// The stand-down copy table cannot hold this reason, so the raw-slug
-		// guard every other reason gets from it lives here instead.
-		if phrase := phraseFor(skippedPrunePhrases, skipReasonSweepFailed); phrase == string(skipReasonSweepFailed) || strings.Contains(phrase, string(skipReasonSweepFailed)) {
-			t.Errorf("phraseFor(skippedPrunePhrases, %q) = %q; want a user-facing phrase, not the enum value", skipReasonSweepFailed, phrase)
 		}
 	})
 }

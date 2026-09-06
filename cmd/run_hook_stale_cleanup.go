@@ -10,15 +10,15 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// skipReason is the closed vocabulary of reasons a cycle removed nothing. It is
-// a type rather than a convention over plain strings so no string-typed value
-// can be reported as one; an untyped constant still converts implicitly.
+// skipReason is the closed vocabulary of reasons a cycle declined to run under.
+// It is a type rather than a convention over plain strings so no string-typed
+// value can be reported as one; an untyped constant still converts implicitly.
 type skipReason string
 
-// The reasons a cycle removed nothing: the ones it declines to run under,
-// which the logged reason attr also names, and the failure only the
-// caller-facing rendering reports. Every surface that renders one works from
-// this set, so their vocabularies cannot drift from it.
+// The reasons a cycle declined to run under, which the logged reason attr also
+// names. Every surface that renders one works from this set, so their
+// vocabularies cannot drift from it. A sweep that ran and failed is not among
+// them: it declined nothing, and its caller-facing line is the repair's own.
 const (
 	skipReasonRestoring        skipReason = "restoring"
 	skipReasonMarkerReadFailed skipReason = "marker-read-failed"
@@ -26,7 +26,6 @@ const (
 	skipReasonPaneReadFailed   skipReason = "pane-read-failed"
 	skipReasonEmptyPaneRead    skipReason = "empty-pane-read"
 	skipReasonLockTimeout      skipReason = "lock-timeout"
-	skipReasonSweepFailed      skipReason = "sweep-failed"
 )
 
 // skipReasons makes the reasons above enumerable, so anything that must cover
@@ -46,10 +45,6 @@ const (
 //   - store-read-failed reaches the diagnosis only through this vocabulary:
 //     checkStaleHooks names the reason and lets the tables word it, rather than
 //     carrying copy of its own.
-//   - sweep-failed is the --fix repair's line alone. A sweep that failed
-//     declined nothing — it ran and left the entry it could not delete — so the
-//     post-repair diagnosis reports that entry as stale rather than as a
-//     stand-down.
 var skipReasons = []skipReason{
 	skipReasonRestoring,
 	skipReasonMarkerReadFailed,
@@ -57,7 +52,6 @@ var skipReasons = []skipReason{
 	skipReasonPaneReadFailed,
 	skipReasonEmptyPaneRead,
 	skipReasonLockTimeout,
-	skipReasonSweepFailed,
 }
 
 // The phrases both surface vocabularies share are written once here, so
@@ -67,12 +61,16 @@ var skipReasons = []skipReason{
 // diagnosis, and reporting that as a restore would assert something that is not
 // happening.
 const (
-	restoreStandDownPhrase     = "restore in progress"
-	markerReadStandDownPhrase  = "could not read the restore marker"
-	storeReadStandDownPhrase   = "could not read hooks.json"
-	paneReadStandDownPhrase    = "could not enumerate live panes"
-	sweepFailedStandDownPhrase = "the sweep could not complete"
+	restoreStandDownPhrase    = "restore in progress"
+	markerReadStandDownPhrase = "could not read the restore marker"
+	storeReadStandDownPhrase  = "could not read hooks.json"
+	paneReadStandDownPhrase   = "could not enumerate live panes"
 )
+
+// sweepFailedStandDownPhrase words a sweep that ran and failed. It reads
+// alongside the stand-down phrases above and is deliberately not one of them:
+// no reason names it, because the cycle declined nothing.
+const sweepFailedStandDownPhrase = "the sweep could not complete"
 
 // skippedPrunePhrases completes "Skipped stale hook prune: …" for a user who
 // asked for a repair. A failed enumeration and a successful one that answered
@@ -84,7 +82,6 @@ var skippedPrunePhrases = map[skipReason]string{
 	skipReasonPaneReadFailed:   paneReadStandDownPhrase,
 	skipReasonEmptyPaneRead:    "live pane list came back empty",
 	skipReasonLockTimeout:      "hooks.json is locked",
-	skipReasonSweepFailed:      sweepFailedStandDownPhrase,
 }
 
 // notEvaluableDetails renders a stand-down reason as the reason the count cannot
@@ -96,17 +93,14 @@ var notEvaluableDetails = map[skipReason]string{
 	skipReasonPaneReadFailed:   paneReadStandDownPhrase,
 	skipReasonEmptyPaneRead:    "zero live panes with hooks present (not evaluable)",
 	skipReasonLockTimeout:      "hooks.json is locked (not evaluable)",
-	skipReasonSweepFailed:      sweepFailedStandDownPhrase,
 }
 
 // phraseFor renders a stand-down reason through one of the surface vocabularies
-// above. An unmapped reason falls through to its raw value, so no stand-down can
-// print nothing — a last-resort net, not a licence to leave a reason unmapped.
+// above. A reason no vocabulary words renders nothing rather than its own slug:
+// exhaustiveness is a test's to enforce, and a runtime fall-through would only
+// make internal words look like copy on the command that explains what happened.
 func phraseFor(m map[skipReason]string, reason skipReason) string {
-	if phrase, ok := m[reason]; ok {
-		return phrase
-	}
-	return string(reason)
+	return m[reason]
 }
 
 // standDownMsg and standDownAttrs give every stand-down one line shape, so a
