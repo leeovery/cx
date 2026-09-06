@@ -353,7 +353,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 9,
-          "current_task": "resume-hooks-silently-lost-9-4",
+          "current_task": "resume-hooks-silently-lost-9-5",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -516,7 +516,8 @@
             "resume-hooks-silently-lost-8-49",
             "resume-hooks-silently-lost-9-1",
             "resume-hooks-silently-lost-9-2",
-            "resume-hooks-silently-lost-9-3"
+            "resume-hooks-silently-lost-9-3",
+            "resume-hooks-silently-lost-9-4"
           ],
           "staging": {
             "p1": {
@@ -856,6 +857,49 @@
               "detail": "internal/portalbintest/build.go:41-53 — StagePortalBinary calls t.Skipf on build failure and again on a failed LookPath. The HOME poison raises the odds of a poison-caused build break (the deferred GOENV residual is exactly such a case), and the failure mode is a green ok with silently skipped tests rather than a red lane. A hard t.Fatalf — or at minimum a skip that is impossible to mistake for coverage — belongs with whatever consolidation touches this helper.",
               "files": [
                 "internal/portalbintest/build.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-9-4",
+              "source": "executor",
+              "summary": "The set of characters unwritable in a session name is declared twice, in two packages that must stay in step.",
+              "detail": "internal/tmux/errors.go:64-79 declares targetSeparator / sessionIDPrefix / flagPrefix for the validator, while internal/session/naming.go:18-33 independently declares unwritableLeadingChars and the ./: replacer for the generator. Nothing in production links them — the only thing holding them together is TestGenerateSessionNameProducesAddressableNames (internal/session/naming_test.go:222), which enumerates hostile inputs by hand, so a fourth rule added to the validator would silently leave the generator minting names it refuses. This is the same two-definitions-of-one-rule shape this task fixed, one level up. A fix would mean either the generator importing the tmux vocabulary or a leaf holding the character set, and reaches both packages.",
+              "files": [
+                "internal/tmux/errors.go",
+                "internal/session/naming.go",
+                "internal/session/naming_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-9-4",
+              "source": "reviewer",
+              "summary": "No capture fixture exists for the third rename refusal, breaking a one-fixture-per-wording convention.",
+              "detail": "internal/capture/fixtures.go:341,350 define sessions-rename-refused-separator and sessions-rename-refused-id-prefix, each typed rather than seeded, and internal/capture/capture_test.go:923-960 enumerates both. The hyphen refusal has neither. Nothing fails today (the swap-and-diff guard enumerates whatever fixtures exist), and the rendered band is shape-identical to the $ frame, so this is a completeness call for a fixture sweep rather than this bugfix.",
+              "files": [
+                "internal/capture/fixtures.go",
+                "internal/capture/capture_test.go",
+                "internal/capture/swap_harness_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-9-4",
+              "source": "reviewer",
+              "summary": "internal/tmuxerr describes ErrUnaddressableSessionName as being about the colon alone, already stale before this task.",
+              "detail": "internal/tmuxerr/errors.go:10-15 describes the sentinel as being about \":\" alone — stale since the $ rule shipped, and now doubly so with the hyphen rule. Untouched by this diff. Worth folding into whichever change next visits that file. Related: the sentinel message text \"session name not addressable by exact target\" is now carried by a rule that is not about exact-target addressability; nothing user-visible says the wrong thing, since user-facing wording comes from the per-rule sentinels.",
+              "files": [
+                "internal/tmuxerr/errors.go",
+                "internal/tmux/errors.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-9-4",
+              "source": "reviewer",
+              "summary": "The sentinel set and the flash-copy set must stay in step with nothing structural holding them together.",
+              "detail": "internal/tui/sessions_flash.go:66-72 discriminates two sentinels explicitly and falls through to renameSeparatorRefusedFlash for anything else, so a fourth ValidateSessionName rule would silently tell the user colons are not allowed — the exact defect fix-tracking-8-3 caught when the $ rule shipped, now one rule further from the fallthrough. No test binds the sentinel set (internal/tmux/errors.go:87-91) to the copy set; internal/tui/rename_colon_refusal_test.go asserts each pairing by hand. A fix means either an exhaustive mapping the compiler or a guard checks, or an honest default, and reaches both packages.",
+              "files": [
+                "internal/tui/sessions_flash.go",
+                "internal/tmux/errors.go",
+                "internal/tui/rename_colon_refusal_test.go"
               ]
             }
           ]
