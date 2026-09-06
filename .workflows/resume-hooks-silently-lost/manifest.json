@@ -353,7 +353,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 9,
-          "current_task": "resume-hooks-silently-lost-9-15",
+          "current_task": "resume-hooks-silently-lost-9-16",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -527,7 +527,8 @@
             "resume-hooks-silently-lost-9-11",
             "resume-hooks-silently-lost-9-12",
             "resume-hooks-silently-lost-9-13",
-            "resume-hooks-silently-lost-9-14"
+            "resume-hooks-silently-lost-9-14",
+            "resume-hooks-silently-lost-9-15"
           ],
           "staging": {
             "p1": {
@@ -1080,6 +1081,25 @@
                 "cmd/bootstrap/reboot_roundtrip_test.go",
                 "cmd/bootstrap/daemon_tick_test_helpers_test.go",
                 "internal/tmux/target_composition_guard_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-9-15",
+              "source": "executor",
+              "summary": "Stale hardcoded $SHELL -ic literals in two other packages now model a composition Portal no longer produces.",
+              "detail": "cmd/open_test.go:1309 and :2759, and internal/tmux/tmux_test.go:529, hardcode \"/bin/zsh -ic (claude...; exec /bin/zsh)\" as opaque payloads for unrelated assertions (exec-arg plumbing, log verbatimness, new-session argv). They still pass because nothing there calls BuildShellCommand, but they now depict a string the production composer cannot emit, so a reader takes them as the current shape. A sweep would re-derive them from session.BuildShellCommand or neutralise them into obviously-synthetic payloads.",
+              "files": [
+                "cmd/open_test.go",
+                "internal/tmux/tmux_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-9-15",
+              "source": "reviewer",
+              "summary": "CLAUDE.md shellquote row names the session composition by its old unquoted rendering.",
+              "detail": "CLAUDE.md:80 describes the consumer as \"the session tree $SHELL -ic (cmd; exec $SHELL)\" — the shape the composer no longer emits after this task quoted both the leading word and the exec tail. Outside this task file scope and the sort of line a phase-boundary docs sweep owns.",
+              "files": [
+                "CLAUDE.md"
               ]
             }
           ]
