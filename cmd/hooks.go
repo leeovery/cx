@@ -80,7 +80,6 @@ func resolveCurrentPaneKey() (hookKey, paneID string, err error) {
 
 // hookSeams returns the seams every hook command runs against: whatever a test
 // injected, with the production default filled in for each seam it left unset.
-// A new seam costs one fill line here rather than a builder of its own.
 func hookSeams() HooksDeps {
 	var seams HooksDeps
 	if hooksDeps != nil {

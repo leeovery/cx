@@ -26,36 +26,15 @@ var lockPollInterval = 5 * time.Millisecond
 // pre-read waits, which is 20ms at the 2s bound above.
 const snapshotLockFraction = 100
 
-// snapshotLockBound bounds the clean's advisory pre-read alone. A clean takes
-// the sidecar twice — shared for that pre-read, exclusive for the deletion — so
-// at lockTimeout a writer that is alive but stuck would park the daemon's 1s
-// tick for two full bounds every cycle, which is the stall this exists to
-// prevent: what it protects is the tick, not the read. It is derived from
-// lockTimeout rather than declared beside it so the relationship is visible
-// where the value is, and so lowering the mutation bound — which the unit lane
-// does, to drive a timeout without waiting out the production figure — lowers
-// this one with it instead of leaving a production figure behind. The pre-read
-// is advisory: it may degrade to an unlocked read at no cost to correctness,
-// paying one DEBUG breadcrumb. Shortening it costs an uncontended acquire
-// nothing, at any figure: acquireLock attempts the flock before it tests its
-// deadline, so a free lock is granted on that first attempt however short the
-// bound is, and the bound governs only how long a held lock is waited out — a
-// short one opens no spurious-degradation surface of its own. What the figure
-// does have to buy is headroom over a holder that is mid-write rather than
-// stuck, and a hundredth buys four poll intervals over the sub-millisecond
-// critical section at the production bound, where a thousandth would land on
-// the floor and buy one. Where lockTimeout is above one poll interval the
-// derived figure sits below the mutation bound, and above two poll intervals
-// below half of it, so a contended clean costs one bound rather than two; at or
-// under those the floor is in force: the pre-read holds at one poll interval,
-// so it is no longer below half the mutation bound, and under one poll interval
-// it exceeds that bound outright — a range only a lowered bound under test
-// reaches. The floor keeps that figure at one poll
-// interval, below which the figure named stops being the figure waited: the
-// acquire re-tests its deadline only after a poll sleep, so every shorter
-// bound costs that same one interval. The accepted price of a bound this
-// short is that ordinary contention degrades the pre-read where the full
-// bound would have waited it out.
+// snapshotLockBound bounds the clean's advisory pre-read alone, which may
+// degrade to an unlocked read at no cost to correctness, paying one DEBUG
+// breadcrumb, so a clean held up by a stuck writer costs the daemon's tick one
+// mutation bound rather than two. It is derived from lockTimeout rather than
+// declared beside it, so lowering the mutation bound lowers this one with it
+// until the floor below takes over.
+// The floor of one poll interval is load-bearing: acquireLock re-tests its
+// deadline only after a poll sleep, so under it the figure named stops being
+// the figure waited.
 func snapshotLockBound() time.Duration {
 	return max(lockTimeout/snapshotLockFraction, lockPollInterval)
 }
