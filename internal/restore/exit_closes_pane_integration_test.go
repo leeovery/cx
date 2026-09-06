@@ -32,10 +32,7 @@ func TestExitClosesRestoredPane_NoHook(t *testing.T) {
 
 	driveAndAwaitMarkerClear(t, ts.Client(), stateDir, sessionName)
 
-	target := tmux.PaneTarget(sessionName, 0, 0)
-	if err := ts.Client().SendKeys(target, "exit"); err != nil {
-		t.Fatalf("SendKeys exit: %v", err)
-	}
+	ts.SendKeys(t, tmux.PaneTargetExact(sessionName, 0, 0), "exit")
 
 	awaitPaneGone(t, ts, sessionName, 0, 0, exitClosesPaneBudget)
 }
@@ -55,10 +52,7 @@ func TestExitClosesRestoredPane_WithHook(t *testing.T) {
 
 	restoretest.WaitForFileExists(t, sentinel, restoretest.PaneReactionBudget, restoretest.PaneReactionTick)
 
-	target := tmux.PaneTarget(sessionName, 0, 0)
-	if err := ts.Client().SendKeys(target, "exit"); err != nil {
-		t.Fatalf("SendKeys exit: %v", err)
-	}
+	ts.SendKeys(t, tmux.PaneTargetExact(sessionName, 0, 0), "exit")
 
 	awaitPaneGone(t, ts, sessionName, 0, 0, exitClosesPaneBudget)
 }

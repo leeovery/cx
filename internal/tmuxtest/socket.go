@@ -70,6 +70,14 @@ func (s *Socket) TryRun(args ...string) (string, error) {
 	return string(out), err
 }
 
+// SendKeys types keys into the pane addressed by target and follows them with
+// Enter, so the pane runs them as a command rather than leaving them at its
+// prompt. It runs on the fixture's own socket, never the ambient server.
+func (s *Socket) SendKeys(t *testing.T, target, keys string) {
+	t.Helper()
+	s.Run(t, "send-keys", "-t", target, keys, "Enter")
+}
+
 // KillServer tears down the isolated tmux server. Errors are ignored: an
 // already-dead server is the common case.
 func (s *Socket) KillServer() {

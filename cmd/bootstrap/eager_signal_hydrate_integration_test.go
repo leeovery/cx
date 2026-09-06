@@ -150,10 +150,8 @@ func TestPhase1Integration_DaemonResumesCaptureAfterEagerSignal_AC4(t *testing.T
 	// can leave only a partial prompt line, and TailScrollback then returns
 	// nothing.
 	betaPaneKey := state.SanitizePaneKey("beta", 0, 0)
-	betaTarget := tmux.PaneTarget("beta", 0, 0)
-	if err := client.SendKeys(betaTarget, "echo ac4-marker"); err != nil {
-		t.Fatalf("SendKeys to %s: %v", betaTarget, err)
-	}
+	betaTarget := tmux.PaneTargetExact("beta", 0, 0)
+	ts.SendKeys(t, betaTarget, "echo ac4-marker")
 	waitForPaneText(t, client, betaTarget, "ac4-marker", restoretest.PaneReactionBudget, restoretest.PaneReactionTick)
 
 	runDaemonTick(t, client, stateDir)
@@ -233,10 +231,8 @@ func TestPhase1Integration_DaemonSkipsCaptureWithoutEagerSignal_AC4NegativeContr
 			"below would be vacuously satisfied)", betaMarker)
 	}
 
-	betaTarget := tmux.PaneTarget("beta", 0, 0)
-	if err := client.SendKeys(betaTarget, "echo ac4-negctrl"); err != nil {
-		t.Fatalf("SendKeys to %s: %v", betaTarget, err)
-	}
+	betaTarget := tmux.PaneTargetExact("beta", 0, 0)
+	ts.SendKeys(t, betaTarget, "echo ac4-negctrl")
 	waitForPaneText(t, client, betaTarget, "ac4-negctrl", restoretest.PaneReactionBudget, restoretest.PaneReactionTick)
 
 	runDaemonTick(t, client, stateDir)

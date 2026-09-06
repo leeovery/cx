@@ -667,19 +667,6 @@ func parsePaneHookRows(output string) ([]PaneHookRow, error) {
 	return rows, nil
 }
 
-// SendKeys delivers a command, followed by Enter, to the pane addressed by the
-// structural-key target. It has no production caller and is exported anyway: it
-// is a sanctioned shared test driver, kept on the client so the real-tmux suites
-// that type into a live pane compose this invocation in one place rather than
-// each re-authoring it.
-func (c *Client) SendKeys(target string, command string) error {
-	_, err := c.cmd.Run("send-keys", "-t", target, command, "Enter")
-	if err != nil {
-		return fmt.Errorf("failed to send keys to pane %q: %w", target, err)
-	}
-	return nil
-}
-
 // RespawnPane replaces the process running in the pane with command. The -k
 // flag is load-bearing: it kills the existing process atomically, rather than
 // failing because the pane is occupied, so command really is the pane's

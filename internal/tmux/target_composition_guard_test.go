@@ -261,7 +261,7 @@ func addressSession(c *Client, name string) {
 
 type Client struct{}
 
-func (c *Client) SendKeys(target string) { run("send-keys", "-t", target) }
+func (c *Client) SelectPane(target string) { run("select-pane", "-t", target) }
 
 func run(args ...string) {}
 
@@ -285,7 +285,7 @@ func spendSession(name string) { addressSession(name + ":") }
 
 type Client struct{}
 
-func (c *Client) SendKeys(target string) { run("send-keys", "-t", target) }
+func (c *Client) SelectPane(target string) { run("select-pane", "-t", target) }
 
 func run(args ...string) {}
 
@@ -333,7 +333,7 @@ func addressSession(c *Client, target, name string) {
 
 type Client struct{}
 
-func (c *Client) SendKeys(target string) { run("send-keys", "-t", target) }
+func (c *Client) SelectPane(target string) { run("select-pane", "-t", target) }
 
 func run(args ...string) {}
 
@@ -358,7 +358,7 @@ func addressSession(name string) {
 
 type Client struct{}
 
-func (c *Client) SendKeys(target string) { run("send-keys", "-t", target) }
+func (c *Client) SelectPane(target string) { run("select-pane", "-t", target) }
 
 func run(args ...string) {}
 
@@ -390,7 +390,7 @@ type Client struct{}
 
 func (c *Client) SplitWindow(target, cwd string) error { return nil }
 
-func (c *Client) SendKeys(target string) { run("send-keys", "-t", target) }
+func (c *Client) SelectPane(target string) { run("select-pane", "-t", target) }
 
 func run(args ...string) {}
 

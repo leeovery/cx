@@ -1,10 +1,14 @@
 package tmuxtest
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/leeovery/portal/internal/harnesstest"
+	"github.com/leeovery/portal/internal/tmux"
 )
 
 // captureWait runs the wait against the shared stand-in, which absorbs the
@@ -73,6 +77,41 @@ func TestSocket_WaitForSession(t *testing.T) {
 		}
 		if elapsed < 300*time.Millisecond {
 			t.Fatalf("WaitForSession failed after %s; want it to poll for the full 300ms timeout", elapsed)
+		}
+	})
+}
+
+func TestSocket_SendKeys(t *testing.T) {
+	t.Run("it sends keys to a live pane on the fixture's own socket", func(t *testing.T) {
+		SkipIfNoTmux(t)
+		s := New(t, "ptl-sendkeys-")
+		s.Run(t, "new-session", "-d", "-s", "keys")
+
+		s.SendKeys(t, tmux.PaneTargetExact("keys", 0, 0), "echo socket-marker")
+
+		landed := harnesstest.PollUntil(t, 2*time.Second, 20*time.Millisecond, func() bool {
+			return strings.Contains(s.Run(t, "capture-pane", "-p", "-t", tmux.PaneTargetExact("keys", 0, 0)), "socket-marker")
+		})
+		if !landed {
+			t.Fatalf("sent keys never appeared in the fixture pane; capture-pane=%q",
+				s.Run(t, "capture-pane", "-p", "-t", tmux.PaneTargetExact("keys", 0, 0)))
+		}
+	})
+
+	t.Run("it appends Enter so the pane runs the command", func(t *testing.T) {
+		SkipIfNoTmux(t)
+		s := New(t, "ptl-sendkeys-")
+		s.Run(t, "new-session", "-d", "-s", "keys")
+		sentinel := filepath.Join(t.TempDir(), "ran")
+
+		s.SendKeys(t, tmux.PaneTargetExact("keys", 0, 0), "echo ran > "+sentinel)
+
+		ran := harnesstest.PollUntil(t, 2*time.Second, 20*time.Millisecond, func() bool {
+			_, err := os.Stat(sentinel)
+			return err == nil
+		})
+		if !ran {
+			t.Fatalf("sentinel %s never appeared; the keys were typed but never run", sentinel)
 		}
 	})
 }
