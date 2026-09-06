@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"fmt"
 	"os/exec"
 	"strings"
 	"testing"
@@ -20,18 +21,6 @@ func newExitError(t *testing.T) error {
 		t.Fatalf("expected *exec.ExitError, got %T: %v", err, err)
 	}
 	return err
-}
-
-// setHookCalls returns the event named by every global-hook unset the run
-// issued, in the order tmux received them.
-func setHookCalls(cmder *commandertest.Scripted) []string {
-	var out []string
-	for _, c := range cmder.CallsMatching("set-hook") {
-		if len(c.Argv) >= 3 && c.Argv[1] == "-gu" {
-			out = append(out, c.Argv[2])
-		}
-	}
-	return out
 }
 
 func installUninstallDeps(t *testing.T, deps *UninstallDeps) {
@@ -238,30 +227,6 @@ func TestUninstall_RegisteredInSkipTmuxCheck(t *testing.T) {
 	}
 }
 
-func TestUninstall_ToleratesKillSessionCantFindSessionError(t *testing.T) {
-	raw := "session-created[0] run-shell 'command -v portal >/dev/null 2>&1 && portal state notify'\n"
-	cmder := commandertest.New(t,
-		commandertest.Returns("", "info"),
-		commandertest.Returns("", "has-session"),
-		// Race: tmux auto-destroyed it between has-session and kill-session.
-		commandertest.Fails(errors.New("can't find session: _portal-saver"), "kill-session"),
-		commandertest.Returns(raw, "show-hooks"),
-		commandertest.Returns("", "set-hook"),
-	)
-	installUninstallDeps(t, &UninstallDeps{Client: tmux.NewClient(cmder)})
-
-	out, _, err := runRootCmd(t, "uninstall")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if got := setHookCalls(cmder); len(got) != 1 || got[0] != "session-created[0]" {
-		t.Errorf("expected hook removal to run after idempotent kill error; got set-hook -gu calls=%v", got)
-	}
-	if out.String() != wantCompletionMessage {
-		t.Errorf("completion message mismatch:\n got %q\nwant %q", out.String(), wantCompletionMessage)
-	}
-}
-
 func TestUninstall_KillSessionOtherFailureContributesJoinedErrorAndStillRunsUnregister(t *testing.T) {
 	unregisterCalled := false
 	stub := func(_ *tmux.Client) error {
@@ -348,4 +313,93 @@ func TestUninstall_DoesNotInvokeBootstrap(t *testing.T) {
 	if _, _, err := runRootCmd(t, "uninstall"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+}
+
+// killSaverOutcome runs uninstall against a scripted tmux whose kill-session
+// fails with killErr, and reports what the user was told: the captured
+// daemon-component log and the returned error.
+func killSaverOutcome(t *testing.T, killErr error) (string, error) {
+	t.Helper()
+	logger, sink := newCaptureLoggerForComponent(t, "daemon")
+	cmder := commandertest.New(t,
+		commandertest.Returns("", "info"),
+		commandertest.Returns("", "has-session"),
+		commandertest.Fails(killErr, "kill-session"),
+	)
+	installUninstallDeps(t, &UninstallDeps{
+		Client:     tmux.NewClient(cmder),
+		Unregister: func(*tmux.Client) error { return nil },
+		Logger:     logger,
+	})
+
+	out, _, err := runRootCmd(t, "uninstall")
+	if out.String() != wantCompletionMessage {
+		t.Errorf("completion message mismatch:\n got %q\nwant %q", out.String(), wantCompletionMessage)
+	}
+	return sink.Body(), err
+}
+
+func TestUninstall_ClassifiesKillSessionFailureBySentinel(t *testing.T) {
+	t.Run("it reports a clean removal when the saver session is genuinely absent", func(t *testing.T) {
+		// The shape a real tmux exit carries: only a *CommandError reaches the
+		// client's ErrNoSuchSession wrap.
+		absent := &tmux.CommandError{Stderr: "can't find session: _portal-saver", Err: newExitError(t)}
+
+		logged, err := killSaverOutcome(t, absent)
+		if err != nil {
+			t.Fatalf("expected a clean removal, got error: %v", err)
+		}
+		if !strings.Contains(logged, killSaverInfoMessage) {
+			t.Errorf("log missing the removal message %q; log:\n%s", killSaverInfoMessage, logged)
+		}
+	})
+
+	t.Run("it reports a failure when the kill failed on an unaddressable saver name", func(t *testing.T) {
+		// tmux answers an unaddressable target with the very same stderr a
+		// vanished session produces; only the classification tells them apart.
+		unaddressable := fmt.Errorf("%w: can't find session: _portal-saver", tmux.ErrUnaddressableSessionName)
+
+		logged, err := killSaverOutcome(t, unaddressable)
+		if err == nil {
+			t.Fatal("expected an error for an unaddressable saver name, got nil (false 'removed')")
+		}
+		if !errors.Is(err, tmux.ErrUnaddressableSessionName) {
+			t.Errorf("error %v does not wrap tmux.ErrUnaddressableSessionName", err)
+		}
+		if strings.Contains(logged, killSaverInfoMessage) {
+			t.Errorf("must not log a removal for a saver it did not kill; log:\n%s", logged)
+		}
+		if !strings.Contains(logged, "WARN") {
+			t.Errorf("expected a WARN for the failed kill; log:\n%s", logged)
+		}
+	})
+
+	t.Run("it surfaces any other kill failure as an error", func(t *testing.T) {
+		sentinel := errors.New("permission denied")
+
+		logged, err := killSaverOutcome(t, sentinel)
+		if err == nil {
+			t.Fatal("expected an error from the kill failure, got nil")
+		}
+		if !errors.Is(err, sentinel) {
+			t.Errorf("error %v does not wrap the underlying kill failure %v", err, sentinel)
+		}
+		if strings.Contains(logged, killSaverInfoMessage) {
+			t.Errorf("must not log a removal for a failed kill; log:\n%s", logged)
+		}
+	})
+
+	t.Run("it matches on the sentinel rather than tmux's stderr wording", func(t *testing.T) {
+		// Absence classified by the client, worded differently: the sentinel is
+		// the whole contract, tmux's phrasing is not.
+		reworded := fmt.Errorf("%w: session vanished", tmux.ErrNoSuchSession)
+
+		logged, err := killSaverOutcome(t, reworded)
+		if err != nil {
+			t.Fatalf("expected a clean removal on the sentinel alone, got error: %v", err)
+		}
+		if !strings.Contains(logged, killSaverInfoMessage) {
+			t.Errorf("log missing the removal message %q; log:\n%s", killSaverInfoMessage, logged)
+		}
+	})
 }

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"strings"
 
 	"github.com/leeovery/portal/internal/tmux"
 	"github.com/spf13/cobra"
@@ -93,7 +92,7 @@ func killSaver(c *tmux.Client, logger *slog.Logger) error {
 	}
 
 	if err := c.KillSession(tmux.PortalSaverName); err != nil {
-		if isSessionAbsentError(err) {
+		if errors.Is(err, tmux.ErrNoSuchSession) {
 			logger.Info(killSaverInfoMessage)
 			return nil
 		}
@@ -102,12 +101,6 @@ func killSaver(c *tmux.Client, logger *slog.Logger) error {
 	}
 	logger.Info(killSaverInfoMessage)
 	return nil
-}
-
-// Substring match on tmux's own wording: stable across tmux 3.0+, matched
-// case-insensitively against future capitalisation changes.
-func isSessionAbsentError(err error) bool {
-	return err != nil && strings.Contains(strings.ToLower(err.Error()), "can't find session")
 }
 
 func init() {
