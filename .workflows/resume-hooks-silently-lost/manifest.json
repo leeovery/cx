@@ -353,7 +353,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 9,
-          "current_task": "resume-hooks-silently-lost-9-5",
+          "current_task": "resume-hooks-silently-lost-9-6",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -517,7 +517,8 @@
             "resume-hooks-silently-lost-9-1",
             "resume-hooks-silently-lost-9-2",
             "resume-hooks-silently-lost-9-3",
-            "resume-hooks-silently-lost-9-4"
+            "resume-hooks-silently-lost-9-4",
+            "resume-hooks-silently-lost-9-5"
           ],
           "staging": {
             "p1": {
@@ -900,6 +901,38 @@
                 "internal/tui/sessions_flash.go",
                 "internal/tmux/errors.go",
                 "internal/tui/rename_colon_refusal_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-9-5",
+              "source": "reviewer",
+              "summary": "Sweep the ~100 remaining test call sites that pass \"on-resume\" as an untyped literal event onto hooks.EventOnResume.",
+              "detail": "Event being a string kind means store.Set(key, \"on-resume\", ...) still compiles, and it is still spelled at roughly a hundred test call sites — internal/hooks/lock_test.go:39,55,68,75,93 (and ~20 more), internal/hooks/store_test.go:104,122,125 (and ~40 more), internal/hooks/lock_write_test.go:23,40,58, internal/hooks/read_lock_test.go:77,212, internal/hooks/cleanstale_snapshot_test.go:54,80,98,122,149, internal/hookstest/staging_test.go:67, cmd/run_hook_stale_cleanup_snapshot_order_test.go:22,77,80, cmd/state_daemon_test.go:773, cmd/noncontiguous_window_reboot_integration_test.go:345,349, cmd/bootstrap/phase2_hook_fire_integration_test.go:46, cmd/bootstrap/reboot_roundtrip_test.go:82, internal/restore/exit_closes_pane_integration_test.go:144, internal/restore/reboot_fixture_test.go:71. This is what stands between the current state and the tasks criterion 2 literal wording. Reach crosses four packages and both lanes.",
+              "files": [
+                "internal/hooks/lock_test.go",
+                "internal/hooks/store_test.go",
+                "internal/hooks/lock_write_test.go",
+                "internal/hooks/read_lock_test.go",
+                "internal/hooks/cleanstale_snapshot_test.go",
+                "internal/hookstest/staging_test.go",
+                "cmd/run_hook_stale_cleanup_snapshot_order_test.go",
+                "cmd/state_daemon_test.go",
+                "cmd/noncontiguous_window_reboot_integration_test.go",
+                "cmd/bootstrap/phase2_hook_fire_integration_test.go",
+                "cmd/bootstrap/reboot_roundtrip_test.go",
+                "internal/restore/exit_closes_pane_integration_test.go",
+                "internal/restore/reboot_fixture_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-9-5",
+              "source": "reviewer",
+              "summary": "The zero-value hooks.Event is persistable, unlike Via whose zero value reads as absent.",
+              "detail": "An unset var e hooks.Event passed to Set writes h[key][\"\"] = command, an entry nothing will ever fire. Via's int kind maps 0 to \"\" so an unset value reads as absent (internal/hooks/via.go:29-33, pinned by via_test.go). No caller does this today and there is no external input path, and no criterion asked for validation — but the asymmetry between the two vocabularies is worth closing if the event vocabulary ever grows.",
+              "files": [
+                "internal/hooks/event.go",
+                "internal/hooks/via.go",
+                "internal/hooks/store.go"
               ]
             }
           ]
