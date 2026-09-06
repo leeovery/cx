@@ -353,7 +353,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 9,
-          "current_task": "resume-hooks-silently-lost-9-3",
+          "current_task": "resume-hooks-silently-lost-9-4",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -515,7 +515,8 @@
             "resume-hooks-silently-lost-8-48",
             "resume-hooks-silently-lost-8-49",
             "resume-hooks-silently-lost-9-1",
-            "resume-hooks-silently-lost-9-2"
+            "resume-hooks-silently-lost-9-2",
+            "resume-hooks-silently-lost-9-3"
           ],
           "staging": {
             "p1": {
@@ -826,6 +827,35 @@
                 "internal/tmux/tmux.go",
                 "internal/tmux/exact_target_forms_test.go",
                 "internal/tmux/target_composition_guard_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-9-3",
+              "source": "reviewer",
+              "summary": "Twelve sibling TestMains carry the PORTAL_*-only poison and no HOME poison, leaving the same class of hazard outside cmd.",
+              "detail": "cmd/bootstrap/testmain_isolation_test.go:8-13 and internal/state/testmain_isolation_test.go:12-18 (and the ten others listed by grep -rn func TestMain) poison four PORTAL_* variables and stop there — no PORTAL_PREFS_FILE, no PORTAL_THEMES_DIR, no PORTAL_TERMINALS_FILE, no HOME. A test in those packages that resolves prefs or themes therefore still falls back through internal/xdg/xdg.go:27 to the developers real ~/.config/portal/. The Application Support migration is cmd-only so the rename hazard does not travel, but the wrong-path resolve (and a prefs write) does. Consolidating the poison into one shared test-only helper would fix all twelve and stop the lists drifting apart.",
+              "files": [
+                "cmd/bootstrap/testmain_isolation_test.go",
+                "internal/state/testmain_isolation_test.go",
+                "internal/hooks/testmain_isolation_test.go",
+                "internal/project/testmain_isolation_test.go",
+                "internal/alias/testmain_isolation_test.go",
+                "internal/tmux/testmain_isolation_test.go",
+                "internal/restore/testmain_isolation_test.go",
+                "internal/session/testmain_isolation_test.go",
+                "internal/resolver/testmain_isolation_test.go",
+                "internal/log/testmain_isolation_test.go",
+                "internal/bootstrapadapter/testmain_isolation_test.go",
+                "internal/portaltest/isolated_env_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-9-3",
+              "source": "reviewer",
+              "summary": "portalbintest skips rather than fails when the binary build breaks, so a build failure silently empties the integration lane.",
+              "detail": "internal/portalbintest/build.go:41-53 — StagePortalBinary calls t.Skipf on build failure and again on a failed LookPath. The HOME poison raises the odds of a poison-caused build break (the deferred GOENV residual is exactly such a case), and the failure mode is a green ok with silently skipped tests rather than a red lane. A hard t.Fatalf — or at minimum a skip that is impossible to mistake for coverage — belongs with whatever consolidation touches this helper.",
+              "files": [
+                "internal/portalbintest/build.go"
               ]
             }
           ]
