@@ -353,7 +353,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 9,
-          "current_task": "resume-hooks-silently-lost-9-6",
+          "current_task": "resume-hooks-silently-lost-9-7",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -518,7 +518,8 @@
             "resume-hooks-silently-lost-9-2",
             "resume-hooks-silently-lost-9-3",
             "resume-hooks-silently-lost-9-4",
-            "resume-hooks-silently-lost-9-5"
+            "resume-hooks-silently-lost-9-5",
+            "resume-hooks-silently-lost-9-6"
           ],
           "staging": {
             "p1": {
@@ -933,6 +934,25 @@
                 "internal/hooks/event.go",
                 "internal/hooks/via.go",
                 "internal/hooks/store.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-9-6",
+              "source": "reviewer",
+              "summary": "doctor --fix stale-project prune words the projects store failure in the bootstrap component, the same shape this task just removed for hooks.",
+              "detail": "cmd/doctor.go:225 emits bootstrapLogger.Warn(\"doctor --fix: stale-project prune failed\", \"error\", err) for a failure of project.Store.CleanStale, whose subsystem owns the projects component (internal/project/store.go:18). Reconstructing one project sweep therefore still needs two greps, which is precisely the property this task removed for the hook sweep. The fix reaches into internal/project emission surface rather than this task.",
+              "files": [
+                "cmd/doctor.go",
+                "internal/project/store.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-9-6",
+              "source": "reviewer",
+              "summary": "The new sweep-failure WARN carries error but no op/via, so an op-keyed query does not reach it.",
+              "detail": "The failure line carries error alone, unlike the stand-down line in the same cycle (op=clean-stale-skipped, via=internal) and unlike cmd/hooks.go:242. grep hooks: reconstructs the cycle whole (the criterion this task was given), but an op-keyed query does not reach the failure. Giving it an op would add a value to the specs closed op vocabulary, which this task had no mandate to amend — so the conservative choice is defensible and the alternative belongs in a spec amendment.",
+              "files": [
+                "cmd/run_hook_stale_cleanup.go"
               ]
             }
           ]
