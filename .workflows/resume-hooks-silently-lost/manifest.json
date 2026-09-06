@@ -353,7 +353,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 9,
-          "current_task": "resume-hooks-silently-lost-9-8",
+          "current_task": "resume-hooks-silently-lost-9-9",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -520,7 +520,8 @@
             "resume-hooks-silently-lost-9-4",
             "resume-hooks-silently-lost-9-5",
             "resume-hooks-silently-lost-9-6",
-            "resume-hooks-silently-lost-9-7"
+            "resume-hooks-silently-lost-9-7",
+            "resume-hooks-silently-lost-9-8"
           ],
           "staging": {
             "p1": {
@@ -965,6 +966,17 @@
                 "cmd/state_daemon_run_test.go",
                 "cmd/state_daemon_cycle_summary_test.go",
                 "cmd/state_daemon_capture_logging_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-9-8",
+              "source": "reviewer",
+              "summary": "Three expressions of \"an unreadable hooks.json is a directory at its path\" now exist; two are new hand-rolls of what hookstest already owns.",
+              "detail": "internal/hookstest/staging.go:73 implements the technique for Staging{Unreadable: true}, and this task added two mid-flight copies that mutate an already-staged file — internal/hooks/cleanstale_read_sentinel_test.go:14 (makeUnreadable) and cmd/run_hook_stale_cleanup_read_failure_test.go:26-34 (inline in deletePhaseReadFailureCycle). Staging cannot express the transition, so the gap is real, but the natural home is a hookstest.MakeUnreadable(t, path) beside the staging flag — the same reasoning that made hookstest the cross-package hooks.json surface in the first place.",
+              "files": [
+                "internal/hookstest/staging.go",
+                "internal/hooks/cleanstale_read_sentinel_test.go",
+                "cmd/run_hook_stale_cleanup_read_failure_test.go"
               ]
             }
           ]
