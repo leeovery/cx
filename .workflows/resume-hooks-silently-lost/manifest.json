@@ -353,7 +353,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 9,
-          "current_task": "resume-hooks-silently-lost-9-17",
+          "current_task": "resume-hooks-silently-lost-9-18",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -529,7 +529,8 @@
             "resume-hooks-silently-lost-9-13",
             "resume-hooks-silently-lost-9-14",
             "resume-hooks-silently-lost-9-15",
-            "resume-hooks-silently-lost-9-16"
+            "resume-hooks-silently-lost-9-16",
+            "resume-hooks-silently-lost-9-17"
           ],
           "staging": {
             "p1": {
@@ -1100,6 +1101,25 @@
               "summary": "CLAUDE.md shellquote row names the session composition by its old unquoted rendering.",
               "detail": "CLAUDE.md:80 describes the consumer as \"the session tree $SHELL -ic (cmd; exec $SHELL)\" — the shape the composer no longer emits after this task quoted both the leading word and the exec tail. Outside this task file scope and the sort of line a phase-boundary docs sweep owns.",
               "files": [
+                "CLAUDE.md"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-9-17",
+              "source": "executor",
+              "summary": "Cross-package verbatim-source pins in internal/tui assert other packages declarations by string match, and go stale on any signature change.",
+              "detail": "internal/tui/pagepreview_surface_audit_test.go:89 pinned internal/tmux CapturePane signature as a literal string (\"The existing capture path must remain untouched\") and :110 pins four internal/state declarations the same way. They are scaffolding from the preview feature build, held in a third package that owns neither surface; the CapturePane arm broke here purely as a type change with no behaviour change. Deciding their fate (delete as spent scaffolding, or re-home) touches the preview feature test corpus rather than this task surface.",
+              "files": [
+                "internal/tui/pagepreview_surface_audit_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-9-17",
+              "source": "reviewer",
+              "summary": "The guard producers map is keyed on callee name alone, and a collision there under-reports rather than over-reports.",
+              "detail": "producers is keyed on callee name like takers, but the collision direction differs: on the takers side a name collision over-reports (a false positive someone must resolve), while on the producers side it under-reports — an unrelated same-named function result at that position would be silently exempted. No collision exists in the scanned set today; the targetTakingFuncs doc explains the pooling mechanism but only names the over-reporting direction. Related: isTargetType matches tmux.Target as literal text, so a file importing internal/tmux under an alias drops out of both rules; no such import exists. Also CLAUDE.md new sentence says a Target is spent back at the single argv boundary (c.cmd.Run) while CapturePane goes through RunRaw — same commander boundary, so loose rather than wrong.",
+              "files": [
+                "internal/tmux/target_composition_guard_test.go",
                 "CLAUDE.md"
               ]
             }
