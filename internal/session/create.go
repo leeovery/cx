@@ -20,15 +20,19 @@ func ShellFromEnv() string {
 	return shell
 }
 
-// BuildShellCommand renders command as a tmux shell-command of the form
-// $SHELL -ic '<joined>; exec $SHELL', returning "" for an empty command. A
-// single quote inside command is re-quoted so the outer quoting survives.
+// BuildShellCommand renders command as a tmux shell-command that runs the
+// joined command under shell and then re-execs that same shell, returning ""
+// for an empty command. Both
+// the shell path and the script are quoted as single words, so a shell path
+// holding a space or a quote survives the word-splitting a shell applies to
+// the composed string.
 func BuildShellCommand(command []string, shell string) string {
 	if len(command) == 0 {
 		return ""
 	}
-	script := strings.Join(command, " ") + "; exec " + shell
-	return fmt.Sprintf("%s -ic %s", shell, shellquote.Single(script))
+	quotedShell := shellquote.Single(shell)
+	script := strings.Join(command, " ") + "; exec " + quotedShell
+	return fmt.Sprintf("%s -ic %s", quotedShell, shellquote.Single(script))
 }
 
 type GitResolver interface {

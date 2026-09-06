@@ -1,7 +1,10 @@
 package session_test
 
 import (
+	"bytes"
 	"fmt"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"testing"
@@ -20,31 +23,31 @@ func TestBuildShellCommand(t *testing.T) {
 			name:    "single word command uses SHELL env var",
 			command: []string{"claude"},
 			shell:   "/bin/zsh",
-			want:    "/bin/zsh -ic 'claude; exec /bin/zsh'",
+			want:    `'/bin/zsh' -ic 'claude; exec '\''/bin/zsh'\'''`,
 		},
 		{
 			name:    "multi-word command joined with spaces",
 			command: []string{"claude", "--resume", "--model", "opus"},
 			shell:   "/bin/zsh",
-			want:    "/bin/zsh -ic 'claude --resume --model opus; exec /bin/zsh'",
+			want:    `'/bin/zsh' -ic 'claude --resume --model opus; exec '\''/bin/zsh'\'''`,
 		},
 		{
 			name:    "uses bash when SHELL is bash",
 			command: []string{"vim"},
 			shell:   "/bin/bash",
-			want:    "/bin/bash -ic 'vim; exec /bin/bash'",
+			want:    `'/bin/bash' -ic 'vim; exec '\''/bin/bash'\'''`,
 		},
 		{
 			name:    "single quotes in command are escaped",
 			command: []string{"echo", "'hello'"},
 			shell:   "/bin/zsh",
-			want:    "/bin/zsh -ic 'echo '\\''hello'\\''; exec /bin/zsh'",
+			want:    `'/bin/zsh' -ic 'echo '\''hello'\''; exec '\''/bin/zsh'\'''`,
 		},
 		{
 			name:    "special shell chars passed through",
 			command: []string{"ls", "|", "grep", "foo", "&&", "echo", "done"},
 			shell:   "/bin/zsh",
-			want:    "/bin/zsh -ic 'ls | grep foo && echo done; exec /bin/zsh'",
+			want:    `'/bin/zsh' -ic 'ls | grep foo && echo done; exec '\''/bin/zsh'\'''`,
 		},
 		{
 			name:    "returns empty string for nil command",
@@ -53,7 +56,7 @@ func TestBuildShellCommand(t *testing.T) {
 			want:    "",
 		},
 		{
-			name:    "returns empty string for empty command",
+			name:    "it returns the empty string for an empty command",
 			command: []string{},
 			shell:   "/bin/zsh",
 			want:    "",
@@ -67,6 +70,73 @@ func TestBuildShellCommand(t *testing.T) {
 				t.Errorf("BuildShellCommand() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+
+	t.Run("it quotes a shell path containing a space so it survives word-splitting", func(t *testing.T) {
+		shell := stageFakeShell(t, filepath.Join(t.TempDir(), "My Apps"), "zsh")
+
+		assertComposedRunsShell(t, shell)
+	})
+
+	t.Run("it quotes a shell path containing a single quote", func(t *testing.T) {
+		shell := stageFakeShell(t, t.TempDir(), "it's-zsh")
+
+		assertComposedRunsShell(t, shell)
+	})
+
+	t.Run("it still renders a metacharacter-free shell path as a working command", func(t *testing.T) {
+		shell := stageFakeShell(t, t.TempDir(), "zsh")
+
+		assertComposedRunsShell(t, shell)
+	})
+}
+
+// stageFakeShell writes an executable stand-in for a login shell at dir/name
+// and returns its path. Handed arguments it reports its own $0 and the flag it
+// was given, then runs the script; handed none — as the composed command's
+// `exec <shell>` tail does — it reports the re-exec and stops, so the tail can
+// be observed without recursing.
+func stageFakeShell(t *testing.T, dir, name string) string {
+	t.Helper()
+
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("failed to create fake shell dir %q: %v", dir, err)
+	}
+	path := filepath.Join(dir, name)
+	const body = `#!/bin/sh
+if [ "$#" -eq 0 ]; then
+	printf 'reexec=%s\n' "$0"
+	exit 0
+fi
+printf 'shell=%s\n' "$0"
+printf 'flag=%s\n' "$1"
+exec /bin/sh -c "$2"
+`
+	if err := os.WriteFile(path, []byte(body), 0o755); err != nil {
+		t.Fatalf("failed to write fake shell %q: %v", path, err)
+	}
+	return path
+}
+
+// assertComposedRunsShell hands the composed command to a real shell, which
+// word-splits it, and asserts that shell invoked the whole path — both as the
+// leading word and as the `exec <shell>` tail — rather than a fragment of it.
+func assertComposedRunsShell(t *testing.T, shell string) {
+	t.Helper()
+
+	composed := session.BuildShellCommand([]string{"echo", "cmd-ran"}, shell)
+
+	var stdout, stderr bytes.Buffer
+	run := exec.Command("/bin/sh", "-c", composed)
+	run.Stdout = &stdout
+	run.Stderr = &stderr
+	if err := run.Run(); err != nil {
+		t.Fatalf("running %q failed: %v (stderr: %q)", composed, err, stderr.String())
+	}
+
+	want := fmt.Sprintf("shell=%s\nflag=-ic\ncmd-ran\nreexec=%s\n", shell, shell)
+	if stdout.String() != want {
+		t.Errorf("running %q produced %q, want %q", composed, stdout.String(), want)
 	}
 }
 
@@ -363,7 +433,7 @@ func TestCreateFromDir(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		want := "/bin/zsh -ic 'claude --resume; exec /bin/zsh'"
+		want := `'/bin/zsh' -ic 'claude --resume; exec '\''/bin/zsh'\'''`
 		if tmuxClient.newSessionShellCmd != want {
 			t.Errorf("shell command = %q, want %q", tmuxClient.newSessionShellCmd, want)
 		}
@@ -405,7 +475,7 @@ func TestCreateFromDir(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		want := "/usr/local/bin/fish -ic 'vim; exec /usr/local/bin/fish'"
+		want := `'/usr/local/bin/fish' -ic 'vim; exec '\''/usr/local/bin/fish'\'''`
 		if tmuxClient.newSessionShellCmd != want {
 			t.Errorf("shell command = %q, want %q", tmuxClient.newSessionShellCmd, want)
 		}
@@ -426,7 +496,7 @@ func TestCreateFromDir(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		want := "/bin/sh -ic 'vim; exec /bin/sh'"
+		want := `'/bin/sh' -ic 'vim; exec '\''/bin/sh'\'''`
 		if tmuxClient.newSessionShellCmd != want {
 			t.Errorf("shell command = %q, want %q", tmuxClient.newSessionShellCmd, want)
 		}

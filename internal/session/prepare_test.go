@@ -99,7 +99,7 @@ func TestPrepareSession(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		want := "/bin/zsh -ic 'claude --resume; exec /bin/zsh'"
+		want := `'/bin/zsh' -ic 'claude --resume; exec '\''/bin/zsh'\'''`
 		if result.ShellCmd != want {
 			t.Errorf("ShellCmd = %q, want %q", result.ShellCmd, want)
 		}

@@ -291,7 +291,7 @@ func TestQuickStart(t *testing.T) {
 		}
 
 		wantSessionName := filepath.Base(dir) + "-abc123"
-		shellCmd := "/bin/zsh -ic 'claude --resume; exec /bin/zsh'"
+		shellCmd := `'/bin/zsh' -ic 'claude --resume; exec '\''/bin/zsh'\'''`
 		wantArgs := wantExecArgs(wantSessionName, dir, shellCmd)
 		if !reflect.DeepEqual(result.ExecArgs, wantArgs) {
 			t.Fatalf("result.ExecArgs = %v, want %v", result.ExecArgs, wantArgs)
@@ -316,7 +316,7 @@ func TestQuickStart(t *testing.T) {
 		}
 
 		wantSessionName := filepath.Base(dir) + "-abc123"
-		shellCmd := "/usr/local/bin/fish -ic 'vim; exec /usr/local/bin/fish'"
+		shellCmd := `'/usr/local/bin/fish' -ic 'vim; exec '\''/usr/local/bin/fish'\'''`
 		wantArgs := wantExecArgs(wantSessionName, dir, shellCmd)
 		if !reflect.DeepEqual(result.ExecArgs, wantArgs) {
 			t.Fatalf("result.ExecArgs = %v, want %v", result.ExecArgs, wantArgs)
