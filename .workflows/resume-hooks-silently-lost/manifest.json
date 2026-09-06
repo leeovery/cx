@@ -315,7 +315,7 @@
       "items": {
         "resume-hooks-silently-lost": {
           "status": "in-progress",
-          "task_gate_mode": "gated",
+          "task_gate_mode": "bounded",
           "fix_gate_mode": "gated",
           "analysis_gate_mode": "auto",
           "consolidation_gate_mode": "gated",
@@ -352,8 +352,8 @@
             ".claude/skills/golang-spf13-cobra",
             ".claude/skills/golang-dependency-management"
           ],
-          "current_phase": 8,
-          "current_task": null,
+          "current_phase": 9,
+          "current_task": "resume-hooks-silently-lost-9-2",
           "completed_tasks": [
             "resume-hooks-silently-lost-1-1",
             "resume-hooks-silently-lost-1-2",
@@ -513,7 +513,8 @@
             "resume-hooks-silently-lost-8-46",
             "resume-hooks-silently-lost-8-47",
             "resume-hooks-silently-lost-8-48",
-            "resume-hooks-silently-lost-8-49"
+            "resume-hooks-silently-lost-8-49",
+            "resume-hooks-silently-lost-9-1"
           ],
           "staging": {
             "p1": {
@@ -758,6 +759,62 @@
             6,
             7,
             8
+          ],
+          "bank": [
+            {
+              "task": "resume-hooks-silently-lost-9-1",
+              "source": "executor",
+              "summary": "The kill barrier waits on the recorded pid, so a stale daemon.pid makes it skip the wait entirely and race the respawn against the daemon it just killed.",
+              "detail": "killSaverAndWaitForDaemon (internal/tmux/portal_saver.go:153-165) resolves its target from saver.ReadPID; when that names a dead process it kill-sessions the live saver and returns immediately, and BootstrapPortalSaver (internal/tmux/portal_saver.go:344-355) respawns straight into the flock the dying daemon still holds, which defaultDaemonRun (cmd/state_daemon.go:113-121) answers by exiting before WritePIDFile. The saver pane pid is available (saverPanePID) and is the honest target. This spans the kill barrier, the respawn and the daemon acquire, so it is bigger than the readiness barrier surface. Measured as the real root cause of the four composite-bootstrap flakes, which reproduce deterministically at HEAD on an idle machine.",
+              "files": [
+                "internal/tmux/portal_saver.go",
+                "cmd/state_daemon.go",
+                "internal/state/daemon_lock.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-9-1",
+              "source": "executor",
+              "summary": "state.IdentifyResult has no String(), so every renderer of a verdict writes its own words.",
+              "detail": "A local describeVerdict was added in internal/tmux/portal_saver.go for the give-up error; the vocabulary belongs on the type in internal/state/daemon_identity.go:14-26, where other consumers (daemon lock pre-check, doctor) could share it.",
+              "files": [
+                "internal/state/daemon_identity.go",
+                "internal/tmux/portal_saver.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-9-1",
+              "source": "executor",
+              "summary": "The respawn does not retry when readiness reports not-ready, so a lock-loser daemon is terminal for that bootstrap.",
+              "detail": "BootstrapPortalSaver's create branch respawns once and now propagates ErrSaverDaemonNotReady; nothing re-attempts, so a newcomer that lost the flock race leaves the install daemonless until the next bootstrap. Whether a retry belongs here or the race is closed upstream is the same verdict as the kill-barrier entry.",
+              "files": [
+                "internal/tmux/portal_saver.go",
+                "cmd/state_daemon.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-9-1",
+              "source": "reviewer",
+              "summary": "AC5s real content — the four composite-bootstrap tests converging — survives this task and belongs to the root-cause fix.",
+              "detail": "The barrier change cannot affect them: each runs its own 10s/45s progress wait after BootstrapPortalSaver (cmd/bootstrap/orphan_sweep_integration_test.go:34, used at composition_e2e_convergence_integration_test.go:41, composition_e2e_fresh_acquire_integration_test.go:28, and the _FObservables / _ExternalSaverKillTriggersSelfEject siblings), and the failure signature is a daemon that never exists. Whichever root-cause candidate is verdicted at the phase boundary should carry the convergence criterion.",
+              "files": [
+                "cmd/bootstrap/composition_e2e_convergence_integration_test.go",
+                "cmd/bootstrap/composition_e2e_fresh_acquire_integration_test.go",
+                "cmd/bootstrap/composition_e2e_f_observables_integration_test.go",
+                "cmd/bootstrap/composition_e2e_self_eject_integration_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-9-1",
+              "source": "reviewer",
+              "summary": "The real readiness barrier is now unexercised end-to-end in either lane.",
+              "detail": "internal/tmux/portal_saver_test.go:50s package init stubs WaitForSaverDaemonReadyFnSeam to return nil for the whole tmux_test package, which includes the integration-tagged real-tmux suites (portal_saver_endstate_integration_test.go, portal_saver_integration_test.go). Before the change the barrier ran there against a 5ms timeout and returned nil, so this is not a regression — but there is now no test anywhere in which the production barrier observes a real daemon. A narrow integration test that restores the real seam around one BootstrapPortalSaver call would close it.",
+              "files": [
+                "internal/tmux/portal_saver_test.go",
+                "internal/tmux/portal_saver_endstate_integration_test.go",
+                "internal/tmux/portal_saver_integration_test.go"
+              ]
+            }
           ]
         }
       }
