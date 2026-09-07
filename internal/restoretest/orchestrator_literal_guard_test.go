@@ -2,12 +2,11 @@ package restoretest_test
 
 import (
 	"go/ast"
-	"go/token"
 	"strings"
 	"testing"
 
 	"github.com/leeovery/portal/internal/harnesstest"
-	"github.com/leeovery/portal/internal/portalbintest"
+	"github.com/leeovery/portal/internal/sourceguardtest"
 )
 
 // The type no test may compose itself, and the constructors that compose it
@@ -32,12 +31,7 @@ const (
 // about the literal can. Both constructors pin Exe, so routing through either
 // makes the omission unrepresentable.
 func TestNoTestComposesABareRestoreOrchestrator(t *testing.T) {
-	root, err := portalbintest.ProjectRoot()
-	if err != nil {
-		t.Fatalf("resolve project root: %v", err)
-	}
-
-	scanned, findings := scanTestOrchestratorLiterals(t, root)
+	scanned, findings := scanTestOrchestratorLiterals(t)
 	if len(findings) == 0 {
 		return
 	}
@@ -62,7 +56,7 @@ func drive() {
 }
 `)
 
-		scanned, findings := scanTestOrchestratorLiterals(t, root)
+		scanned, findings := scanTestOrchestratorLiterals(t, sourceguardtest.Rooted(root))
 		if scanned != 1 {
 			t.Fatalf("scanned %d files, want 1", scanned)
 		}
@@ -83,7 +77,7 @@ func drive(t *testingT, client *client) {
 }
 `)
 
-		_, findings := scanTestOrchestratorLiterals(t, root)
+		_, findings := scanTestOrchestratorLiterals(t, sourceguardtest.Rooted(root))
 		if len(findings) != 0 {
 			t.Errorf("scan flagged %v, want nothing", findings)
 		}
@@ -100,7 +94,7 @@ var o = &restore.Orchestrator{}
 `)
 		writeGuardFile(t, root, "keeps_scanning_test.go", "package fixture\n")
 
-		scanned, findings := scanTestOrchestratorLiterals(t, root)
+		scanned, findings := scanTestOrchestratorLiterals(t, sourceguardtest.Rooted(root))
 		if scanned != 1 || len(findings) != 0 {
 			t.Errorf("scan of a production literal = %d scanned / %v, want 1 scanned / nothing", scanned, findings)
 		}
@@ -112,14 +106,14 @@ var o = &restore.Orchestrator{}
 func TestOrchestratorLiteralGuard_FatalsWhenItEnumeratesNoTestFiles(t *testing.T) {
 	t.Run("it fatals when the orchestrator guard scans no files", func(t *testing.T) {
 		emptyTree := &harnesstest.Recorder{}
-		emptyTree.Run(func() { scanTestOrchestratorLiterals(emptyTree, t.TempDir()) })
+		emptyTree.Run(func() { scanTestOrchestratorLiterals(emptyTree, sourceguardtest.Rooted(t.TempDir())) })
 		if len(emptyTree.Fatals) != 1 {
 			t.Fatalf("scan of a directory holding no sources reported %d fatals, want 1: %v", len(emptyTree.Fatals), emptyTree.Fatals)
 		}
 
 		root := writeGuardFixture(t, "production.go", "package fixture\n")
 		noTests := &harnesstest.Recorder{}
-		noTests.Run(func() { scanTestOrchestratorLiterals(noTests, root) })
+		noTests.Run(func() { scanTestOrchestratorLiterals(noTests, sourceguardtest.Rooted(root)) })
 		if len(noTests.Fatals) != 1 {
 			t.Fatalf("scan of a tree holding no _test.go reported %d fatals, want 1: %v", len(noTests.Fatals), noTests.Fatals)
 		}
@@ -130,15 +124,15 @@ func TestOrchestratorLiteralGuard_FatalsWhenItEnumeratesNoTestFiles(t *testing.T
 }
 
 // scanTestOrchestratorLiterals reports every composite literal of the
-// orchestrator type in a _test.go under root, as "<file>:<line>". It reads the
+// orchestrator type in a _test.go the scan reaches, as "<file>:<line>". It reads the
 // AST rather than the text, so a mention of the type inside a string — this
 // guard's own fixtures — is not a finding. Every lane is policed: the
 // integration-tagged files are most of the subject, and an unpinned literal is
 // as silent in one lane as the other.
-func scanTestOrchestratorLiterals(t harnesstest.TestingT, root string) (scanned int, findings []string) {
+func scanTestOrchestratorLiterals(t harnesstest.TestingT, opts ...sourceguardtest.ScanOption) (scanned int, findings []string) {
 	t.Helper()
 
-	scanned, findings = scanGuardTestFiles(t, root, everyTestFile, orchestratorLiteralsIn)
+	scanned, findings = scanGuardTestFiles(t, everyTestFile, orchestratorLiteralsIn, opts...)
 	if scanned == 0 {
 		t.Fatalf("no _test.go was enumerated, so the guard would pass by having stopped looking")
 		return 0, nil
@@ -148,14 +142,14 @@ func scanTestOrchestratorLiterals(t harnesstest.TestingT, root string) (scanned 
 
 func everyTestFile(*ast.File) bool { return true }
 
-func orchestratorLiteralsIn(fset *token.FileSet, file *ast.File) []string {
+func orchestratorLiteralsIn(source sourceguardtest.ParsedSource) []string {
 	var findings []string
-	ast.Inspect(file, func(n ast.Node) bool {
+	ast.Inspect(source.File, func(n ast.Node) bool {
 		lit, isLit := n.(*ast.CompositeLit)
 		if !isLit || !isRestorePkgType(lit.Type, orchestratorType) {
 			return true
 		}
-		findings = append(findings, fset.Position(lit.Pos()).String())
+		findings = append(findings, source.Position(lit.Pos()).String())
 		return true
 	})
 	return findings

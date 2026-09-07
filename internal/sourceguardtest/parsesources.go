@@ -4,6 +4,8 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"path/filepath"
+	"strings"
 
 	"github.com/leeovery/portal/internal/harnesstest"
 )
@@ -23,6 +25,15 @@ type ParsedSource struct {
 	File *ast.File
 }
 
+// Position resolves pos within the source, naming the file as Path does rather
+// than as the file set parsed it, so a finding built from it reads the way the
+// scan names its sources.
+func (s ParsedSource) Position(pos token.Pos) token.Position {
+	position := s.Fset.Position(pos)
+	position.Filename = s.Path
+	return position
+}
+
 // ParsePackageSources parses the .go files held directly by dir, test sources
 // included only when includeTests is set, in the filename order PackageGoFiles
 // returns. Enumerating nothing, parsing nothing and failing to parse a file are
@@ -36,6 +47,22 @@ func ParsePackageSources(t harnesstest.TestingT, dir string, includeTests bool) 
 		return nil
 	}
 	return ParseSources(t, paths)
+}
+
+// PackageSource returns the source named by base name among the .go files held
+// directly by dir. Test sources are searched only when the name asks for one.
+// Finding no such source is fatal: a guard reading a file that has been renamed
+// away must fail rather than judge nothing.
+func PackageSource(t harnesstest.TestingT, dir, name string) ParsedSource {
+	t.Helper()
+
+	for _, source := range ParsePackageSources(t, dir, strings.HasSuffix(name, "_test.go")) {
+		if filepath.Base(source.Path) == name {
+			return source
+		}
+	}
+	t.Fatalf("no %s among the sources of %s", name, dir)
+	return ParsedSource{}
 }
 
 // ParseSources parses each of paths in order. An unparseable file is fatal, as

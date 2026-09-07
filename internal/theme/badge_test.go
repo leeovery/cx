@@ -3,7 +3,6 @@ package theme_test
 import (
 	"go/ast"
 	"maps"
-	"path/filepath"
 	"testing"
 
 	"github.com/leeovery/portal/internal/sourceguardtest"
@@ -221,7 +220,7 @@ func TestBadges_PureAndTotal(t *testing.T) {
 	})
 
 	t.Run("the derivation reads no palette", func(t *testing.T) {
-		source := badgeSource(t)
+		source := sourceguardtest.PackageSource(t, ".", "badge.go")
 
 		ast.Inspect(source.File, func(n ast.Node) bool {
 			sel, ok := n.(*ast.SelectorExpr)
@@ -234,18 +233,6 @@ func TestBadges_PureAndTotal(t *testing.T) {
 			return true
 		})
 	})
-}
-
-func badgeSource(t *testing.T) sourceguardtest.ParsedSource {
-	t.Helper()
-
-	for _, source := range sourceguardtest.ParsePackageSources(t, ".", false) {
-		if filepath.Base(source.Path) == "badge.go" {
-			return source
-		}
-	}
-	t.Fatal("badge.go not found among internal/theme's production sources")
-	return sourceguardtest.ParsedSource{}
 }
 
 func TestBadgeKey_MatchesRowIdentity(t *testing.T) {

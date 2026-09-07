@@ -2,8 +2,6 @@ package tui
 
 import (
 	"go/ast"
-	"go/parser"
-	"go/token"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -249,25 +247,14 @@ func packageCalls(t *testing.T) map[string][]string {
 	return calls
 }
 
+// go test runs in the package's source directory, so "." is the package dir.
 func parsePackageFilesByName(t *testing.T) map[string]*ast.File {
 	t.Helper()
-	return parsePackageFiles(t, token.NewFileSet())
-}
 
-// go test runs in the package's source directory, so "." is the package dir.
-func parsePackageFiles(t *testing.T, fset *token.FileSet) map[string]*ast.File {
-	t.Helper()
-	paths, err := sourceguardtest.PackageGoFiles(".", false)
-	if err != nil {
-		t.Fatalf("enumerate the internal/tui package sources: %v", err)
-	}
-	files := make(map[string]*ast.File, len(paths))
-	for _, path := range paths {
-		parsed, perr := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
-		if perr != nil {
-			t.Fatalf("parse %s: %v", path, perr)
-		}
-		files[filepath.Base(path)] = parsed
+	sources := sourceguardtest.ParsePackageSources(t, ".", false)
+	files := make(map[string]*ast.File, len(sources))
+	for _, source := range sources {
+		files[filepath.Base(source.Path)] = source.File
 	}
 	return files
 }

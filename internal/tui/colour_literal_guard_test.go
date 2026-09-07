@@ -2,7 +2,6 @@ package tui_test
 
 import (
 	"go/ast"
-	"go/parser"
 	"go/token"
 	"path/filepath"
 	"strconv"
@@ -12,30 +11,11 @@ import (
 	"github.com/leeovery/portal/internal/sourceguardtest"
 )
 
-func centralisedColourSites(t *testing.T) []string {
-	t.Helper()
-	paths, err := sourceguardtest.PackageGoFiles(".", false)
-	if err != nil {
-		t.Fatalf("enumerate the internal/tui package sources: %v", err)
-	}
-	files := make([]string, 0, len(paths))
-	for _, path := range paths {
-		files = append(files, filepath.Base(path))
-	}
-	return files
-}
-
 func TestNoRawColourLiteralAtCentralisedSites(t *testing.T) {
-	for _, name := range centralisedColourSites(t) {
+	for _, source := range sourceguardtest.ParsePackageSources(t, ".", false) {
+		name := filepath.Base(source.Path)
 		t.Run(name, func(t *testing.T) {
-			fset := token.NewFileSet()
-			path := filepath.Join(".", name)
-			file, err := parser.ParseFile(fset, path, nil, 0)
-			if err != nil {
-				t.Fatalf("parse %s: %v", name, err)
-			}
-
-			ast.Inspect(file, func(n ast.Node) bool {
+			ast.Inspect(source.File, func(n ast.Node) bool {
 				call, ok := n.(*ast.CallExpr)
 				if !ok {
 					return true
@@ -57,7 +37,7 @@ func TestNoRawColourLiteralAtCentralisedSites(t *testing.T) {
 							raw = unq
 						}
 					}
-					pos := fset.Position(lit.Pos())
+					pos := source.Position(lit.Pos())
 					t.Errorf("%s:%d constructs lipgloss.Color(%q) from a raw colour literal; reference a token on the active theme instead", name, pos.Line, raw)
 				}
 				return true

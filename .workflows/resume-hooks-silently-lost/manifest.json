@@ -315,13 +315,13 @@
       "items": {
         "resume-hooks-silently-lost": {
           "status": "in-progress",
-          "task_gate_mode": "bounded",
-          "fix_gate_mode": "bounded",
-          "analysis_gate_mode": "auto",
+          "task_gate_mode": "gated",
+          "fix_gate_mode": "gated",
+          "analysis_gate_mode": "gated",
           "consolidation_gate_mode": "gated",
-          "fix_attempts": 0,
+          "fix_attempts": 1,
           "analysis_cycle_total": 4,
-          "analysis_cycle_session": 1,
+          "analysis_cycle_session": 0,
           "linters": [
             {
               "name": "go vet",
@@ -1120,6 +1120,63 @@
               "detail": "producers is keyed on callee name like takers, but the collision direction differs: on the takers side a name collision over-reports (a false positive someone must resolve), while on the producers side it under-reports — an unrelated same-named function result at that position would be silently exempted. No collision exists in the scanned set today; the targetTakingFuncs doc explains the pooling mechanism but only names the over-reporting direction. Related: isTargetType matches tmux.Target as literal text, so a file importing internal/tmux under an alias drops out of both rules; no such import exists. Also CLAUDE.md new sentence says a Target is spent back at the single argv boundary (c.cmd.Run) while CapturePane goes through RunRaw — same commander boundary, so loose rather than wrong.",
               "files": [
                 "internal/tmux/target_composition_guard_test.go",
+                "CLAUDE.md"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-9-18",
+              "source": "executor",
+              "summary": "The in-memory fixture-parse helper is still hand-rolled at five sites, all under sourceguardtest.ParseMode.",
+              "detail": "Each parses a fixture src string rather than a file on disk, so RepoSources/PackageSource do not reach them; they want a ParseFixture(t, name, src) ParsedSource in sourceguardtest. Sites: internal/portalbintest/lane_guard_test.go:150, internal/logtest/install_guard_test.go:145, internal/portaltest/teardown_guard_coverage_rule_test.go:148, internal/capture/theme_panel_fixture_test.go:471 (parseControlSource), and internal/tui siblings. Spans four packages, so no single task owns it. Supersedes the narrower entries banked by tasks 8-49 and 9-8.",
+              "files": [
+                "internal/portalbintest/lane_guard_test.go",
+                "internal/logtest/install_guard_test.go",
+                "internal/portaltest/teardown_guard_coverage_rule_test.go",
+                "internal/capture/theme_panel_fixture_test.go",
+                "internal/sourceguardtest/parsesources.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-9-18",
+              "source": "executor",
+              "summary": "ParsePackageSources/PackageGoFiles still take a bool where the repo-wide scan now takes a Selection.",
+              "detail": "Two vocabularies for \"which lane\" in one package — ParsePackageSources(t, dir, false) reads as a riddle beside RepoSources(t, NonTestSources). Collapsing them is a signature change across ~12 call sites in internal/tui, internal/theme, internal/log, internal/fileutil, internal/resolver and cmd.",
+              "files": [
+                "internal/sourceguardtest/parsesources.go",
+                "internal/sourceguardtest/packagegofiles.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-9-18",
+              "source": "executor",
+              "summary": "restoretest scanGuardTestFiles is now a thin include/collect wrapper over RepoSources.",
+              "detail": "internal/restoretest/literal_guard_scan_test.go:29 — after the re-point it is an 11-line filter loop that two sibling guards share. If a third guard elsewhere wants \"scan the tree, keep the files a predicate accepts\", that predicate arm belongs in sourceguardtest rather than in restoretest test package.",
+              "files": [
+                "internal/restoretest/literal_guard_scan_test.go",
+                "internal/sourceguardtest/reposources.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-9-18",
+              "source": "reviewer",
+              "summary": "Conversion residue left across four guard files, plus one inline parse the task otherwise converted.",
+              "detail": "internal/tui/restore_source_guard_test.go:40-45 still parses restore.go inline with its own parser.SkipObjectResolution while the other two tests in that same file were re-pointed; sourceguardtest.PackageSource(t, \".\", restoreFileName) is the drop-in. Alongside it: internal/tui/theme_flash_precedence_test.go:194-201 parses one package twice in a subtest; four rel := source.Path aliases stand at internal/portaltest/teardown_guard_coverage_test.go:163, internal/theme/broken_builtin_test.go:265, internal/theme/loader_construction_guard_test.go:20, internal/tui/restore_source_guard_test.go:172; and several guards still reach source.Fset.Position(...) for a bare line where source.Position(...) now exists, so two routes to a position coexist. All fail no criterion — a sweep rather than a fix round.",
+              "files": [
+                "internal/tui/restore_source_guard_test.go",
+                "internal/tui/theme_flash_precedence_test.go",
+                "internal/portaltest/teardown_guard_coverage_test.go",
+                "internal/theme/broken_builtin_test.go",
+                "internal/theme/loader_construction_guard_test.go"
+              ]
+            },
+            {
+              "task": "resume-hooks-silently-lost-9-18",
+              "source": "reviewer",
+              "summary": "The single-route rule for ProjectRoot is held by CLAUDE.md and discipline, not by a guard.",
+              "detail": "portalbintest.ProjectRoot stays exported and directly callable, and nothing structurally prevents a future guard from reaching past sourceguardtest.ProjectRoot. This repo usually pins rules of that shape with a source guard, and the guard family is exactly the place such a rule would be cheap to enforce. Related smaller item: internal/prefs and the two internal/log content-scanning guards now parse every file and then os.ReadFile it again — a second read the pre-conversion code did not do, harmless at this tree size.",
+              "files": [
+                "internal/sourceguardtest/reposources.go",
+                "internal/portalbintest/build.go",
                 "CLAUDE.md"
               ]
             }

@@ -2,8 +2,6 @@ package tui
 
 import (
 	"bytes"
-	"go/parser"
-	"go/token"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -13,6 +11,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/project"
+	"github.com/leeovery/portal/internal/sourceguardtest"
 	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/tmux"
 )
@@ -224,20 +223,9 @@ func TestGroupedRow_NeverOverflowsAtNarrowWidths(t *testing.T) {
 }
 
 func TestSessionsTuiNoLipglossTree(t *testing.T) {
-	matches, err := filepath.Glob("*.go")
-	if err != nil {
-		t.Fatalf("glob: %v", err)
-	}
-	for _, name := range matches {
-		if strings.HasSuffix(name, "_test.go") {
-			continue
-		}
-		fset := token.NewFileSet()
-		file, err := parser.ParseFile(fset, name, nil, parser.ImportsOnly)
-		if err != nil {
-			t.Fatalf("parse %s: %v", name, err)
-		}
-		for _, imp := range file.Imports {
+	for _, source := range sourceguardtest.ParsePackageSources(t, ".", false) {
+		name := filepath.Base(source.Path)
+		for _, imp := range source.File.Imports {
 			path := strings.Trim(imp.Path.Value, `"`)
 			if strings.Contains(path, "lipgloss") && strings.Contains(path, "tree") {
 				t.Errorf("%s imports %q — grouping must stay pure Lipgloss in the delegate, not lipgloss/tree", name, path)

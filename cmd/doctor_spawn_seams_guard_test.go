@@ -2,22 +2,18 @@ package cmd
 
 import (
 	"go/ast"
-	"go/parser"
-	"go/token"
 	"testing"
+
+	"github.com/leeovery/portal/internal/sourceguardtest"
 )
 
 // resolveDoctorDeps must source its Detector/Resolve from the shared
 // buildProductionSpawnSeams bundle rather than hand-rebuilding them: the
 // compiler cannot catch a seam added or swapped on only one side.
 func TestResolveDoctorDepsUsesSharedSpawnSeams(t *testing.T) {
-	fset := token.NewFileSet()
-	file, err := parser.ParseFile(fset, "doctor.go", nil, 0)
-	if err != nil {
-		t.Fatalf("parse doctor.go: %v", err)
-	}
+	source := sourceguardtest.PackageSource(t, ".", "doctor.go")
 
-	fn := findFuncDeclInFile(t, file, "resolveDoctorDeps")
+	fn := findFuncDeclInFile(t, source.File, "resolveDoctorDeps")
 
 	sawBundle := false
 	ast.Inspect(fn.Body, func(n ast.Node) bool {
@@ -29,14 +25,14 @@ func TestResolveDoctorDepsUsesSharedSpawnSeams(t *testing.T) {
 		case *ast.Ident:
 			switch fun.Name {
 			case "buildResolver":
-				pos := fset.Position(call.Pos())
+				pos := source.Position(call.Pos())
 				t.Errorf("doctor.go:%d resolveDoctorDeps calls buildResolver() directly; route the host-terminal Resolve seam through buildProductionSpawnSeams instead", pos.Line)
 			case "buildProductionSpawnSeams":
 				sawBundle = true
 			}
 		case *ast.SelectorExpr:
 			if pkg, ok := fun.X.(*ast.Ident); ok && pkg.Name == "spawn" && fun.Sel.Name == "NewDetector" {
-				pos := fset.Position(call.Pos())
+				pos := source.Position(call.Pos())
 				t.Errorf("doctor.go:%d resolveDoctorDeps calls spawn.NewDetector directly; route the host-terminal Detector seam through buildProductionSpawnSeams instead", pos.Line)
 			}
 		}

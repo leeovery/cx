@@ -1,7 +1,6 @@
 package theme_test
 
 import (
-	"path/filepath"
 	"reflect"
 	"slices"
 	"strconv"
@@ -265,7 +264,7 @@ func TestResolveSetting_IsPureAndDeterministic(t *testing.T) {
 	})
 
 	t.Run("it reaches no file, environment or clock", func(t *testing.T) {
-		for _, spec := range settingSource(t).File.Imports {
+		for _, spec := range sourceguardtest.PackageSource(t, ".", "setting.go").File.Imports {
 			path, err := strconv.Unquote(spec.Path.Value)
 			if err != nil {
 				t.Fatalf("unquote import %s: %v", spec.Path.Value, err)
@@ -596,18 +595,6 @@ var impureSettingImports = map[string]string{
 	"os/exec":       "runs programs",
 	"path/filepath": "resolves paths",
 	"time":          "reads the clock",
-}
-
-func settingSource(t *testing.T) sourceguardtest.ParsedSource {
-	t.Helper()
-
-	for _, source := range sourceguardtest.ParsePackageSources(t, ".", false) {
-		if filepath.Base(source.Path) == "setting.go" {
-			return source
-		}
-	}
-	t.Fatal("setting.go not found among internal/theme's production sources")
-	return sourceguardtest.ParsedSource{}
 }
 
 type fieldKind struct {

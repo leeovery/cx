@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/leeovery/portal/internal/portalbintest"
+	"github.com/leeovery/portal/internal/sourceguardtest"
 )
 
 var forbiddenLegacySymbols = []string{
@@ -19,45 +19,20 @@ var forbiddenLegacySymbols = []string{
 var excludedFromGuard = map[string]bool{}
 
 func TestNoLegacyLoggerInProductionSource(t *testing.T) {
-	root, err := portalbintest.ProjectRoot()
-	if err != nil {
-		t.Fatalf("resolve project root: %v", err)
-	}
-
-	walkErr := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			return err
+	root, sources := sourceguardtest.RepoSources(t, sourceguardtest.NonTestSources)
+	for _, source := range sources {
+		if excludedFromGuard[source.Path] {
+			continue
 		}
-		if d.IsDir() {
-			switch d.Name() {
-			case ".git", "vendor", "node_modules":
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-			return nil
-		}
-		rel, relErr := filepath.Rel(root, path)
-		if relErr != nil {
-			return relErr
-		}
-		if excludedFromGuard[rel] {
-			return nil
-		}
-		data, readErr := os.ReadFile(path)
+		data, readErr := os.ReadFile(filepath.Join(root, source.Path))
 		if readErr != nil {
-			return readErr
+			t.Fatalf("read %s: %v", source.Path, readErr)
 		}
 		content := string(data)
 		for _, sym := range forbiddenLegacySymbols {
 			if strings.Contains(content, sym) {
-				t.Errorf("production source %s references forbidden legacy-logger symbol %q", rel, sym)
+				t.Errorf("production source %s references forbidden legacy-logger symbol %q", source.Path, sym)
 			}
 		}
-		return nil
-	})
-	if walkErr != nil {
-		t.Fatalf("walk project tree: %v", walkErr)
 	}
 }

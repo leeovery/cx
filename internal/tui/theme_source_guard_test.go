@@ -2,47 +2,47 @@ package tui_test
 
 import (
 	"go/ast"
-	"go/parser"
 	"go/token"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/leeovery/portal/internal/portalbintest"
+	"github.com/leeovery/portal/internal/sourceguardtest"
 )
 
 // Split so this declaration is not itself an importer of the retired path.
 const oldThemeSubpackage = "github.com/leeovery/portal/internal/tui" + "/theme"
 
 func TestOldThemeSubpackageIsGone(t *testing.T) {
-	root := repoRoot(t)
+	root, sources := sourceguardtest.RepoSources(t, sourceguardtest.AllSources)
 
 	if info, err := os.Stat(filepath.Join(root, "internal", "tui", "theme")); err == nil && info.IsDir() {
 		t.Errorf("internal/tui/theme still exists; the token layer lives in internal/theme")
 	}
 
-	forEachGoFile(t, root, func(path string, file *ast.File) {
-		for _, imp := range file.Imports {
+	for _, source := range sources {
+		for _, imp := range source.File.Imports {
 			if strings.Trim(imp.Path.Value, `"`) == oldThemeSubpackage {
-				rel, _ := filepath.Rel(root, path)
-				t.Errorf("%s imports the retired %s", rel, oldThemeSubpackage)
+				t.Errorf("%s imports the retired %s", source.Path, oldThemeSubpackage)
 			}
 		}
-	})
+	}
 }
 
 // A theme captured at package init can never see a swap. Production files only:
 // a test-file copy cannot reach the render path.
 func TestNoPackageLevelThemeVar(t *testing.T) {
-	names := centralisedColourSites(t)
-	fset := token.NewFileSet()
-	files := parseProductionFiles(t, fset, names)
+	parsed := sourceguardtest.ParsePackageSources(t, ".", false)
+	files := make(map[string]*ast.File, len(parsed))
+	for _, source := range parsed {
+		files[filepath.Base(source.Path)] = source.File
+	}
 	sources := collectThemeSources(files)
 
-	for _, name := range names {
-		t.Run(name, func(t *testing.T) {
-			for _, decl := range files[name].Decls {
+	for _, source := range parsed {
+		t.Run(filepath.Base(source.Path), func(t *testing.T) {
+			for _, decl := range source.File.Decls {
 				gen, ok := decl.(*ast.GenDecl)
 				if !ok || gen.Tok != token.VAR {
 					continue
@@ -52,26 +52,13 @@ func TestNoPackageLevelThemeVar(t *testing.T) {
 					if !ok {
 						continue
 					}
-					if pos, found := themeReference(fset, value, sources); found {
-						t.Errorf("%s:%d declares a package-scope var holding theme data; a theme captured at package init can never see a swap — take it from the model's active Theme at the call site", name, pos.Line)
+					if pos, found := themeReference(source.Fset, value, sources); found {
+						t.Errorf("%s:%d declares a package-scope var holding theme data; a theme captured at package init can never see a swap — take it from the model's active Theme at the call site", filepath.Base(source.Path), pos.Line)
 					}
 				}
 			}
 		})
 	}
-}
-
-func parseProductionFiles(t *testing.T, fset *token.FileSet, names []string) map[string]*ast.File {
-	t.Helper()
-	files := make(map[string]*ast.File, len(names))
-	for _, name := range names {
-		file, err := parser.ParseFile(fset, filepath.Join(".", name), nil, 0)
-		if err != nil {
-			t.Fatalf("parse %s: %v", name, err)
-		}
-		files[name] = file
-	}
-	return files
 }
 
 // The in-package vocabulary that yields theme data without writing `theme.` at
@@ -189,25 +176,4 @@ func (s themeSources) callsThemeSource(expr ast.Expr) bool {
 		return true
 	})
 	return found
-}
-
-func repoRoot(t *testing.T) string {
-	t.Helper()
-	root, err := portalbintest.ProjectRoot()
-	if err != nil {
-		t.Fatalf("resolve project root: %v", err)
-	}
-	return root
-}
-
-func forEachGoFile(t *testing.T, root string, fn func(path string, file *ast.File)) {
-	t.Helper()
-	fset := token.NewFileSet()
-	for _, path := range allGoFiles(t, root) {
-		file, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
-		if err != nil {
-			t.Fatalf("parse %s: %v", path, err)
-		}
-		fn(path, file)
-	}
 }

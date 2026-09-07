@@ -14,6 +14,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/leeovery/portal/internal/sourceguardtest"
 	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/themetest"
 	"github.com/leeovery/portal/internal/tui"
@@ -466,11 +467,7 @@ type fakeThemeSource struct {
 
 func parseFakeSource(t *testing.T, source string) *ast.File {
 	t.Helper()
-	file, err := parser.ParseFile(token.NewFileSet(), source, nil, 0)
-	if err != nil {
-		t.Fatalf("parse %s: %v", source, err)
-	}
-	return file
+	return sourceguardtest.PackageSource(t, ".", source).File
 }
 
 func parseControlSource(t *testing.T, src string) *ast.File {

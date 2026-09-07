@@ -2,8 +2,6 @@ package tui
 
 import (
 	"go/ast"
-	"go/parser"
-	"go/token"
 	"testing"
 
 	"charm.land/lipgloss/v2"
@@ -41,14 +39,10 @@ func TestPlaceModalOnClearedCanvas_ByteIdenticalToInline(t *testing.T) {
 }
 
 func TestModalCentringAppearsInExactlyOnePlace(t *testing.T) {
-	fset := token.NewFileSet()
-	file, err := parser.ParseFile(fset, "modal.go", nil, 0)
-	if err != nil {
-		t.Fatalf("parse modal.go: %v", err)
-	}
+	source := sourceguardtest.PackageSource(t, ".", "modal.go")
 
 	var hosts []string
-	sourceguardtest.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
+	sourceguardtest.ForEachFuncCall(source.File, func(funcName string, call *ast.CallExpr) bool {
 		if isClearedCanvasPlaceCall(call) {
 			hosts = append(hosts, funcName)
 		}

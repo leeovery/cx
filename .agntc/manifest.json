@@ -1,7 +1,7 @@
 {
   "leeovery/agentic-workflows": {
-    "ref": "v0.7.29",
-    "commit": "0515d402b1473e14cc4e624092d53296236d387a",
+    "ref": "v0.7.31",
+    "commit": "35f217c39c84d147536deb174f4c7e5d7747b57a",
     "agents": [
       "claude"
     ],
@@ -148,6 +148,7 @@
       ".claude/skills/workflow-engine/scripts/domain/presence.cjs",
       ".claude/skills/workflow-engine/scripts/domain/projections/",
       ".claude/skills/workflow-engine/scripts/domain/projections/baseline.cjs",
+      ".claude/skills/workflow-engine/scripts/domain/projections/boot.cjs",
       ".claude/skills/workflow-engine/scripts/domain/projections/discovery-map.cjs",
       ".claude/skills/workflow-engine/scripts/domain/projections/discussion-map.cjs",
       ".claude/skills/workflow-engine/scripts/domain/projections/epic.cjs",
@@ -159,6 +160,7 @@
       ".claude/skills/workflow-engine/scripts/domain/projections/surfaces.cjs",
       ".claude/skills/workflow-engine/scripts/domain/projections/tasks.cjs",
       ".claude/skills/workflow-engine/scripts/domain/projections/transactions.cjs",
+      ".claude/skills/workflow-engine/scripts/domain/projections/wait.cjs",
       ".claude/skills/workflow-engine/scripts/domain/projections/worklist.cjs",
       ".claude/skills/workflow-engine/scripts/domain/projections/workunit.cjs",
       ".claude/skills/workflow-engine/scripts/domain/reads.cjs",
@@ -486,6 +488,7 @@
       ".claude/skills/workflow-scoping-process/references/write-tasks.md",
       ".claude/skills/workflow-shared/",
       ".claude/skills/workflow-shared/references/",
+      ".claude/skills/workflow-shared/references/altitude.md",
       ".claude/skills/workflow-shared/references/analysis-approval-gate.md",
       ".claude/skills/workflow-shared/references/ask-or-decide.md",
       ".claude/skills/workflow-shared/references/background-agent-surfacing.md",
@@ -493,6 +496,7 @@
       ".claude/skills/workflow-shared/references/closing-recap.md",
       ".claude/skills/workflow-shared/references/code-session-gate.md",
       ".claude/skills/workflow-shared/references/compliance-check.md",
+      ".claude/skills/workflow-shared/references/composing-a-raise.md",
       ".claude/skills/workflow-shared/references/convergence-analysis.md",
       ".claude/skills/workflow-shared/references/correcting-historical-artifacts.md",
       ".claude/skills/workflow-shared/references/create-discovery-topic.md",
@@ -623,7 +627,7 @@
     ],
     "type": "plugin",
     "cloneUrl": "https://github.com/leeovery/agentic-workflows.git",
-    "installedAt": "2026-09-04T08:04:23.787Z",
+    "installedAt": "2026-09-07T06:34:35.093Z",
     "constraint": "^0.7.0"
   },
   "samber/cc-skills-golang": {

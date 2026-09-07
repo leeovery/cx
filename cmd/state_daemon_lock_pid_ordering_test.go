@@ -2,9 +2,7 @@ package cmd
 
 import (
 	"go/ast"
-	"go/parser"
 	"go/token"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -25,18 +23,9 @@ const writePIDFileIdent = "WritePIDFile"
 var stateDaemonSourcePath = filepath.Join("state_daemon.go")
 
 func TestDaemonAcquireLockOrdering_WritePIDFollowsAcquire(t *testing.T) {
-	src, err := os.ReadFile(stateDaemonSourcePath)
-	if err != nil {
-		t.Fatalf("read source: %v", err)
-	}
+	source := sourceguardtest.PackageSource(t, ".", stateDaemonSourcePath)
 
-	fset := token.NewFileSet()
-	file, err := parser.ParseFile(fset, stateDaemonSourcePath, src, parser.SkipObjectResolution)
-	if err != nil {
-		t.Fatalf("parse source: %v", err)
-	}
-
-	fn := findFuncDecl(file, daemonRunFuncName)
+	fn := findFuncDecl(source.File, daemonRunFuncName)
 	if fn == nil {
 		t.Fatalf("function %q not found in %s — has it been renamed or moved?",
 			daemonRunFuncName, stateDaemonSourcePath)
@@ -69,12 +58,12 @@ func TestDaemonAcquireLockOrdering_WritePIDFollowsAcquire(t *testing.T) {
 		t.Fatalf("statement at index %d after %q is not an *ast.IfStmt; "+
 			"got %T at line %d — the err-guard for the acquire call must be the "+
 			"immediately-following statement",
-			acquireIdx+1, acquireDaemonLockIdent, got, fset.Position(got.Pos()).Line)
+			acquireIdx+1, acquireDaemonLockIdent, got, source.Position(got.Pos()).Line)
 	}
 	if !ifStmtIsErrGuard(errGuard) {
 		t.Fatalf("statement at index %d (line %d) is an *ast.IfStmt but does not "+
 			"match the err-guard shape (`if err != nil { ... return ... }`)",
-			acquireIdx+1, fset.Position(errGuard.Pos()).Line)
+			acquireIdx+1, source.Position(errGuard.Pos()).Line)
 	}
 
 	writePIDStmt := fn.Body.List[acquireIdx+2]
@@ -84,39 +73,22 @@ func TestDaemonAcquireLockOrdering_WritePIDFollowsAcquire(t *testing.T) {
 			"got %T at line %d — WritePIDFile must be the next "+
 			"statement after the acquire err-guard. Did a refactor insert "+
 			"intermediate work between acquireDaemonLock's err-guard and WritePIDFile?",
-			acquireIdx+2, writePIDStmt, fset.Position(writePIDStmt.Pos()).Line)
+			acquireIdx+2, writePIDStmt, source.Position(writePIDStmt.Pos()).Line)
 	}
 	if !ifStmtContainsCallTo(writePIDIfStmt, writePIDFileIdent) {
 		t.Fatalf("statement at index %d (line %d) is an *ast.IfStmt but does not "+
 			"contain a call to %q. The acquire err-guard must be "+
 			"immediately followed by WritePIDFile.",
-			acquireIdx+2, fset.Position(writePIDIfStmt.Pos()).Line, writePIDFileIdent)
+			acquireIdx+2, source.Position(writePIDIfStmt.Pos()).Line, writePIDFileIdent)
 	}
 }
 
 func TestAcquireDaemonLock_SingleProductionCallSite(t *testing.T) {
-	entries, err := os.ReadDir(".")
-	if err != nil {
-		t.Fatalf("read cmd dir: %v", err)
-	}
-
-	fset := token.NewFileSet()
 	count := 0
 	var locations []string
-	for _, entry := range entries {
-		name := entry.Name()
-		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
-			continue
-		}
-		src, err := os.ReadFile(name)
-		if err != nil {
-			t.Fatalf("read %s: %v", name, err)
-		}
-		file, err := parser.ParseFile(fset, name, src, parser.SkipObjectResolution)
-		if err != nil {
-			t.Fatalf("parse %s: %v", name, err)
-		}
-		ast.Inspect(file, func(n ast.Node) bool {
+	for _, source := range sourceguardtest.ParsePackageSources(t, ".", false) {
+		name := source.Path
+		ast.Inspect(source.File, func(n ast.Node) bool {
 			call, ok := n.(*ast.CallExpr)
 			if !ok {
 				return true
@@ -125,7 +97,7 @@ func TestAcquireDaemonLock_SingleProductionCallSite(t *testing.T) {
 				callSelectorMatches(call, "state", "AcquireDaemonLock") {
 				count++
 				locations = append(locations,
-					name+":"+positionString(fset, call.Pos()))
+					name+":"+positionString(source.Fset, call.Pos()))
 			}
 			return true
 		})

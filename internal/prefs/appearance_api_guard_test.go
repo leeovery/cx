@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/leeovery/portal/internal/portalbintest"
 	"github.com/leeovery/portal/internal/sourceguardtest"
 )
 
@@ -26,33 +25,21 @@ var appearanceAPIIdentifiers = []string{
 // A source guard, not a compile-time one: the API died with its last caller,
 // so a reintroduction would still build.
 func TestPrefs_AppearanceAPIIsGone(t *testing.T) {
-	root, err := portalbintest.ProjectRoot()
-	if err != nil {
-		t.Fatalf("resolve project root: %v", err)
-	}
-
 	// This file names every identifier it bans, so it exempts itself.
 	self := filepath.Join("internal", "prefs", "appearance_api_guard_test.go")
 
-	paths, err := sourceguardtest.GoSourceFiles(root)
-	if err != nil {
-		t.Fatalf("enumerate .go files: %v", err)
-	}
-	for _, path := range paths {
-		rel, relErr := filepath.Rel(root, path)
-		if relErr != nil {
-			t.Fatalf("relativise %s: %v", path, relErr)
-		}
-		if rel == self {
+	root, sources := sourceguardtest.RepoSources(t, sourceguardtest.AllSources)
+	for _, source := range sources {
+		if source.Path == self {
 			continue
 		}
-		data, readErr := os.ReadFile(path)
+		data, readErr := os.ReadFile(filepath.Join(root, source.Path))
 		if readErr != nil {
-			t.Fatalf("read %s: %v", rel, readErr)
+			t.Fatalf("read %s: %v", source.Path, readErr)
 		}
 		for _, identifier := range appearanceAPIIdentifiers {
 			if strings.Contains(string(data), identifier) {
-				t.Errorf("%s still references %s; the appearance enum and its API are deleted along with their last caller (the raw on-disk field stays)", rel, identifier)
+				t.Errorf("%s still references %s; the appearance enum and its API are deleted along with their last caller (the raw on-disk field stays)", source.Path, identifier)
 			}
 		}
 	}

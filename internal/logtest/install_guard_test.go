@@ -10,7 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/leeovery/portal/internal/portalbintest"
 	"github.com/leeovery/portal/internal/sourceguardtest"
 )
 
@@ -55,25 +54,14 @@ type handlerInstall struct {
 // makes each legitimate is the handler it installs instead of a sink, and that
 // reason belongs written down beside the site.
 func TestInstallIsTheOnlyRouteToACaptureHandler(t *testing.T) {
-	root, err := portalbintest.ProjectRoot()
-	if err != nil {
-		t.Fatalf("resolve project root: %v", err)
-	}
-	paths, err := sourceguardtest.GoSourceFiles(root)
-	if err != nil {
-		t.Fatalf("enumerate .go files: %v", err)
-	}
-
-	var scanPaths []string
-	for _, path := range paths {
-		if !strings.HasPrefix(relToRoot(t, root, path), logOwnerDir+string(filepath.Separator)) {
-			scanPaths = append(scanPaths, path)
-		}
-	}
+	_, sources := sourceguardtest.RepoSources(t, sourceguardtest.AllSources)
 
 	var installs []handlerInstall
-	for _, source := range sourceguardtest.ParseSources(t, scanPaths) {
-		installs = append(installs, handlerInstallsIn(relToRoot(t, root, source.Path), source)...)
+	for _, source := range sources {
+		if strings.HasPrefix(source.Path, logOwnerDir+string(filepath.Separator)) {
+			continue
+		}
+		installs = append(installs, handlerInstallsIn(source.Path, source)...)
 	}
 
 	scanned, defects := auditHandlerInstalls(installs)
@@ -163,15 +151,4 @@ func stageHandlerInstalls(t *testing.T, rel, src string) []handlerInstall {
 		t.Fatalf("parse fixture source: %v", err)
 	}
 	return handlerInstallsIn(rel, sourceguardtest.ParsedSource{Path: rel, Fset: fset, File: parsed})
-}
-
-// relToRoot renders a scanned path relative to the project root, which is how
-// every site the guard names is written.
-func relToRoot(t *testing.T, root, path string) string {
-	t.Helper()
-	rel, err := filepath.Rel(root, path)
-	if err != nil {
-		t.Fatalf("relativise %s: %v", path, err)
-	}
-	return rel
 }

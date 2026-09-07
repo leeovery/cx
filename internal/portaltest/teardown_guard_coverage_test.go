@@ -9,7 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/leeovery/portal/internal/portalbintest"
 	"github.com/leeovery/portal/internal/sourceguardtest"
 )
 
@@ -159,28 +158,11 @@ func (c fixtureCalls) throughLocalArrange(pkg map[string]fixtureCalls) fixtureCa
 // across two scopes: order is compared within a single scope, because sibling
 // closures run in whatever order their caller invokes them.
 func TestTeardownGuardCoversEveryServerHostingFixture(t *testing.T) {
-	root, err := portalbintest.ProjectRoot()
-	if err != nil {
-		t.Fatalf("resolve project root: %v", err)
-	}
-	paths, err := sourceguardtest.GoSourceFiles(root)
-	if err != nil {
-		t.Fatalf("enumerate .go files: %v", err)
-	}
-
-	var testPaths []string
-	for _, path := range paths {
-		if strings.HasSuffix(path, "_test.go") {
-			testPaths = append(testPaths, path)
-		}
-	}
+	_, sources := sourceguardtest.RepoSources(t, sourceguardtest.TestSources)
 
 	var funcs []scannedFunc
-	for _, source := range sourceguardtest.ParseSources(t, testPaths) {
-		rel, relErr := filepath.Rel(root, source.Path)
-		if relErr != nil {
-			t.Fatalf("relativise %s: %v", source.Path, relErr)
-		}
+	for _, source := range sources {
+		rel := source.Path
 		pkg, calls := fixtureCallsIn(source.Fset, source.File)
 		for name, scopes := range calls {
 			funcs = append(funcs, scannedFunc{

@@ -2,8 +2,7 @@ package cmd
 
 import (
 	"go/ast"
-	"go/parser"
-	"go/token"
+	"path/filepath"
 	"slices"
 	"testing"
 
@@ -50,16 +49,13 @@ func TestConfigPrecedenceIsSingleSourced(t *testing.T) {
 // callsIn returns the names of every call made by the named function in file.
 func callsIn(t *testing.T, file, fn string) []string {
 	t.Helper()
-	parsed, err := parser.ParseFile(token.NewFileSet(), file, nil, parser.SkipObjectResolution)
-	if err != nil {
-		t.Fatalf("parse %s: %v", file, err)
-	}
+	source := sourceguardtest.PackageSource(t, filepath.Dir(file), filepath.Base(file))
 
 	var (
 		calls []string
 		found bool
 	)
-	sourceguardtest.ForEachFuncCall(parsed, func(funcName string, call *ast.CallExpr) bool {
+	sourceguardtest.ForEachFuncCall(source.File, func(funcName string, call *ast.CallExpr) bool {
 		if funcName != fn {
 			return true
 		}

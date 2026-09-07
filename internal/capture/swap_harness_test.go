@@ -2,8 +2,6 @@ package capture_test
 
 import (
 	"go/ast"
-	"go/parser"
-	"go/token"
 	"slices"
 	"strings"
 	"testing"
@@ -11,6 +9,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/capture"
+	"github.com/leeovery/portal/internal/sourceguardtest"
 	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/themetest"
 	"github.com/leeovery/portal/internal/tui"
@@ -206,12 +205,8 @@ func TestRenderSwapRender_MutatesASingleModel(t *testing.T) {
 func harnessFuncBody(t *testing.T, name string) *ast.BlockStmt {
 	t.Helper()
 	const harnessFile = "harness.go"
-	fset := token.NewFileSet()
-	file, err := parser.ParseFile(fset, harnessFile, nil, 0)
-	if err != nil {
-		t.Fatalf("parse %s: %v", harnessFile, err)
-	}
-	for _, decl := range file.Decls {
+	source := sourceguardtest.PackageSource(t, ".", harnessFile)
+	for _, decl := range source.File.Decls {
 		fn, ok := decl.(*ast.FuncDecl)
 		if ok && fn.Name.Name == name && fn.Body != nil {
 			return fn.Body

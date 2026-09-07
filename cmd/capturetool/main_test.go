@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"go/ast"
-	"go/parser"
 	"go/token"
 	"go/types"
 	"io"
@@ -17,6 +16,7 @@ import (
 	"github.com/leeovery/portal/internal/capture"
 	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
+	"github.com/leeovery/portal/internal/sourceguardtest"
 	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/themetest"
 	"github.com/leeovery/portal/internal/tui"
@@ -42,11 +42,7 @@ func TestFlags_AreFixtureAndThemeOnly(t *testing.T) {
 func registeredStringFlags(t *testing.T) map[string]string {
 	t.Helper()
 
-	fset := token.NewFileSet()
-	file, err := parser.ParseFile(fset, "main.go", nil, parser.SkipObjectResolution)
-	if err != nil {
-		t.Fatalf("parse main.go: %v", err)
-	}
+	file := sourceguardtest.PackageSource(t, ".", "main.go").File
 
 	flags := map[string]string{}
 	ast.Inspect(file, func(n ast.Node) bool {
@@ -97,11 +93,7 @@ func TestResolveTheme_DefaultsToTheShippedDarkBuiltin(t *testing.T) {
 func declaredConstSource(t *testing.T, name string) string {
 	t.Helper()
 
-	fset := token.NewFileSet()
-	file, err := parser.ParseFile(fset, "main.go", nil, parser.SkipObjectResolution)
-	if err != nil {
-		t.Fatalf("parse main.go: %v", err)
-	}
+	file := sourceguardtest.PackageSource(t, ".", "main.go").File
 
 	for _, decl := range file.Decls {
 		gen, ok := decl.(*ast.GenDecl)

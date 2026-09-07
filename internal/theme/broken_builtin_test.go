@@ -5,10 +5,8 @@ import (
 	"go/ast"
 	"path/filepath"
 	"slices"
-	"strings"
 	"testing"
 
-	"github.com/leeovery/portal/internal/portalbintest"
 	"github.com/leeovery/portal/internal/sourceguardtest"
 	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/themetest"
@@ -261,30 +259,15 @@ var builtinSourceOwners = map[string]bool{
 }
 
 func TestBuiltinSource_HasNoProductionCallSite(t *testing.T) {
-	root, err := portalbintest.ProjectRoot()
-	if err != nil {
-		t.Fatalf("resolve project root: %v", err)
-	}
-	paths, err := sourceguardtest.GoSourceFiles(root)
-	if err != nil {
-		t.Fatalf("enumerate .go files: %v", err)
-	}
+	_, sources := sourceguardtest.RepoSources(t, sourceguardtest.NonTestSources)
 
 	found := 0
-	var scanPaths []string
-	for _, path := range paths {
-		if strings.HasSuffix(path, "_test.go") {
-			continue
-		}
-		if builtinSourceOwners[relToProjectRoot(t, root, path)] {
+	for _, source := range sources {
+		rel := source.Path
+		if builtinSourceOwners[rel] {
 			found++
 			continue
 		}
-		scanPaths = append(scanPaths, path)
-	}
-
-	for _, source := range sourceguardtest.ParseSources(t, scanPaths) {
-		rel := relToProjectRoot(t, root, source.Path)
 		ast.Inspect(source.File, func(n ast.Node) bool {
 			sel, ok := n.(*ast.SelectorExpr)
 			if !ok || sel.Sel.Name != "BuiltinSource" {

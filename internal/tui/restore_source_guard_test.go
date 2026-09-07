@@ -93,24 +93,22 @@ func TestRestorePath_ReadsNoTheme(t *testing.T) {
 	})
 
 	t.Run("the retired canvas-hex helper is gone from the tree", func(t *testing.T) {
-		root := repoRoot(t)
-		for _, goFile := range allGoFiles(t, root) {
-			source, err := os.ReadFile(goFile)
+		root, sources := sourceguardtest.RepoSources(t, sourceguardtest.AllSources)
+		for _, source := range sources {
+			body, err := os.ReadFile(filepath.Join(root, source.Path))
 			if err != nil {
-				t.Fatalf("read %s: %v", goFile, err)
+				t.Fatalf("read %s: %v", source.Path, err)
 			}
-			if strings.Contains(string(source), retiredCanvasHexHelper) {
-				rel, _ := filepath.Rel(root, goFile)
+			if strings.Contains(string(body), retiredCanvasHexHelper) {
 				t.Errorf("%s still mentions %s; it is deleted outright so nothing can re-derive the comparison from a theme",
-					rel, retiredCanvasHexHelper)
+					source.Path, retiredCanvasHexHelper)
 			}
 		}
 	})
 }
 
 func TestLaunchSites_RestoreIdentically(t *testing.T) {
-	root := repoRoot(t)
-	sites := restoreCallSites(t, root)
+	sites := restoreCallSites(t)
 
 	for _, rel := range restoreLaunchSites {
 		t.Run(rel, func(t *testing.T) {
@@ -167,23 +165,13 @@ func modelParamName(t *testing.T, fn *ast.FuncDecl) string {
 	return ""
 }
 
-func restoreCallSites(t *testing.T, root string) map[string][]string {
+func restoreCallSites(t *testing.T) map[string][]string {
 	t.Helper()
 	sites := map[string][]string{}
-	fset := token.NewFileSet()
-	for _, path := range allGoFiles(t, root) {
-		if strings.HasSuffix(path, "_test.go") {
-			continue
-		}
-		file, err := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
-		if err != nil {
-			t.Fatalf("parse %s: %v", path, err)
-		}
-		rel, err := filepath.Rel(root, path)
-		if err != nil {
-			t.Fatalf("relativise %s: %v", path, err)
-		}
-		ast.Inspect(file, func(n ast.Node) bool {
+	_, sources := sourceguardtest.RepoSources(t, sourceguardtest.NonTestSources)
+	for _, source := range sources {
+		rel := source.Path
+		ast.Inspect(source.File, func(n ast.Node) bool {
 			call, ok := n.(*ast.CallExpr)
 			if !ok || !callsRestoreHelper(call) || len(call.Args) == 0 {
 				return true
@@ -223,16 +211,4 @@ func exprText(expr ast.Expr) string {
 	default:
 		return fmt.Sprintf("%T", expr)
 	}
-}
-
-func allGoFiles(t *testing.T, root string) []string {
-	t.Helper()
-	paths, err := sourceguardtest.GoSourceFiles(root)
-	if err != nil {
-		t.Fatalf("enumerate .go files: %v", err)
-	}
-	if len(paths) == 0 {
-		t.Fatalf("walk %s matched no .go files", root)
-	}
-	return paths
 }

@@ -3,6 +3,7 @@ package tui
 import (
 	"go/ast"
 	"go/token"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -10,6 +11,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/leeovery/portal/internal/sourceguardtest"
 )
 
 func TestThemeFlash_OriginDiscriminator(t *testing.T) {
@@ -188,15 +191,15 @@ func TestThemeFlash_AllSixUseSetThemeFlash(t *testing.T) {
 	})
 
 	t.Run("no theme copy reaches setFlash directly", func(t *testing.T) {
-		fset := token.NewFileSet()
-		files := parsePackageFiles(t, fset)
+		files := parsePackageFilesByName(t)
 		vocabulary := themeCopyVocabulary(files)
 		if len(vocabulary) == 0 {
 			t.Fatal("the theme-copy vocabulary is empty, so this guard forbids nothing")
 		}
 
-		for name, file := range files {
-			ast.Inspect(file, func(n ast.Node) bool {
+		for _, source := range sourceguardtest.ParsePackageSources(t, ".", false) {
+			name := filepath.Base(source.Path)
+			ast.Inspect(source.File, func(n ast.Node) bool {
 				call, ok := n.(*ast.CallExpr)
 				if !ok {
 					return true
@@ -208,7 +211,7 @@ func TestThemeFlash_AllSixUseSetThemeFlash(t *testing.T) {
 				for _, arg := range call.Args {
 					if offender := themeCopyReference(arg, vocabulary); offender != "" {
 						t.Errorf("%s:%d passes the theme copy %s to %s; every theme signal is raised through setThemeFlash, which is what stamps the theme precedence tier (see flashSlotClaim)",
-							name, fset.Position(call.Pos()).Line, offender, sel.Sel.Name)
+							name, source.Position(call.Pos()).Line, offender, sel.Sel.Name)
 					}
 				}
 				return true

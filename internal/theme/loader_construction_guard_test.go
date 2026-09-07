@@ -3,10 +3,8 @@ package theme_test
 import (
 	"go/ast"
 	"path/filepath"
-	"strings"
 	"testing"
 
-	"github.com/leeovery/portal/internal/portalbintest"
 	"github.com/leeovery/portal/internal/sourceguardtest"
 )
 
@@ -16,25 +14,11 @@ var (
 )
 
 func TestLoader_HasNoProductionCompositeLiteral(t *testing.T) {
-	root, err := portalbintest.ProjectRoot()
-	if err != nil {
-		t.Fatalf("resolve project root: %v", err)
-	}
-	paths, err := sourceguardtest.GoSourceFiles(root)
-	if err != nil {
-		t.Fatalf("enumerate .go files: %v", err)
-	}
-
-	var scanPaths []string
-	for _, path := range paths {
-		if !strings.HasSuffix(path, "_test.go") {
-			scanPaths = append(scanPaths, path)
-		}
-	}
+	_, sources := sourceguardtest.RepoSources(t, sourceguardtest.NonTestSources)
 
 	exempted := 0
-	for _, source := range sourceguardtest.ParseSources(t, scanPaths) {
-		rel := relToProjectRoot(t, root, source.Path)
+	for _, source := range sources {
+		rel := source.Path
 
 		packageLocal := filepath.Dir(rel) == filepath.Dir(loaderConstructionFile)
 		for _, decl := range source.File.Decls {

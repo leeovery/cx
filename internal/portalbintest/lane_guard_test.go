@@ -12,7 +12,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/leeovery/portal/internal/portalbintest"
 	"github.com/leeovery/portal/internal/sourceguardtest"
 )
 
@@ -53,32 +52,14 @@ type scannedTestFile struct {
 // go command does not intercept the build, because the toolchain directory is
 // prepended for test binaries — which is the other half of why it is a guard.
 func TestBuildHelpersStayInTheIntegrationLane(t *testing.T) {
-	root, err := portalbintest.ProjectRoot()
-	if err != nil {
-		t.Fatalf("resolve project root: %v", err)
-	}
-	paths, err := sourceguardtest.GoSourceFiles(root)
-	if err != nil {
-		t.Fatalf("enumerate .go files: %v", err)
-	}
-
-	var testPaths []string
-	for _, path := range paths {
-		if strings.HasSuffix(path, "_test.go") {
-			testPaths = append(testPaths, path)
-		}
-	}
+	_, sources := sourceguardtest.RepoSources(t, sourceguardtest.TestSources)
 
 	var files []scannedTestFile
-	for _, source := range sourceguardtest.ParseSources(t, testPaths) {
-		rel, relErr := filepath.Rel(root, source.Path)
-		if relErr != nil {
-			t.Fatalf("relativise %s: %v", source.Path, relErr)
-		}
+	for _, source := range sources {
 		files = append(files, scannedTestFile{
-			Rel:      rel,
+			Rel:      source.Path,
 			UnitLane: compiledInUnitLane(source.File),
-			Refs:     buildHelperRefsIn(rel, source),
+			Refs:     buildHelperRefsIn(source.Path, source),
 		})
 	}
 

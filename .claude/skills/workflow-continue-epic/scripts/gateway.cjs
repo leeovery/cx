@@ -20,6 +20,7 @@
 // ---------------------------------------------------------------------------
 
 const engine = require('../../workflow-engine/scripts/lib.cjs');
+const { TERMINAL_STATUSES } = require('../../workflow-engine/scripts/kernel/manifest-schema.cjs');
 const { loadActiveManifests, loadAllManifests } = engine.reads;
 const { phaseItems, lastCompletedPhase } = engine.derivations;
 
@@ -120,6 +121,11 @@ function format(result) {
  * @param {any} d  EpicDetail
  * @returns {boolean}
  */
+/** A parked stub is undrained work — never done. @param {any} d @returns {boolean} */
+function parkedConcerns(d) {
+  return ['research', 'discussion'].some((phase) => ((d.phases && d.phases[phase]) || []).some((i) => i.status === 'triaged'));
+}
+
 function computeAllDone(d) {
   const review = (d.phases && d.phases.review) || [];
   const nonCancelled = review.filter((i) => i.status !== 'cancelled');
@@ -128,6 +134,7 @@ function computeAllDone(d) {
     && d.in_progress.length === 0
     && d.next_phase_ready.length === 0
     && d.unaccounted_discussions.length === 0
+    && !parkedConcerns(d)
     && reconcilePending(d).length === 0
     && (d.convergence_state === 'settled' || d.convergence_state === null);
 }
@@ -143,7 +150,7 @@ function reconcilePending(d) {
   const out = [];
   for (const [phase, items] of Object.entries(d.phases || {})) {
     for (const item of items) {
-      if (item.status === 'completed' && item.reconcile_needed !== undefined) {
+      if (!TERMINAL_STATUSES.includes(item.status) && item.reconcile_needed !== undefined) {
         out.push(`${phase}/${item.name} (${item.reconcile_needed})`);
       }
     }
@@ -179,8 +186,8 @@ function formatScoped(workUnit, result) {
     line += ` summary=${t.summary_present ? 'present' : 'absent'}`;
     line += ` description=${t.description_present ? 'present' : 'absent'}`;
     if (t.triage_parked) line += ` triage=waiting`;
-    if (Array.isArray(t.awaiting_experiments) && t.awaiting_experiments.length > 0) {
-      line += ` awaiting=${t.awaiting_experiments.join(',')}`;
+    if (t.waits.length > 0) {
+      line += ` awaiting=${t.waits.map((w) => (w.kind === 'research' ? 'research' : w.id)).join(',')}`;
     }
     if (t.summary) line += ` — ${t.summary}`;
     lines.push(line);

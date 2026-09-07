@@ -4,7 +4,6 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/leeovery/portal/internal/portalbintest"
 	"github.com/leeovery/portal/internal/sourceguardtest"
 )
 
@@ -31,9 +30,5 @@ func TestCaptureToolDoesImportCapture(t *testing.T) {
 // runs.
 func deps(t *testing.T, pkg string) []string {
 	t.Helper()
-	root, err := portalbintest.ProjectRoot()
-	if err != nil {
-		t.Fatalf("resolve project root: %v", err)
-	}
-	return sourceguardtest.PackageDeps(t, pkg, sourceguardtest.InDir(root))
+	return sourceguardtest.PackageDeps(t, pkg, sourceguardtest.InDir(sourceguardtest.ProjectRoot(t)))
 }

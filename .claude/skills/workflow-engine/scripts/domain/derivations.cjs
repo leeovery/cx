@@ -46,6 +46,12 @@ function phaseData(manifest, phase) {
   return (manifest.phases || {})[phase] || {};
 }
 
+/** @param {object} manifest @param {string} phase @param {string} topic @returns {Record<string, any>|undefined} */
+function itemOf(manifest, phase, topic) {
+  const item = (phaseData(manifest, phase).items || {})[topic];
+  return item && typeof item === 'object' ? item : undefined;
+}
+
 /**
  * One item's live evidence-wait ids (`awaiting_experiments` — the
  * engine-owned lock a spawn places on the spawning phase's own item) — empty
@@ -54,10 +60,53 @@ function phaseData(manifest, phase) {
  * @returns {string[]}
  */
 function awaitedExperiments(manifest, phase, topic) {
-  const item = (phaseData(manifest, phase).items || {})[topic];
-  return item && typeof item === 'object' && Array.isArray(item.awaiting_experiments)
-    ? item.awaiting_experiments
-    : [];
+  const item = itemOf(manifest, phase, topic);
+  return item && Array.isArray(item.awaiting_experiments) ? item.awaiting_experiments : [];
+}
+
+/**
+ * @typedef {{kind: 'research', status: string} | {kind: 'experiment', id: string}} Wait
+ */
+
+// Research statuses that hold the same-named discussion's conclusion shut —
+// in flight, or parked as a stub of concerns no session has drained.
+const OUTSTANDING_RESEARCH_STATUSES = ['in-progress', 'triaged'];
+
+/**
+ * Every wait holding one item's conclusion shut, in presentation order: a
+ * `research` wait when a discussion's same-named research is still
+ * outstanding (research feeds discussion), then one `experiment` wait per
+ * live awaited id. Derived from the items' statuses alone — never stored —
+ * and work-type agnostic; an absent item holds nothing.
+ * @param {object} manifest @param {string} phase @param {string} topic
+ * @returns {Wait[]}
+ */
+function waits(manifest, phase, topic) {
+  /** @type {Wait[]} */
+  const out = [];
+  if (!itemOf(manifest, phase, topic)) return out;
+  const research = phase === 'discussion' ? itemOf(manifest, 'research', topic) : undefined;
+  if (research && OUTSTANDING_RESEARCH_STATUSES.includes(research.status)) {
+    out.push({ kind: 'research', status: research.status });
+  }
+  for (const id of awaitedExperiments(manifest, phase, topic)) out.push({ kind: 'experiment', id });
+  return out;
+}
+
+/**
+ * The topic's live waits across its research and discussion items — every
+ * wait an in-progress holder is blocked on, spawn-phase order. Only an
+ * in-progress holder is trying to conclude: a completed discussion's
+ * outstanding research is its reconcile flag's business, and a parked or
+ * terminal holder waits on nothing.
+ * @param {object} manifest @param {string} topic
+ * @returns {Wait[]}
+ */
+function topicWaits(manifest, topic) {
+  return EXPERIMENT_SPAWN_PHASES.flatMap((phase) => {
+    const item = itemOf(manifest, phase, topic);
+    return item && item.status === 'in-progress' ? waits(manifest, phase, topic) : [];
+  });
 }
 
 /**
@@ -70,8 +119,8 @@ function awaitedExperiments(manifest, phase, topic) {
 function experimentWaits(manifest, topic) {
   const holders = [];
   for (const phase of EXPERIMENT_SPAWN_PHASES) {
-    const item = (phaseData(manifest, phase).items || {})[topic];
-    if (!item || typeof item !== 'object' || TERMINAL_STATUSES.includes(item.status)) continue;
+    const item = itemOf(manifest, phase, topic);
+    if (!item || TERMINAL_STATUSES.includes(item.status)) continue;
     const ids = awaitedExperiments(manifest, phase, topic);
     if (ids.length > 0) holders.push({ phase, ids });
   }
@@ -132,6 +181,15 @@ function computeNextPhase(manifest) {
           : EXPERIMENT_SPAWN_PHASES.includes(phase) && waitingItems(manifest, phase).length > 0;
         if (awaiting) {
           return { next_phase: 'experiment', phase_label: 'experiment (awaiting evidence)' };
+        }
+        // Research feeds discussion: a stub parked beneath the live
+        // discussion is invisible to the phase walk (pre-live), yet it holds
+        // the discussion's conclusion shut — the way in is the research.
+        if (phase === 'discussion') {
+          const live = phaseItems(manifest, phase).find((i) => i.status === 'in-progress');
+          if (live && waits(manifest, phase, live.name).some((w) => w.kind === 'research')) {
+            return { next_phase: 'research', phase_label: 'research (parked — feeds the discussion)' };
+          }
         }
         return { next_phase: phase, phase_label: `${phase} (in-progress)` };
       }
@@ -393,7 +451,7 @@ function computeNeedsSequencing(mapItems) {
 // (parked rerouted concerns, no session yet). It is a rider, not a lifecycle
 // — a triaged stub renders as `fresh` by fall-through, and the rider survives
 // on every branch (a `discussing` topic can still hold a parked research
-// stub, which never drains from the discussion side). `reconcile_pending`
+// stub — the research row above it on the epic menu is its way in). `reconcile_pending`
 // is the third rider: either phase item carries a live reconcile flag, so
 // the map row can cue `input moved` — with a map, phase-item rows never
 // render for research/discussion, making this the topic's only surface.
@@ -416,26 +474,26 @@ function computeTopicLifecycle(manifest, topicName) {
   // with no next action. Read only the item's own field — never inspect
   // siblings or provenance.
   if (discovery && discovery.handled === true) {
-    return { lifecycle: 'handled', tier: '⊙', current_phase: null, research_state: rs, triage_parked, reconcile_pending };
+    return { lifecycle: 'handled', tier: '⊙', current_phase: null, research_state: rs, discussion_state: ds, triage_parked, reconcile_pending };
   }
 
   if (rs === 'in-progress' && ds === 'completed') {
     // Reopened research beneath a decided discussion — a triage landing
     // judged research-side. The topic is back in research; the discussion's
     // reconcile flag carries the downstream consequence.
-    return { lifecycle: 'researching', tier: '◐', current_phase: 'research', research_state: rs, triage_parked, reconcile_pending };
+    return { lifecycle: 'researching', tier: '◐', current_phase: 'research', research_state: rs, discussion_state: ds, triage_parked, reconcile_pending };
   }
   if (ds === 'completed') {
-    return { lifecycle: 'decided', tier: '✓', current_phase: 'discussion', research_state: rs, triage_parked, reconcile_pending };
+    return { lifecycle: 'decided', tier: '✓', current_phase: 'discussion', research_state: rs, discussion_state: ds, triage_parked, reconcile_pending };
   }
   if (ds === 'in-progress') {
-    return { lifecycle: 'discussing', tier: '◐', current_phase: 'discussion', research_state: rs, triage_parked, reconcile_pending };
+    return { lifecycle: 'discussing', tier: '◐', current_phase: 'discussion', research_state: rs, discussion_state: ds, triage_parked, reconcile_pending };
   }
   if (rs === 'completed') {
-    return { lifecycle: 'ready_for_discussion', tier: '→', current_phase: 'research', research_state: rs, triage_parked, reconcile_pending };
+    return { lifecycle: 'ready_for_discussion', tier: '→', current_phase: 'research', research_state: rs, discussion_state: ds, triage_parked, reconcile_pending };
   }
   if (rs === 'in-progress') {
-    return { lifecycle: 'researching', tier: '◐', current_phase: 'research', research_state: rs, triage_parked, reconcile_pending };
+    return { lifecycle: 'researching', tier: '◐', current_phase: 'research', research_state: rs, discussion_state: ds, triage_parked, reconcile_pending };
   }
   // Every attempted phase item is cancelled (and at least one was attempted):
   // the topic is cancelled-tier. A dual-attempt topic with one live item never
@@ -445,18 +503,18 @@ function computeTopicLifecycle(manifest, topicName) {
   // phase item blocks `topic start` (the "fresh" next action would dead-end),
   // and the recovery route is reactivate. A `triaged` sibling is not an
   // attempt — it keeps the topic out of cancelled-tier via the every() check,
-  // falling through to fresh (the stub is startable).
+  // falling through to fresh.
   const attempted = [rs, ds].filter((s) => s != null);
   if (attempted.length > 0 && attempted.every((s) => s === 'cancelled')) {
-    return { lifecycle: 'cancelled', tier: '⊘', current_phase: null, research_state: rs, triage_parked, reconcile_pending };
+    return { lifecycle: 'cancelled', tier: '⊘', current_phase: null, research_state: rs, discussion_state: ds, triage_parked, reconcile_pending };
   }
   // Superseded research with no discussion: the topic's research lineage is
   // closed but a discussion path remains open. Render as ready-for-discussion
   // — the next available action is to discuss.
   if (rs === 'superseded' && !ds) {
-    return { lifecycle: 'ready_for_discussion', tier: '→', current_phase: 'research', research_state: rs, triage_parked, reconcile_pending };
+    return { lifecycle: 'ready_for_discussion', tier: '→', current_phase: 'research', research_state: rs, discussion_state: ds, triage_parked, reconcile_pending };
   }
-  return { lifecycle: 'fresh', tier: '○', current_phase: null, research_state: rs, triage_parked, reconcile_pending };
+  return { lifecycle: 'fresh', tier: '○', current_phase: null, research_state: rs, discussion_state: ds, triage_parked, reconcile_pending };
 }
 
 // Why a lifecycle stands in the way of a move — the map ops' refusals and
@@ -466,7 +524,9 @@ function computeTopicLifecycle(manifest, topicName) {
 /** @param {string} lifecycle @param {string|null} researchState @param {string} [routing] */
 function lifecyclePhrase(lifecycle, researchState, routing) {
   switch (lifecycle) {
-    case 'fresh': return routing ? `it is routed to ${routing} and nothing has started` : 'nothing has started on it';
+    case 'fresh':
+      if (researchState === 'triaged') return 'research is parked on it and comes first';
+      return routing ? `it is routed to ${routing} and nothing has started` : 'nothing has started on it';
     case 'researching': return 'research is in flight on it';
     case 'discussing': return 'discussion is in flight on it';
     case 'ready_for_discussion':
@@ -479,9 +539,25 @@ function lifecyclePhrase(lifecycle, researchState, routing) {
   }
 }
 
-function computeNextAction(routing, lifecycle) {
+// The actions the map derives for its two conversation phases, keyed by the
+// phase each enters — the one vocabulary the epic menu's rows, the birth
+// guard, and the research row share.
+const CONVERSATION_ACTIONS = {
+  research: ['start_research', 'continue_research'],
+  discussion: ['start_discussion', 'start_discussion_after_research', 'continue_discussion'],
+};
+
+/**
+ * The map row's next action. Research parked on a topic that has no
+ * discussion yet leads whatever the routing says — research feeds
+ * discussion, so the stub is the way in first.
+ * @param {string|undefined} routing @param {string} lifecycle @param {string|null} [researchState]
+ * @returns {string|null}
+ */
+function computeNextAction(routing, lifecycle, researchState) {
   switch (lifecycle) {
     case 'fresh':
+      if (OUTSTANDING_RESEARCH_STATUSES.includes(researchState ?? '')) return 'start_research';
       return routing === 'research' ? 'start_research' : 'start_discussion';
     case 'researching':
       return 'continue_research';
@@ -538,9 +614,10 @@ function computeSourceProvenance(source) {
  * @property {string} tier
  * @property {string|null} current_phase
  * @property {string|null} research_state
+ * @property {string|null} discussion_state  the discussion item's raw status, null when none exists
  * @property {boolean} triage_parked       a `triaged` stub (parked rerouted concerns) exists in either phase
  * @property {boolean} reconcile_pending   a phase item beneath the row carries a live reconcile flag
- * @property {string[]} awaiting_experiments  live evidence-wait ids across the topic's research and discussion items (empty when none)
+ * @property {Wait[]} waits               the live waits of the topic's in-progress research and discussion items (empty when none)
  * @property {string|null} next_action
  */
 
@@ -562,7 +639,7 @@ function computeSourceProvenance(source) {
 function buildDiscoveryMap(manifest) {
   const discoveryItems = phaseItems(manifest, 'discovery');
   const map = discoveryItems.map((item) => {
-    const { lifecycle, tier, current_phase, research_state, triage_parked, reconcile_pending } = computeTopicLifecycle(manifest, item.name);
+    const { lifecycle, tier, current_phase, research_state, discussion_state, triage_parked, reconcile_pending } = computeTopicLifecycle(manifest, item.name);
     const summaryText = typeof item.summary === 'string' && item.summary.trim() ? item.summary : null;
     const descriptionText = typeof item.description === 'string' && item.description.trim() ? item.description : null;
     return {
@@ -579,10 +656,11 @@ function buildDiscoveryMap(manifest) {
       tier,
       current_phase,
       research_state,
+      discussion_state,
       triage_parked,
       reconcile_pending,
-      awaiting_experiments: experimentWaits(manifest, item.name).flatMap((h) => h.ids),
-      next_action: computeNextAction(item.routing, lifecycle),
+      waits: topicWaits(manifest, item.name),
+      next_action: computeNextAction(item.routing, lifecycle, research_state),
     };
   });
   map.sort(compareMapRows);
@@ -595,6 +673,9 @@ module.exports = {
   phaseStatus,
   awaitedExperiments,
   experimentWaits,
+  waits,
+  topicWaits,
+  OUTSTANDING_RESEARCH_STATUSES,
   settleItemStatus,
   computeNextPhase,
   computeInProgressPhases,
@@ -604,7 +685,9 @@ module.exports = {
   computeAnalysisCacheStatus,
   computeTopicLifecycle,
   computeNextAction,
+  CONVERSATION_ACTIONS,
   lifecyclePhrase,
+  itemOf,
   computeMapSummary,
   computeSourceProvenance,
   compareMapRows,

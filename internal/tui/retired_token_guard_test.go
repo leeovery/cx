@@ -2,7 +2,6 @@ package tui_test
 
 import (
 	"go/ast"
-	"go/parser"
 	"go/token"
 	"path/filepath"
 	"strings"
@@ -70,24 +69,16 @@ var renderLayerPackageDirs = []string{filepath.Join("..", "tui"), filepath.Join(
 
 func TestNoRetiredTokenName(t *testing.T) {
 	for _, dir := range renderLayerPackageDirs {
-		matches, err := sourceguardtest.PackageGoFiles(dir, true)
-		if err != nil {
-			t.Fatalf("enumerate the %s package sources: %v", dir, err)
-		}
-		for _, path := range matches {
+		for _, source := range sourceguardtest.ParsePackageSources(t, dir, true) {
+			path, file := source.Path, source.File
 			qualified := filepath.Join(filepath.Base(dir), filepath.Base(path))
 			t.Run(qualified, func(t *testing.T) {
-				fset := token.NewFileSet()
-				file, err := parser.ParseFile(fset, path, nil, parser.ParseComments|parser.SkipObjectResolution)
-				if err != nil {
-					t.Fatalf("parse %s: %v", path, err)
-				}
 				report := func(pos token.Pos, where, text string) {
 					for retired, current := range retiredTokenNames {
 						if !strings.Contains(text, retired) || exemptRetiredName(qualified, retired) {
 							continue
 						}
-						t.Errorf("%s:%d names the retired token %q in a %s; the role is %q now", path, fset.Position(pos).Line, retired, where, current)
+						t.Errorf("%s:%d names the retired token %q in a %s; the role is %q now", path, source.Position(pos).Line, retired, where, current)
 					}
 				}
 

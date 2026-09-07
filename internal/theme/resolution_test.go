@@ -348,18 +348,6 @@ func TestResolveNomination_UnresolvableFallbackErrors(t *testing.T) {
 	})
 }
 
-func resolutionSource(t *testing.T) sourceguardtest.ParsedSource {
-	t.Helper()
-
-	for _, source := range sourceguardtest.ParsePackageSources(t, ".", false) {
-		if filepath.Base(source.Path) == "resolution.go" {
-			return source
-		}
-	}
-	t.Fatal("resolution.go not found among internal/theme's production sources")
-	return sourceguardtest.ParsedSource{}
-}
-
 func TestResolveNomination_FallbackUsesSharedConstants(t *testing.T) {
 	requireDistinctDefaults(t)
 
@@ -386,7 +374,7 @@ func TestResolveNomination_FallbackUsesSharedConstants(t *testing.T) {
 	})
 
 	t.Run("the fallback map names the constants, never their values", func(t *testing.T) {
-		source := resolutionSource(t)
+		source := sourceguardtest.PackageSource(t, ".", "resolution.go")
 
 		ast.Inspect(source.File, func(n ast.Node) bool {
 			lit, isLit := n.(*ast.BasicLit)

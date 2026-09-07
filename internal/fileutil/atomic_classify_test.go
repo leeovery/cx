@@ -3,14 +3,13 @@ package fileutil_test
 import (
 	"errors"
 	"fmt"
-	"go/parser"
-	"go/token"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/leeovery/portal/internal/fileutil"
+	"github.com/leeovery/portal/internal/sourceguardtest"
 )
 
 // forceTempCreateFailure returns a path whose parent is a regular file, so the
@@ -131,24 +130,11 @@ func TestAtomicWrite0600PreservesSentinel(t *testing.T) {
 func TestAtomicWriteHasNoLoggingDependency(t *testing.T) {
 	// fileutil must stay audit-unaware: no internal/log import anywhere in the
 	// package source.
-	fset := token.NewFileSet()
-	entries, err := os.ReadDir(".")
-	if err != nil {
-		t.Fatalf("read package dir: %v", err)
-	}
-	for _, e := range entries {
-		name := e.Name()
-		if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
-			continue
-		}
-		f, err := parser.ParseFile(fset, name, nil, parser.ImportsOnly)
-		if err != nil {
-			t.Fatalf("parse %s: %v", name, err)
-		}
-		for _, imp := range f.Imports {
+	for _, source := range sourceguardtest.ParsePackageSources(t, ".", false) {
+		for _, imp := range source.File.Imports {
 			path := strings.Trim(imp.Path.Value, `"`)
 			if strings.Contains(path, "internal/log") {
-				t.Errorf("%s imports %q; fileutil must stay audit-unaware", name, path)
+				t.Errorf("%s imports %q; fileutil must stay audit-unaware", source.Path, path)
 			}
 		}
 	}

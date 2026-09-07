@@ -6,14 +6,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/leeovery/portal/internal/portalbintest"
+	"github.com/leeovery/portal/internal/sourceguardtest"
 )
 
 func TestSharedConstructorUsedByBothPaths(t *testing.T) {
-	root, err := portalbintest.ProjectRoot()
-	if err != nil {
-		t.Fatalf("resolve project root: %v", err)
-	}
+	root := sourceguardtest.ProjectRoot(t)
 
 	const sharedConstructorCall = "tui.Build("
 	files := map[string]string{

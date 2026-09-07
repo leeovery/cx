@@ -2,7 +2,6 @@ package theme_test
 
 import (
 	"go/ast"
-	"go/parser"
 	"go/token"
 	"path/filepath"
 	"regexp"
@@ -120,14 +119,10 @@ func TestEmbeddedValidity_EnumeratesRatherThanNames(t *testing.T) {
 		t.Fatal("the embedded set is empty — the scan below would have nothing to look for")
 	}
 
-	fset := token.NewFileSet()
-	file, err := parser.ParseFile(fset, embeddedTestFile, nil, 0)
-	if err != nil {
-		t.Fatalf("parse %s: %v", embeddedTestFile, err)
-	}
+	source := sourceguardtest.PackageSource(t, ".", embeddedTestFile)
 
 	scanned := 0
-	ast.Inspect(file, func(n ast.Node) bool {
+	ast.Inspect(source.File, func(n ast.Node) bool {
 		lit, ok := n.(*ast.BasicLit)
 		if !ok || lit.Kind != token.STRING {
 			return true
@@ -141,7 +136,7 @@ func TestEmbeddedValidity_EnumeratesRatherThanNames(t *testing.T) {
 
 		for _, slug := range slugs {
 			if strings.Contains(value, slug) {
-				t.Errorf("%s:%d names the built-in %q — this file enumerates the embedded set and reaches its defaults through builtins.go's constants, so a theme added by a later PR is enrolled automatically", embeddedTestFile, fset.Position(lit.Pos()).Line, slug)
+				t.Errorf("%s:%d names the built-in %q — this file enumerates the embedded set and reaches its defaults through builtins.go's constants, so a theme added by a later PR is enrolled automatically", embeddedTestFile, source.Position(lit.Pos()).Line, slug)
 			}
 		}
 		return true

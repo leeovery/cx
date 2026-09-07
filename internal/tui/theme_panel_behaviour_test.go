@@ -2,14 +2,13 @@ package tui
 
 import (
 	"go/ast"
-	"go/parser"
-	"go/token"
 	"slices"
 	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/leeovery/portal/internal/sourceguardtest"
 	"github.com/leeovery/portal/internal/theme"
 )
 
@@ -674,10 +673,7 @@ func TestThemePanelBehaviour_NoConfigAccess(t *testing.T) {
 	})
 
 	t.Run("the suite names no filesystem or config entry point", func(t *testing.T) {
-		file, err := parser.ParseFile(token.NewFileSet(), behaviourSuiteFile, nil, parser.SkipObjectResolution)
-		if err != nil {
-			t.Fatalf("parse %s: %v", behaviourSuiteFile, err)
-		}
+		file := sourceguardtest.PackageSource(t, ".", behaviourSuiteFile).File
 
 		for _, imported := range file.Imports {
 			path := strings.Trim(imported.Path.Value, `"`)

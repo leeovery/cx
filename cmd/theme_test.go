@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"go/ast"
-	"go/parser"
-	"go/token"
 	"os"
 	"path/filepath"
 	"slices"
@@ -19,6 +17,7 @@ import (
 	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/portaltest"
+	"github.com/leeovery/portal/internal/sourceguardtest"
 	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/themetest"
 )
@@ -431,17 +430,13 @@ func TestThemeExport_ReadsNoPrefs(t *testing.T) {
 	})
 
 	t.Run("the export command names no prefs symbol", func(t *testing.T) {
-		fset := token.NewFileSet()
-		file, err := parser.ParseFile(fset, filepath.Join(".", "theme.go"), nil, 0)
-		if err != nil {
-			t.Fatalf("parse cmd/theme.go: %v", err)
-		}
+		source := sourceguardtest.PackageSource(t, ".", "theme.go")
 
 		banned := map[string]string{
 			"prefsFilePath":  "resolves the prefs.json path",
 			"loadPrefsStore": "opens the prefs store",
 		}
-		ast.Inspect(file, func(n ast.Node) bool {
+		ast.Inspect(source.File, func(n ast.Node) bool {
 			switch node := n.(type) {
 			case *ast.ImportSpec:
 				path, uerr := strconv.Unquote(node.Path.Value)
@@ -450,7 +445,7 @@ func TestThemeExport_ReadsNoPrefs(t *testing.T) {
 				}
 			case *ast.Ident:
 				if why, isBanned := banned[node.Name]; isBanned {
-					t.Errorf("cmd/theme.go:%d names %s, which %s — export never reads prefs.json", fset.Position(node.Pos()).Line, node.Name, why)
+					t.Errorf("cmd/theme.go:%d names %s, which %s — export never reads prefs.json", source.Position(node.Pos()).Line, node.Name, why)
 				}
 			}
 			return true
@@ -929,11 +924,7 @@ func TestThemeExport_UsesSharedByNameResolver(t *testing.T) {
 	// Each banned symbol is one step of the ordering that belongs to
 	// internal/theme — a way two by-name resolvers could diverge.
 	t.Run("the export command re-implements no step of the ordering", func(t *testing.T) {
-		fset := token.NewFileSet()
-		file, err := parser.ParseFile(fset, filepath.Join(".", "theme.go"), nil, 0)
-		if err != nil {
-			t.Fatalf("parse cmd/theme.go: %v", err)
-		}
+		source := sourceguardtest.PackageSource(t, ".", "theme.go")
 
 		banned := map[string]string{
 			"ValidSlug":   "re-runs the charset check",
@@ -942,13 +933,13 @@ func TestThemeExport_UsesSharedByNameResolver(t *testing.T) {
 			"Join":        "composes a path from the slug",
 			"Lstat":       "draws the absent-versus-unreadable line itself",
 		}
-		ast.Inspect(file, func(n ast.Node) bool {
+		ast.Inspect(source.File, func(n ast.Node) bool {
 			ident, isIdent := n.(*ast.Ident)
 			if !isIdent {
 				return true
 			}
 			if why, isBanned := banned[ident.Name]; isBanned {
-				t.Errorf("cmd/theme.go:%d names %s, which %s — the by-name resolution ordering lives in theme.Loader.ResolveByName alone", fset.Position(ident.Pos()).Line, ident.Name, why)
+				t.Errorf("cmd/theme.go:%d names %s, which %s — the by-name resolution ordering lives in theme.Loader.ResolveByName alone", source.Position(ident.Pos()).Line, ident.Name, why)
 			}
 			return true
 		})

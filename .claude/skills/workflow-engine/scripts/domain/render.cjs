@@ -28,6 +28,7 @@ const {
   baselineOfferGate,
 } = require('./projections/baseline.cjs');
 const { baselineState } = require('./baseline.cjs');
+const { migrationGate, labelGate } = require('./projections/boot.cjs');
 const { heldCodeSessions, beatQuietly, fmtAge, CODE_PHASES } = require('./presence.cjs');
 const { roadmapState } = require('./roadmap.cjs');
 const {
@@ -39,10 +40,11 @@ const {
   roadmapConcludeGate,
 } = require('./projections/roadmap.cjs');
 const { revisitablePhases, revisitPhasesSection } = require('./projections/workunit.cjs');
-const { experimentRegister, experimentApprovalGate, experimentPick, experimentNextGate, experimentSpawnGate, experimentWaitGate } = require('./projections/experiment.cjs');
+const { experimentRegister, experimentApprovalGate, experimentPick, experimentNextGate, experimentSpawnGate } = require('./projections/experiment.cjs');
+const { waitGate } = require('./projections/wait.cjs');
 const { compareExperimentIds, isParentExperimentId, DERIVED_PHASES, EXPERIMENT_TERMINAL_STATUSES, EXPERIMENT_SPAWN_PHASES } = require('../kernel/manifest-schema.cjs');
 const { WORK_UNIT_TYPES, typeConfig: workUnitTypeConfig, completedPhases } = require('./workunit-detail.cjs');
-const { phaseItems, computeNextPhase, computeTopicLifecycle, lifecyclePhrase, experimentWaits, awaitedExperiments } = require('./derivations.cjs');
+const { phaseItems, computeNextPhase, computeTopicLifecycle, lifecyclePhrase, experimentWaits, awaitedExperiments, waits, itemOf, OUTSTANDING_RESEARCH_STATUSES } = require('./derivations.cjs');
 const { manageDetail } = require('./workunit-manage.cjs');
 const { gateOf, counterOf, FIX_THRESHOLD, SESSION_CYCLE_LIMIT } = require('./tasks.cjs');
 const { sourceRows } = require('./transitions.cjs');
@@ -2644,17 +2646,17 @@ function experimentNextGateSurface(cwd, { dotpath }) {
 }
 
 /**
- * Resolve a spawn-side address — the spawning research or discussion item —
- * to its live evidence-wait ids. Loud when the phase is not a spawn phase.
+ * Resolve a conversation address — a research or discussion item, the two
+ * phases that spawn experiments and hold waits. Loud on any other phase.
  * @param {string} cwd @param {string} dotpath @param {string} surface
- * @returns {{phase: string, topic: string, awaiting: string[]}}
+ * @returns {{phase: string, topic: string, manifest: object}}
  */
-function resolveSpawnSide(cwd, dotpath, surface) {
+function resolveConversation(cwd, dotpath, surface) {
   const { phase, topic, manifest } = resolveAddress(cwd, dotpath, surface);
   if (!EXPERIMENT_SPAWN_PHASES.includes(phase)) {
-    throw new Error(`render ${surface}: address must be <work_unit>.<${EXPERIMENT_SPAWN_PHASES.join('|')}>.<topic> — the spawning conversation's own item; got phase "${phase}"`);
+    throw new Error(`render ${surface}: address must be <work_unit>.<${EXPERIMENT_SPAWN_PHASES.join('|')}>.<topic> — the conversation's own item; got phase "${phase}"`);
   }
-  return { phase, topic, awaiting: awaitedExperiments(manifest, phase, topic) };
+  return { phase, topic, manifest };
 }
 
 /**
@@ -2665,28 +2667,30 @@ function resolveSpawnSide(cwd, dotpath, surface) {
  * @returns {string}
  */
 function experimentSpawnGateSurface(cwd, { dotpath, id }) {
-  const { phase, topic, awaiting } = resolveSpawnSide(cwd, dotpath, 'experiment-spawn-gate');
+  const { phase, topic, manifest } = resolveConversation(cwd, dotpath, 'experiment-spawn-gate');
   if (!isFilled(id)) throw new Error('render experiment-spawn-gate: --id is required (E1, E2, …)');
-  if (!awaiting.includes(/** @type {string} */ (id))) {
+  if (!awaitedExperiments(manifest, phase, topic).includes(/** @type {string} */ (id))) {
     throw new Error(`render experiment-spawn-gate: ${phase} "${topic}" holds no evidence wait on ${id} — the gate follows the recorded spawn (experiment create)`);
   }
   return experimentSpawnGate(phase, /** @type {string} */ (id));
 }
 
 /**
- * The blocked-conclusion gate — refuses when the item holds no live wait:
- * with nothing owed, nothing blocks conclusion and the calling flow's check
- * should have passed it straight through.
+ * The blocked-conclusion gate over every wait the item holds — the research
+ * a discussion stands on, the experiments a conversation spawned. Empty
+ * when nothing is owed: the calling flow branches on the response, so one
+ * fetch stands in for the read-then-render pair.
  * @param {string} cwd
  * @param {{dotpath: string}} args
- * @returns {string}
+ * @returns {string} the gate's sections, or '' when nothing blocks conclusion
  */
-function experimentWaitGateSurface(cwd, { dotpath }) {
-  const { phase, topic, awaiting } = resolveSpawnSide(cwd, dotpath, 'experiment-wait-gate');
-  if (awaiting.length === 0) {
-    throw new Error(`render experiment-wait-gate: ${phase} "${topic}" holds no evidence wait — nothing blocks conclusion`);
+function waitGateSurface(cwd, { dotpath }) {
+  const { phase, topic, manifest } = resolveConversation(cwd, dotpath, 'wait-gate');
+  if (!itemOf(manifest, phase, topic)) {
+    throw new Error(`render wait-gate: no ${phase} item "${topic}" — nothing to hold shut`);
   }
-  return experimentWaitGate(phase, awaiting);
+  const blocking = waits(manifest, phase, topic);
+  return blocking.length === 0 ? '' : waitGate(phase, topic, blocking);
 }
 
 // summary-backfill-gate — the epic's provenance recovery, both stops. The
@@ -3557,23 +3561,13 @@ function epicAllDoneGate(cwd, { dotpath }) {
 // whole table. Empty when the selection raises no concern. The specification
 // row counts the discussions the grouping analysis will read; the planning
 // and implementation rows read the build order and name the topics sitting
-// ahead of the selection. Discussion entries carry no gate: a discussion
-// reads its own topic's research, and the menu offers one only once that
-// has settled. Advisory always: the menu offers proceed-anyway, never a
-// refusal.
+// ahead of the selection. Discussion entries carry no gate: research
+// outstanding on a topic is a wait on its discussion's conclusion, held by
+// the wait gate, never a warning at entry. Advisory always: the menu offers
+// proceed-anyway, never a refusal.
 // ---------------------------------------------------------------------------
 
 const { SOFT_GATE_ACTIONS } = require('./projections/epic.cjs');
-
-/**
- * The discussions the grouping analysis reads: in-progress and completed.
- * A parked stub or a terminal item never reaches it, so never counts.
- * @param {object[]} items @returns {{inProgress: number, total: number}}
- */
-function softGateCounts(items) {
-  const live = items.filter((i) => i.status === 'in-progress' || i.status === 'completed');
-  return { inProgress: live.filter((i) => i.status === 'in-progress').length, total: live.length };
-}
 
 /**
  * Topics ahead of the selection in the build order that lack a completed
@@ -3621,9 +3615,12 @@ function epicSoftGate(cwd, { dotpath, action, topic }) {
   let advisory = 'The system will re-analyse if you revisit later — proceeding now is safe, but may require rework.';
 
   if (action === 'start_specification') {
-    const c = softGateCounts(phaseItems(manifest, 'discussion'));
-    if (c.total > 0 && c.inProgress > 0) {
-      message = `${c.inProgress} of ${c.total} discussions still in-progress. Later conclusions may reshape this grouping.`;
+    // The discussions the grouping analysis reads: in-progress and completed.
+    // A parked stub or a terminal item never reaches it, so never counts.
+    const read = phaseItems(manifest, 'discussion').filter((i) => i.status === 'in-progress' || i.status === 'completed');
+    const inProgress = read.filter((i) => i.status === 'in-progress').length;
+    if (read.length > 0 && inProgress > 0) {
+      message = `${inProgress} of ${read.length} discussions still in-progress. Later conclusions may reshape this grouping.`;
     }
   } else if (action === 'start_planning' || action === 'continue_planning') {
     if (!isFilled(topic)) throw new Error(`render epic-soft-gate: --topic is required for ${action}`);
@@ -3690,11 +3687,6 @@ function phaseNote(cwd, { dotpath, verb, noun }) {
 // terminal blocker display.
 // ---------------------------------------------------------------------------
 
-/** @param {any} manifest @param {string} phase @param {string} topic */
-function itemOf(manifest, phase, topic) {
-  return (((manifest.phases || {})[phase] || {}).items || {})[topic];
-}
-
 // Blocked states render red: a `properties` fence colours the first token
 // (the ⚑) turquoise and everything after it red, and is the one highlighter
 // that never tokenises English — so the message stays uniform whatever words
@@ -3721,10 +3713,9 @@ function blocker(fact, guidance) {
 // ---------------------------------------------------------------------------
 // direct-entry-gate — the epic menu's d/r doors take a free-typed topic name.
 // A name already on the map is not a new topic: the menu row is the way in,
-// so the door refuses, naming where the topic stands. Empty when the name is
-// new, or the work unit carries no map. The one pass-through is a parked
-// research stub — research is downstream of nothing, and a discussing
-// topic's parked research has no menu row, so the r door is its drain.
+// so the door refuses, naming where the topic stands — a parked research
+// stub included, whose row the menu carries above the topic's own. Empty
+// when the name is new, or the work unit carries no map.
 // ---------------------------------------------------------------------------
 
 /**
@@ -3740,12 +3731,17 @@ function directEntryGate(cwd, { dotpath }) {
   if (manifest.work_type !== 'epic') return '';
   const item = phaseItems(manifest, 'discovery').find((i) => i.name === topic);
   if (!item) return '';
-  const own = itemOf(manifest, phase, topic);
-  if (phase === 'research' && own && own.status === 'triaged') return '';
   const { lifecycle, research_state } = computeTopicLifecycle(manifest, topic);
+  // The r door over outstanding research names the research, not the
+  // discussion beside it — that is the phase the user asked for, and its
+  // row is the one the menu leads with.
+  const outstanding = OUTSTANDING_RESEARCH_STATUSES.includes(research_state ?? '');
+  const stands = phase === 'research' && outstanding
+    ? `research is ${research_state === 'triaged' ? 'parked on it (triage waiting)' : 'in flight on it'}`
+    : lifecyclePhrase(lifecycle, research_state, item.routing);
   return blocker(
-    `"${titlecase(topic)}" is already on the map — ${lifecyclePhrase(lifecycle, research_state, item.routing)}`,
-    'Return to the epic menu — its row for the topic names the next step.',
+    `"${titlecase(topic)}" is already on the map — ${stands}`,
+    `Return to the epic menu — ${outstanding ? 'its research row is the way in' : 'its row for the topic names the next step'}.`,
   );
 }
 
@@ -4540,11 +4536,11 @@ function queryFailureGateSurface(_cwd, _args) {
 // prose never reaches, and hands the pure projection its detail.
 // ---------------------------------------------------------------------------
 
-/** Resolve baseline state, refusing the never-started default. @param {string} cwd @param {string} surface */
+/** Resolve baseline state, refusing the never-started states — nothing recorded, or a native verdict. @param {string} cwd @param {string} surface */
 function resolveBaseline(cwd, surface) {
   const d = baselineState(cwd);
-  if (d.status === 'none') {
-    throw new Error(`render ${surface}: no baseline on the project manifest`);
+  if (d.status === 'none' || d.status === 'native') {
+    throw new Error(`render ${surface}: the baseline is "${d.status}" — no assessment has been started`);
   }
   return d;
 }
@@ -4679,7 +4675,7 @@ function baselineManageGateSurface(cwd, _args) {
   return baselineManageGate();
 }
 
-/** The one-time offer gate — only sensible while the baseline was never started. @param {string} cwd @param {object} _args @returns {string} */
+/** The one-time offer gate — only while nothing is recorded; a native verdict is recorded state and refuses here. @param {string} cwd @param {object} _args @returns {string} */
 function baselineOfferGateSurface(cwd, _args) {
   const d = baselineState(cwd);
   if (d.status !== 'none') {
@@ -4738,7 +4734,7 @@ const SURFACES = {
   'experiment-pick': experimentPickSurface,
   'experiment-next-gate': experimentNextGateSurface,
   'experiment-spawn-gate': experimentSpawnGateSurface,
-  'experiment-wait-gate': experimentWaitGateSurface,
+  'wait-gate': waitGateSurface,
   'summary-backfill-gate': summaryBackfillGate,
   'external-dependency-gate': externalDependencyGate,
   'checkpoint-files-gate': checkpointFilesGate,
@@ -4808,6 +4804,8 @@ const SURFACES = {
   'baseline-manage-gate': baselineManageGateSurface,
   'baseline-doc-pick': baselineDocPickSurface,
   'baseline-offer-gate': baselineOfferGateSurface,
+  'migration-gate': () => migrationGate(),
+  'label-gate': () => labelGate(),
 };
 
 /**

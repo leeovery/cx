@@ -2,14 +2,14 @@ package log
 
 import (
 	"errors"
-	"go/parser"
-	"go/token"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/leeovery/portal/internal/sourceguardtest"
 )
 
 func snapshotInitState(t *testing.T) {
@@ -214,23 +214,11 @@ func TestInit_FallsBackToStderrAndReturnsErrorOnOpenFailure(t *testing.T) {
 }
 
 func TestInit_DoesNotImportInternalState(t *testing.T) {
-	fset := token.NewFileSet()
-	files, err := filepath.Glob("*.go")
-	if err != nil {
-		t.Fatalf("glob: %v", err)
-	}
-	for _, f := range files {
-		if strings.HasSuffix(f, "_test.go") {
-			continue
-		}
-		af, err := parser.ParseFile(fset, f, nil, parser.ImportsOnly)
-		if err != nil {
-			t.Fatalf("parse %s: %v", f, err)
-		}
-		for _, imp := range af.Imports {
+	for _, source := range sourceguardtest.ParsePackageSources(t, ".", false) {
+		for _, imp := range source.File.Imports {
 			path := strings.Trim(imp.Path.Value, `"`)
 			if strings.HasSuffix(path, "internal/state") {
-				t.Errorf("%s imports %q — internal/log must not depend on internal/state (import-cycle guard)", f, path)
+				t.Errorf("%s imports %q — internal/log must not depend on internal/state (import-cycle guard)", source.Path, path)
 			}
 		}
 	}
