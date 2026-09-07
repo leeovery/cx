@@ -216,5 +216,8 @@
         "command": "golangci-lint run ./..."
       }
     ]
+  },
+  "baseline": {
+    "status": "native"
   }
 }
